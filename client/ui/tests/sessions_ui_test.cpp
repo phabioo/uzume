@@ -744,13 +744,13 @@ class SessionsUiTest : public QObject {
     QVERIFY(clickMore(h, "diagnostics"));
     QVERIFY(!ctl->diagnostics()->isOpen());
 
-    // Stop sharing -> DELETE session, pill back to "Not shared", button back to "Share Session"
+    // Stop sharing -> DELETE session, pill back to "Not shared", button back to "Share this game…"
     QVERIFY(h.click("shareButton"));
     QTRY_VERIFY(!ctl->shared());
     QTRY_VERIFY(!hub.sessions.contains(QStringLiteral("00000000-0000-4000-8000-000000000002")) || ownSessionId(hub).isEmpty());
     QQuickTest::qWaitForPolish(h.window);
     QCOMPARE(textOf(h.item("sharePill")), QStringLiteral("Not shared"));
-    QCOMPARE(textOf(h.item("shareButton")), QStringLiteral("Share Session"));
+    QCOMPARE(textOf(h.item("shareButton")), QStringLiteral("Share this game…"));
     // Share again with the remembered visibility, Hub ends it (replaced)
     QVERIFY(h.click("shareButton"));
     QTRY_VERIFY(ctl->shared());
@@ -811,7 +811,7 @@ class SessionsUiTest : public QObject {
     QVERIFY(!ctl->gridAvailable());  // Grid 2 x 2 only from four Sessions
     QCOMPARE(ctl->multiviewMode(), QStringLiteral("pip"));
     QQuickTest::qWaitForPolish(h.window);
-    QVERIFY((h.item("modeSegment")->isVisible() || h.item("modeCycle")->isVisible()) && h.item("modePip") != nullptr && h.item("modeRow") != nullptr && h.item("modeGrid") != nullptr);
+    QVERIFY(h.item("modeSegment") != nullptr && h.item("modePip") != nullptr && h.item("modeRow") != nullptr && h.item("modeGrid") != nullptr);   // (the segment itself gives way to "⋯ > Multiview: …" with very wide fonts)
     QVERIFY(h.item("multiviewSessionList")->isVisible());  // stays open until the anchor or the outside is clicked
     QVERIFY(h.click("addSessionToggle"));
     QTRY_VERIFY(!h.item("multiviewSessionList")->isVisible());
@@ -1023,7 +1023,7 @@ class SessionsUiTest : public QObject {
     QQuickTest::qWaitForPolish(h.window);
     QCOMPARE(ctl->tab(), QStringLiteral("session"));
     QVERIFY(!ctl->shared());
-    QCOMPARE(textOf(h.item("shareButton")), QStringLiteral("Share Session"));
+    QCOMPARE(textOf(h.item("shareButton")), QStringLiteral("Share this game…"));
     QCOMPARE(textOf(h.item("sharePill")), QStringLiteral("Not shared"));
     QVERIFY(!gs->audioMuted());
 

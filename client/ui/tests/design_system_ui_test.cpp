@@ -115,6 +115,13 @@ Item {
             UzVoiceMark { objectName: "voiceOff"; voice: "micOff" }
             UzVoiceMark { objectName: "voiceHost"; voice: "mutedByHost" }
         }
+        Row {
+            spacing: 24
+            Rectangle { width: 48; height: 48; color: "#000000"
+                        UzGlyph { objectName: "glyphChevron"; anchors.centerIn: parent; name: "chevronDown"; size: 32; color: "#ffffff" } }
+            Rectangle { width: 48; height: 48; color: "#000000"
+                        UzGlyph { objectName: "glyphVolume"; anchors.centerIn: parent; name: "volume"; size: 32; color: "#ffffff" } }
+        }
         UzSlider { objectName: "slider"; Layout.preferredWidth: 420; label: "Volume"; value: 20 }
         UzSlider { objectName: "sliderMuted"; Layout.preferredWidth: 420; value: 40; muted: true }
         UzProgress { objectName: "progress"; Layout.preferredWidth: 300; value: 0.5; label: "Uploading"; hint: "50 %" }
@@ -508,6 +515,23 @@ class DesignSystemTest : public QObject {
     QVERIFY(content->isEnabled());
     key(Qt::Key_Escape);
     QTRY_VERIFY(!dlg->property("visible").toBool());
+  }
+
+  // Stroked glyphs really draw pixels (the path tokenizer once split "M3 6 L8 11" wrongly and no glyph was ever drawn).
+  void strokedGlyphsDrawPixels() {
+    QQuickTest::qWaitForPolish(win_);
+    const QImage img = win_->grabWindow().convertToFormat(QImage::Format_RGB32);
+    const double dpr = double(img.width()) / win_->width();
+    for (const char* name : {"glyphChevron", "glyphVolume"}) {
+      QQuickItem* g = objByName(name) ? qobject_cast<QQuickItem*>(objByName(name)) : nullptr;
+      QVERIFY2(g != nullptr, name);
+      const QRectF r = g->mapRectToScene(QRectF(0, 0, g->width(), g->height()));
+      int lit = 0;
+      for (int y = int(r.top() * dpr); y < int(r.bottom() * dpr); ++y)
+        for (int x = int(r.left() * dpr); x < int(r.right() * dpr); ++x)
+          if (qGray(img.pixel(x, y)) > 96) ++lit;
+      QVERIFY2(lit >= 20, qPrintable(QStringLiteral("%1: only %2 lit pixels").arg(QLatin1String(name)).arg(lit)));
+    }
   }
 
   // Popover: opens at its anchor, no pointer, closes on Esc and reports it.

@@ -165,17 +165,17 @@ class PluginSlotsUiTest : public QObject {
     QVERIFY2(!img.isNull() && !uitest::isAllBlack(img), qPrintable(name));
     QVERIFY(img.save(QDir(shotDir_).filePath(name + QStringLiteral(".png"))));
   }
-  // Whether the panel tab bar can hold all these tabs with their labels (same widths as GamePanel.qml: gap 18, label at most 96, plugin
-  // icon 16 + 6, unread dot 10). A very wide font (Windows fallback) cannot: the last tabs then move into "More", by design.
+  // Whether the panel tab bar can hold all these tabs with their labels (same widths as GamePanel.qml: gap 18, label at most 96, icon 16 + 6, unread dot 10). A very wide font (Windows fallback) cannot: the last tabs then move into "More", by design.
   bool tabsFit(const QStringList& names, const QStringList& withDot = {}) {
     QFont f = QGuiApplication::font();
     f.setPixelSize(13);
     const QFontMetricsF fm(f);
     qreal w = 18.0 * (names.size() - 1);
     for (const QString& n : names)
-      w += std::min<qreal>(96.0, std::ceil(fm.horizontalAdvance(n))) + (n == QStringLiteral("Session") ? 0 : 22) + (withDot.contains(n) ? 10 : 0);
+      w += std::min<qreal>(96.0, std::ceil(fm.horizontalAdvance(n))) + 22 + (withDot.contains(n) ? 10 : 0);
     return w + 4 <= h_.item("panelTabBar")->width() - 48;   // 4 px slack for rounding, 24 px padding on both sides
   }
+  static qreal sceneH(QQuickItem* it) { return it->mapRectToScene(QRectF(0, 0, it->width(), it->height())).height(); }
   // The attached ToolTip.text of an item.
   QString tooltipOf(QQuickItem* it) {
     const QQmlProperty p(it, QStringLiteral("ToolTip.text"), qmlContext(it));
@@ -414,7 +414,7 @@ class PluginSlotsUiTest : public QObject {
   void panelTabsFitAndOverflow() {
     // No plugin tabs: the Session tab alone, no overflow.
     QVERIFY(pc()->panelTabs().isEmpty() && !pc()->consoleAvailable());
-    QTRY_VERIFY(visibleCount("panelTabLabel") <= 1 && !h_.item("panelTabOverflow")->isVisible());  // the Session tab alone
+    QTRY_VERIFY(visibleCount("panelTabLabel") <= 1 && !h_.item("panelTabOverflow")->isVisible());  // the Game tab alone
 
     // One plugin tab: labels for both; the panel content is the plugin's tree.
     QVariantMap trees{{"net.test.a|panel", json(R"({"type":"column","gap":8,"children":[
@@ -426,7 +426,7 @@ class PluginSlotsUiTest : public QObject {
     QTRY_VERIFY(h_.item("panelTab_plugin:net.test.a") != nullptr);
     QVERIFY(h_.item("panelTab_game")->isVisible());
     QVERIFY(h_.item("panelTab_plugin:net.test.a")->isVisible());
-    if (tabsFit({"Session", "SoulLink"}, {"SoulLink"})) QCOMPARE(visibleCount("panelTabLabel"), 2);
+    if (tabsFit({"Game", "SoulLink"}, {"SoulLink"})) QCOMPARE(visibleCount("panelTabLabel"), 2);
     QCOMPARE(visibleCount("tabDot"), 1);  // news dot
     {   // The plugin tab reads "SoulLink" (icon + short label, never a single letter), with a tooltip and an accessible name.
       QQuickItem* tab = h_.item("panelTab_plugin:net.test.a");
@@ -456,7 +456,7 @@ class PluginSlotsUiTest : public QObject {
     pc()->setPreviewUi({{"panelTabs", QVariantList{tabEntry("net.test.a", "SoulLink", "news"), tabEntry("net.test.b", "Item Helper", {}, false, "unverified"),
                                                     tabEntry("net.test.c", "Party Editor")}},
                         {"trees", trees}});
-    if (tabsFit({"Session", "SoulLink", "Item Helper", "Party Editor"}, {"SoulLink"})) {
+    if (tabsFit({"Game", "SoulLink", "Item Helper", "Party Editor"}, {"SoulLink"})) {
       QTRY_COMPARE(visibleCount("panelTabLabel"), 4);
       QVERIFY(!h_.item("panelTabOverflow")->isVisible());
     } else {
@@ -528,12 +528,26 @@ class PluginSlotsUiTest : public QObject {
     QVERIFY(h_.click("panelRailTab_net.test.b"));
     QTRY_COMPARE(gameScreen()->property("panelCollapsed").toBool(), false);
     QTRY_VERIFY(h_.item("gamePanelPlugin")->isVisible());
+    // A plugin tab is a 40 px strip with the plugin name and its origin over the content (board 7-5 section 02).
+    QCOMPARE(sceneH(h_.item("pluginStrip")), 40.0);
+    QCOMPARE(h_.item("pluginStripName")->property("text").toString(), QStringLiteral("Item Helper"));
+    QCOMPARE(h_.item("pluginStripMarker")->property("text").toString(), QStringLiteral("Local"));
+    // The rail names the Game tab as well (vertical text); a click opens the panel on the Game tab.
+    gameScreen()->setProperty("panelCollapsed", true);
+    QTRY_VERIFY(h_.item("panelRail")->isVisible());
+    QCOMPARE(h_.item("panelRailTab_game")->findChild<QQuickItem*>("panelRailLabel")->property("text").toString(), QStringLiteral("Game"));
+    QCOMPARE(h_.item("panelRailTab_game")->findChild<QQuickItem*>("panelRailLabel")->rotation(), 270.0);
+    QTRY_COMPARE(h_.item("panelRail")->parentItem()->width(), 56.0);
+    QVERIFY(h_.click("panelRailTab_game"));
+    QTRY_COMPARE(gameScreen()->property("panelCollapsed").toBool(), false);
+    QTRY_VERIFY(!h_.item("gamePanelPlugin")->isVisible());
+    QVERIFY(h_.item("panelTab_game")->property("open").toBool());
 
     // The tab disappears with its plugin: back to the Game tab.
     pc()->setPreviewUi({{"panelTabs", QVariantList{tabEntry("net.test.a", "SoulLink")}}, {"trees", trees}});
     QTRY_VERIFY(!h_.item("gamePanelPlugin")->isVisible());
     pc()->setPreviewUi({});
-    QTRY_VERIFY(visibleCount("panelTabLabel") <= 1 && !h_.item("panelTabOverflow")->isVisible());  // the Session tab alone
+    QTRY_VERIFY(visibleCount("panelTabLabel") <= 1 && !h_.item("panelTabOverflow")->isVisible());  // the Game tab alone
   }
 
   void hudCornersMaxAndMenu() {

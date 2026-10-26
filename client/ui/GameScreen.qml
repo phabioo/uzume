@@ -6,12 +6,12 @@ import Uzume.App
 // Game view (boards 3g and 3r): GameHeader (RunHeader, 56 px) over the stage and the GamePanel (320, or a 48 px rail). Session =
 // your game on the empty stage; Multiview = MultiviewArea (tiles), the panel follows the selected tile. The stage draws only the
 // game, the register marks and what the design allows on it: toasts at the bottom left, the F3 diagnostics block at the top right
-// and plugin HUD widgets. Pause and Reset are UzDialogs over a scrim on the stage only, so the header stays visible. The menus
-// (⋯, speed, screen layout) live in the header, the Add tile popover and the panel's tab overflow menu here. Fullscreen (F11)
+// and plugin HUD widgets. The quick menu (pause, board 7-3) and the Reset dialog are over a scrim on the stage only, so the header
+// stays visible. The menus (⋯, speed, screen layout) live in the header, the Add tile popover and the panel's tab overflow menu here. Fullscreen (F11)
 // drops header and panel; the toolbar appears when the mouse moves to the top. Without a local game (watching only) the remote
 // Session fills the surface.
 // Keys (never forwarded to the core; defaults, configurable in Controllers > Hotkeys except Esc): Esc closes an open popover,
-// else always pauses (window and fullscreen, ADR 0026 D1) and shows the pause dialog; a second Esc or "Resume" continues.
+// else always pauses (window and fullscreen, ADR 0026 D1) and shows the quick menu; a second Esc or "Resume" continues.
 // F11 toggles fullscreen and is the only key that leaves it; F3 the diagnostics block, F5 snapshot, Space speed-up (only when the
 // core allows it; also while the Session is shared), 1-4 select a tile in the Multiview (audio moves with "Audio here").
 Rectangle {
@@ -74,6 +74,7 @@ Rectangle {
     }
     function focusLocal() {
         if (root.screenSheetPlugin !== "") { sheet.forceActiveFocus(); return }
+        if (quickMenu.shown) { quickMenu.restoreFocus(); return }
         var v = root.tab === "session" ? view : root.multiLocal
         if (v) v.forceActiveFocus()
     }
@@ -140,7 +141,7 @@ Rectangle {
     }
     function toggleFullscreen() { setFullscreen(!root.fullscreen) }
     // Esc (ADR 0026 D1): closes an open popover; else it always pauses or resumes your game, in a window and in fullscreen
-    // (the pause dialog opens). F11 is the only key that leaves fullscreen. Watching only: nothing to pause.
+    // (the quick menu opens). F11 is the only key that leaves fullscreen. Watching only: nothing to pause.
     function handleEscape() {
         if (!root.visible) return   // game in the background (Library shown): Esc never acts on it
         if (root.closePluginScreen()) return
@@ -159,14 +160,40 @@ Rectangle {
         if (w && w.openControllersHotkeys) w.openControllersHotkeys()
         else root.player.showControllers()
     }
-    // The pause dialog: what viewers see (only while shared) and where the game was saved.
-    readonly property string pauseViewersText: root.ctl.shared
-        ? qsTr("Viewers see “Paused by %1”.").arg(root.ctl.ownName !== "" ? root.ctl.ownName : qsTr("the host")) : ""
-    readonly property string pauseSaveText: {
-        var sh = root.player.saveHistory
-        if (!(sh.slotsAvailable && sh.available)) return ""
-        var when = sh.history.length > 0 ? sh.history[0].when : ""
-        return qsTr("Saved to “%1”").arg(sh.slotLabel) + (when !== "" ? " · " + when : "")
+    // Quick menu status line: where the game was saved and who watches (and what they see while it is paused).
+    readonly property SaveHistoryController saves: root.player.saveHistory
+    readonly property string saveStateText: {
+        if (!header.saveText) return ""
+        const sync = root.saves.uploading ? qsTr("syncing") : (root.saves.online ? qsTr("synced") : qsTr("waiting for the server"))
+        return header.saveText + " · " + sync
+    }
+    readonly property string quickStatusText: {
+        const parts = []
+        if (root.saveStateText !== "") parts.push(root.saveStateText + ".")
+        if (root.saves.message !== "") parts.push(root.saves.message)
+        if (root.ctl.shared)
+            parts.push(qsTr("%1 watching. Viewers see “Paused by %2”.").arg(root.ctl.viewerCount).arg(root.ctl.ownName !== "" ? root.ctl.ownName : qsTr("the host")))
+        else
+            parts.push(qsTr("Nobody is watching."))
+        return parts.join(" ")
+    }
+    function resumeGame() { if (root.session.paused) root.session.togglePause() }
+    // A row of the quick menu. Rows that act in the panel or on the stage resume the game first; the others keep the menu open.
+    function runQuick(name, anchor) {
+        if (name === "snapshot") root.saveSnapshot()
+        else if (name === "saves") { root.resumeGame(); panel.openSaves() }
+        else if (name === "screenshot") root.player.screenshots.capture()
+        else if (name === "gameSettings") gameSettings.open(root.player.runningGameId)
+        else if (name === "reset") root.openPopover("reset")
+        else if (name === "speedup") header.openSpeedMenuAt(anchor)
+        else if (name === "sound") header.openSoundAt(anchor)
+        else if (name === "screens") header.openLayoutAt(anchor)
+        else if (name === "fullscreen") root.toggleFullscreen()
+        else if (name === "diagnostics") root.diag.toggle()
+        else if (name === "share") { root.resumeGame(); panel.showSharing() }
+        else if (name === "multiview") root.ctl.tab = "multiview"
+        else if (name === "hotkeys") { root.resumeGame(); root.hotkeySheetPinned = true }
+        else if (name === "report") root.player.report.show()
     }
     function saveSnapshot() {
         if (root.session.active && root.player.saveHistory.available && !root.player.saveHistory.busy)
@@ -561,66 +588,28 @@ Rectangle {
                     }
                 }
 
-                // Pause (board 3g-3, ADR 0026 D1): Esc or the Pause buttons pause, the dialog shows in a window and in fullscreen
+                // Quick menu (board 7-3, ADR 0026 D1): Esc or the Pause buttons pause, the menu shows in a window and in fullscreen
                 // (in the Multiview window the paused tile says so itself). Resume continues, F11 and "Leave fullscreen" leave.
-                UzDialog {
-                    id: pauseDialog
-                    objectName: "pauseOverlay"
-                    size: "lg"
-                    label: root.session.title
-                    title: qsTr("Paused")
-                    text: root.pauseViewersText
-                    onClosed: if (root.session.paused) root.session.togglePause()
-                    Binding { target: pauseDialog; property: "shown"; value: root.session.paused && (root.tab === "session" || root.fullscreen) }
-
-                    ColumnLayout {
-                        objectName: "pauseDetail"
-                        visible: root.pauseSaveText !== ""
-                        Layout.fillWidth: true
-                        spacing: 0
-                        Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Theme.rule }
-                        RowLayout {
-                            Layout.fillWidth: true
-                            Layout.minimumHeight: Theme.row32
-                            spacing: Theme.space15
-                            UzMono {
-                                Layout.preferredWidth: 72
-                                text: qsTr("SAVE")
-                                font.pixelSize: 10
-                                font.letterSpacing: 1.2
-                                color: Theme.dim
-                            }
-                            UzLabel {
-                                objectName: "pauseSaveText"
-                                Layout.fillWidth: true
-                                text: root.pauseSaveText
-                                wrapMode: Text.WordWrap
-                                font.pixelSize: Theme.roles.itemTitleSm.size
-                                color: Theme.ink2
-                            }
-                        }
-                        Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Theme.rule2 }
-                    }
-                    actions: [
-                        UzButton {
-                            objectName: "pauseResume"
-                            kind: "primary"
-                            focusPolicy: Qt.NoFocus
-                            text: qsTr("Resume")
-                            onClicked: root.session.togglePause()
-                        },
-                        UzButton {
-                            objectName: "pauseLeaveFullscreen"
-                            visible: root.fullscreen
-                            focusPolicy: Qt.NoFocus
-                            text: qsTr("Leave fullscreen")
-                            onClicked: root.setFullscreen(false)
-                        }
-                    ]
-                    hints: [
-                        UzKbd { keys: "Esc"; label: qsTr("Resume") },
-                        UzKbd { visible: root.fullscreen && root.hotkeyLabels.fullscreen !== ""; keys: root.hotkeyLabels.fullscreen || "F11"; label: qsTr("Leave fullscreen") }
-                    ]
+                GameQuickMenu {
+                    id: quickMenu
+                    objectName: "quickMenuHost"
+                    gameTitle: root.session.title
+                    statusText: root.quickStatusText
+                    speedValue: header.speedValue
+                    soundValue: header.soundValue
+                    screensValue: header.screensValue
+                    shareValue: header.shareText
+                    padModifier: root.player.controllers.padHotkeyModifier
+                    canSpeedUp: root.session.fastForwardAvailable
+                    canScreens: root.screenLayouts.length > 1
+                    canSnapshot: root.saves.available && !root.saves.busy
+                    fullscreen: root.fullscreen
+                    quitting: root.player.quitting
+                    hotkeys: root.hotkeyLabels
+                    Binding { target: quickMenu; property: "shown"; value: root.session.paused && (root.tab === "session" || root.fullscreen) }
+                    onResumeRequested: root.resumeGame()
+                    onQuitRequested: root.player.requestQuit()
+                    onChosen: (name, anchor) => root.runQuick(name, anchor)
                 }
 
                 // Reset (header ⋯ menu): the confirmation covers the stage, the header stays

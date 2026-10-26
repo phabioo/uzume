@@ -39,6 +39,7 @@ Decided by Fabio on 2026-10-11: 1.0 is reached when a group of friends completes
 | 0.18 | Uzume: one app, one server, new name | [ADR 0030](adr/0030-one-app-one-server-uzume.md) |
 | 0.19 | App comfort and library | [ADR 0030](adr/0030-one-app-one-server-uzume.md) D8 |
 | 0.19.x | Readable UI pass (design system r6) | [decisions](design/uzume/decisions.md#sheet-6--readable-pass-2026-10-26) |
+| 0.19.x | In-game redesign (sheet 7): control bar, Quick menu, Game tab | [decisions](design/uzume/decisions.md#sheet-7--in-game-redesign-2026-10-26) |
 | 0.20 to 0.24, 1.0 | Planned, see below | |
 
 Not all items of the finished milestones are closed. Open leftovers are recorded in their [history](history.md) sections, among them: the 0.11 plugin open points (non-admin plugin upload, Azahar memory maps), the 0.16 "What's new" screen and plugin repository PR templates, the 0.10.x library speed with many games.

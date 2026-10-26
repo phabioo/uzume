@@ -8,7 +8,7 @@ Read only the part you need: the design system once, then the spec of the one sc
 
 The Claude Design handoff is stored unchanged in [`../source/uzume/`](../source/uzume/):
 
-- `canvas.json`: every board in a `boards` map (file, title, size, page) and the `pages` b0 to b6 ("0 All sheets", "1 Frame and first start", "2 Accounts and server", "3 Runs and server", "4 Play and plugins", "5 Randomizer", "6 Readable pass").
+- `canvas.json`: every board in a `boards` map (file, title, size, page) and the `pages` b0 to b6 ("0 All sheets", "1 Frame and first start", "2 Accounts and server", "3 Runs and server", "4 Play and plugins", "5 Randomizer", "6 Readable pass"; the sheet 7 canvas "Uzume 7 In-game redesign" is not in the repo, see [decisions](decisions.md#sheet-7--in-game-redesign-2026-10-26)).
 - `*.dc.html`: the boards. A dark Sumi board `SXxx.dc.html` has a light Kinari twin `SXxxKinari.dc.html` that imports it, so content is identical in both themes (exception: the Windows installer boards 8l are light only; the 0-4 frame boards A, B, C, F, G, H show both themes on one board). Index boards: `SAllIndex`, `Main` (sheet 1), `S2Index`, `S3Index`, `S4Index`; `S2Blocks` is the Ma blocks reference.
 - `ds/uzume/`: the design system. `tokens.json` is the source of truth, `tokens.css` is generated from it, `components/bundle.css|js` are the reference components, `fonts/` holds IBM Plex (license in `licenses/`).
 
