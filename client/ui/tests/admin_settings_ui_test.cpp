@@ -609,7 +609,7 @@ class AdminSettingsUiTest : public QObject {
     QVERIFY(!shown(h, "storageShotsLabel"));
   }
 
-  // Keys alone (Tab / arrows / Enter / Esc): Settings (This PC and Server), Emulation, Controllers and an admin page reach the column
+  // Keys alone (Tab / arrows / Enter / Esc): Settings (This PC and Server), its Emulation and Controls sections and an admin page reach the column
   // rows and the content controls, and Esc steps back: content -> column -> AppNav -> Library.
   void keysAloneWalkTheMainPages() {
     FakeHub hub(QStringLiteral("a"));
@@ -660,35 +660,40 @@ class AdminSettingsUiTest : public QObject {
     key(h, Qt::Key_Escape);
     QTRY_VERIFY(focusIsRow(h));
 
-    // Emulation.
+    // Emulation (a section of Settings): the tabs are the first stop of the content.
     h.controller->showEmulation();
-    QTRY_VERIFY(h.item("defaultsCard") != nullptr);
+    QTRY_VERIFY(h.item("emulationTabs") != nullptr && h.item("emulationTabs")->isVisible());
+    QTRY_VERIFY(h.item("section_emulation")->property("selected").toBool());
     QVERIFY(tabUntil(h, [&] { return focusIsRow(h); }));
-    key(h, Qt::Key_Down);
-    QVERIFY(focusIsRow(h));
-    QVERIFY(focusName(h).startsWith(QStringLiteral("systemCard_")));
-    key(h, Qt::Key_Return);
-    QVERIFY(h.item(focusName(h).toLatin1().constData())->property("selected").toBool());
+    QVERIFY(focusName(h).startsWith(QStringLiteral("section_")));
+    for (int i = 0; i < 12 && focusName(h) != QStringLiteral("section_emulation"); ++i) key(h, Qt::Key_Down);
+    for (int i = 0; i < 12 && focusName(h) != QStringLiteral("section_emulation"); ++i) key(h, Qt::Key_Up);
+    QCOMPARE(focusName(h), QStringLiteral("section_emulation"));
     key(h, Qt::Key_Right);
-    QTRY_VERIFY(focusInside(h, "emulationScroll") && !focusIsRow(h));
+    QTRY_VERIFY(focusInside(h, "settingsScroll") && !focusIsRow(h));
+    QVERIFY(focusInside(h, "emulationTabs"));
     key(h, Qt::Key_Escape);
     QTRY_VERIFY(focusIsRow(h));
     key(h, Qt::Key_Escape);
     expectNavFocus(h);
 
-    // Controllers: the device column, then a binding field takes Enter.
+    // Controls: the controller tabs, then a binding field takes Enter.
     h.controller->showControllers();
-    QTRY_VERIFY(h.item("controllersColumnNav") != nullptr);
+    QTRY_VERIFY(h.item("controllerTabs") != nullptr && h.item("controllerTabs")->isVisible());
+    QTRY_VERIFY(h.item("section_controllers")->property("selected").toBool());
     QVERIFY(tabUntil(h, [&] { return focusIsRow(h); }));
-    QVERIFY(focusName(h).startsWith(QStringLiteral("device_")));
+    QVERIFY(focusName(h).startsWith(QStringLiteral("section_")));
+    for (int i = 0; i < 12 && focusName(h) != QStringLiteral("section_controllers"); ++i) key(h, Qt::Key_Down);
+    for (int i = 0; i < 12 && focusName(h) != QStringLiteral("section_controllers"); ++i) key(h, Qt::Key_Up);
+    QCOMPARE(focusName(h), QStringLiteral("section_controllers"));
     key(h, Qt::Key_Right);
-    QTRY_VERIFY(!focusIsRow(h));
+    QTRY_VERIFY(!focusIsRow(h) && focusInside(h, "controllerTabs"));
     QVERIFY(tabUntil(h, [&] { return focusName(h).startsWith(QStringLiteral("mapField_")); }, 120));
     QVERIFY(focused(h)->property("capturing").isValid());
     key(h, Qt::Key_Return);   // starts capture (a built-in profile is duplicated first)
     key(h, Qt::Key_Escape);   // cancels the capture
     h.controller->showControllers();
-    QTRY_VERIFY(h.item("controllersColumnNav") != nullptr);
+    QTRY_VERIFY(h.item("controllerTabs") != nullptr);
 
     // An admin page: Esc goes to the AppNav, and from there to the Library.
     h.controller->showServerPage(QStringLiteral("status"));

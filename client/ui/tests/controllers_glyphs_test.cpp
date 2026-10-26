@@ -288,7 +288,7 @@ class ControllersGlyphsTest : public QObject {
     QVERIFY(ds.js && xb.js);
     c->gamepads()->poll();
     h.controller->showControllers();
-    QCOMPARE(h.controller->screen(), QStringLiteral("controllers"));
+    QCOMPARE(h.controller->screen(), QStringLiteral("settings"));   // Controls is a section of Settings
     const QVariantMap dsRow = deviceRow(h, QStringLiteral("gamepad"), 0);
     const QVariantMap xbRow = deviceRow(h, QStringLiteral("gamepad"), 1);
     QCOMPARE(dsRow.value(QStringLiteral("padType")).toString(), QStringLiteral("playstation"));
@@ -497,7 +497,7 @@ class ControllersGlyphsTest : public QObject {
         QQuickTest::qWaitForPolish(h.window);
         const QByteArray ctx = QStringLiteral("width %1, set %2").arg(width).arg(set).toLocal8Bit();
         QQuickItem* selects = h.item("headerSelects");
-        QQuickItem* title = h.item("controllersTitle");
+        QQuickItem* title = h.item("controllerTabs");
         QVERIFY2(selects && title, ctx.constData());
         QQuickItem* flick = selects->parentItem();
         while (flick && !flick->inherits("QQuickFlickable")) flick = flick->parentItem();
@@ -592,7 +592,7 @@ class ControllersGlyphsTest : public QObject {
     h.window->resize(1600, 900);
     QTest::qWait(100);
     QQuickItem* selects = h.item("headerSelects");
-    QQuickItem* title = h.item("controllersTitle");
+    QQuickItem* title = h.item("controllerTabs");
     QVERIFY(sceneRect(selects).top() >= sceneRect(title).bottom());
     uitest::saveShot(h.window, QStringLiteral("5-controllers-glyphs"));
   }

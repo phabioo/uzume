@@ -144,12 +144,12 @@ class ShotsPlayerATest : public QObject {
     shot(h, QStringLiteral("3c-7-local-file"));
 
     // 3p-3: Settings with the library folder row, hubs, updates.
-    h.controller->showSettings();
+    h.controller->showSettingsSection(QStringLiteral("storage"));
     QTest::qWait(200);
     QTRY_VERIFY(h.item("libraryFolderRow") != nullptr);
-    QCOMPARE(h.item("sectionStatus_library")->property("text").toString(), QStringLiteral("1 folder · 2 games"));  // plurals without "(s)"
+    QCOMPARE(h.item("sectionStatus_storage")->property("text").toString(), QStringLiteral("1 folder · 2 games"));  // plurals without "(s)"
     shot(h, QStringLiteral("3p-3-settings-top"));
-    QVERIFY(h.click("section_library"));
+    QVERIFY(h.click("section_storage"));
     QTest::qWait(250);
     shot(h, QStringLiteral("3p-3-library-folders"));
     QVERIFY(h.click("section_hubs"));

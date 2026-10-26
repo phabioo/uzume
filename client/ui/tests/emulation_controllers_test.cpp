@@ -363,6 +363,75 @@ class EmulationControllersTest : public QObject {
     QVERIFY(!prober.busy());
   }
 
+  // ------------------------------------------------------------------ Settings sections (one page each)
+
+  // Emulation, Controls and Hotkeys are sections of Settings; every entry point lands on its section with the other pages hidden,
+  // and the sidebar no longer lists Emulation or Controllers.
+  void entryPointsOpenTheirSettingsSection() {
+    FakeHub hub(QStringLiteral("a"));
+    QVERIFY(hub.start());
+    Harness h;
+    QVERIFY(h.start());
+    pair(h, hub);
+    h.controller->emulation()->setCoreProbe(QStringLiteral("melondsds"), fakeProbe(), false);
+
+    // The sidebar: Library and Runs, nothing else in PLAY.
+    h.controller->showLibrary();
+    QTRY_VERIFY(visible(h, "navLibrary"));
+    QVERIFY(visible(h, "navRuns"));
+    QVERIFY(h.item("navEmulation") == nullptr);
+    QVERIFY(h.item("navControllers") == nullptr);
+
+    static const QList<QPair<QByteArray, QByteArray>> pages{
+        {"account", "accountSection"},         {"appearance", "appearanceSection"}, {"audio", "audioSection"},
+        {"controllers", "controllersSection"}, {"hotkeys", "hotkeysSection"},       {"emulation", "emulationSection"},
+        {"storage", "storageSection"},         {"hubs", "hubsSection"},             {"plugins", "pluginsSection"},
+        {"updates", "updatesSection"},         {"diagnostics", "diagnosticsSection"}};
+    const auto expectOnly = [&](const QByteArray& id) {
+      QCOMPARE(h.controller->screen(), QStringLiteral("settings"));
+      QTRY_VERIFY2(h.item("section_" + id) != nullptr && h.item("section_" + id)->property("selected").toBool(), id.constData());
+      for (const auto& pg : pages) {
+        if (pg.first == id) {
+          QTRY_VERIFY2(visible(h, pg.second.constData()), pg.second.constData());
+        } else {
+          QVERIFY2(!visible(h, pg.second.constData()), pg.second.constData());
+        }
+      }
+      QCOMPARE(h.item("settingsScroll")->property("contentY").toReal(), 0.0);   // a section starts at the top
+    };
+    h.controller->showEmulation();
+    expectOnly("emulation");
+    QVERIFY(visible(h, "emulationTabs"));
+    QCOMPARE(text(h, "settingsTitle"), QStringLiteral("Emulation"));
+    h.controller->showControllers();
+    expectOnly("controllers");
+    QVERIFY(visible(h, "controllerTabs"));
+    QCOMPARE(text(h, "settingsTitle"), QStringLiteral("Controls"));
+    h.controller->showSettingsSection(QStringLiteral("hotkeys"));
+    expectOnly("hotkeys");
+    QVERIFY(visible(h, "hotkeysInfo"));
+    QCOMPARE(text(h, "settingsTitle"), QStringLiteral("Hotkeys"));
+    h.item("settingsScroll")->setProperty("contentY", 40);
+    h.controller->showSettingsSection(QStringLiteral("library"));   // the old id of the folders: now one page with the storage
+    expectOnly("storage");
+    QVERIFY(visible(h, "libraryFoldersSection"));
+    QCOMPARE(text(h, "settingsTitle"), QStringLiteral("Folders & storage"));
+    for (const char* id : {"account", "appearance", "audio", "hubs", "plugins", "updates", "diagnostics"}) {
+      h.controller->showSettingsSection(QString::fromLatin1(id));
+      expectOnly(id);
+    }
+
+    // Ctrl+3 / Ctrl+4 open Emulation / Controls in Settings, Ctrl+, Settings.
+    h.controller->showLibrary();
+    QTRY_VERIFY(visible(h, "navLibrary"));
+    QTest::keyClick(h.window, Qt::Key_3, Qt::ControlModifier);
+    expectOnly("emulation");
+    QTest::keyClick(h.window, Qt::Key_4, Qt::ControlModifier);
+    expectOnly("controllers");
+    // The sidebar of Settings has no Emulation or Controllers item either.
+    QVERIFY(h.item("navEmulation") == nullptr && h.item("navControllers") == nullptr);
+  }
+
   // ------------------------------------------------------------------ Emulation (3e)
 
   void emulationPageListsOnlyReportedOptions() {
@@ -372,15 +441,17 @@ class EmulationControllersTest : public QObject {
     QVERIFY(h.start());
     pair(h, hub);
     h.controller->emulation()->setCoreProbe(QStringLiteral("melondsds"), fakeProbe(), false);
-    QVERIFY(h.click("navEmulation"));
-    QCOMPARE(h.controller->screen(), QStringLiteral("emulation"));
+    h.controller->showEmulation();   // a section of Settings
+    QCOMPARE(h.controller->screen(), QStringLiteral("settings"));
+    QTRY_VERIFY(h.item("emulationTabs") != nullptr && h.item("emulationTabs")->isVisible());
     EmulationController* emu = h.controller->emulation();
 
     // System item: name, core + version, readiness, firmware (no firmware_v1 on this hub -> built-in BIOS).
     QCOMPARE(text(h, "systemCore_nds"), QStringLiteral("melonDS DS · 1.4.0"));
     QCOMPARE(text(h, "systemReady_nds"), QStringLiteral("Ready · included in Uzume"));
     QCOMPARE(text(h, "systemFirmware_nds"), QStringLiteral("Built-in BIOS"));
-    QCOMPARE(text(h, "emulationTitle"), QStringLiteral("Nintendo DS"));
+    QCOMPARE(text(h, "settingsTitle"), QStringLiteral("Emulation"));
+    QCOMPARE(h.item("emulationTabs")->property("active").toString(), QStringLiteral("NDS"));
     QVERIFY(!emu->defaultsSelected());
 
     // The system shows the core's visible, non-locked options; nothing else, and no Uzume options (those are Defaults).
@@ -424,7 +495,7 @@ class EmulationControllersTest : public QObject {
     QVERIFY(visible(h, "optionReset_melonds_audio_interpolation"));
     QCOMPARE(emu->changedCount(), 1);
     QCOMPARE(text(h, "resetAllChanged"), QStringLiteral("Reset all to default"));
-    QCOMPARE(text(h, "systemChanged_nds"), QStringLiteral("1 changed"));
+    QCOMPARE(text(h, "tabCountText_NDS"), QStringLiteral("1"));
     QCOMPARE(emu->launchOverrides(QStringLiteral("nds"), QStringLiteral("g1")).value(QStringLiteral("melonds_audio_interpolation")),
              QStringLiteral("cosine"));
     {
@@ -525,7 +596,7 @@ class EmulationControllersTest : public QObject {
       QCOMPARE(boot->property("kind").toString(), QStringLiteral("segment"));
       QCOMPARE(thr->property("kind").toString(), QStringLiteral("toggle"));
       QCOMPARE(res->property("kind").toString(), QStringLiteral("select"));
-      verifyRowsInside(h, "emulationScroll", w);
+      verifyRowsInside(h, "settingsScroll", w);
       if (w >= 1280) {
         QCOMPARE(controlRight(thr), controlRight(boot));
         QCOMPARE(controlRight(res), controlRight(boot));
@@ -570,7 +641,7 @@ class EmulationControllersTest : public QObject {
     QVERIFY(bar != nullptr);
     QVERIFY(visible(h, "categoryMore"));
     QVERIFY(text(h, "categoryMore").startsWith(QLatin1Char('+')) && text(h, "categoryMore").contains(QStringLiteral("more")));
-    QQuickItem* flick = h.item("emulationScroll");
+    QQuickItem* flick = h.item("settingsScroll");
     QVERIFY(sceneRect(h.item("categoryMore")).right() <= sceneRect(bar).right() + 0.5);
     QVERIFY(sceneRect(bar).right() <= sceneRect(flick).right() + 0.5);
     QVERIFY(visible(h, "categoryAll"));
@@ -642,36 +713,47 @@ class EmulationControllersTest : public QObject {
         QVERIFY(thr != nullptr);
         emuRight = controlRight(thr);
       }
-      h.controller->showSettings();
-      QTest::qWait(150);
-      QQuickTest::qWaitForPolish(h.window);
-      QCOMPARE(h.controller->screen(), QStringLiteral("settings"));
-      verifyRowsInside(h, "settingsScroll", w);
-      QQuickItem* flick = h.item("settingsScroll");
-      const QRectF col = sceneRect(flick);
+      // Each section is its own page; the rows of all of them end where the Emulation controls end.
+      const auto section = [&](const char* id) {
+        h.controller->showSettingsSection(QString::fromLatin1(id));
+        QTest::qWait(150);
+        QQuickTest::qWaitForPolish(h.window);
+        QCOMPARE(h.controller->screen(), QStringLiteral("settings"));
+        verifyRowsInside(h, "settingsScroll", w);
+      };
+      section("updates");
+      const QRectF col = sceneRect(h.item("settingsScroll"));
       // Hub card and update card are indented 14 to the label edge and stay inside the column.
       QQuickItem* card = h.item("updateCard");
       QVERIFY(card != nullptr);
       QVERIFY(sceneRect(card).left() >= col.left() + 48 + 14 - 0.5);
       QVERIFY(sceneRect(card).right() <= col.right() + 0.5);
-      QQuickItem* themeRow = h.item("themeRow");
       QQuickItem* channelRow = h.item("updateChannelRow");
       QQuickItem* versionRow = h.item("versionRow");
-      QQuickItem* logRow = h.item("logFileRow");
       QQuickItem* autoInstall = h.item("updateAutoInstallRow");
-      QVERIFY(themeRow && channelRow && versionRow && logRow && autoInstall);
-      QCOMPARE(themeRow->property("kind").toString(), QStringLiteral("segment"));
+      QVERIFY(channelRow && versionRow && autoInstall);
       QCOMPARE(versionRow->property("kind").toString(), QStringLiteral("value"));
-      // The reset column stays empty on Settings.
-      QVERIFY(!rowItem(themeRow, "resetColumn")->isVisible());
       if (w >= 1280) {
-        for (QQuickItem* r : {themeRow, channelRow, versionRow, logRow, autoInstall}) QCOMPARE(controlRight(r), emuRight);
-        QCOMPARE(sceneRect(h.item("appearanceSegment")).right(), emuRight);
-        QCOMPARE(sceneRect(h.item("appearanceSegment")).width(), 280.0);
+        for (QQuickItem* r : {channelRow, versionRow, autoInstall}) QCOMPARE(controlRight(r), emuRight);
         QCOMPARE(sceneRect(h.item("updatesVersion")).right(), emuRight);
         QCOMPARE(sceneRect(h.item("updateChannelSegment")).right(), emuRight);
         QCOMPARE(sceneRect(h.item("updateAutoInstallToggle")).right(), emuRight);
       }
+      section("appearance");
+      QQuickItem* themeRow = h.item("themeRow");
+      QVERIFY(themeRow != nullptr);
+      QCOMPARE(themeRow->property("kind").toString(), QStringLiteral("segment"));
+      // The reset column stays empty on Settings.
+      QVERIFY(!rowItem(themeRow, "resetColumn")->isVisible());
+      if (w >= 1280) {
+        QCOMPARE(controlRight(themeRow), emuRight);
+        QCOMPARE(sceneRect(h.item("appearanceSegment")).right(), emuRight);
+        QCOMPARE(sceneRect(h.item("appearanceSegment")).width(), 280.0);
+      }
+      section("diagnostics");
+      QQuickItem* logRow = h.item("logFileRow");
+      QVERIFY(logRow != nullptr);
+      if (w >= 1280) QCOMPARE(controlRight(logRow), emuRight);
     }
   }
 
@@ -690,7 +772,7 @@ class EmulationControllersTest : public QObject {
     f.close();
     QVERIFY(h.start());
     pair(h, hub);
-    h.controller->showSettings();
+    h.controller->showSettingsSection(QStringLiteral("updates"));
     QTest::qWait(150);
     QQuickTest::qWaitForPolish(h.window);
     UpdatesController* up = h.controller->updates();
@@ -728,10 +810,10 @@ class EmulationControllersTest : public QObject {
     EmulationController* emu = h.controller->emulation();
 
     // Defaults: Uzume options only; core keys belong to the systems.
-    QVERIFY(h.click("defaultsCard"));
+    QVERIFY(h.click("tab_Defaults"));
     QCOMPARE(emu->level(), QStringLiteral("global"));
     QVERIFY(emu->defaultsSelected());
-    QCOMPARE(text(h, "emulationTitle"), QStringLiteral("Defaults for all systems"));
+    QCOMPARE(h.item("emulationTabs")->property("active").toString(), QStringLiteral("Defaults"));
     QVERIFY(h.item("optionGroup_core") == nullptr);
     QVERIFY(visible(h, "globalCoreHint"));
     QVERIFY(visible(h, "optionGroup_uzume"));
@@ -742,13 +824,13 @@ class EmulationControllersTest : public QObject {
     QVERIFY(visible(h, "changedDot_uzume.fullscreen_on_start"));
     QVERIFY(h.controller->fullscreenOnStart());  // wired: the game view goes fullscreen on start
     QCOMPARE(emu->defaultsChangedCount(), 1);
-    QCOMPARE(text(h, "defaultsChanged"), QStringLiteral("1 changed"));
+    QCOMPARE(text(h, "tabCountText_Defaults"), QStringLiteral("1"));
 
     // The system inherits it (stored only once, at Global); resetting Defaults restores the default.
-    QVERIFY(h.click("systemCard_nds"));
+    QVERIFY(h.click("tab_NDS"));
     QCOMPARE(emu->level(), QStringLiteral("system"));
     QVERIFY(h.controller->fullscreenOnStart());
-    QVERIFY(h.click("defaultsCard"));
+    QVERIFY(h.click("tab_Defaults"));
     QVERIFY(h.click("optionReset_uzume.fullscreen_on_start"));
     QVERIFY(!h.controller->fullscreenOnStart());
 
@@ -792,7 +874,7 @@ class EmulationControllersTest : public QObject {
     QCOMPARE(emu->uzumeValue(aspect, QStringLiteral("nds"), QString()), QStringLiteral("core"));
 
     // A system shows both rows under the category "Picture".
-    QVERIFY(h.click("systemCard_nds"));
+    QVERIFY(h.click("tab_NDS"));
     QCOMPARE(emu->level(), QStringLiteral("system"));
     QStringList picture;
     for (const QVariant& g : emu->groups()) {
@@ -850,7 +932,7 @@ class EmulationControllersTest : public QObject {
       return keys;
     };
     // A two-screen system shows the rows, a single-screen system does not.
-    QVERIFY(h.click("systemCard_nds"));
+    QVERIFY(h.click("tab_NDS"));
     QVERIFY(rowKeys().contains(layout) && rowKeys().contains(swap) && rowKeys().contains(window));
     QSignalSpy changed(emu, &EmulationController::uzumeOptionsChanged);
     emu->setOption(layout, QStringLiteral("large"));
@@ -1018,7 +1100,7 @@ class EmulationControllersTest : public QObject {
     using L = EmulationSettings::Level;
 
     // The old placeholder is gone; the card and the picker exist.
-    QVERIFY(h.item("gameOverridesCard") != nullptr);
+    QVERIFY(h.item("tab_Game overrides") != nullptr);
     QTRY_COMPARE_WITH_TIMEOUT(emu->games().size(), 1, 4000);
     QCOMPARE(emu->games().first().toMap().value(QStringLiteral("systemId")).toString(), QStringLiteral("nds"));
     QVERIFY(!visible(h, "gamePicker"));
@@ -1381,7 +1463,7 @@ class EmulationControllersTest : public QObject {
     const QString newSha = add('b', 2000);
     QVERIFY(!oldSha.isEmpty() && !newSha.isEmpty());
 
-    h.controller->showSettings();
+    h.controller->showSettingsSection(QStringLiteral("storage"));
     QVERIFY(h.item("romCacheLimitSelect") != nullptr);
     QVERIFY(h.item("romCacheClear") != nullptr);
     QVariantMap rc = h.controller->romCache();
@@ -1461,7 +1543,7 @@ class EmulationControllersTest : public QObject {
     }
 
     h.window->resize(1400, 2400);
-    h.controller->showSettings();
+    h.controller->showSettingsSection(QStringLiteral("storage"));
     QTRY_VERIFY(visible(h, "storageOverview"));
     QTRY_VERIFY(text(h, "storageDataPath").contains(QStringLiteral("measured")));
     QCOMPARE(text(h, "localStorageKind_games"), QStringLiteral("8 KB"));
@@ -1570,8 +1652,9 @@ class EmulationControllersTest : public QObject {
     QVERIFY(!h.controller->controllers()->gamepadAvailable());
     QVERIFY(!hub.lastHandshakeBody.value(QStringLiteral("input")).toObject().value(QStringLiteral("gamepad")).toBool(true));
     QVERIFY(hub.lastHandshakeBody.value(QStringLiteral("input")).toObject().value(QStringLiteral("keyboard")).toBool());
-    QVERIFY(h.click("navControllers"));
-    QCOMPARE(h.controller->screen(), QStringLiteral("controllers"));
+    h.controller->showControllers();   // a section of Settings
+    QCOMPARE(h.controller->screen(), QStringLiteral("settings"));
+    QTRY_VERIFY(h.item("controllerTabs") != nullptr && h.item("controllerTabs")->isVisible());
     QVERIFY(visible(h, "gamepadNote"));
     QVERIFY(!text(h, "gamepadNote").isEmpty());
     QCOMPARE(h.controller->controllers()->selectedDevice(), QStringLiteral("keyboard"));  // keyboard and mouse still work
@@ -1589,8 +1672,9 @@ class EmulationControllersTest : public QObject {
     pair(h, hub);
     QVERIFY(hub.lastHandshakeBody.value(QStringLiteral("input")).toObject().value(QStringLiteral("gamepad")).toBool());  // reflects availability
 
-    QVERIFY(h.click("navControllers"));
-    QCOMPARE(h.controller->screen(), QStringLiteral("controllers"));
+    h.controller->showControllers();   // a section of Settings
+    QCOMPARE(h.controller->screen(), QStringLiteral("settings"));
+    QTRY_VERIFY(h.item("controllerTabs") != nullptr && h.item("controllerTabs")->isVisible());
     QCOMPARE(c->devices().size(), 2);  // Keyboard, Mouse
     QCOMPARE(c->selectedDevice(), QStringLiteral("keyboard"));
     QCOMPARE(text(h, "profilesLocalFooter"), QStringLiteral("Mapping is saved per controller on this PC."));
@@ -1616,9 +1700,9 @@ class EmulationControllersTest : public QObject {
     QCOMPARE(deviceRow(h, QStringLiteral("keyboard")).value(QStringLiteral("slot")).toString(), QStringLiteral("—"));
     QCOMPARE(deviceRow(h, QStringLiteral("mouse")).value(QStringLiteral("profile")).toString(), QStringLiteral("DS touch"));
     const QString padKey = padRow.value(QStringLiteral("key")).toString();
-    QVERIFY(h.click(QByteArray("device_" + padKey.toUtf8()).constData()));
+    QVERIFY(h.click("tab_Uzume Test Pad"));
     QCOMPARE(c->selectedDevice(), padKey);
-    QCOMPARE(text(h, "controllersTitle"), QStringLiteral("Uzume Test Pad"));
+    QCOMPARE(h.item("controllerTabs")->property("active").toString(), QStringLiteral("Uzume Test Pad"));
     QVERIFY(c->profileBuiltin());
     QVERIFY(visible(h, "builtinNote"));
     QCOMPARE(c->labelSet(), QStringLiteral("generic"));  // not an Xbox/PlayStation pad: names of the emulated system
@@ -1732,7 +1816,7 @@ class EmulationControllersTest : public QObject {
     QCOMPARE(deviceRow(h, QStringLiteral("keyboard")).value(QStringLiteral("slot")).toString(), QStringLiteral("P1"));
   }
 
-  void controllersHotkeysTab() {
+  void settingsHotkeysSection() {
     FakeHub hub(QStringLiteral("a"));
     QVERIFY(hub.start());
     Harness h;
@@ -1741,12 +1825,13 @@ class EmulationControllersTest : public QObject {
     ControllersController* c = h.controller->controllers();
     GameSession* s = h.controller->gameSession();
     h.controller->showControllers();
-    h.window->resize(940, 800);  // narrow main column (408 px, input test hidden), like Windows with wide fallback fonts
+    h.window->resize(940, 800);  // narrow main column, like Windows with wide fallback fonts
     QTest::qWait(100);
     QQuickTest::qWaitForPolish(h.window);
-    QVERIFY(!visible(h, "hotkeysInfo"));
-    QVERIFY(h.click("tabHotkeys"));
-    QVERIFY(visible(h, "hotkeysInfo"));
+    QVERIFY(!visible(h, "hotkeysInfo"));   // Controls does not show the hotkeys
+    h.controller->showSettingsSection(QStringLiteral("hotkeys"));
+    QCOMPARE(h.controller->screen(), QStringLiteral("settings"));
+    QTRY_VERIFY(visible(h, "hotkeysInfo"));
     QCOMPARE(text(h, "hotkeysInfo"), QStringLiteral("Uzume hotkeys work on the keyboard and on a gamepad (hold the hotkey button, then press another one) and are never sent to the game."));
     QCOMPARE(c->hotkeyRows().size(), 10);  // nine actions + the fixed Esc row
     QCOMPARE(text(h, "hotkeyText_fullscreen"), QStringLiteral("F11"));
@@ -1844,10 +1929,10 @@ class EmulationControllersTest : public QObject {
     QCOMPARE(text(h, "hotkeyText_snapshot"), QStringLiteral("F5"));
     QVERIFY(s->isReservedKey(Qt::Key_F3));
     QVERIFY(c->keyboardMap().contains(Qt::Key_Z));  // the profile key is back
-    // Back on the Buttons tab the mapping table is shown again.
-    QVERIFY(h.click("tabButtons"));
+    // Back on Controls the mapping table is shown again.
+    h.controller->showControllers();
+    QTRY_VERIFY(visible(h, "mapField_a"));
     QVERIFY(!visible(h, "hotkeysInfo"));
-    QVERIFY(visible(h, "mapField_a"));
   }
 
   void controllersGamepadHotkeys() {
@@ -1860,10 +1945,10 @@ class EmulationControllersTest : public QObject {
     ControllersController* c = h.controller->controllers();
     QVERIFY2(c->gamepadAvailable(), qPrintable(c->gamepadNote()));
     GameSession* s = h.controller->gameSession();
-    h.controller->showControllers();
+    h.controller->showSettingsSection(QStringLiteral("hotkeys"));
     h.window->resize(940, 800);
     QTest::qWait(100);
-    QVERIFY(h.click("tabHotkeys"));
+    QTRY_VERIFY(visible(h, "hotkeysInfo"));
     VirtualPad pad("Uzume Hotkey Pad");
     QVERIFY(pad.js != nullptr);
     c->gamepads()->poll();
@@ -2083,7 +2168,7 @@ class EmulationControllersTest : public QObject {
     QTest::keyClick(h.window, Qt::Key_Q);  // not capturing: only feeds the test
 
     // Mouse = DS touch: fixed, no profile, no mapping table.
-    QVERIFY(h.click("device_mouse"));
+    QVERIFY(h.click("tab_Mouse"));
     QCOMPARE(c->rows().size(), 0);
     QVERIFY(visible(h, "mouseNote"));
     QVERIFY(!visible(h, "profileSelect"));

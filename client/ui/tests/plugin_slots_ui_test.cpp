@@ -302,7 +302,7 @@ class PluginSlotsUiTest : public QObject {
     QTest::qWait(200);
     QVERIFY(h_.item("navPlugin_net.test.runs") == nullptr);
     QVERIFY(visibleItem("navPluginBadge") == nullptr);
-    QVERIFY(visibleItem("navLibrary") != nullptr && visibleItem("navEmulation") != nullptr);
+    QVERIFY(visibleItem("navLibrary") != nullptr && visibleItem("navRuns") != nullptr);
 
     h_.controller->showSettings();
     QTest::qWait(150);

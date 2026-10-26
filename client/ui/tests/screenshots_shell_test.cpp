@@ -119,14 +119,14 @@ class ShellScreenshotsTest : public QObject {
     h.controller->showEmulation();
     QTest::qWait(150);
     shot(h, QStringLiteral("3e-emulation-system"));
-    QVERIFY(h.click("defaultsCard"));
+    QVERIFY(h.click("tab_Defaults"));
     QTRY_VERIFY(h.item("optionToggle_uzume.fullscreen_on_start") != nullptr);
     QVERIFY(h.click("optionToggle_uzume.fullscreen_on_start"));
     shot(h, QStringLiteral("3e-emulation-defaults"));
     // A system's core options (Nintendo DS): the list uses the full window width.
     h.controller->showEmulation();
     QTest::qWait(150);
-    if (h.click("systemCard_nds")) {
+    if (h.click("tab_NDS")) {
       QTest::qWait(150);
       shot(h, QStringLiteral("3e-emulation-nds"));
     }
@@ -134,20 +134,20 @@ class ShellScreenshotsTest : public QObject {
     h.controller->showControllers();
     QTest::qWait(150);
     shot(h, QStringLiteral("3f-controllers"));
-    QVERIFY(h.click("tabHotkeys"));
+    h.controller->showSettingsSection(QStringLiteral("hotkeys"));
+    QTRY_VERIFY(h.item("hotkeyField_diagnostics") != nullptr);
     QVERIFY(h.click("hotkeyField_diagnostics"));
     QTest::keyClick(h.window, Qt::Key_F4);
     QVERIFY(h.click("hotkeyField_snapshot"));
     QTest::qWait(100);
     shot(h, QStringLiteral("3f-controllers-hotkeys"));
-    QVERIFY(h.click("tabButtons"));
 
     // Settings with the hub edit row open and one invalid field.
     h.controller->showSettings();
     QTest::qWait(150);
     shot(h, QStringLiteral("3p-settings"));
-    // The This PC sections below the fold: the section column scrolls the page to each of them.
-    for (const char* sec : {"appearance", "library", "storage", "diagnostics"}) {
+    // The This PC sections: the section column shows the page of each of them.
+    for (const char* sec : {"appearance", "storage", "diagnostics"}) {
       QVERIFY(h.click((QByteArray("section_") + sec).constData()));
       shot(h, QStringLiteral("3p-settings-") + QString::fromLatin1(sec));
     }
