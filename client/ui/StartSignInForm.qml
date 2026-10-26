@@ -37,7 +37,6 @@ ColumnLayout {
         label: qsTr("Name")
         text: root.nameText
         readOnly: root.nameReadOnly
-        KeyNavigation.tab: passwordInput.field
         onAccepted: passwordInput.field.forceActiveFocus()
     }
     ColumnLayout {

@@ -226,10 +226,15 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
       coreUpdater_->check(systems_->systems());
     }
     refreshAttention();
+    emit coreWarningsChanged();  // the banner reads the same systems/cores as the game detail
     emit selectedGameChanged();
   });
+  connect(this, &PlayerController::hubChanged, this, &PlayerController::coreWarningsChanged);
   connect(provisioner_.get(), &FirmwareProvisioner::finished, this, [this](const FirmwareResult& r) { starter_->onFirmwareFinished(r); });
-  connect(coreProv_.get(), &CoreProvisioner::finished, this, [this](const CoreResult& r) { starter_->onCoreFinished(r); });
+  connect(coreProv_.get(), &CoreProvisioner::finished, this, [this](const CoreResult& r) {
+    starter_->onCoreFinished(r);
+    emit coreWarningsChanged();
+  });
 #if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
   if (QGuiApplication::styleHints() != nullptr) {
     connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, this, [this]() {
@@ -1608,6 +1613,11 @@ QVariantList PlayerController::coreWarnings() const {
     // The handshake report is a snapshot from connect time (before a core was downloaded, or under an id the Hub
     // does not alias): a core that is usable on this device is not "missing" here.
     if (missing && catalog_->coreInstalledLocally(p.coreId)) {
+      continue;
+    }
+    // The server's systems list is being reloaded: whether it offers the core is not known yet, so no verdict (the banner
+    // would contradict the game detail); coreWarningsChanged fires when the list is Ready.
+    if (missing && systems_->state() == HubSystems::State::Loading) {
       continue;
     }
     const QString key = p.code + QLatin1Char('|') + p.coreId;

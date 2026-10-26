@@ -1,6 +1,8 @@
 // Library revision 3c-2 .. 3c-4 against the fake Hub: sort control, "Ready first", empty result, last played per Hub,
 // SAVE summary, saves view (tabs / switcher, timeline, inline confirmations, offline, running, upload failure) and the
 // layout of the detail column at 1280 and 960 px. No emulator core needed; homebrew-style dummy bytes only.
+#include <algorithm>
+
 #include <QClipboard>
 #include <QFile>
 #include <QGuiApplication>
@@ -25,6 +27,18 @@ namespace {
 const QString kHubId = QStringLiteral("hub-lib");
 const QStringList kAllFeatures{QStringLiteral("saves_v1"), QStringLiteral("saves_v2"), QStringLiteral("saves_v3"),
                                QStringLiteral("saves_v4"), QStringLiteral("saves_v5"), QStringLiteral("sessions_v1")};
+
+// Scrolls the library page column so that `name` is in view (with wide fonts the empty result sits below the fold).
+void scrollIntoView(Harness& h, const char* name) {
+  QQuickItem* it = h.item(name);
+  QQuickItem* page = h.item("libraryPageScroll");
+  if (it == nullptr || page == nullptr) return;
+  QQuickItem* content = page->property("contentItem").value<QQuickItem*>();
+  const qreal max = std::max<qreal>(0, page->property("contentHeight").toReal() - page->height());
+  const qreal y = it->mapToItem(content, QPointF(0, 0)).y() + it->height() - page->height() + 8;
+  page->setProperty("contentY", std::clamp<qreal>(y, page->property("contentY").toReal(), max));
+  QQuickTest::qWaitForPolish(h.window);
+}
 }  // namespace
 
 class LibrarySavesUiTest : public QObject {
@@ -279,11 +293,13 @@ class LibrarySavesUiTest : public QObject {
     QVERIFY(shown(h, "emptyClearSearch") && shown(h, "emptyShowAll"));
     uitest::saveShot(h.window, QStringLiteral("library-empty-result"));
     QCOMPARE(lib->counts().value(QStringLiteral("all")).toInt(), 1);  // the chips recount to the search
+    scrollIntoView(h, "emptyShowAll");
     QVERIFY(h.click("emptyShowAll"));
     QTRY_COMPARE(lib->filter(), QStringLiteral("all"));
     QTRY_COMPARE(lib->rowCount(), 1);
     QVERIFY(h.item("searchField")->setProperty("text", QStringLiteral("zzz")));
     QTRY_COMPARE(titleOf(h, "libraryEmptyText"), QStringLiteral("No games match “zzz”"));
+    scrollIntoView(h, "emptyClearSearch");
     QVERIFY(h.click("emptyClearSearch"));
     QTRY_COMPARE(lib->rowCount(), 5);
     QVERIFY(h.item("searchField")->property("text").toString().isEmpty());

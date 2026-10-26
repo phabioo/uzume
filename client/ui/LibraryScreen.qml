@@ -103,7 +103,11 @@ Rectangle {
             Layout.preferredWidth: 1
             Layout.fillHeight: true
 
-        ColumnLayout {
+        // The page column scrolls when banners, the Continue card and the admin block leave the list less than its minimum
+        // height; otherwise it fills the area as before.
+        Flickable {
+            id: pageScroll
+            objectName: "libraryPageScroll"
             anchors.left: parent.left
             anchors.top: parent.top
             anchors.bottom: parent.bottom
@@ -111,6 +115,18 @@ Rectangle {
             anchors.bottomMargin: Theme.space3
             anchors.leftMargin: Theme.space4
             width: Math.max(0, Math.min(parent.width - 2 * Theme.space4, Theme.gridMaxWidth))
+            contentWidth: width
+            contentHeight: pageColumn.height
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            ScrollBar.vertical: ScrollBar { }
+
+        ColumnLayout {
+            id: pageColumn
+            x: 0
+            y: 0
+            width: pageScroll.width
+            height: Math.max(pageScroll.height, implicitHeight)
             spacing: Theme.space2
 
             // Header (3c-6): the one UzPageHeader; search and "Upload ROM" are its actions and wrap below the title when the
@@ -547,8 +563,13 @@ Rectangle {
             }
 
             Item {
+                objectName: "gameListArea"
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+                // At least the table header and five rows stay visible; the page column scrolls instead of squeezing the list.
+                // The empty/loading/error block centred in it must fit too, or its actions end up below the scroll range.
+                Layout.minimumHeight: Math.max(Theme.row36 + 5 * Theme.row44, emptyBlock.visible ? emptyBlock.implicitHeight + 2 * Theme.space3 : 0)
+                Layout.preferredHeight: Layout.minimumHeight
 
                 // Table header (board S3c1R6): Mono table-header role over the column widths of GameTile
                 // (no 32, system 56, status 200, played 96, added 104; 12 px side padding, 16 px gap). Only in the List view.
@@ -680,6 +701,7 @@ Rectangle {
                 }
 
                 ColumnLayout {
+                    id: emptyBlock
                     anchors.centerIn: parent
                     width: Math.min(parent.width, 420)
                     spacing: Theme.space15
@@ -778,6 +800,7 @@ Rectangle {
                 visible: root.player.admin.available && root.player.selectedGameId !== ""
                 player: root.player
             }
+        }
         }
         }
 

@@ -35,6 +35,7 @@ Rectangle {
                 Text {
                     objectName: "connectTitle"
                     text: root.childBlock ? qsTr("Your server on this PC") : qsTr("Welcome to Uzume")
+                    color: Theme.ink
                     font.pixelSize: Theme.roles.title.size
                     font.weight: Font.DemiBold
                     font.letterSpacing: -0.6
@@ -47,7 +48,7 @@ Rectangle {
                     font.pixelSize: Theme.roles.body.size
                     lineHeight: 1.4
                     text: root.childBlock ? qsTr("Games and saves stay on this PC. The server runs while Uzume is open.")
-                                          : qsTr("Enter the address of your Uzume server. You find it in the server under Settings → General.")
+                                          : qsTr("Enter the address of your Uzume server. Ask the person who runs the server for the address; admins find it in Uzume under Settings › Server › Network & sharing.")
                 }
             }
 

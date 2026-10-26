@@ -41,6 +41,7 @@ ColumnLayout {
             kind: "link"
             size: "sm"
             implicitHeight: 20
+            focusPolicy: Qt.ClickFocus   // Tab goes Name -> Password -> Sign in; the link stays a click / gamepad (X) target
             text: root.revealed ? qsTr("Hide") : qsTr("Show")
             onClicked: root.revealed = !root.revealed
         }

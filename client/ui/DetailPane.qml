@@ -294,9 +294,26 @@ Rectangle {
                 // Overview: status tag, facts of the person, saves, screenshots, plugins; the start checklist only while a start
                 // runs or after it failed.
                 // (Flat children of `content`: a nested layout around wrapped texts made the layouts polish in loops.)
+                    Rectangle {
+                        visible: root.mode === "overview" && (root.game.error || "") !== "" && !root.running
+                        objectName: "startError"
+                        Layout.fillWidth: true
+                        implicitHeight: errText.implicitHeight + 2 * Theme.space15
+                        color: Theme.dangerTint
+                        Rectangle { width: 2; height: parent.height; color: Theme.danger }
+                        UzLabel {
+                            id: errText
+                            anchors.fill: parent
+                            anchors.margins: Theme.space15
+                            text: root.game.error || ""
+                            wrapMode: Text.WordWrap
+                            font.pixelSize: Theme.roles.input.size
+                            color: Theme.danger
+                        }
+                    }
                     UzTag {
                         objectName: "detailPill"
-                        visible: root.mode === "overview" && (root.game.pillText || "") !== "" && root.problem === ""
+                        visible: root.mode === "overview" && (root.game.pillText || "") !== "" && root.problem === "" && (root.game.error || "") === ""
                         Layout.minimumWidth: 0
                         Layout.maximumWidth: content.width
                         tone: root.game.pillTone || "neutral"
@@ -483,24 +500,6 @@ Rectangle {
                                     }
                                 }
                             }
-                        }
-                    }
-
-                    Rectangle {
-                        visible: root.mode === "overview" && (root.game.error || "") !== "" && !root.running
-                        objectName: "startError"
-                        Layout.fillWidth: true
-                        implicitHeight: errText.implicitHeight + 2 * Theme.space15
-                        color: Theme.dangerTint
-                        Rectangle { width: 2; height: parent.height; color: Theme.danger }
-                        UzLabel {
-                            id: errText
-                            anchors.fill: parent
-                            anchors.margins: Theme.space15
-                            text: root.game.error || ""
-                            wrapMode: Text.WordWrap
-                            font.pixelSize: Theme.roles.input.size
-                            color: Theme.danger
                         }
                     }
 

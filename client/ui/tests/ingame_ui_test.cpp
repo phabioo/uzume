@@ -983,12 +983,16 @@ class InGameUiTest : public QObject {
     QTRY_VERIFY(!gs->isPaused());
     QVERIFY(h.click("moreButton"));
     QTRY_VERIFY(shown(h, "menuItem_diagnostics"));
-    QStringList order;
-    for (const char* n : {"menuItem_diagnostics", "menuItem_screenshot", "menuItem_hotkeys", "menuItem_reset", "menuItem_report"}) {
-      QVERIFY2(shown(h, n), n);
-      order << QString::number(sceneRect(visibleItem(h, n)).top());
-    }
-    for (int i = 1; i < order.size(); ++i) QVERIFY2(order[i - 1].toDouble() < order[i].toDouble(), "menu order: Diagnostics, Screenshot, Hotkeys, Reset, Report");
+    const char* menuOrder[] = {"menuItem_diagnostics", "menuItem_screenshot", "menuItem_hotkeys", "menuItem_reset", "menuItem_report"};
+    for (const char* n : menuOrder) QVERIFY2(shown(h, n), n);
+    // The menu lays its rows out after it opens (on the Windows runner a frame later), so wait for the order.
+    const auto inOrder = [&]() {
+      for (int i = 1; i < 5; ++i) {
+        if (!(sceneRect(visibleItem(h, menuOrder[i - 1])).top() < sceneRect(visibleItem(h, menuOrder[i])).top())) return false;
+      }
+      return true;
+    };
+    QTRY_VERIFY2(inOrder(), "menu order: Diagnostics, Screenshot, Hotkeys, Reset, Report");
     QCOMPARE(textOf(visibleItem(h, "menuItem_diagnostics")), QStringLiteral("Diagnostics"));
     QCOMPARE(textOf(visibleItem(h, "menuItem_report")), QStringLiteral("Report a problem …"));
     QTest::keyClick(h.window, Qt::Key_Escape);
