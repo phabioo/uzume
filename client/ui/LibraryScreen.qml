@@ -29,8 +29,35 @@ Rectangle {
         }
     }
 
+    UzPageHints {
+        id: pageHints
+        player: root.player
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        search: true; filter: true
+    }
+
+    // Pad commands (Y, L, R): search field, previous / next status filter.
+    Connections {
+        target: root.player.controllers
+        enabled: root.visible
+        function onPadCommand(command: string) {
+            if (command === "search") {
+                search.forceActiveFocus()
+            } else if (command === "filterPrev" || command === "filterNext") {
+                const ids = ["all", "ready", "attention", "download"]
+                const i = ids.indexOf(root.player.library.filter)
+                root.player.library.filter = ids[(i + (command === "filterNext" ? 1 : ids.length - 1)) % ids.length]
+            }
+        }
+    }
+
     RowLayout {
-        anchors.fill: parent
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.bottom: pageHints.top
         spacing: 0
 
         UzAppNav {

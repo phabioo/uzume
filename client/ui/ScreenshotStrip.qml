@@ -57,8 +57,17 @@ ColumnLayout {
             required property var modelData
             width: 112
             height: strip.height
+            activeFocusOnTab: true
             Accessible.role: Accessible.Button
             Accessible.name: qsTr("Screenshot of %1").arg(cell.modelData.dateText)
+            Accessible.onPressAction: root.openRequested(cell.modelData.id)
+            Keys.onPressed: (event) => {
+                if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
+                    root.openRequested(cell.modelData.id)
+                    event.accepted = true
+                }
+            }
+            onActiveFocusChanged: if (cell.activeFocus) strip.positionViewAtIndex(index, ListView.Contain)
             Rectangle {
                 id: frame
                 objectName: "screenshotThumb_" + cell.modelData.id
@@ -76,6 +85,7 @@ ColumnLayout {
                     sourceSize: Qt.size(224, 144)
                     source: "image://screenshots/" + encodeURIComponent(cell.modelData.id)
                 }
+                UzFocusRing { visible: cell.activeFocus; inset: true }
                 HoverHandler { id: thumbHover; cursorShape: Qt.PointingHandCursor }
                 TapHandler { onTapped: root.openRequested(cell.modelData.id) }
             }

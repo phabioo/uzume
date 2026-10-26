@@ -330,13 +330,13 @@ ColumnLayout {
     TextEdit { id: clip; visible: false }
 
     // ------------------------------------------------------------ second column item
-    property Component navDelegate: ColumnItem {
+    property Component navDelegate: UzColumnNavRow {
         id: navItem
         required property var modelData
         objectName: "serverSettingsNav_" + modelData.id
+        label: navItem.modelData.name
         selected: root.page === modelData.id
         onClicked: root.page = navItem.modelData.id
-        UzLabel { text: navItem.modelData.name; font.weight: Font.DemiBold }
         UzLabel {
             objectName: "serverSettingsNavStatus_" + navItem.modelData.id
             Layout.fillWidth: true

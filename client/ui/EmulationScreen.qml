@@ -12,6 +12,9 @@ Rectangle {
     readonly property var emu: root.player.emulation
     color: Theme.ground
 
+    // B / Esc / Left inside the content: back to the column (the shell moves to the AppNav when this returns false).
+    function handleBack(): bool { return colNav.backFromContent() }
+
     function toneColor(tone: string): color {
         return tone === "neutral" ? Theme.muted : Theme.toneColor(tone)
     }
@@ -28,65 +31,6 @@ Rectangle {
         return n + 1
     }
 
-    // Second-column item (board nav): 32 px minimum, 14 px label, mono meta at the right, 2 px Yamabuki start marker when selected.
-    component NavRow: Item {
-        id: nr
-        property string label: ""
-        property string meta: ""
-        property string metaName: ""
-        property bool selected: false
-        default property alias sub: subCol.data
-        signal clicked()
-        Layout.fillWidth: true
-        Layout.minimumWidth: 0
-        implicitHeight: Math.max(Theme.row32, nrCol.implicitHeight + 2 * Theme.space05)
-        Rectangle { anchors.fill: parent; color: nrHover.hovered && !nr.selected ? Theme.hover : "transparent" }
-        Rectangle {
-            objectName: "columnItemMarker"
-            visible: nr.selected
-            width: 2
-            height: parent.height
-            color: Theme.accent
-        }
-        ColumnLayout {
-            id: nrCol
-            x: Theme.space15
-            y: Math.max(0, (nr.height - implicitHeight) / 2)
-            width: Math.max(0, nr.width - 2 * Theme.space15)
-            spacing: 0
-            RowLayout {
-                Layout.fillWidth: true
-                Layout.minimumWidth: 0
-                spacing: Theme.space1
-                UzLabel {
-                    Layout.fillWidth: true
-                    text: nr.label
-                    elide: Text.ElideRight
-                    font.weight: nr.selected ? Font.Medium : Font.Normal
-                    color: nr.selected ? Theme.ink : Theme.muted
-                }
-                Text {
-                    objectName: nr.metaName
-                    visible: nr.meta !== ""
-                    text: nr.meta
-                    textFormat: Text.PlainText
-                    font.family: Theme.mono
-                    font.pixelSize: Theme.roles.meta.size
-                    font.letterSpacing: Theme.roles.meta.spacing
-                    font.capitalization: Font.AllUppercase
-                    color: Theme.dim
-                }
-            }
-            ColumnLayout {
-                id: subCol
-                Layout.fillWidth: true
-                Layout.minimumWidth: 0
-                spacing: 0
-            }
-        }
-        HoverHandler { id: nrHover; cursorShape: Qt.PointingHandCursor }
-        TapHandler { onTapped: nr.clicked() }
-    }
 
     // One tab of the row: ink 500 with the 2 px Yamabuki underline when active, muted otherwise.
     component CatTab: Item {
@@ -146,8 +90,28 @@ Rectangle {
         }
     }
 
+    Connections {
+        target: root.player.controllers
+        enabled: root.visible
+        function onPadCommand(command: string) {
+            if (command === "search") emuSearch.forceActiveFocus()
+        }
+    }
+
+    UzPageHints {
+        id: pageHints
+        player: root.player
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        search: true
+    }
+
     RowLayout {
-        anchors.fill: parent
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.bottom: pageHints.top
         spacing: 0
 
         UzAppNav {
@@ -162,13 +126,18 @@ Rectangle {
             Layout.preferredWidth: Theme.sidebar
             Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: Theme.rule }
             Flickable {
+                id: colFlick
                 anchors.fill: parent
                 contentWidth: width
                 contentHeight: colNav.implicitHeight + 72
                 clip: true
                 boundsBehavior: Flickable.StopAtBounds
-                ColumnLayout {
+                UzColumnNav {
                     id: colNav
+                    objectName: "emulationColumnNav"
+                    content: flick
+                    flickable: colFlick
+                    onContentRequested: colNav.focusFirstIn(flick)
                     x: Theme.space2
                     y: Theme.space5 + Theme.space1
                     width: parent.width - 2 * Theme.space2 - 1
@@ -194,7 +163,7 @@ Rectangle {
                         wrapMode: Text.WordWrap
                     }
 
-                    NavRow {
+                    UzColumnNavRow {
                         objectName: "defaultsCard"
                         label: qsTr("Defaults")
                         meta: root.emu.defaultsChangedCount > 0 ? qsTr("%1 changed").arg(root.emu.defaultsChangedCount) : ""
@@ -227,7 +196,7 @@ Rectangle {
 
                     Repeater {
                         model: root.emu.systems
-                        delegate: NavRow {
+                        delegate: UzColumnNavRow {
                             id: card
                             required property var modelData
                             objectName: "systemCard_" + modelData.id
@@ -279,7 +248,7 @@ Rectangle {
                         text: qsTr("Per game")
                     }
 
-                    NavRow {
+                    UzColumnNavRow {
                         objectName: "gameOverridesCard"
                         label: qsTr("Game overrides")
                         meta: root.emu.gameOverrideCount > 0 ? Theme.plural(root.emu.gameOverrideCount, qsTr("game"), qsTr("games")) : ""
@@ -378,6 +347,7 @@ Rectangle {
                         wrapMode: Text.WordWrap
                     }
                     UzField {
+                        id: emuSearch
                         objectName: "emulationSearch"
                         Layout.fillWidth: headRow.stacked
                         Layout.preferredWidth: headRow.stacked ? -1 : 260

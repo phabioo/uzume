@@ -35,8 +35,19 @@ Rectangle {
     Component { id: systemsPage; ServerSystemsPage { player: root.player } }
     Component { id: pluginsPage; ServerPluginsPage { player: root.player } }
 
+    UzPageHints {
+        id: pageHints
+        player: root.player
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+    }
+
     RowLayout {
-        anchors.fill: parent
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.bottom: pageHints.top
         spacing: 0
 
         UzAppNav {

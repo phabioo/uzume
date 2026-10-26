@@ -63,7 +63,10 @@ qt_add_qml_module(uzume_ui
     UzChip.qml
     UzSpinner.qml
     ShellColumn.qml
-    ColumnItem.qml
+    UzColumnNav.qml
+    UzColumnNavRow.qml
+    UzCaptureField.qml
+    UzPageHints.qml
     UzMark.qml
     UzLockup.qml
     StatusDot.qml

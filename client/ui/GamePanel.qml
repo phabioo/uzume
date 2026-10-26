@@ -209,6 +209,18 @@ Rectangle {
                 name: modelData.name || modelData.title
                 icon: modelData.icon || ""
                 dot: modelData.dot || ""
+                activeFocusOnTab: true
+                Accessible.ignored: false
+                Accessible.role: Accessible.Button
+                Accessible.name: modelData.title || modelData.name
+                Accessible.onPressAction: root.openTab("plugin:" + railTab.modelData.pluginId)
+                Keys.onPressed: (event) => {
+                    if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
+                        root.openTab("plugin:" + railTab.modelData.pluginId)
+                        event.accepted = true
+                    }
+                }
+                UzFocusRing { visible: railTab.activeFocus; inset: true }
                 HoverHandler { id: railHover; cursorShape: Qt.PointingHandCursor }
                 TapHandler { onTapped: root.openTab("plugin:" + railTab.modelData.pluginId) }
                 ToolTip.visible: railHover.hovered
@@ -343,6 +355,17 @@ Rectangle {
                     visible: root.tabPlan.overflow.length > 0
                     height: Theme.row48
                     width: overflowLabel.implicitWidth
+                    activeFocusOnTab: true
+                    Accessible.role: Accessible.Button
+                    Accessible.name: qsTr("%1 more tabs").arg(root.tabPlan.overflow.length)
+                    Accessible.onPressAction: root.overflowRequested()
+                    Keys.onPressed: (event) => {
+                        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
+                            root.overflowRequested()
+                            event.accepted = true
+                        }
+                    }
+                    UzFocusRing { visible: overflowTab.activeFocus; inset: true }
                     readonly property bool hasNews: {
                         var o = root.tabPlan.overflow
                         for (var i = 0; i < o.length; ++i) if (o[i].dot !== "") return true

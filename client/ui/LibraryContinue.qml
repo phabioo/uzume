@@ -83,8 +83,16 @@ Item {
                         objectName: "recentEntry"
                         Layout.fillWidth: true
                         implicitHeight: entryCol.implicitHeight
+                        activeFocusOnTab: true
                         Accessible.role: Accessible.Button
                         Accessible.name: entry.modelData.title
+                        Accessible.onPressAction: root.start(entry.modelData.gameId)
+                        Keys.onPressed: (event) => {
+                            if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
+                                root.start(entry.modelData.gameId)
+                                event.accepted = true
+                            }
+                        }
                         Column {
                             id: entryCol
                             width: parent.width
@@ -104,6 +112,7 @@ Item {
                                 elide: Text.ElideRight
                             }
                         }
+                        UzFocusRing { visible: entry.activeFocus; inset: true }
                         HoverHandler { id: hover; cursorShape: Qt.PointingHandCursor }
                         TapHandler { onTapped: root.start(entry.modelData.gameId) }
                     }

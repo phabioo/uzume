@@ -227,6 +227,7 @@ void GamepadService::poll() {
     p1Libretro_ = lr;
     emit libretroMaskChanged(lr);
   }
+  emit polled();
 }
 
 quint32 GamepadService::maskFor(const Dev& d, const QSet<QString>& hidden) const {

@@ -283,8 +283,19 @@ Rectangle {
         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.rule2 }
     }
 
+    UzPageHints {
+        id: pageHints
+        player: root.player
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+    }
+
     RowLayout {
-        anchors.fill: parent
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.bottom: pageHints.top
         spacing: 0
 
         UzAppNav {
