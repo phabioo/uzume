@@ -1,0 +1,52 @@
+# ADR 0032: Debug MCP server in the app
+
+- Status: Accepted. Fabio asked on 2026-10-26 for an MCP server in the app through which Claude can control the whole app and read its data, plugins included, to speed up development and debugging (the trigger: sprite and map loading of the SoulLink plugins, which so far needed a test round by Fabio per change). On the same day he chose to build it now as its own package, before 0.20.
+- Date: 2026-10-26
+- Deciders: Fabio
+
+## Context
+
+Debugging plugins and the app on Fabio's Windows PC runs through screenshots, log lines and "Collect logs" bundles that Fabio sends into a cloud thread. Every round costs him a test. Everything a developer needs already exists inside the app process: the log, the plugin Lua states with their console (log, events, watched values, UI trees), the core's memory map, the RomFS of the running game, the decoded plugin images, the game frame, the QML scene and the controllers behind it.
+
+The [Model Context Protocol](https://modelcontextprotocol.io) (MCP) lets a Claude Code session call tools of a local server. Claude Code runs on Fabio's PC (directly, or as a Remote Control session started from a project thread) and can add an HTTP MCP server with a header. Cloud sessions cannot reach `127.0.0.1` on his PC.
+
+## Decisions
+
+### D1 Server in the app process, localhost only
+
+- The app embeds an MCP server ("Streamable HTTP" transport, JSON responses, no SSE stream) at `http://127.0.0.1:<port>/mcp`. Default port 47615, changeable in the settings; it never binds to another interface.
+- Requests must carry `Authorization: Bearer <token>`. `Host` must be `127.0.0.1:<port>` or `localhost:<port>`; a request with an `Origin` header is rejected unless the origin is on loopback (DNS rebinding).
+- No new dependency: JSON-RPC 2.0 over `QTcpServer` with a small HTTP/1.1 parser (bounded request size).
+- It speaks the MCP lifecycle (`initialize`, `notifications/initialized`, `ping`) and `tools/list`, `tools/call`. Tool results are JSON text, images are PNG `image` content.
+
+### D2 Off by default, explicit opt-in, visible while on
+
+- The switch "Allow Claude to control this app" lives in Settings › Diagnostics and is off by default, also in release builds (there is no separate debug build: the bugs appear in the normal build). `--mcp` turns it on for one start.
+- While the server listens, the app shows a band "Claude can control this app" with a "Stop" button in every screen, the game included.
+- The token is random (32 bytes, base64url), stored only in the OS credential store (target `Uzume/mcp`), never in a file or log. "Copy setup command" copies the complete `claude mcp add --transport http uzume http://127.0.0.1:<port>/mcp --header "Authorization: Bearer <token>"`; "New token" replaces it.
+
+### D3 Tools
+
+Read and control, grouped; the full list with arguments is in [guides/app.md](../guides/app.md#claude-debugging-mcp).
+
+- **App:** status (versions, data directory, servers, screen, running game), log tail and search, redacted settings, connection check, diagnostics bundle.
+- **Plugins:** list, console (log, events, watched rows, status, budgets), UI trees per slot, send a UI action, reload, call a `provides` function, run a Lua chunk in a plugin's state (`plugin_eval`), list and read the plugin cache, return a cached or decoded image as PNG.
+- **Game:** state, memory regions, read and search memory, RomFS list and read, screenshots per screen, input (buttons for N frames, touch), pause, resume, frame step.
+- **UI control:** the visible QML tree, click, type, keys, scroll, navigate to screens and settings pages, window screenshot.
+
+Long reads are bounded (memory 1 MiB per call, RomFS 4 MiB per call, logs 2000 lines, images 4096x4096).
+
+### D4 Brakes that stay with full control
+
+- Saves are never overwritten, deleted or sent to another server through the MCP server: no tool does it directly, and UI control refuses to activate controls marked destructive (deleting saves, games, users, slots, plugins; "Share with others", installs and updates that need elevation) unless Fabio confirms a dialog in the app.
+- Passwords, tokens, relay credentials and the MCP token are never returned; text fields marked as passwords can be typed into but never read.
+- `plugin_eval` runs only in plugins with origin `local` (developer mode); signed and run plugins can be called and read, never evaluated. The eval chunk runs in the same sandbox, with the same budgets and API, as the plugin itself.
+- Game data (RomFS bytes, decoded sprites, maps, memory) only goes to the Claude session on Fabio's PC; the repository rule (no game data in the repository or in tests) is unchanged.
+- Every call is logged by name and target, never with its arguments' content or results.
+- `memory.write` comes with 0.20 and follows its rules (snapshot before the first write, one write queue, run log event).
+
+## Consequences
+
+- The developer console of 0.22 can use the same data sources; the MCP server does not replace it.
+- Tests run a real HTTP client against the server in ctest (offscreen, test core `uzume_test_core`, synthetic data).
+- A local process that knows the token has full control of the app while the switch is on; the switch, the band and the credential store are the mitigation.

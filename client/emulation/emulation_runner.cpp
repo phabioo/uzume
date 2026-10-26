@@ -44,6 +44,24 @@ class EmulationRunner::Worker : public QThread {
     m_reset = true;
     m_cond.wakeAll();
   }
+  // Emulation thread, inside a task while paused: `n` frames without pacing; only the last one is read back and delivered.
+  qint64 stepOnEmuThread(EmulatorBackend& be, int n) {
+    for (int i = 0; i < n; ++i) {
+      const bool last = i == n - 1;
+      be.setVideoWanted(last);
+      const auto t0 = std::chrono::steady_clock::now();
+      if (!be.runFrame()) return -1;
+      m_owner->m_timing.recordFrame(monotonicMs(), std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count(),
+                                    be.lastReadbackMs(), be.lastGpuCopyMs(), be.lastGpuCaptured(), be.lastDisplayMs(), be.lastDisplayed());
+      if (!m_owner->m_memoryWatch->empty()) {
+        if (const MemoryMap* mm = be.memoryMap()) m_owner->m_memoryWatch->capture(*mm, be.frameCount());
+      }
+      (void)be.takeAudio();
+    }
+    be.setVideoWanted(true);
+    emit m_owner->frameReady(be.videoFrame(), be.frameCount(), 0);
+    return static_cast<qint64>(be.frameCount());
+  }
   // GUI thread: queue `fn` for the emulation thread and wait until it ran.
   bool runTask(std::function<void(EmulatorBackend&)> fn, int timeoutMs) {
     auto task = std::make_shared<Task>();
@@ -294,6 +312,12 @@ void EmulationRunner::reset() { if (m_worker) m_worker->requestReset(); }
 
 bool EmulationRunner::runOnEmuThread(std::function<void(EmulatorBackend&)> fn, int timeoutMs) {
   return m_worker && m_worker->runTask(std::move(fn), timeoutMs);
+}
+qint64 EmulationRunner::stepFrames(int frames, int timeoutMs) {
+  if (frames < 1 || frames > kMaxStepFrames || m_state.load() != State::Paused || !m_worker) return -1;
+  qint64 result = -1;
+  const bool ran = runOnEmuThread([&](EmulatorBackend& be) { result = m_worker->stepOnEmuThread(be, frames); }, timeoutMs);
+  return ran ? result : -1;
 }
 bool EmulationRunner::flushSaveNow() {
   bool written = false;

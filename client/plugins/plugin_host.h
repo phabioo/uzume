@@ -4,12 +4,15 @@
 #include <QStringList>
 #include <QVariant>
 #include <atomic>
+#include <functional>
 #include <memory>
+#include <vector>
 
 #include "manifest.h"
 #include "plugin_memory.h"
 #include "plugin_types.h"
 #include "plugin_ui.h"
+#include "plugin_value.h"
 
 class QThread;
 
@@ -22,6 +25,17 @@ class HostWorker;
 // Runs plugins on one dedicated plugin thread (never the UI or emulation thread): one Lua state and budget per plugin.
 // A Lua error, budget or memory overrun pauses only that plugin; the game and the other plugins continue.
 // All public methods are called from the owner's (UI) thread, consoleSnapshot() from any thread.
+// Result of a debug probe on the plugin thread (PluginHost::callProvided / evalChunk, used by the MCP server).
+struct ProbeResult {
+  bool ok = false;
+  QString error;                // first line of the problem ("plugin_not_running", a Lua error, a budget trip ...)
+  QString trace;                // the rest of the Lua error (traceback), may be empty
+  std::vector<Value> values;    // results of the call or chunk
+  QList<LogLine> output;        // print() and fb.log lines written during the call
+  bool paused = false;          // a tripped budget paused the plugin
+};
+using ProbeCallback = std::function<void(ProbeResult)>;
+
 class PluginHost : public QObject {
   Q_OBJECT
  public:
@@ -39,6 +53,7 @@ class PluginHost : public QObject {
   void setTickHz(int hz);
   // Budgets for plugins started or reloaded afterwards.
   void setLimits(const HostLimits& limits);
+  HostLimits limits() const { return m_limits; }
 
   // --- plugin UI (fb.ui), see plugin_ui.h ---
   // An action of the UI (button, toggle, list row, toast action, hotkey ...): calls the plugin's fb.ui.on_action handler
@@ -52,6 +67,14 @@ class PluginHost : public QObject {
   QVariantMap uiTree(const QString& pluginId, const QString& slot) const;
   QList<QVariantMap> takeToasts();
   QList<QPair<QString, QString>> takeOpenRequests();  // fb.ui.open requests (plugin id, slot)
+
+  // --- debug probes (MCP server, ADR 0032) ---
+  // Both run on the plugin thread in the plugin's own Lua state under the normal budget and call `done` on the owner's
+  // (UI) thread: callProvided calls `fn` of the table the plugin registered with fb.provide(`iface`); evalChunk compiles
+  // `code` as a text chunk (first as an expression, "return <code>") in the plugin's global environment. A tripped budget
+  // pauses the plugin like any handler would. Results larger than 32 MiB fail.
+  void callProvided(const QString& pluginId, const QString& iface, const QString& fn, const std::vector<Value>& args, ProbeCallback done);
+  void evalChunk(const QString& pluginId, const QString& code, ProbeCallback done);
 
   QStringList pluginIds() const;
   ConsoleSnapshot consoleSnapshot(const QString& id) const;

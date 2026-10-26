@@ -1344,6 +1344,56 @@ Rectangle {
                         buttons: [{ name: "report", text: qsTr("Report a problem…") }]
                         onButtonClicked: name => { if (name === "report") root.player.report.show() }
                     }
+                    UzSectionLabel { Layout.fillWidth: true; Layout.topMargin: Theme.space3; text: qsTr("Claude debugging (MCP)") }
+                    Rectangle { Layout.fillWidth: true; height: 1; color: Theme.rule; Layout.topMargin: -Theme.space05 }
+                    UzSettingsRow {
+                        objectName: "mcpEnableRow"
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
+                        resetMode: "none"
+                        label: qsTr("Allow Claude to control this app")
+                        description: qsTr("Starts a local debug server on this PC only (127.0.0.1). A Claude Code session on this PC can then read the app, its plugins and the running game and control them. A band shows while it is on.")
+                        ctrl: "toggle"
+                        toggleName: "mcpEnableToggle"
+                        checked: root.player.mcp.enabled
+                        onToggled: on => root.player.mcp.enabled = on
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: Theme.space15
+                        UzLabel { text: qsTr("Port"); color: Theme.muted; font.pixelSize: Theme.roles.small.size }
+                        UzField {
+                            objectName: "mcpPortField"
+                            mono: true
+                            implicitWidth: 110
+                            text: String(root.player.mcp.port)
+                            inputMethodHints: Qt.ImhDigitsOnly
+                            validator: IntValidator { bottom: 1024; top: 65535 }
+                            onEditingFinished: { const n = parseInt(text); if (!isNaN(n)) root.player.mcp.port = n; text = String(root.player.mcp.port) }
+                        }
+                        Item { Layout.fillWidth: true }
+                    }
+                    UzSettingsRow {
+                        objectName: "mcpTokenRow"
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
+                        resetMode: "none"
+                        label: qsTr("Connect Claude Code")
+                        descriptionName: "mcpStatus"
+                        description: root.player.mcp.error !== "" ? root.player.mcp.error
+                            : root.player.mcp.listening ? qsTr("Listening on 127.0.0.1:%1. Copy the setup command and run it in Claude Code on this PC.").arg(root.player.mcp.port)
+                            : qsTr("Off")
+                        ctrl: "buttons"
+                        buttons: [
+                            { name: "mcpCopy", text: mcpCopied.running ? qsTr("Copied") : qsTr("Copy setup command"), visible: root.player.mcp.listening },
+                            { name: "mcpRenew", text: qsTr("New token"), visible: root.player.mcp.listening }
+                        ]
+                        onButtonClicked: name => {
+                            if (name === "mcpCopy") { root.player.mcp.copySetupCommand(); mcpCopied.restart() }
+                            else if (name === "mcpRenew") root.player.mcp.renewToken()
+                        }
+                        Timer { id: mcpCopied; interval: 1500 }
+                    }
                     Loader {
                         id: collectDialog
                         active: false

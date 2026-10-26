@@ -62,6 +62,36 @@ ApplicationWindow {
         }
     }
 
+    // Claude debugging (ADR 0032): visible on every screen, the game included, while the MCP server listens.
+    footer: Rectangle {
+        objectName: "mcpBand"
+        visible: window.player.mcp.listening
+        implicitHeight: visible ? 36 : 0
+        height: implicitHeight
+        color: Theme.surface
+        Rectangle { anchors.top: parent.top; width: parent.width; height: 1; color: Theme.rule }
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 20
+            anchors.rightMargin: 20
+            spacing: 12
+            StatusDot { tone: "warn" }
+            UzLabel {
+                objectName: "mcpBandText"
+                Layout.fillWidth: true
+                text: qsTr("Claude can control this app")
+                font.pixelSize: Theme.roles.input.size
+                elide: Text.ElideRight
+            }
+            UzButton {
+                objectName: "mcpBandStop"
+                implicitHeight: 26
+                text: qsTr("Stop")
+                onClicked: window.player.mcp.stop()
+            }
+        }
+    }
+
     StackLayout {
         id: stack
         anchors.fill: parent

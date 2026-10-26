@@ -12,7 +12,7 @@ qt_add_resources(uzume_app app_icons PREFIX "/uzume/app" BASE icons
   FILES icons/uzume-16.png icons/uzume-24.png icons/uzume-32.png icons/uzume-48.png icons/uzume-64.png
         icons/uzume-128.png icons/uzume-256.png icons/uzume-512.png)
 target_link_libraries(uzume_app PRIVATE
-  uzume_core uzume_emulation uzume_ui uzume_uiplugin uzume_linkhandler
+  uzume_core uzume_emulation uzume_ui uzume_uiplugin uzume_linkhandler uzume_mcp_tools
   Qt6::Quick Qt6::QuickControls2 Qt6::Multimedia)
 uzume_warnings(uzume_app)
 uzume_vcpkg_runtime(uzume_app)

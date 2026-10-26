@@ -159,6 +159,7 @@ add_subdirectory(input)      # uzume_sdl3 (SDL3 gamepad only) + headless virtual
 add_subdirectory(emulation)  # uzume_emulation
 add_subdirectory(plugins)    # uzume_plugins: plugin runtime (Lua sandbox, manager, host)
 add_subdirectory(formats)    # uzume_formats: game-file format helpers for plugins (LZ, GARC, RomFS, textures, PK6)
+add_subdirectory(mcp)        # uzume_mcp (server, registry) + uzume_mcp_tools (app, plugin, game tools): debug MCP server (ADR 0032)
 add_subdirectory(ui)         # uzume_ui: QML module Uzume.App
 add_subdirectory(app)        # uzume_app (executable from app/ + ui/)
 add_subdirectory(launcher)   # uzume_launcher (Windows only): tiny top-level Uzume.exe; cmdline test everywhere

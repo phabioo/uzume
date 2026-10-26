@@ -1,6 +1,7 @@
 #include "plugin_host.h"
 
 #include <QMetaObject>
+#include <QPointer>
 #include <QThread>
 #include <QTimer>
 #include <chrono>
@@ -58,6 +59,20 @@ class HostWorker : public QObject {
     m_engine->clearSlotEverywhere(slot);
     flushUi(true);
   }
+  ProbeResult callProvided(const QString& id, const QString& iface, const QString& fn, const std::vector<Value>& args) {
+    if (!m_engine) return failed(QStringLiteral("plugin_not_running"));
+    ProbeResult r = m_engine->probeCall(id, iface.toStdString(), fn.toStdString(), args);
+    flushConsole(true);
+    flushUi(true);
+    return r;
+  }
+  ProbeResult evalChunk(const QString& id, const QString& code) {
+    if (!m_engine) return failed(QStringLiteral("plugin_not_running"));
+    ProbeResult r = m_engine->probeEval(id, code.toStdString());
+    flushConsole(true);
+    flushUi(true);
+    return r;
+  }
 
  signals:
   void statusChanged(const QString& id);
@@ -65,6 +80,11 @@ class HostWorker : public QObject {
   void uiChanged(const QString& id, const QString& what);
 
  private:
+  static ProbeResult failed(const QString& why) {
+    ProbeResult r;
+    r.error = why;
+    return r;
+  }
   void onTimer() {
     m_engine->iterate();
     flushConsole(false);
@@ -144,6 +164,30 @@ void PluginHost::postHostEvent(const QString& name, const QVariant& value, const
 
 void PluginHost::clearSlot(const QString& slot) {
   QMetaObject::invokeMethod(m_worker, [w = m_worker, slot] { w->clearSlot(slot); }, Qt::QueuedConnection);
+}
+
+void PluginHost::callProvided(const QString& pluginId, const QString& iface, const QString& fn, const std::vector<Value>& args, ProbeCallback done) {
+  QPointer<PluginHost> self(this);
+  QMetaObject::invokeMethod(
+      m_worker,
+      [w = m_worker, self, pluginId, iface, fn, args, done = std::move(done)]() {
+        ProbeResult r = w->callProvided(pluginId, iface, fn, args);
+        if (self.isNull()) return;
+        QMetaObject::invokeMethod(self.data(), [self, done, r = std::move(r)]() mutable { if (self) done(std::move(r)); }, Qt::QueuedConnection);
+      },
+      Qt::QueuedConnection);
+}
+
+void PluginHost::evalChunk(const QString& pluginId, const QString& code, ProbeCallback done) {
+  QPointer<PluginHost> self(this);
+  QMetaObject::invokeMethod(
+      m_worker,
+      [w = m_worker, self, pluginId, code, done = std::move(done)]() {
+        ProbeResult r = w->evalChunk(pluginId, code);
+        if (self.isNull()) return;
+        QMetaObject::invokeMethod(self.data(), [self, done, r = std::move(r)]() mutable { if (self) done(std::move(r)); }, Qt::QueuedConnection);
+      },
+      Qt::QueuedConnection);
 }
 
 UiPluginState PluginHost::uiState(const QString& pluginId) const { return m_store->ui.state(pluginId); }

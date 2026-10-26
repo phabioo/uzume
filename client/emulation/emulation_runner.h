@@ -64,6 +64,12 @@ class EmulationRunner : public QObject {
   // Runs `fn` on the emulation thread between two frames (also while paused) and waits for it (GUI thread). false: the
   // thread is not running, stopped meanwhile, or did not get to it within `timeoutMs` (then `fn` never runs).
   bool runOnEmuThread(std::function<void(EmulatorBackend&)> fn, int timeoutMs = 3000);
+  // Debug frame step (MCP server): while paused, runs exactly `frames` (1..kMaxStepFrames) frames on the emulation thread
+  // without pacing, then stays paused; the last frame is delivered through frameReady like a normal one, earlier frames
+  // are not (no readback), audio is dropped. Returns the frame count after the step, or -1 when the runner is not
+  // paused/running, the count is out of range or the thread did not get to it within `timeoutMs`.
+  static constexpr int kMaxStepFrames = 600;
+  qint64 stepFrames(int frames, int timeoutMs = 20000);
   // Writes the battery save to its file now if it changed (blocking). Without it the file lags up to ~3 s.
   bool flushSaveNow();
   // Whether the running core's battery save memory has exactly `size` bytes (blocking).
