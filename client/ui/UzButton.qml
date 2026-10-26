@@ -107,7 +107,7 @@ Button {
             border.color: !control.enabled ? Theme.disabledRule
                         : primary ? plane.color
                         : danger ? Theme.danger
-                        : (control.hovered || control.down || control.on ? Theme.ink2 : Theme.rule)
+                        : (control.hovered || control.down || control.on ? Theme.ink : Theme.ruleControl)
             Behavior on color { ColorAnimation { duration: Theme.durFast } }
         }
         UzFocusRing { visible: control.visualFocus }

@@ -7,6 +7,8 @@ import Uzume.App
 // (selected item: check + 2 px Yamabuki marker). current = selected value; picked(value) on user choice.
 ComboBox {
     id: control
+    property string accessibleName: ""   // spoken name of the field (the label next to it)
+    Accessible.name: control.accessibleName !== "" ? control.accessibleName : control.displayText
     property string current: ""
     signal picked(string value)
 
@@ -43,7 +45,7 @@ ComboBox {
             radius: 0
             color: !control.enabled ? Theme.disabledGround : (control.popup.visible ? Theme.pressed : (Theme.dark ? "transparent" : Theme.surface))
             border.width: 1
-            border.color: !control.enabled ? Theme.disabledRule : (control.popup.visible ? Theme.ink : (control.hovered ? Theme.ink2 : Theme.rule))
+            border.color: !control.enabled ? Theme.disabledRule : (control.popup.visible ? Theme.ink : (control.hovered ? Theme.ink2 : Theme.ruleControl))
             Behavior on border.color { ColorAnimation { duration: Theme.durFast } }
         }
         UzFocusRing { visible: control.visualFocus }
@@ -65,7 +67,7 @@ ComboBox {
             Item {
                 width: 14; height: 14
                 anchors.verticalCenter: parent.verticalCenter
-                UzGlyph { anchors.centerIn: parent; visible: item.selected; name: "check"; size: 14; color: Theme.accentText }
+                UzGlyph { anchors.centerIn: parent; visible: item.selected; name: "check"; size: 14; color: Theme.ink }
             }
             Text {
                 width: parent.width - 14 - parent.spacing
@@ -80,8 +82,8 @@ ComboBox {
             }
         }
         background: Rectangle {
-            color: item.highlighted || item.hovered ? Theme.hover : "transparent"
-            Rectangle { visible: item.selected; width: 2; height: parent.height; color: Theme.accent }
+            color: item.highlighted || item.hovered ? Theme.hover : (item.selected ? Theme.selected : "transparent")
+            Rectangle { visible: item.selected; width: 2; height: parent.height; color: Theme.ink }
             UzFocusRing { inset: true; visible: item.highlighted }
         }
     }

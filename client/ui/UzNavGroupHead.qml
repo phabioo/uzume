@@ -27,6 +27,6 @@ Item {
         font.weight: Font.Medium
         font.letterSpacing: Theme.roles.sectionLabel.spacing
         font.capitalization: Font.AllUppercase
-        color: Theme.dim
+        color: Theme.muted
     }
 }

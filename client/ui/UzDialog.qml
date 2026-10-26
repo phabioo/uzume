@@ -79,7 +79,7 @@ FocusScope {
                         text: root.label
                         textFormat: Text.PlainText
                         font.family: Theme.mono
-                        font.pixelSize: 10
+                        font.pixelSize: Theme.roles.meta.size
                         font.weight: Font.Medium
                         font.letterSpacing: 1.4
                         font.capitalization: Font.AllUppercase

@@ -241,7 +241,7 @@ Rectangle {
             radius: 0
             color: Theme.selected
             border.width: 1
-            border.color: Theme.accent
+            border.color: Theme.ruleControl
             Timer { running: nowRunning.shown; interval: 30000; repeat: true; onTriggered: nowRunning.nowMs = Date.now() }
             onShownChanged: nowMs = Date.now()
             ColumnLayout {
@@ -255,10 +255,10 @@ Rectangle {
                     UzMono {
                         Layout.minimumWidth: 0
                         text: qsTr("NOW RUNNING")
-                        font.pixelSize: 10
+                        font.pixelSize: Theme.roles.meta.size
                         font.letterSpacing: 0.8
                         font.weight: Font.Medium
-                        color: Theme.accentText
+                        color: Theme.ink
                     }
                     Item { Layout.fillWidth: true }
                     UzLabel {
@@ -316,7 +316,7 @@ Rectangle {
                             radius: Theme.radiusNone
                             color: parent.hovered ? Theme.hover : "transparent"
                             border.width: 1
-                            border.color: Theme.rule
+                            border.color: Theme.ruleControl
                         }
                         onClicked: root.player.requestQuit()
                         Text { id: quitProbe; visible: false; text: qsTr("Quit"); font.pixelSize: Theme.roles.input.size }
@@ -432,7 +432,7 @@ Rectangle {
                     Layout.minimumWidth: 0
                     text: userBlock.hasUser ? root.player.deviceName : qsTr("This device")
                     font.pixelSize: Theme.roles.small.size
-                    color: Theme.dim
+                    color: Theme.muted
                     elide: Text.ElideRight
                 }
             }

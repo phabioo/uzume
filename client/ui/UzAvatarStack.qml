@@ -34,9 +34,9 @@ Row {
         text: root.label
         textFormat: Text.PlainText
         font.family: Theme.mono
-        font.pixelSize: 10
+        font.pixelSize: Theme.roles.meta.size
         font.letterSpacing: 0.8
         font.capitalization: Font.AllUppercase
-        color: Theme.dim
+        color: Theme.muted
     }
 }

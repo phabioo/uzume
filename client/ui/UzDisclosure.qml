@@ -31,7 +31,7 @@ Button {
             anchors.verticalCenter: parent.verticalCenter
             text: qsTr("%1 ADVANCED").arg(control.count)
             font.family: Theme.mono
-            font.pixelSize: 10
+            font.pixelSize: Theme.roles.meta.size
             font.letterSpacing: 0.6
             color: Theme.muted
         }

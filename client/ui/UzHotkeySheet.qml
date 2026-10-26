@@ -34,7 +34,7 @@ Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
                 text: qsTr("Hold %1 +").arg(root.modifier)
                 font.family: Theme.mono
-                font.pixelSize: 10
+                font.pixelSize: Theme.roles.meta.size
                 font.weight: Font.Medium
                 font.letterSpacing: 1.4
                 font.capitalization: Font.AllUppercase
@@ -78,7 +78,7 @@ Rectangle {
                     text: hk.off ? hk.modelData[2] : ""
                     textFormat: Text.PlainText
                     font.family: Theme.mono
-                    font.pixelSize: 10
+                    font.pixelSize: Theme.roles.meta.size
                     font.letterSpacing: 0.6
                     font.capitalization: Font.AllUppercase
                     color: Theme.muted
@@ -99,7 +99,7 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             text: qsTr("Release %1 to close").arg(root.modifier)
             font.family: Theme.mono
-            font.pixelSize: 10
+            font.pixelSize: Theme.roles.meta.size
             font.letterSpacing: 0.6
             font.capitalization: Font.AllUppercase
             color: Theme.muted

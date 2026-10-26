@@ -222,7 +222,7 @@ Item {
                     textFormat: Text.PlainText
                     font.family: Theme.mono
                     font.pixelSize: Theme.roles.meta11.size
-                    color: Theme.dim
+                    color: Theme.muted
                 }
             }
             Rectangle {
@@ -338,7 +338,7 @@ Item {
                 textFormat: Text.PlainText
                 font.pixelSize: Theme.roles.small.size
                 font.underline: true
-                color: moreLink.activeFocus ? Theme.accentText : Theme.muted
+                color: moreLink.activeFocus ? Theme.ink : Theme.muted
             }
             TapHandler { onTapped: root.expanded = !root.expanded }
             HoverHandler { cursorShape: Qt.PointingHandCursor }
@@ -396,7 +396,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             text: qsTr("Default")
             font.pixelSize: Theme.roles.small.size
-            color: Theme.disabledInk
+            color: Theme.muted
         }
         Item {
             id: resetLink
@@ -412,7 +412,8 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 text: qsTr("Reset")
                 font.pixelSize: Theme.roles.small.size
-                color: Theme.accentText
+                font.underline: true
+                color: Theme.ink
             }
             TapHandler { onTapped: root.resetRequested() }
             HoverHandler { cursorShape: Qt.PointingHandCursor }
@@ -428,6 +429,7 @@ Item {
             UzToggle {
                 id: tg
                 objectName: root.toggleName !== "" ? root.toggleName : root.controlName
+                Accessible.name: root.label
                 anchors.verticalCenter: parent.verticalCenter
                 width: 40
                 height: 22
@@ -450,6 +452,7 @@ Item {
             UzSegmented {
                 id: seg
                 objectName: root.controlName
+                accessibleName: root.label
                 anchors.fill: parent
                 stretch: true
                 segmentHeight: Theme.settingsControlHeight - 2
@@ -469,6 +472,7 @@ Item {
             UzSelect {
                 id: sel
                 objectName: root.controlName
+                accessibleName: root.label
                 anchors.fill: parent
                 model: root.values
                 current: root.current

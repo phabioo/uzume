@@ -1,12 +1,12 @@
 import QtQuick
 
-// Filter / category chip (design-system.md "FilterChip"): 28 px, square, `rule` frame, Yamabuki plane with `on-accent` text
-// when selected (`active`). Optional counter (count >= 0) is part of the label: "All · 10".
+// Filter / category chip (design-system.md "FilterChip"): 28 px, square, `rule-control` frame, `ink` plane with `ground` text
+// when selected (r6: selection is neutral, yellow is for acting) (`active`). Optional counter (count >= 0) is part of the label: "All · 10".
 Rectangle {
     id: root
     property string text: ""
     property int count: -1
-    property bool badgeAccent: false  // counter in the accent text colour (needs attention) instead of neutral
+    property bool badgeAccent: false  // needs attention: a small Yamabuki square with "!" before the label (no yellow text)
     property bool active: false
     signal clicked()
 
@@ -14,15 +14,24 @@ Rectangle {
     property real maxWidth: 100000   // the text elides rather than the chip getting wider than this (very wide fonts)
     implicitWidth: Math.min(maxWidth, row.implicitWidth + 2 * Theme.space15)
     radius: 0
-    color: active ? (press.pressed ? Theme.accentPressed : (hover.hovered ? Theme.accentHover : Theme.accent))
+    color: active ? (press.pressed ? Theme.ink2 : Theme.ink)
                   : (hover.hovered ? Theme.hover : "transparent")
     border.width: 1
-    border.color: active ? Theme.accent : Theme.rule
+    border.color: active ? Theme.ink : (hover.hovered ? Theme.ink2 : Theme.ruleControl)
     Behavior on color { ColorAnimation { duration: Theme.durFast } }
 
     Row {
         id: row
         anchors.centerIn: parent
+        spacing: 6
+        Rectangle {
+            objectName: "chipAttentionMark"
+            visible: root.badgeAccent && root.count > 0
+            anchors.verticalCenter: parent.verticalCenter
+            width: 10; height: 10
+            color: Theme.accent
+            Text { anchors.centerIn: parent; text: "!"; font.family: Theme.sans; font.pixelSize: 8; font.weight: Font.Bold; color: Theme.inkOnAccent }
+        }
         Text {
             width: Math.min(implicitWidth, Math.max(0, root.maxWidth - 2 * Theme.space15))
             elide: Text.ElideRight
@@ -33,7 +42,7 @@ Rectangle {
             font.family: Theme.sans
             font.pixelSize: Theme.roles.small.size
             font.weight: root.active ? Font.Medium : Font.Normal
-            color: root.active ? Theme.inkOnAccent : (root.badgeAccent && root.count > 0 ? Theme.accentText : Theme.ink)
+            color: root.active ? Theme.ground : Theme.ink
         }
     }
     // Keyboard: Tab reaches the chip, Enter/Space activates it, the focus ring is visible.

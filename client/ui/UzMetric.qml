@@ -44,7 +44,7 @@ Item {
                     text: "!"
                     font.family: Theme.sans
                     font.weight: Font.Bold
-                    font.pixelSize: 10
+                    font.pixelSize: Theme.roles.meta.size
                     color: Theme.inkOnAccent
                 }
             }
@@ -58,7 +58,7 @@ Item {
                 font.weight: Font.Medium
                 font.letterSpacing: Theme.roles.sectionLabel.spacing
                 font.capitalization: Font.AllUppercase
-                color: Theme.dim
+                color: Theme.muted
             }
         }
         Text {

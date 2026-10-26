@@ -36,6 +36,14 @@ Item {
     readonly property int playerCount: Theme.playerColors.length
     readonly property color warnTone: Theme.toneFg("warning", true)
     readonly property color bgWarn: Theme.selected
+    readonly property color ruleControlTok: Theme.ruleControl
+    readonly property color badgeTok: Theme.badge
+    readonly property color markerNavTok: Theme.markerNav
+    readonly property color dimTok: Theme.dim
+    readonly property color selectedTok: Theme.selected
+    readonly property int targetMinTok: Theme.targetMin
+    readonly property int targetTvTok: Theme.targetTv
+    readonly property int columnsCompactMaxTok: Theme.columnsCompactMax
     property int tabsPicked: 0
     property string lastTab: ""
 
@@ -233,13 +241,22 @@ class DesignSystemTest : public QObject {
       QCOMPARE(colorOf("accentTok"), QColor(QStringLiteral("#f8b500")));
       QCOMPARE(colorOf("groundTok"), QColor(dark ? QStringLiteral("#1c1b19") : QStringLiteral("#fbfaf5")));
       QCOMPARE(colorOf("surfaceTok"), QColor(dark ? QStringLiteral("#242320") : QStringLiteral("#ffffff")));
-      QCOMPARE(colorOf("dangerTok"), QColor(dark ? QStringLiteral("#ee836f") : QStringLiteral("#b94047")));
+      QCOMPARE(colorOf("dangerTok"), QColor(dark ? QStringLiteral("#ee836f") : QStringLiteral("#ac3a41")));
+      // r6 tokens.
+      QCOMPARE(colorOf("ruleControlTok"), QColor(dark ? QStringLiteral("#7a766d") : QStringLiteral("#86817a")));
+      QCOMPARE(colorOf("badgeTok"), QColor(dark ? QStringLiteral("#efece4") : QStringLiteral("#1c1b19")));
+      QCOMPARE(colorOf("markerNavTok"), QColor(dark ? QStringLiteral("#f8b500") : QStringLiteral("#715c1f")));
+      QCOMPARE(colorOf("dimTok"), QColor(dark ? QStringLiteral("#96928a") : QStringLiteral("#6a665f")));
+      QCOMPARE(colorOf("selectedTok"), QColor(dark ? QStringLiteral("#2a2925") : QStringLiteral("#ece9de")));
+      QCOMPARE(page_->property("targetMinTok").toInt(), 32);
+      QCOMPARE(page_->property("targetTvTok").toInt(), 44);
+      QCOMPARE(page_->property("columnsCompactMaxTok").toInt(), 1440);
       QCOMPARE(colorOf("inkOnAccentTok"), QColor(QStringLiteral("#1c1b19")));
       QCOMPARE(page_->property("radiusSum").toInt(), 0);
       QCOMPARE(page_->property("playerCount").toInt(), 8);
       QCOMPARE(colorOf("person1"), QColor(QStringLiteral("#89c3eb")));
-      // The plugin "warning" tone is the accent (Kinari: its text variant), not amber.
-      QCOMPARE(colorOf("warnTone"), QColor(QStringLiteral("#f8b500")));
+      // r6: the plugin "warning" tone is plain ink-2 text (the yellow is a square, never text).
+      QCOMPARE(colorOf("warnTone"), QColor(QStringLiteral("#d3cfc5")));
     }
     setDark(true);
   }

@@ -63,7 +63,7 @@ Popup {
                     text: root.label
                     textFormat: Text.PlainText
                     font.family: Theme.mono
-                    font.pixelSize: 10
+                    font.pixelSize: Theme.roles.meta.size
                     font.weight: Font.Medium
                     font.letterSpacing: 1.4
                     font.capitalization: Font.AllUppercase
@@ -87,8 +87,8 @@ Popup {
                 objectName: "popoverClose"
                 x: parent.width - width - Theme.space05
                 y: Theme.space05 + 2
-                width: 28
-                height: 28
+                width: Theme.targetMin
+                height: Theme.targetMin
                 glyph: "cross"
                 glyphSize: 12
                 Accessible.name: qsTr("Close")

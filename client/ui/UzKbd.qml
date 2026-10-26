@@ -27,7 +27,7 @@ Row {
                     anchors.verticalCenter: parent.verticalCenter
                     text: "+"
                     font.family: Theme.mono
-                    font.pixelSize: 10
+                    font.pixelSize: Theme.roles.meta.size
                     color: Theme.muted
                 }
                 UzKeyCap { text: modelData; pressed: root.pressed; disabled: root.disabled }

@@ -107,7 +107,7 @@ FocusScope {
                         font.weight: Font.Medium
                         font.letterSpacing: Theme.roles.tableHeader.spacing
                         font.capitalization: Font.AllUppercase
-                        color: Theme.dim
+                        color: Theme.muted
                     }
                 }
             }

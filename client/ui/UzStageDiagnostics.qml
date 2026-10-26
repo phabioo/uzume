@@ -36,7 +36,7 @@ Rectangle {
             text: root.title
             textFormat: Text.PlainText
             font.family: Theme.mono
-            font.pixelSize: 10
+            font.pixelSize: Theme.roles.meta.size
             font.weight: Font.Medium
             font.letterSpacing: 1.4
             font.capitalization: Font.AllUppercase
@@ -69,7 +69,7 @@ Rectangle {
                     font.family: Theme.sans
                     font.pixelSize: Theme.roles.small.size
                     font.weight: Font.Medium
-                    color: root.copied ? Theme.ink : Theme.accentText
+                    color: Theme.ink
                 }
             }
             HoverHandler { id: copyHover; cursorShape: Qt.PointingHandCursor }
@@ -104,7 +104,7 @@ Rectangle {
                     text: cell.row[0]
                     textFormat: Text.PlainText
                     font.family: Theme.mono
-                    font.pixelSize: 10
+                    font.pixelSize: Theme.roles.meta.size
                     font.letterSpacing: 0.6
                     font.capitalization: Font.AllUppercase
                     color: Theme.muted
@@ -127,7 +127,7 @@ Rectangle {
                         width: Math.min(implicitWidth, Math.max(0, cell.width - 16))
                         elide: Text.ElideRight
                         font.family: Theme.mono
-                        font.pixelSize: 10
+                        font.pixelSize: Theme.roles.meta.size
                         color: Theme.ink
                     }
                 }
