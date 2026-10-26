@@ -302,7 +302,7 @@ class RunsUiTest : public QObject {
     QVERIFY(h.click("runConfirmOk"));
     QTRY_VERIFY_WITH_TIMEOUT(hub.runs.value(runs->openRunId()).value("status").toString() == QLatin1String("finished"), 8000);
     QTRY_VERIFY(h.item("runMenu") == nullptr || !h.item("runMenu")->isVisible() || !menuHas(h, "pause"));
-    QCOMPARE(runs->detail().value("over").toBool(), true);
+    QTRY_VERIFY_WITH_TIMEOUT(runs->detail().value("over").toBool(), 8000);  // the FakeHub stores before the app gets the answer
     runs->closeRun();
     QTRY_COMPARE_WITH_TIMEOUT(runs->finishedCount(), 1, 8000);
   }
@@ -559,7 +559,7 @@ class RunsUiTest : public QObject {
     QTRY_VERIFY(h.item("runDetailHeader") != nullptr && h.item("runDetailHeader")->isVisible());
     QCOMPARE(runs->detail().value("pluginsText").toString(), QStringLiteral("No rules"));
     QVERIFY(runs->detail().value("plain").toBool());
-    QVERIFY(runs->active()->rowCount() > 0);
+    QTRY_VERIFY_WITH_TIMEOUT(runs->active()->rowCount() > 0, 8000);  // the run list refresh can land after the detail opens
     {
         const auto* am = qobject_cast<KeyedRowsModel*>(runs->active());
         QVERIFY(am != nullptr);
