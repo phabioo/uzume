@@ -57,6 +57,8 @@ constexpr const char* kRomCacheLimitKey = "rom_cache_limit_bytes";
 constexpr const char* kLibraryFoldersKey = "library_folders";
 constexpr const char* kLastPlayedKey = "last_played";  // { hub_id: { game_id: epoch ms } }
 constexpr const char* kAudioVolumeKey = "audio_volume";
+constexpr const char* kTextSizeKey = "text_size";
+constexpr const char* kReduceMotionKey = "reduce_motion";
 constexpr const char* kAudioMutedKey = "audio_muted";
 constexpr const char* kAudioMuteBgKey = "audio_mute_in_background";
 constexpr const char* kAudioStepKey = "audio_volume_step";
@@ -69,6 +71,13 @@ PlayerSettings::PlayerSettings(const QString& baseDir)
     : path_(QDir(baseDir).filePath(QStringLiteral("settings/player.json"))) {
   raw_ = fsutil::readJsonObject(path_);  // a corrupt file is moved aside before anything can overwrite it
   appearance_ = parseAppearance(raw_.value(QLatin1String(kAppearanceKey)).toString());
+  const QString ts = raw_.value(QLatin1String(kTextSizeKey)).toString();
+  if (ts == QLatin1String("125") || ts == QLatin1String("tv")) {
+    textSize_ = ts;
+  }
+  if (raw_.value(QLatin1String(kReduceMotionKey)).isBool()) {
+    reduceMotion_ = raw_.value(QLatin1String(kReduceMotionKey)).toBool();
+  }
   const QString ch = raw_.value(QLatin1String(kUpdateChannelKey)).toString();
   if (ch == QLatin1String("stable") || ch == QLatin1String("beta") || ch == QLatin1String("off")) {
     updateChannel_ = ch;
@@ -141,6 +150,21 @@ PlayerSettings::Appearance PlayerSettings::parseAppearance(const QString& name, 
 bool PlayerSettings::setAppearance(Appearance a) {
   appearance_ = a;
   raw_.insert(QLatin1String(kAppearanceKey), appearanceName(a));
+  return save();
+}
+
+bool PlayerSettings::setTextSize(const QString& size) {
+  if (size != QLatin1String("100") && size != QLatin1String("125") && size != QLatin1String("tv")) {
+    return false;
+  }
+  textSize_ = size;
+  raw_.insert(QLatin1String(kTextSizeKey), size);
+  return save();
+}
+
+bool PlayerSettings::setReduceMotion(bool on) {
+  reduceMotion_ = on;
+  raw_.insert(QLatin1String(kReduceMotionKey), on);
   return save();
 }
 

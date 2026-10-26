@@ -111,6 +111,21 @@ class PlayerSettingsTest : public QObject {
     QVERIFY(PlayerSettings(dir.path()).filePath().endsWith(QLatin1String("settings/player.json")));
   }
 
+  void persistsTextSizeAndReduceMotion() {
+    QTemporaryDir dir;
+    {
+      PlayerSettings s(dir.path());
+      QCOMPARE(s.textSize(), QStringLiteral("100"));
+      QVERIFY(!s.reduceMotion().has_value());  // follows the system until changed
+      QVERIFY(!s.setTextSize(QStringLiteral("200")));
+      QVERIFY(s.setTextSize(QStringLiteral("tv")));
+      QVERIFY(s.setReduceMotion(false));
+    }
+    PlayerSettings s(dir.path());
+    QCOMPARE(s.textSize(), QStringLiteral("tv"));
+    QVERIFY(s.reduceMotion().has_value() && !*s.reduceMotion());
+  }
+
   void corruptedOrUnknownFallsBackToDark() {
     QTemporaryDir dir;
     PlayerSettings probe(dir.path());

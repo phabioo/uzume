@@ -1351,6 +1351,34 @@ void PlayerController::setAppearance(const QString& name) {
   emit appearanceChanged();
 }
 
+QString PlayerController::textSize() const { return settings_->textSize(); }
+
+void PlayerController::setTextSize(const QString& size) {
+  if (size == settings_->textSize()) {
+    return;
+  }
+  if (!settings_->setTextSize(size)) {
+    if (size != QLatin1String("100") && size != QLatin1String("125") && size != QLatin1String("tv")) {
+      return;  // unknown value: ignored
+    }
+    qWarning() << "Player settings could not be written";
+  }
+  emit textSizeChanged();
+}
+
+// Qt exposes no "reduce motion" system hint (QStyleHints has none), so the system value is false.
+bool PlayerController::reduceMotion() const { return settings_->reduceMotion().value_or(false); }
+
+void PlayerController::setReduceMotion(bool on) {
+  if (settings_->reduceMotion().has_value() && *settings_->reduceMotion() == on) {
+    return;
+  }
+  if (!settings_->setReduceMotion(on)) {
+    qWarning() << "Player settings could not be written";
+  }
+  emit reduceMotionChanged();
+}
+
 bool PlayerController::darkMode() const {
   switch (settings_->appearance()) {
     case PlayerSettings::Appearance::Dark: return true;

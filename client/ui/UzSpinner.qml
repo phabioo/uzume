@@ -21,7 +21,7 @@ Item {
     }
     Item {
         anchors.fill: parent
-        RotationAnimator on rotation { running: root.visible; from: 0; to: 360; duration: 900; loops: Animation.Infinite }
+        RotationAnimator on rotation { running: root.visible && !Theme.reduceMotion; from: 0; to: 360; duration: 900; loops: Animation.Infinite }
         Rectangle {
             width: Math.max(3, root.size / 4)
             height: width

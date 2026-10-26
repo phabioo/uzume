@@ -23,6 +23,8 @@ Item {
     height: 1500
 
     function setDark(d) { Theme.dark = d }
+    function setTextSize(scale, tv) { Theme.textScale = scale; Theme.tv = tv }
+    function setReduceMotion(on) { Theme.reduceMotion = on }
     readonly property color accentTok: Theme.accent
     readonly property color groundTok: Theme.ground
     readonly property color surfaceTok: Theme.surface
@@ -44,6 +46,14 @@ Item {
     readonly property int targetMinTok: Theme.targetMin
     readonly property int targetTvTok: Theme.targetTv
     readonly property int columnsCompactMaxTok: Theme.columnsCompactMax
+    readonly property int bodySizeTok: Theme.roles.body.size
+    readonly property int bodyLineTok: Theme.roles.body.line
+    readonly property int row32Tok: Theme.row32
+    readonly property int row44Tok: Theme.row44
+    readonly property int row48Tok: Theme.row48
+    readonly property int durFastTok: Theme.durFast
+    readonly property int durPageTok: Theme.durPage
+    readonly property int durListTok: Theme.durList
     property int tabsPicked: 0
     property string lastTab: ""
 
@@ -259,6 +269,39 @@ class DesignSystemTest : public QObject {
       QCOMPARE(colorOf("warnTone"), QColor(QStringLiteral("#d3cfc5")));
     }
     setDark(true);
+  }
+
+  // Text size 100 % / 125 % / TV and Reduce motion are one scale factor and one motion switch in Theme.
+  void textSizeAndReduceMotion() {
+    auto set = [&](double scale, bool tv) {
+      QVERIFY(QMetaObject::invokeMethod(page_, "setTextSize", Q_ARG(QVariant, scale), Q_ARG(QVariant, tv)));
+      QQuickTest::qWaitForPolish(win_);
+    };
+    const qreal btnH = byName("btnPrimary")->height();
+    QCOMPARE(page_->property("bodySizeTok").toInt(), 14);  // 100 %: unchanged
+    QCOMPARE(page_->property("row32Tok").toInt(), 32);
+    QCOMPARE(page_->property("row44Tok").toInt(), 44);
+    set(1.25, false);
+    QCOMPARE(page_->property("bodySizeTok").toInt(), 17);
+    QCOMPARE(page_->property("bodyLineTok").toInt(), 27);
+    QCOMPARE(page_->property("row32Tok").toInt(), 32);  // rows stay at 125 %
+    set(1.25, true);
+    QCOMPARE(page_->property("bodySizeTok").toInt(), 17);
+    QCOMPARE(page_->property("row32Tok").toInt(), 44);
+    QCOMPARE(page_->property("row44Tok").toInt(), 48);
+    QCOMPARE(page_->property("row48Tok").toInt(), 52);
+    QVERIFY(byName("btnPrimary")->height() >= 44);
+    set(1.0, false);
+    QCOMPARE(page_->property("bodySizeTok").toInt(), 14);
+    QCOMPARE(byName("btnPrimary")->height(), btnH);
+
+    QCOMPARE(page_->property("durFastTok").toInt(), 120);
+    QVERIFY(QMetaObject::invokeMethod(page_, "setReduceMotion", Q_ARG(QVariant, true)));
+    QCOMPARE(page_->property("durFastTok").toInt(), 0);
+    QCOMPARE(page_->property("durPageTok").toInt(), 0);
+    QCOMPARE(page_->property("durListTok").toInt(), 0);
+    QVERIFY(QMetaObject::invokeMethod(page_, "setReduceMotion", Q_ARG(QVariant, false)));
+    QCOMPARE(page_->property("durFastTok").toInt(), 120);
   }
 
   // Every block exists and has the measures of the spec; geometry is the same in both themes.

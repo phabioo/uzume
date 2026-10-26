@@ -101,6 +101,9 @@ class PlayerController : public QObject {
   Q_PROPERTY(uzume::ui::GameSession* gameSession READ gameSession CONSTANT)
   // Appearance (Settings page), upload, core warnings
   Q_PROPERTY(QString appearance READ appearance WRITE setAppearance NOTIFY appearanceChanged)  // dark | light | system
+  // Text size "100" | "125" | "tv" and Reduce motion (effective value; follows the system until the user changes it).
+  Q_PROPERTY(QString textSize READ textSize WRITE setTextSize NOTIFY textSizeChanged)
+  Q_PROPERTY(bool reduceMotion READ reduceMotion WRITE setReduceMotion NOTIFY reduceMotionChanged)
   // ROM cache (Settings): limitBytes (0 = unlimited), limitText, usedBytes, usedText, clearableBytes, clearableText, files,
   // limitOptions [{value (bytes), label}].
   Q_PROPERTY(QVariantMap romCache READ romCache NOTIFY romCacheChanged)
@@ -251,6 +254,10 @@ class PlayerController : public QObject {
   QString appearance() const;
   void setAppearance(const QString& name);
   bool darkMode() const;
+  QString textSize() const;
+  void setTextSize(const QString& size);
+  bool reduceMotion() const;
+  void setReduceMotion(bool on);
   bool eventFilter(QObject* watched, QEvent* event) override;  // Qt < 6.5: palette changes drive the System appearance
   QVariantMap romCache() const;
   // Size limit in bytes (0 = unlimited); trims at once (never the running game or a file being downloaded).
@@ -413,6 +420,8 @@ class PlayerController : public QObject {
   void startConfirmChanged();
   void saveConflictChanged();
   void appearanceChanged();
+  void textSizeChanged();
+  void reduceMotionChanged();
   void romCacheChanged();
   void uploadChanged();
   void libraryFoldersChanged();
