@@ -437,6 +437,19 @@ class HubFeaturesUiTest : public QObject {
       QVERIFY(h.click("appearanceLight"));
       QCOMPARE(h.controller->appearance(), QStringLiteral("light"));
       QVERIFY(!h.controller->darkMode());
+      // Text size and Reduce motion rows: apply at once and persist.
+      QVERIFY(h.item("textSizeSegment") != nullptr);
+      QVERIFY(h.item("reduceMotionToggle") != nullptr);
+      QVERIFY(h.click("textSize125"));
+      QTest::qWait(300);
+      QVERIFY(h.click("textSizeTv"));
+      QCOMPARE(h.controller->textSize(), QStringLiteral("tv"));
+      QVERIFY(h.click("reduceMotionToggle"));
+      QVERIFY(h.controller->reduceMotion());
+      QTest::qWait(100);
+      uitest::saveShot(h.window, QStringLiteral("5-settings-appearance-tv"));
+      QVERIFY(h.click("textSize100"));
+      QCOMPARE(h.controller->textSize(), QStringLiteral("100"));
       QTest::qWait(100);
       uitest::saveShot(h.window, QStringLiteral("5-settings-light"));
       QVERIFY(h.click("appearanceSystem"));
@@ -451,6 +464,8 @@ class HubFeaturesUiTest : public QObject {
       QVERIFY(QFile::exists(h.controller->playerSettings()->filePath()));
       PlayerSettings reread(dataDir);  // a new start reads the persisted value
       QCOMPARE(reread.appearance(), PlayerSettings::Appearance::Light);
+      QCOMPARE(reread.textSize(), QStringLiteral("100"));
+      QVERIFY(reread.reduceMotion().has_value() && *reread.reduceMotion());
     }
   }
 

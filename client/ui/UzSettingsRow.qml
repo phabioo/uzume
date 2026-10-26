@@ -141,7 +141,7 @@ Item {
         textFormat: Text.PlainText
         wrapMode: Text.Wrap
         font.pixelSize: Theme.roles.small.size
-        lineHeight: 18
+        lineHeight: Theme.roles.small.line
         lineHeightMode: Text.FixedHeight
     }
 
@@ -179,11 +179,13 @@ Item {
         visible: root.textWidth > 24
         x: Theme.settingsDotSlot
         y: Theme.settingsDotSlot
-        width: root.textWidth
+        // Never narrower than 120 while hidden: at width 0 the wrapped texts break per character and flip their height on every font change (polish loop).
+        width: Math.max(root.textWidth, 120)
         spacing: 2
 
         RowLayout {
             Layout.fillWidth: true
+            Layout.preferredWidth: root.textWidth   // known width: the wrapped label settles in one layout pass (no polish loop at TV)
             Layout.minimumWidth: 0
             Layout.minimumHeight: Theme.settingsControlHeight
             spacing: Theme.space1
@@ -194,7 +196,7 @@ Item {
                 text: root.label
                 font.weight: Font.Medium
                 wrapMode: Text.Wrap
-                lineHeight: 20
+                lineHeight: Theme.roles.button.line
                 lineHeightMode: Text.FixedHeight
                 verticalAlignment: Text.AlignVCenter
                 color: root.disabled ? Theme.muted : Theme.ink
@@ -262,6 +264,7 @@ Item {
             objectName: root.descriptionName
             visible: root.intro !== ""
             Layout.fillWidth: true
+            Layout.preferredWidth: Math.min(560, root.textWidth)
             Layout.minimumWidth: 0
             Layout.maximumWidth: 560
             text: root.intro
@@ -270,7 +273,7 @@ Item {
             maximumLineCount: root.showFull ? 100000 : 2
             elide: root.showFull ? Text.ElideNone : Text.ElideRight
             font.pixelSize: Theme.roles.small.size
-            lineHeight: 18
+            lineHeight: Theme.roles.small.line
             lineHeightMode: Text.FixedHeight
             color: Theme.muted
         }
@@ -311,7 +314,7 @@ Item {
                         elide: isKey ? Text.ElideRight : Text.ElideNone
                         font.pixelSize: Theme.roles.small.size
                         font.weight: isKey ? Font.Medium : Font.Normal
-                        lineHeight: 18
+                        lineHeight: Theme.roles.small.line
                         lineHeightMode: Text.FixedHeight
                         color: isKey ? Theme.ink2 : Theme.muted
                     }
@@ -353,7 +356,7 @@ Item {
             textFormat: Text.PlainText
             wrapMode: Text.Wrap
             font.pixelSize: Theme.roles.small.size
-            lineHeight: 18
+            lineHeight: Theme.roles.small.line
             lineHeightMode: Text.FixedHeight
             color: Theme.ink2
         }

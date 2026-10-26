@@ -10,6 +10,14 @@ QtObject {
 
     property bool dark: true
 
+    // ---- Text size and motion (Settings > This PC > Appearance; spec readable-pass.md, tokens `scale`) -------------------
+    // textScale 1 / 1.25; `tv` is the TV text size (scale 1.25 plus rows 44 / 48 to 52 and every focus target >= targetTv).
+    // Set by Main.qml from the app setting. Standard (1) is pixel-identical to the unscaled design.
+    property real textScale: 1.0
+    property bool tv: false
+    // Reduce motion: the dur* durations become 0 (set by Main.qml; follows the system setting until the user changes it).
+    property bool reduceMotion: false
+
     // ---- Design system tokens --------------------------------------------------------------------------------------
     // Both palettes as tables (tokens.json). The game view stays Sumi in both themes and the plugin API passes `dark`
     // explicitly, so the tables are also read through tok().
@@ -92,7 +100,7 @@ QtObject {
     // Typography roles (design-system.md "Ma roles", "App sizes", "Brand"). size / line in px, weight as Font.*, spacing in px
     // (the em tracking of the design times the size, QML letterSpacing is absolute), family sans or mono, upper = uppercase.
     // Use: font.pixelSize: Theme.roles.body.size; font.weight: Theme.roles.body.weight; font.letterSpacing: Theme.roles.body.spacing.
-    readonly property var roles: ({
+    readonly property var roleBase: ({
         title:         { family: sans, size: 40, line: 40, weight: Font.Light,    spacing: -0.8,  upper: false },
         sectionLabel:  { family: mono, size: 11, line: 16, weight: Font.Medium,   spacing: 1.54,   upper: true },
         body:          { family: sans, size: 14, line: 22, weight: Font.Normal,   spacing: 0,     upper: false },
@@ -118,6 +126,17 @@ QtObject {
         wordmarkDisplay: { family: sans, size: 46, line: 46, weight: Font.DemiBold, spacing: -1.61, upper: false },
         jpAccent:      { family: jp,   size: 15, line: 20, weight: Font.Normal,   spacing: 0,     upper: false }
     })
+    // The roles as used by screens: size, line and tracking times textScale (rounded down to whole px).
+    readonly property var roles: {
+        if (textScale === 1.0) return roleBase
+        const out = {}
+        for (const k of Object.keys(roleBase)) {
+            const r = roleBase[k]
+            out[k] = { family: r.family, size: Math.floor(r.size * textScale), line: Math.floor(r.line * textScale),
+                       weight: r.weight, spacing: r.spacing * textScale, upper: r.upper }
+        }
+        return out
+    }
 
     // Spacing (design-system.md "Spacing")
     readonly property int space05: 4
@@ -130,11 +149,12 @@ QtObject {
     readonly property int space7: 56
 
     // Sizes (design-system.md "Sizes")
-    readonly property int row28: 28
-    readonly property int row32: 32
-    readonly property int row36: 36
-    readonly property int row44: 44
-    readonly property int row48: 48
+    // At the TV text size rows and controls grow: 28 / 32 / 36 -> targetTv (44), 44 -> 48, 48 -> 52.
+    readonly property int row28: tv ? targetTv : 28
+    readonly property int row32: tv ? targetTv : 32
+    readonly property int row36: tv ? targetTv : 36
+    readonly property int row44: tv ? 48 : 44
+    readonly property int row48: tv ? 52 : 48
     readonly property int header56: 56
     readonly property int sidebar: 232
     readonly property int openColumn: 152
@@ -146,7 +166,7 @@ QtObject {
     readonly property int personMarker: 40
     readonly property int markNav: 20
     readonly property int menu: 200
-    readonly property int targetMin: 32      // smallest hit target (icon buttons, the x of a field, row actions)
+    readonly property int targetMin: tv ? targetTv : 32      // smallest hit target (icon buttons, the x of a field, row actions)
     readonly property int targetTv: 44       // smallest focus target at the TV text scale
     readonly property int columnsCompactMax: 1440   // below this window width at most three columns including AppNav
 
@@ -175,9 +195,9 @@ QtObject {
     readonly property int settingsNarrowBelow: 640   // below this row width the control moves under the text
 
     // Motion (short; never in the game view)
-    readonly property int durFast: 120
-    readonly property int durPage: 160
-    readonly property int durList: 180
+    readonly property int durFast: reduceMotion ? 0 : 120
+    readonly property int durPage: reduceMotion ? 0 : 160
+    readonly property int durList: reduceMotion ? 0 : 180
 
     // Count with a plural noun, never "(s)": plural(1, "folder", "folders") -> "1 folder", plural(3, ...) -> "3 folders".
     function plural(n: int, one: string, many: string): string {

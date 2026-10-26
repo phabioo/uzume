@@ -23,7 +23,7 @@ Item {
                 color: Theme.accent
                 transformOrigin: Item.Bottom
                 SequentialAnimation on scale {
-                    running: !root.still && root.visible
+                    running: !root.still && root.visible && !Theme.reduceMotion
                     loops: Animation.Infinite
                     PauseAnimation { duration: bar.index * 300 }
                     NumberAnimation { to: 0.5; duration: 450; easing.type: Easing.InOutQuad }

@@ -1095,6 +1095,35 @@ Rectangle {
                         current: root.player.appearance
                         onValuePicked: value => root.player.appearance = value
                     }
+                    UzSettingsRow {
+                        objectName: "textSizeRow"
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
+                        resetMode: "none"
+                        label: qsTr("Text size")
+                        description: qsTr("TV makes all text larger and every target at least 44 px.")
+                        ctrl: "segment"
+                        controlName: "textSizeSegment"
+                        values: [
+                            { value: "100", label: qsTr("100 %"), name: "textSize100" },
+                            { value: "125", label: qsTr("125 %"), name: "textSize125" },
+                            { value: "tv", label: qsTr("TV"), name: "textSizeTv" }
+                        ]
+                        current: root.player.textSize
+                        onValuePicked: value => root.player.textSize = value
+                    }
+                    UzSettingsRow {
+                        objectName: "reduceMotionRow"
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
+                        resetMode: "none"
+                        label: qsTr("Reduce motion")
+                        description: qsTr("Stops the ensō, slides and fades. Follows the system setting until you change it.")
+                        ctrl: "toggle"
+                        controlName: "reduceMotionToggle"
+                        checked: root.player.reduceMotion
+                        onToggled: on => root.player.reduceMotion = on
+                    }
                 }
 
                 // ------------------------------------------------------------------ AUDIO & VIDEO (6g-1)

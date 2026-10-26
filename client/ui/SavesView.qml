@@ -242,7 +242,7 @@ FocusScope {
                     text: "↻"
                     font.pixelSize: 15
                     color: Theme.muted
-                    RotationAnimation on rotation { running: root.hist.loading; from: 0; to: 360; duration: 900; loops: Animation.Infinite }
+                    RotationAnimation on rotation { running: root.hist.loading && !Theme.reduceMotion; from: 0; to: 360; duration: 900; loops: Animation.Infinite }
                 }
                 HoverHandler { id: refreshHover; cursorShape: Qt.PointingHandCursor }
                 TapHandler { enabled: refresh.enabled; onTapped: root.hist.refresh() }

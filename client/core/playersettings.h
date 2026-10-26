@@ -24,6 +24,11 @@ class PlayerSettings {
   QString filePath() const { return path_; }
   Appearance appearance() const { return appearance_; }
   bool setAppearance(Appearance a);  // persists immediately; false if the file could not be written
+  // Text size: "100" (default) | "125" | "tv"; anything else is rejected. Reduce motion: unset = follow the system.
+  QString textSize() const { return textSize_; }
+  bool setTextSize(const QString& size);
+  std::optional<bool> reduceMotion() const { return reduceMotion_; }
+  bool setReduceMotion(bool on);
 
   // Updates (spec 0.3 S6). Channel override: "" = compiled default, otherwise "stable" | "beta" (an old "test" reads as "beta").
   // Automatic install: unset = default of the effective channel (on for beta).
@@ -205,6 +210,8 @@ class PlayerSettings {
   qint64 romCacheLimit_ = kDefaultRomCacheLimitBytes;
   int audioVolume_ = kDefaultVolume;
   bool audioMuted_ = false;
+  QString textSize_ = QStringLiteral("100");
+  std::optional<bool> reduceMotion_;
   bool audioMuteInBackground_ = true;
   int audioVolumeStep_ = 5;
   bool audioShowVolume_ = true;

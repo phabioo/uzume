@@ -22,6 +22,11 @@ ApplicationWindow {
         value: window.player.darkMode || window.player.screen === "game"
     }
 
+    // Text size (100 % / 125 % / TV) and Reduce motion (Settings > Appearance): one scale factor and one motion switch.
+    Binding { target: Theme; property: "textScale"; value: window.player.textSize === "100" ? 1.0 : 1.25 }
+    Binding { target: Theme; property: "tv"; value: window.player.textSize === "tv" }
+    Binding { target: Theme; property: "reduceMotion"; value: window.player.reduceMotion }
+
     // Update banner (S6): never shown in the game view; the install action is refused while a game runs.
     header: Rectangle {
         objectName: "updateBanner"
