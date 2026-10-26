@@ -13,7 +13,9 @@
 
 namespace uzume {
 
-RomCache::RomCache(const QString& dir) : dir_(dir) { QDir().mkpath(dir_); }
+RomCache::RomCache(const QString& dir) : dir_(dir) {
+  if (!dir_.isEmpty()) QDir().mkpath(dir_);  // an empty dir is a placeholder (LocalStorageInput default): nothing to create
+}
 
 bool RomCache::isValidSha256(const QString& sha256) {
   static const QRegularExpression re(QStringLiteral("^[0-9a-f]{64}$"));
