@@ -25,7 +25,7 @@ Rectangle {
         text: root.text
         textFormat: Text.PlainText
         font.family: Theme.mono
-        font.pixelSize: 10
+        font.pixelSize: Theme.roles.meta.size
         font.weight: Font.Medium
         font.letterSpacing: root.text.length > 1 ? 0.6 : 0
         font.capitalization: Font.AllUppercase

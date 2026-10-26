@@ -1,8 +1,8 @@
 import QtQuick
 import QtQuick.Controls.Basic
 
-// Checkbox (design-system.md "Checkbox"): an 18 px square with a 1 px `muted` frame; checked is a Yamabuki plane with an
-// `on-accent` check, indeterminate (`tristate`, checkState PartiallyChecked) a dash. Label 14, optional `hint` (12, muted) and
+// Checkbox (design-system.md "Checkbox"): an 18 px square with a 1 px `rule-control` frame; checked is an `ink` plane with a
+// `ground` check (r6: selection is neutral), indeterminate (`tristate`, checkState PartiallyChecked) a dash. Label 14, optional `hint` (12, muted) and
 // `error` (square + sentence in danger) below it. Space toggles.
 CheckBox {
     id: control
@@ -14,6 +14,11 @@ CheckBox {
     spacing: 10
     padding: 0
     hoverEnabled: true
+    Accessible.role: Accessible.CheckBox
+    Accessible.name: control.text
+    Accessible.checkable: true
+    Accessible.checked: control.checked
+    Accessible.onPressAction: control.toggle()
     implicitHeight: Math.max(22, box.height) + (sub.visible ? sub.implicitHeight + 2 : 0)
 
     indicator: Item {
@@ -28,20 +33,20 @@ CheckBox {
             radius: 0
             readonly property bool filled: control.checked || control.mixed
             color: !control.enabled ? Theme.disabledGround
-                 : filled ? (control.down ? Theme.accentPressed : (control.hovered ? Theme.accentHover : Theme.accent))
+                 : filled ? (control.down ? Theme.ink2 : Theme.ink)
                  : (control.down ? Theme.pressed : (control.hovered ? Theme.hover : "transparent"))
             border.width: 1
             border.color: !control.enabled ? Theme.disabledRule
                         : filled ? box.color
                         : control.invalid ? Theme.danger
-                        : (control.hovered ? Theme.ink : Theme.muted)
+                        : (control.hovered ? Theme.ink : Theme.ruleControl)
             UzGlyph {
                 anchors.centerIn: parent
                 visible: box.filled
                 name: control.mixed ? "dash" : "check"
                 size: 12
                 strokeWidth: 2
-                color: control.enabled ? Theme.inkOnAccent : Theme.disabledInk
+                color: control.enabled ? Theme.ground : Theme.disabledInk
             }
         }
         UzFocusRing { visible: control.visualFocus }

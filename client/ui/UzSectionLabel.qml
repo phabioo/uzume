@@ -27,7 +27,7 @@ Item {
         font.weight: Font.Medium
         font.letterSpacing: Theme.roles.sectionLabel.spacing
         font.capitalization: Font.AllUppercase
-        color: Theme.dim
+        color: Theme.muted
     }
     Text {
         id: metaText
@@ -40,6 +40,6 @@ Item {
         font.weight: Font.Medium
         font.letterSpacing: Theme.roles.meta.spacing
         font.capitalization: Font.AllUppercase
-        color: Theme.dim
+        color: Theme.muted
     }
 }

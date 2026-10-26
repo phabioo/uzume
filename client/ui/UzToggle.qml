@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls.Basic
 
 // Toggle (design-system.md "Toggle"): 40 x 22 square switch with a 14 px square knob at top 3, left 3 (off) / 21 (on). On =
-// Yamabuki plane with an `on-accent` knob, off = rule frame with a muted knob. `showState` adds the Mono ON / OFF word.
+// Yamabuki plane with an `on-accent` knob, off = `rule-control` frame with a filled `ink-2` knob (r6). `showState` adds the Mono ON / OFF word.
 Switch {
     id: control
     property bool showState: false
@@ -10,6 +10,11 @@ Switch {
     padding: 0
     spacing: Theme.space15
     hoverEnabled: true
+    Accessible.role: Accessible.CheckBox
+    Accessible.name: control.text
+    Accessible.checkable: true
+    Accessible.checked: control.checked
+    Accessible.onPressAction: control.toggle()
 
     indicator: Item {
         implicitWidth: 40
@@ -26,7 +31,7 @@ Switch {
                  : (control.down ? Theme.pressed : (control.hovered ? Theme.hover : "transparent"))
             border.color: !control.enabled ? Theme.disabledRule
                         : control.checked ? track.color
-                        : (control.hovered ? Theme.ink2 : Theme.rule)
+                        : (control.hovered ? Theme.ink : Theme.ruleControl)
             Behavior on color { ColorAnimation { duration: Theme.durFast } }
             Rectangle {
                 x: control.checked ? 21 : 3
@@ -34,7 +39,7 @@ Switch {
                 width: 14
                 height: 14
                 radius: 0
-                color: !control.enabled ? Theme.disabledInk : (control.checked ? Theme.inkOnAccent : Theme.muted)
+                color: !control.enabled ? Theme.disabledInk : (control.checked ? Theme.inkOnAccent : Theme.ink2)
                 Behavior on x { NumberAnimation { duration: Theme.durFast; easing.type: Easing.OutCubic } }
             }
         }
@@ -64,9 +69,9 @@ Switch {
             anchors.verticalCenter: parent.verticalCenter
             text: control.checked ? qsTr("ON") : qsTr("OFF")
             font.family: Theme.mono
-            font.pixelSize: 10
+            font.pixelSize: Theme.roles.meta.size
             font.weight: Font.Medium
-            font.letterSpacing: 0.8
+            font.letterSpacing: 0.9
             color: control.enabled ? Theme.muted : Theme.disabledInk
         }
     }

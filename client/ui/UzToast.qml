@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 
 // Toast (design-system.md "Toast"): a 44 px notice on `surface` in a 1 px `rule` frame (no shadow): StatusIcon (done / warning
-// / error), message 13, an optional action (accent text, 500), an optional Mono shortcut and a close mark. Bottom left of the
+// / error), message 13, an optional action (ink, underlined, 500), an optional Mono shortcut and a close mark. Bottom left of the
 // stage in game. `action` empty hides the action link; `closable: false` hides the close mark. `maxLines` above 1 wraps a long
 // message onto that many lines (the toast grows past 44 px); the owner limits the width.
 Rectangle {
@@ -65,7 +65,8 @@ Rectangle {
                 font.family: Theme.sans
                 font.pixelSize: Theme.roles.small.size
                 font.weight: Font.Medium
-                color: Theme.accentText
+                font.underline: true
+                color: Theme.ink
             }
             TapHandler { onTapped: root.actionTriggered() }
             HoverHandler { cursorShape: Qt.PointingHandCursor }
@@ -76,25 +77,19 @@ Rectangle {
             text: root.shortcut
             textFormat: Text.PlainText
             font.family: Theme.mono
-            font.pixelSize: 10
+            font.pixelSize: Theme.roles.meta.size
             color: Theme.muted
         }
-        Item {
+        UzIconButton {
             id: closeBox
             objectName: "toastClose"
             visible: root.closable
-            Layout.preferredWidth: 24
-            Layout.preferredHeight: 24
-            activeFocusOnTab: true
-            Accessible.role: Accessible.Button
-            Accessible.name: qsTr("Dismiss")
-            Keys.onPressed: (event) => {
-                if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) { root.closeRequested(); event.accepted = true }
-            }
-            UzGlyph { anchors.centerIn: parent; name: "cross"; size: 12; color: Theme.dim }
-            TapHandler { onTapped: root.closeRequested() }
-            HoverHandler { cursorShape: Qt.PointingHandCursor }
-            UzFocusRing { visible: closeBox.activeFocus }
+            Layout.preferredWidth: Theme.targetMin
+            Layout.preferredHeight: Theme.targetMin
+            glyph: "cross"
+            glyphSize: 12
+            text: qsTr("Dismiss")
+            onClicked: root.closeRequested()
         }
     }
 }

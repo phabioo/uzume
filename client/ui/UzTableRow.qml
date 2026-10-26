@@ -40,7 +40,7 @@ Item {
         visible: root.selected
         width: 2
         height: parent.height
-        color: Theme.accent
+        color: Theme.ink
     }
     Row {
         x: Theme.space15

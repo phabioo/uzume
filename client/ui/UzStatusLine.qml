@@ -24,7 +24,7 @@ Column {
             radius: 0
             color: root.online ? Theme.ok : "transparent"
             border.width: root.online ? 0 : 1
-            border.color: Theme.dim
+            border.color: Theme.muted
         }
         Text {
             anchors.verticalCenter: parent.verticalCenter
@@ -42,8 +42,8 @@ Column {
             anchors.verticalCenter: parent.verticalCenter
             text: root.online ? qsTr("ONLINE") : qsTr("OFFLINE")
             font.family: Theme.mono
-            font.pixelSize: 10
-            color: Theme.dim
+            font.pixelSize: Theme.roles.meta.size
+            color: Theme.muted
         }
     }
     Text {

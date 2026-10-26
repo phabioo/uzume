@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 
 // AppNav item (frame.md "0-4 G"): 32 px row (28 px compact), Plex Sans 14 muted, `hover` fill, active = ink 500 and the 2 px
-// Yamabuki start marker. `badge` shows a count (square on the selected plane), `dot` a 6 px Yamabuki square (update available),
+// start marker (`marker-nav`: Yamabuki, accent-text on Kinari). `badge` shows a count (neutral `badge` square, `ground` text), `dot` a 6 px Yamabuki square (update available),
 // `warnText` a Yamabuki plane with a word ("!").
 // Tab reaches it, Enter and Space activate it. `leading` takes an icon for nested plugin entries (`indent` moves the text).
 Item {
@@ -43,7 +43,7 @@ Item {
         visible: root.active
         width: 2
         height: parent.height
-        color: Theme.accent
+        color: Theme.markerNav
     }
     RowLayout {
         anchors.fill: parent
@@ -83,7 +83,7 @@ Item {
                 text: root.warnText
                 textFormat: Text.PlainText
                 font.family: Theme.mono
-                font.pixelSize: 10
+                font.pixelSize: Theme.roles.tag.size
                 font.weight: Font.DemiBold
                 color: Theme.inkOnAccent
             }
@@ -94,16 +94,16 @@ Item {
             Layout.preferredWidth: Math.max(18, badgeText.implicitWidth + 10)
             Layout.preferredHeight: 18
             radius: 0
-            color: Theme.selected
+            color: Theme.badge
             Text {
                 id: badgeText
                 anchors.centerIn: parent
                 text: root.badge > 9 ? "9+" : String(root.badge)
                 textFormat: Text.PlainText
                 font.family: Theme.mono
-                font.pixelSize: 10
-                font.weight: Font.Medium
-                color: Theme.accentText
+                font.pixelSize: Theme.roles.tag.size
+                font.weight: Font.DemiBold
+                color: Theme.ground
             }
         }
     }

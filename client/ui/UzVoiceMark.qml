@@ -30,7 +30,7 @@ Row {
         anchors.verticalCenter: parent.verticalCenter
         text: root.voice === "speaking" ? qsTr("SPEAKING") : root.voice === "mutedByHost" ? qsTr("MUTED BY HOST") : qsTr("MIC OFF")
         font.family: Theme.mono
-        font.pixelSize: 10
+        font.pixelSize: Theme.roles.meta.size
         font.weight: Font.Medium
         font.letterSpacing: 0.8
         color: root.voice === "micOff" ? Theme.muted : Theme.ink

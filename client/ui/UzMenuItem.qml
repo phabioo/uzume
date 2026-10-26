@@ -30,7 +30,7 @@ Rectangle {
         visible: root.selected
         width: 2
         height: parent.height
-        color: Theme.accent
+        color: Theme.ink
     }
     RowLayout {
         id: contents
@@ -42,7 +42,7 @@ Rectangle {
             visible: root.checkColumn
             Layout.preferredWidth: 14
             Layout.preferredHeight: 14
-            UzGlyph { anchors.centerIn: parent; visible: root.selected; name: "check"; size: 14; color: Theme.accentText }
+            UzGlyph { anchors.centerIn: parent; visible: root.selected; name: "check"; size: 14; color: Theme.ink }
         }
         Text {
             Layout.fillWidth: true
@@ -69,7 +69,7 @@ Rectangle {
             text: root.shortcut
             textFormat: Text.PlainText
             font.family: Theme.mono
-            font.pixelSize: 10
+            font.pixelSize: Theme.roles.meta.size
             font.letterSpacing: 0.6
             color: root.itemEnabled ? Theme.muted : Theme.disabledInk
         }
