@@ -256,6 +256,7 @@ qt_add_qml_module(uzume_ui
     ScreenshotSaveDialog.qml
     LibraryAdminBar.qml
     LibraryContinue.qml
+    LibraryNotices.qml
     LibraryAdminDetails.qml
     SavesAdminSwitch.qml
     SavesAdminSheet.qml

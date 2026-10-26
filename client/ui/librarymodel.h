@@ -44,6 +44,10 @@ class LibraryModel : public QAbstractListModel {
   Q_PROPERTY(bool personalSupported READ personalSupported NOTIFY collectionsChanged)
   // Chips of the collection row: [{value, label, count, kind: "all" | "favorites" | "collection"}], without "+ Collection".
   Q_PROPERTY(QVariantList collectionChips READ collectionChips NOTIFY collectionsChanged)
+  // System filter of the "Systems…" menu: "" (all systems) or a system id (case-insensitive). Combined with the collection, the
+  // status filter and the search. systemChips: [{value, label, count}] per system among all games, sorted by label.
+  Q_PROPERTY(QString systemFilter READ systemFilter WRITE setSystemFilter NOTIFY filterChanged)
+  Q_PROPERTY(QVariantList systemChips READ systemChips NOTIFY countChanged)
   // Sort (3c-2): "name_asc" | "name_desc" | "added_desc" | "added_asc" | "size_desc" | "size_asc" | "system" | "played"
   // (recently played, the default; server last played or this device's, the newer one) | "playtime" (most play time first).
   // Persisted per device by the PlayerController (PlayerSettings).
@@ -114,6 +118,10 @@ class LibraryModel : public QAbstractListModel {
     for (const Item& it : items_) s.insert(it.game.system);
     return static_cast<int>(s.size());
   }
+  QString systemFilter() const { return system_; }
+  void setSystemFilter(const QString& system);
+  QVariantList systemChips() const;
+  int gamesForSystem(const QString& system) const;
   QString filter() const { return filter_; }
   void setFilter(const QString& filter);
   // Chip counts; they follow the search text (not the chip filter), see counts(false) for the totals.
@@ -215,6 +223,7 @@ class LibraryModel : public QAbstractListModel {
   QString filterText_;
   QString filter_ = QStringLiteral("all");
   QString collection_ = QStringLiteral("all");
+  QString system_;
   QList<CollectionInfo> collections_;
   bool personalSupported_ = false;
   QString sortKey_ = QStringLiteral("played");

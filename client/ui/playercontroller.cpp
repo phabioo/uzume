@@ -230,6 +230,7 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
     emit selectedGameChanged();
   });
   connect(this, &PlayerController::hubChanged, this, &PlayerController::coreWarningsChanged);
+  connect(&model_, &LibraryModel::countChanged, this, &PlayerController::coreWarningsChanged);  // the notice counts games
   connect(provisioner_.get(), &FirmwareProvisioner::finished, this, [this](const FirmwareResult& r) { starter_->onFirmwareFinished(r); });
   connect(coreProv_.get(), &CoreProvisioner::finished, this, [this](const CoreResult& r) {
     starter_->onCoreFinished(r);
@@ -1610,6 +1611,7 @@ QVariantList PlayerController::coreWarnings() const {
     QString id;
     QString label;
     QStringList systems;
+    int games = 0;  // library games of this core's systems
   };
   QList<CoreRef> download;
   QList<CoreRef> unavailable;
@@ -1621,7 +1623,10 @@ QVariantList PlayerController::coreWarnings() const {
     r.label = p.coreId;
     if (const emu::CoreProfile* prof = manifests_.profile(p.coreId)) {
       r.label = coreNames_.value(p.coreId, prof->displayName);
-      for (const QString& sys : prof->systemIds) r.systems << sys.toUpper();
+      for (const QString& sys : prof->systemIds) {
+        r.systems << sys.toUpper();
+        r.games += model_.gamesForSystem(sys);
+      }
     }
     if (r.label.isEmpty()) r.label = tr("Core");
     return r;
@@ -1637,8 +1642,9 @@ QVariantList PlayerController::coreWarnings() const {
       continue;
     }
     // The server's systems list is being reloaded: whether it offers the core is not known yet, so no verdict (the banner
-    // would contradict the game detail); coreWarningsChanged fires when the list is Ready.
-    if (missing && systems_->state() == HubSystems::State::Loading) {
+    // would contradict the game detail); coreWarningsChanged fires when the list is Ready. A failed load is no verdict either
+    // (the game detail says "Status unavailable" then).
+    if (missing && systems_->supported() && (systems_->state() == HubSystems::State::Loading || systems_->state() == HubSystems::State::Failed)) {
       continue;
     }
     const QString key = p.code + QLatin1Char('|') + p.coreId;
@@ -1666,22 +1672,38 @@ QVariantList PlayerController::coreWarnings() const {
     for (const CoreRef& c : cores) parts << (c.systems.isEmpty() ? c.label : QStringLiteral("%1 (%2)").arg(c.label, c.systems.join(QStringLiteral(", "))));
     return parts.join(QStringLiteral(" · "));
   };
+  // Games per kind (a system shared by two cores counts once).
+  const auto gamesOf = [this](const QList<CoreRef>& cores) {
+    QSet<QString> systems;
+    for (const CoreRef& c : cores) {
+      for (const QString& sys : c.systems) systems.insert(sys);
+    }
+    int n = 0;
+    for (const QString& sys : std::as_const(systems)) n += model_.gamesForSystem(sys);
+    return n;
+  };
   QVariantList list;
-  if (!download.isEmpty() && !dismissedCoreNotices_.contains(QStringLiteral("core_download"))) {
-    const QString hub = hubName().isEmpty() ? tr("the server") : hubName();
+  // Wording follows the core state per game, like the game detail: a core the server delivers installs on first play (info,
+  // only when a game needs it); only a core that is neither on this device nor offered is a problem.
+  if (const int games = gamesOf(download); games > 0 && !dismissedCoreNotices_.contains(QStringLiteral("core_download"))) {
     list.append(QVariantMap{{QStringLiteral("code"), QStringLiteral("core_download")},
                             {QStringLiteral("coreId"), download.first().id},
                             {QStringLiteral("tone"), QStringLiteral("info")},
-                            {QStringLiteral("text"), tr("%1 download from %2 on first start: %3")
-                                                         .arg(download.size() == 1 ? tr("1 core") : tr("%1 cores").arg(download.size()), hub, describe(download))},
-                            {QStringLiteral("detail"), QString()}});
+                            {QStringLiteral("games"), games},
+                            {QStringLiteral("text"), games == 1 ? tr("1 game needs a core that is not installed yet. It installs on first play.")
+                                                                : tr("%1 games need a core that is not installed yet. They install on first play.").arg(games)},
+                            {QStringLiteral("detail"), describe(download)}});
   }
   if (!unavailable.isEmpty()) {
+    const int games = gamesOf(unavailable);
+    const QString cores = describe(unavailable);
     list.append(QVariantMap{{QStringLiteral("code"), QStringLiteral("core_missing")},
                             {QStringLiteral("coreId"), unavailable.first().id},
                             {QStringLiteral("tone"), QStringLiteral("warn")},
-                            {QStringLiteral("text"), tr("Not on this device and not offered by the server: %1. Games for these systems cannot start here.")
-                                                         .arg(describe(unavailable))},
+                            {QStringLiteral("games"), games},
+                            {QStringLiteral("text"), games == 0 ? tr("The core %1 is not installed on this device and the server does not provide it.").arg(cores)
+                                                     : games == 1 ? tr("1 game cannot start: the core %1 is not installed on this device and the server does not provide it.").arg(cores)
+                                                                  : tr("%1 games cannot start: the core %2 is not installed on this device and the server does not provide it.").arg(games).arg(cores)},
                             {QStringLiteral("detail"), QString()}});
   }
   for (const QVariant& m : mismatches) list.append(m);

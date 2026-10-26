@@ -82,25 +82,28 @@ class PersonalUiTest : public QObject {
     for (int i = 0; i < m->rowCount(); ++i) out << m->data(m->index(i, 0), LibraryModel::GameIdRole).toString();
     return out;
   }
-  // The collection control (3c-1-r6) is a select with a menu: open it and choose an entry by its value.
+  // Collections live in the scope chips: All and Favourites are chips, a collection is chosen from the Systems… menu (one scope
+  // at a time).
   static bool pickCollection(Harness& h, const char* value) {
-    if (!h.click("collectionSelect")) return false;
+    if (QByteArray(value) == "all") return h.click("scopeChip_all");
+    if (QByteArray(value) == "favorites") return h.click("scopeChip_favorites");
+    if (!h.click("scopeChip_menu")) return false;
     const QByteArray name = QByteArray("menuItem_collection_") + value;
     if (!QTest::qWaitFor([&]() { return shown(h, name.constData()); }, 3000)) return false;
     return h.click(name.constData());
   }
   static bool newCollectionEntry(Harness& h) {
-    if (!h.click("collectionSelect")) return false;
+    if (!h.click("scopeChip_menu")) return false;
     if (!QTest::qWaitFor([&]() { return shown(h, "menuItem_collectionNew"); }, 3000)) return false;
     return h.click("menuItem_collectionNew");
   }
-  // "Label · count" of every entry of the collection menu.
+  // "Label · count" of every collection chip of the model (All, Favourites, one per collection).
   static QStringList collectionLabels(Harness& h) {
     QStringList out;
-    QObject* picker = h.window->findChild<QObject*>(QStringLiteral("collectionPicker"));
-    if (picker == nullptr) return out;
-    for (const QVariant& v : picker->property("items").toList()) {
-      if (v.toMap().contains(QStringLiteral("label")) && v.toMap().value(QStringLiteral("value")).toString() != QLatin1String("__new")) out << v.toMap().value(QStringLiteral("label")).toString();
+    for (const QVariant& v : h.controller->library()->collectionChips()) {
+      const QVariantMap c = v.toMap();
+      out << (c.value(QStringLiteral("value")).toString() == QLatin1String("all") ? QStringLiteral("All collections") : c.value(QStringLiteral("label")).toString())
+                 + QStringLiteral(" · ") + QString::number(c.value(QStringLiteral("count")).toInt());
     }
     return out;
   }
@@ -125,7 +128,7 @@ class PersonalUiTest : public QObject {
     Harness h;
     QVERIFY(h.start());
     pair(h, hub);
-    QTRY_VERIFY_WITH_TIMEOUT(shown(h, "collectionSelect"), 5000);
+    QTRY_VERIFY_WITH_TIMEOUT(shown(h, "scopeChip_favorites"), 5000);
     QTRY_VERIFY_WITH_TIMEOUT(collectionLabels(h).size() == 4, 5000);
     const QStringList labels = collectionLabels(h);
     QCOMPARE(labels.value(0), QStringLiteral("All collections · 3"));
@@ -170,7 +173,7 @@ class PersonalUiTest : public QObject {
     Harness h;
     QVERIFY(h.start());
     pair(h, hub);
-    QTRY_VERIFY_WITH_TIMEOUT(shown(h, "collectionSelect") && collectionLabels(h).size() == 4, 5000);
+    QTRY_VERIFY_WITH_TIMEOUT(shown(h, "scopeChip_favorites") && collectionLabels(h).size() == 4, 5000);
     QVERIFY(newCollectionEntry(h));
     QTRY_VERIFY(shown(h, "collectionNameDialog"));
     QVERIFY(!h.item("collectionNameConfirm")->isEnabled());
@@ -403,7 +406,7 @@ class PersonalUiTest : public QObject {
     selectGame(h, QStringLiteral("g1"));
     QTest::qWait(300);
     QVERIFY(!h.controller->personal()->supported());
-    QVERIFY(!shown(h, "collectionSelect"));
+    QVERIFY(!shown(h, "scopeChip_favorites"));
     QVERIFY(!shown(h, "favoriteButton"));
     QVERIFY(!shown(h, "personalFacts"));
     QVERIFY(!shown(h, "tileLastPlayed"));

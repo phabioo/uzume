@@ -63,32 +63,53 @@ class LibraryOverviewUiTest : public QObject {
   void init() { uitest::warningCount() = 0; }
   void cleanup() { QCOMPARE(uitest::warningCount().load(), 0); }
 
-  void statusChipsShowCountsAndFilter() {
+  // The status filter lives in the Systems… menu (the four status chips are gone): counts in the menu, one scope at a time.
+  void statusFilterInTheSystemsMenu() {
     FakeHub hub(QStringLiteral("a"));
     seed(hub, 4);
     QVERIFY(hub.start());
     Harness h;
     QVERIFY(h.start());
     pair(h, hub);
-    for (const char* id : {"all", "ready", "attention", "download"}) {
-      QTRY_VERIFY_WITH_TIMEOUT(shown(h, (QByteArray("statusChip_") + id).constData()), 5000);
-    }
+    QTRY_VERIFY_WITH_TIMEOUT(shown(h, "scopeChip_all") && shown(h, "scopeChip_menu"), 5000);
+    QVERIFY(h.item("statusChip_all") == nullptr);
     const QVariantMap counts = h.controller->library()->counts();
     QCOMPARE(counts.value(QStringLiteral("all")).toInt(), 4);
     QCOMPARE(counts.value(QStringLiteral("ready")).toInt() + counts.value(QStringLiteral("attention")).toInt() + counts.value(QStringLiteral("download")).toInt(), 4);
-    for (const QString& id : counts.keys()) {
-      QQuickItem* chip = h.item((QByteArray("statusChip_") + id.toUtf8()).constData());
-      if (chip != nullptr) QCOMPARE(chip->property("count").toInt(), counts.value(id).toInt());
-    }
-    QVERIFY(h.item("statusChip_attention")->property("badgeAccent").toBool());
-    QVERIFY(!h.item("statusChip_ready")->property("badgeAccent").toBool());
+    QCOMPARE(h.item("scopeChip_all")->property("count").toInt(), 4);
+    QVERIFY(h.item("scopeChip_all")->property("active").toBool());
+    QCOMPARE(h.item("scopeChip_menu")->property("text").toString(), QStringLiteral("Systems…"));
 
-    // Clicking a chip filters and the rows follow its count.
-    for (const QString& id : {QStringLiteral("attention"), QStringLiteral("ready"), QStringLiteral("download"), QStringLiteral("all")}) {
-      QVERIFY(h.click((QByteArray("statusChip_") + id.toUtf8()).constData()));
+    // Choosing a status filters, the rows follow its count and the chip shows the choice.
+    for (const QString& id : {QStringLiteral("attention"), QStringLiteral("ready"), QStringLiteral("download")}) {
+      QVERIFY(h.click("scopeChip_menu"));
+      const QByteArray item = QByteArray("menuItem_status_") + id.toUtf8();
+      QTRY_VERIFY(shown(h, item.constData()));
+      QVERIFY(textOf(h, item.constData()).endsWith(QStringLiteral(" · ") + QString::number(counts.value(id).toInt())));
+      QVERIFY(h.click(item.constData()));
       QTRY_COMPARE(h.controller->library()->filter(), id);
       QCOMPARE(h.controller->library()->rowCount(), counts.value(id).toInt());
+      QVERIFY(h.item("scopeChip_menu")->property("active").toBool());
+      QVERIFY(!h.item("scopeChip_all")->property("active").toBool());
+      QCOMPARE(h.item("scopeChip_menu")->property("badgeAccent").toBool(), id == QLatin1String("attention"));
     }
+    QVERIFY(h.click("scopeChip_all"));
+    QTRY_COMPARE(h.controller->library()->filter(), QStringLiteral("all"));
+    QCOMPARE(h.controller->library()->rowCount(), 4);
+    QVERIFY(!h.item("scopeChip_menu")->property("active").toBool());
+
+    // A system is chosen from the same menu; every seeded game is a "nds" game here.
+    const QVariantList systems = h.controller->library()->systemChips();
+    QVERIFY(!systems.isEmpty());
+    const QString sys = systems.first().toMap().value(QStringLiteral("value")).toString();
+    QVERIFY(h.click("scopeChip_menu"));
+    const QByteArray sysItem = QByteArray("menuItem_system_") + sys.toLower().toUtf8();
+    QTRY_VERIFY(shown(h, sysItem.constData()));
+    QVERIFY(h.click(sysItem.constData()));
+    QTRY_COMPARE(h.controller->library()->systemFilter().toLower(), sys.toLower());
+    QCOMPARE(h.controller->library()->rowCount(), systems.first().toMap().value(QStringLiteral("count")).toInt());
+    QVERIFY(h.click("scopeChip_all"));
+    QTRY_COMPARE(h.controller->library()->systemFilter(), QString());
 
     // Pad L / R step through the chips and wrap around.
     QCOMPARE(h.controller->library()->filter(), QStringLiteral("all"));
@@ -101,16 +122,80 @@ class LibraryOverviewUiTest : public QObject {
     emit h.controller->controllers()->padCommand(QStringLiteral("filterNext"));
     QTRY_COMPARE(h.controller->library()->filter(), QStringLiteral("all"));
 
-    // Right on a focused chip moves the filter and the focus.
-    h.item("statusChip_all")->forceActiveFocus();
-    QTest::keyClick(h.window, Qt::Key_Right);
-    QTRY_COMPARE(h.controller->library()->filter(), QStringLiteral("ready"));
-    QTest::keyClick(h.window, Qt::Key_Left);
-    QTRY_COMPARE(h.controller->library()->filter(), QStringLiteral("all"));
-
     // The warning stays on every row that needs attention: each row of the list has its square and a status word.
     QTRY_COMPARE(visibleCount(h, "tileStatus"), 4);
     QCOMPARE(visibleCount(h, "tileWarn"), counts.value(QStringLiteral("attention")).toInt());
+  }
+
+  // The uncluttered Library at 1280 x 800 with an admin, notices and a played game: one notices line ("+N more" folds the others),
+  // one toolbar row, a Continue card, and at least seven game rows without scrolling.
+  void noticesFoldIntoOneLineAndSevenRowsFit() {
+    FakeHub hub(QStringLiteral("a"));
+    seed(hub, 12);
+    QJsonArray games = hub.games.value(QStringLiteral("games")).toArray();
+    QJsonObject first = games.at(0).toObject();
+    first.insert(QStringLiteral("personal"), QJsonObject{{QStringLiteral("play_seconds"), 600}, {QStringLiteral("sessions"), 2},
+                                                          {QStringLiteral("last_played_at"), QStringLiteral("2026-10-22T10:00:00Z")},
+                                                          {QStringLiteral("favorite"), false}, {QStringLiteral("collection_ids"), QJsonArray()}});
+    games.replace(0, first);
+    hub.games = QJsonObject{{QStringLiteral("games"), games}};
+    hub.features = QStringList{QStringLiteral("saves_v1"), QStringLiteral("uploads_v1"), QStringLiteral("local_roms_v1")};
+    hub.handshakeExtra = QJsonObject{
+        {QStringLiteral("user"), QJsonObject{{QStringLiteral("id"), QStringLiteral("u_1")}, {QStringLiteral("display_name"), QStringLiteral("admin")},
+                                             {QStringLiteral("role"), QStringLiteral("admin")}}},
+        {QStringLiteral("problems"),
+         QJsonArray{QJsonObject{{QStringLiteral("code"), QStringLiteral("core_version_mismatch")},
+                                {QStringLiteral("detail"), QStringLiteral("Core melonds_ds 1.3.0, expected 1.4.0")},
+                                {QStringLiteral("core_id"), QStringLiteral("melonds_ds")}},
+                    QJsonObject{{QStringLiteral("code"), QStringLiteral("core_missing")},
+                                {QStringLiteral("detail"), QStringLiteral("Core mgba is not installed")},
+                                {QStringLiteral("core_id"), QStringLiteral("mgba")}}}}};
+    QVERIFY(hub.start());
+    Harness h;
+    QVERIFY(h.start());
+    pair(h, hub, 1280);
+    h.window->resize(1280, 800);
+    QTRY_VERIFY_WITH_TIMEOUT(shown(h, "libraryNotice"), 5000);
+    QTest::qWait(300);
+    QQuickTest::qWaitForPolish(h.window);
+
+    // One notices line; the further notices wait behind "+N more".
+    QCOMPARE(visibleCount(h, "libraryNotice"), 1);
+    QVERIFY(shown(h, "libraryNoticeMore"));
+    QVERIFY(textOf(h, "libraryNoticeMore").startsWith(QStringLiteral("+")));
+    QVERIFY(h.controller->coreWarnings().size() >= 2);
+    QCOMPARE(h.item("libraryNotice")->height(), 32.0);
+    QVERIFY(shown(h, "libraryNoticeAction"));  // admin: the link to Systems & cores
+    QVERIFY(h.click("libraryNoticeMore"));
+    QTRY_VERIFY(visibleCount(h, "libraryNotice") >= 2);
+    QVERIFY(h.click("libraryNoticeMore"));
+    QTRY_COMPARE(visibleCount(h, "libraryNotice"), 1);
+
+    // The page: header action, one toolbar row, Continue (one card) and "All games".
+    QVERIFY(shown(h, "uploadButton"));
+    QCOMPARE(textOf(h, "uploadButton"), QStringLiteral("Add games…"));
+    QVERIFY(shown(h, "searchField") && shown(h, "scopeChip_all") && shown(h, "sortControl") && shown(h, "libraryViewSwitch"));
+    QVERIFY(h.item("statusChip_all") == nullptr && !shown(h, "readyFirstToggle"));  // no status chips, Ready first sits in the sort menu
+    const auto sceneRect = [&](const char* name) { QQuickItem* it = h.item(name); return it->mapRectToScene(it->boundingRect()); };
+    const QRectF chip = sceneRect("scopeChip_all"), sort = sceneRect("sortControl"), toolbar = sceneRect("libraryToolbar");
+    QVERIFY2(qAbs(chip.center().y() - sort.center().y()) < 4 && toolbar.height() <= 40, "chips and sort share one toolbar row");
+    QVERIFY(shown(h, "continueCard"));
+    QCOMPARE(visibleCount(h, "continueCard") + visibleCount(h, "recentEntry"), 1);
+    QCOMPARE(h.item("continueCard")->height(), 64.0);
+    QVERIFY(shown(h, "libraryAllLabel"));
+
+    // At least seven game rows are inside the list viewport (no scrolling).
+    QQuickItem* scroll = h.item("gameScroll");
+    QVERIFY(scroll != nullptr);
+    const QRectF view = scroll->mapRectToScene(scroll->boundingRect());
+    int rows = 0;
+    for (QQuickItem* t : h.items("tileTitle")) {
+      if (!t->isVisible() || t->window() != h.window) continue;
+      const QRectF r = t->mapRectToScene(t->boundingRect());
+      if (r.top() >= view.top() - 0.5 && r.bottom() <= view.bottom() + 0.5) ++rows;
+    }
+    QVERIFY2(rows >= 7, qPrintable(QStringLiteral("%1 rows visible").arg(rows)));
+    uitest::saveShot(h.window, QStringLiteral("library-uncluttered"));
   }
 
   void listAndGridSwitchPersists() {

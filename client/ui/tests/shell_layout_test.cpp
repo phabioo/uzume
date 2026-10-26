@@ -34,7 +34,7 @@ class ShellLayoutTest : public QObject {
     QVERIFY2(title != nullptr && upload != nullptr && search != nullptr, when);
     QVERIFY2(upload->isVisible(), when);
     const QRectF t = rectOf(title), u = rectOf(upload), s = rectOf(search);
-    QVERIFY2(!t.intersects(u), qPrintable(QStringLiteral("%1: title %2,%3 %4x%5 intersects Upload ROM %6,%7 %8x%9")
+    QVERIFY2(!t.intersects(u), qPrintable(QStringLiteral("%1: title %2,%3 %4x%5 intersects Add games %6,%7 %8x%9")
                                               .arg(QLatin1String(when)).arg(t.x()).arg(t.y()).arg(t.width()).arg(t.height()).arg(u.x()).arg(u.y()).arg(u.width()).arg(u.height())));
     // One page header: Upload ROM sits at the right of the title while it fits, otherwise it wraps below it. The title never
     // shortens and the action never leaves the header.
@@ -42,12 +42,15 @@ class ShellLayoutTest : public QObject {
     QVERIFY2(t.left() >= hd.left() - 0.5, when);
     QVERIFY2(h.item("libraryTitle")->property("truncated").toBool() == false, when);
     QVERIFY2(u.right() <= hd.right() + 0.5, when);
-    // The toolbar (3c-1-r6): row 1 the status chips, row 2 the search; both below the header and inside the column.
-    const QRectF tb = rectOf(h.item("libraryToolbar")), tb2 = rectOf(h.item("libraryToolbar2"));
-    QVERIFY2(tb.top() >= hd.bottom() - 0.5 && tb2.top() >= tb.bottom() - 0.5, when);
-    QVERIFY2(!s.intersects(u) && s.width() >= 100 && s.right() <= tb2.right() + 0.5, when);
+    // The one toolbar row: below the header and inside the column; search, the scope chips and sort / view never overlap (they
+    // wrap to a second line when the search would get narrower than 100 px).
+    const QRectF tb = rectOf(h.item("libraryToolbar")), chips = rectOf(h.item("libraryChips")), tail = rectOf(h.item("libraryToolbar2"));
+    QVERIFY2(tb.top() >= hd.bottom() - 0.5, when);
+    QVERIFY2(!s.intersects(u) && s.width() >= 100 && s.right() <= tb.right() + 0.5, when);
+    QVERIFY2(!s.intersects(chips) && !s.intersects(tail) && !chips.intersects(tail), when);
+    QVERIFY2(chips.right() <= tb.right() + 0.5 && chips.left() >= tb.left() - 0.5 && tail.right() <= tb.right() + 0.5, when);
     QRectF previous;
-    for (const char* name : {"statusChip_all", "statusChip_ready", "statusChip_attention", "statusChip_download"}) {
+    for (const char* name : {"scopeChip_all", "scopeChip_menu"}) {
       QQuickItem* chip = h.item(name);
       QVERIFY2(chip != nullptr && chip->isVisible(), when);
       const QRectF c = rectOf(chip);
@@ -75,7 +78,7 @@ class ShellLayoutTest : public QObject {
   void init() { uitest::warningCount() = 0; }
   void cleanup() { QCOMPARE(uitest::warningCount().load(), 0); }
 
-  // The first library layout after pairing: "Upload ROM" and the user name arrive with the handshake.
+  // The first library layout after pairing: "Add games…" and the user name arrive with the handshake.
   void firstLoadHasNoOverlap() {
     FakeHub hub(QStringLiteral("a"));
     hub.features = QStringList{QStringLiteral("saves_v1"), QStringLiteral("uploads_v1")};

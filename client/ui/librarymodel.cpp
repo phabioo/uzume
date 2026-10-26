@@ -3,6 +3,7 @@
 #include <QDateTime>
 #include <QPair>
 #include <QLocale>
+#include <QMap>
 #include <algorithm>
 
 namespace uzume::ui {
@@ -248,6 +249,7 @@ bool LibraryModel::matchesText(const Item& it) const {
 }
 
 bool LibraryModel::matchesCollection(const Item& it) const {
+  if (!system_.isEmpty() && QString::compare(it.game.system, system_, Qt::CaseInsensitive) != 0) return false;
   if (collection_ == QLatin1String("all")) return true;
   if (collection_ == QLatin1String("favorites")) return it.game.personal.favorite;
   return it.game.personal.collectionIds.contains(collection_);
@@ -590,6 +592,38 @@ void LibraryModel::setCollectionFilter(const QString& value) {
   emit countChanged();
 }
 
+void LibraryModel::setSystemFilter(const QString& system) {
+  QString v = system.trimmed();
+  if (!v.isEmpty() && gamesForSystem(v) == 0) v.clear();  // unknown system: back to all
+  if (QString::compare(v, system_, Qt::CaseInsensitive) == 0) return;
+  system_ = v;
+  rebuild();
+  emit filterChanged();
+  emit countChanged();
+}
+
+int LibraryModel::gamesForSystem(const QString& system) const {
+  int n = 0;
+  for (const Item& it : items_) n += QString::compare(it.game.system, system, Qt::CaseInsensitive) == 0 ? 1 : 0;
+  return n;
+}
+
+QVariantList LibraryModel::systemChips() const {
+  QMap<QString, int> per;  // label -> count (sorted by label)
+  QHash<QString, QString> idOf;
+  for (const Item& it : items_) {
+    const QString label = it.game.system.toUpper();
+    if (label.isEmpty()) continue;
+    per[label]++;
+    idOf.insert(label, it.game.system);
+  }
+  QVariantList out;
+  for (auto i = per.cbegin(); i != per.cend(); ++i) {
+    out.append(QVariantMap{{QStringLiteral("value"), idOf.value(i.key())}, {QStringLiteral("label"), i.key()}, {QStringLiteral("count"), i.value()}});
+  }
+  return out;
+}
+
 void LibraryModel::setSystemLabel(const QString& label) {
   if (label != systemLabel_) {
     systemLabel_ = label;
@@ -602,7 +636,7 @@ QString LibraryModel::countText() const {
   const int shown = rowCount();
   const bool text = !filterText_.trimmed().isEmpty();
   if (filter_ == QLatin1String("all")) {
-    if (!text && collection_ != QLatin1String("all")) {
+    if (!text && (collection_ != QLatin1String("all") || !system_.isEmpty())) {
       return tr("%1 of %2 games").arg(shown).arg(total);
     }
     if (!text) {

@@ -335,7 +335,7 @@ class HubFeaturesUiTest : public QObject {
     const QVariantList warnings = h.controller->coreWarnings();
     QCOMPARE(warnings.size(), 1);
     QVERIFY(warnings.first().toMap().value(QStringLiteral("text")).toString().contains(QStringLiteral("melonDS DS")));
-    QTRY_VERIFY(h.item("coreWarning") != nullptr && h.item("coreWarning")->isVisible());
+    QTRY_VERIFY(h.item("libraryNotice") != nullptr && h.item("libraryNotice")->isVisible());
     uitest::saveShot(h.window, QStringLiteral("5-core-warning"));
   }
 
