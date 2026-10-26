@@ -32,6 +32,10 @@
   {
    "id": "b5",
    "name": "5 Randomizer"
+  },
+  {
+   "id": "b6",
+   "name": "6 Readable pass"
   }
  ],
  "boards": {
@@ -3217,6 +3221,110 @@
    "h": 800,
    "page": "b3",
    "title": "11f-3 · Run · cheats rule states · Kinari · linked"
+  },
+  "S6Index.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1280,
+   "h": 800,
+   "title": "6 Readable pass · index and decisions",
+   "page": "b6"
+  },
+  "S3c1R6.dc.html": {
+   "x": 0,
+   "y": 1200,
+   "w": 1280,
+   "h": 800,
+   "title": "3c-1-r6 · Library list, all need attention, one selected",
+   "page": "b6"
+  },
+  "S3c2R6.dc.html": {
+   "x": 1360,
+   "y": 1200,
+   "w": 1280,
+   "h": 800,
+   "title": "3c-2-r6 · Library grid",
+   "page": "b6"
+  },
+  "S3c3R6.dc.html": {
+   "x": 2720,
+   "y": 1200,
+   "w": 1280,
+   "h": 800,
+   "title": "3c-3-r6 · Game saves",
+   "page": "b6"
+  },
+  "S3g1R6.dc.html": {
+   "x": 0,
+   "y": 2400,
+   "w": 1280,
+   "h": 800,
+   "title": "3g-1-r6 · Running game, header and panel tabs",
+   "page": "b6"
+  },
+  "S3g6R6.dc.html": {
+   "x": 1360,
+   "y": 2400,
+   "w": 1280,
+   "h": 800,
+   "title": "3g-6-r6 · Diagnostics with details, hold-Select sheet",
+   "page": "b6"
+  },
+  "S9c1R6.dc.html": {
+   "x": 0,
+   "y": 3600,
+   "w": 1280,
+   "h": 800,
+   "title": "9c-1-r6 · Settings › This PC › Appearance",
+   "page": "b6"
+  },
+  "S9a1R6.dc.html": {
+   "x": 1360,
+   "y": 3600,
+   "w": 1280,
+   "h": 800,
+   "title": "9a-1-r6 · Controllers",
+   "page": "b6"
+  },
+  "S6f1R6.dc.html": {
+   "x": 0,
+   "y": 4800,
+   "w": 1280,
+   "h": 800,
+   "title": "6f-app-1-r6 · Server status, with a wide font",
+   "page": "b6"
+  },
+  "S3n1R6.dc.html": {
+   "x": 1360,
+   "y": 4800,
+   "w": 1280,
+   "h": 800,
+   "title": "3n-app-1-r6 · Users",
+   "page": "b6"
+  },
+  "S0R6Pad1.dc.html": {
+   "x": 0,
+   "y": 6000,
+   "w": 1280,
+   "h": 800,
+   "title": "0-r6-pad-1 · Library at TV scale with HintRow",
+   "page": "b6"
+  },
+  "S0R6Pad2.dc.html": {
+   "x": 1360,
+   "y": 6000,
+   "w": 1280,
+   "h": 800,
+   "title": "0-r6-pad-2 · Settings at TV scale, danger confirm with a wide font",
+   "page": "b6"
+  },
+  "S0R6Kinari.dc.html": {
+   "x": 2720,
+   "y": 6000,
+   "w": 1280,
+   "h": 800,
+   "title": "0-r6-kinari · Kinari check with contrast labels",
+   "page": "b6"
   }
  },
  "order": [
@@ -3622,7 +3730,20 @@
   "S11f2On3.dc.html",
   "S11f2On3Kinari.dc.html",
   "S11f3On3.dc.html",
-  "S11f3On3Kinari.dc.html"
+  "S11f3On3Kinari.dc.html",
+  "S6Index.dc.html",
+  "S3c1R6.dc.html",
+  "S3c2R6.dc.html",
+  "S3c3R6.dc.html",
+  "S3g1R6.dc.html",
+  "S3g6R6.dc.html",
+  "S9c1R6.dc.html",
+  "S9a1R6.dc.html",
+  "S6f1R6.dc.html",
+  "S3n1R6.dc.html",
+  "S0R6Pad1.dc.html",
+  "S0R6Pad2.dc.html",
+  "S0R6Kinari.dc.html"
  ],
  "notes": {
   "row04": {
@@ -3876,6 +3997,54 @@
    "text": "11e–11f Cheats rule in runs · linked from 4 Play and plugins",
    "kind": "title1",
    "maxW": 5360
+  },
+  "r6t0": {
+   "x": 0,
+   "y": -300,
+   "text": "6 Readable pass",
+   "kind": "title1",
+   "maxW": 3960,
+   "page": "b6"
+  },
+  "r6t1": {
+   "x": 0,
+   "y": 900,
+   "text": "Library",
+   "kind": "title1",
+   "maxW": 3960,
+   "page": "b6"
+  },
+  "r6t2": {
+   "x": 0,
+   "y": 2100,
+   "text": "Running game",
+   "kind": "title1",
+   "maxW": 3960,
+   "page": "b6"
+  },
+  "r6t3": {
+   "x": 0,
+   "y": 3300,
+   "text": "Settings and controllers",
+   "kind": "title1",
+   "maxW": 3960,
+   "page": "b6"
+  },
+  "r6t4": {
+   "x": 0,
+   "y": 4500,
+   "text": "Admin in the app",
+   "kind": "title1",
+   "maxW": 3960,
+   "page": "b6"
+  },
+  "r6t5": {
+   "x": 0,
+   "y": 5700,
+   "text": "Gamepad, wide font, Kinari",
+   "kind": "title1",
+   "maxW": 3960,
+   "page": "b6"
   }
  },
  "designSystems": [
@@ -3883,8 +4052,8 @@
    "title": "Uzume",
    "namespace": "uzume",
    "artifact": "https://claude.ai/code/artifact/f0a1c8be-0e62-487f-9399-5292c81ab37d",
-   "version": "1792678060-b200",
-   "copiedAt": "2026-10-22T17:40:00Z"
+   "version": "1793007086-7519",
+   "copiedAt": "2026-10-26T09:40:00Z"
   }
  ]
 }

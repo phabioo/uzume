@@ -8,7 +8,7 @@ Read only the part you need: the design system once, then the spec of the one sc
 
 The Claude Design handoff is stored unchanged in [`../source/uzume/`](../source/uzume/):
 
-- `canvas.json`: every board in a `boards` map (file, title, size, page) and the `pages` b0 to b4 ("0 All sheets", "1 Frame and first start", "2 Accounts and server", "3 Runs and server", "4 Play and plugins").
+- `canvas.json`: every board in a `boards` map (file, title, size, page) and the `pages` b0 to b6 ("0 All sheets", "1 Frame and first start", "2 Accounts and server", "3 Runs and server", "4 Play and plugins", "5 Randomizer", "6 Readable pass").
 - `*.dc.html`: the boards. A dark Sumi board `SXxx.dc.html` has a light Kinari twin `SXxxKinari.dc.html` that imports it, so content is identical in both themes (exception: the Windows installer boards 8l are light only; the 0-4 frame boards A, B, C, F, G, H show both themes on one board). Index boards: `SAllIndex`, `Main` (sheet 1), `S2Index`, `S3Index`, `S4Index`; `S2Blocks` is the Ma blocks reference.
 - `ds/uzume/`: the design system. `tokens.json` is the source of truth, `tokens.css` is generated from it, `components/bundle.css|js` are the reference components, `fonts/` holds IBM Plex (license in `licenses/`).
 
@@ -33,9 +33,10 @@ The boards need the Claude Design runtime `support.js`, which is not in the repo
 | [play-and-plugins.md](play-and-plugins.md) | Sheet 4: 3c library and game page, 3g running game, 3r Multiview, 3e Emulation, 9a Controllers, Settings › This PC (9b, 6g, 9c, 6l, 6w, 6r), 4d developer console, 5 SoulLink & Nuzlocke | `S4Index`, `S3c0` to `S3g12`, `S3r1` to `S3r5`, `S3e1`, `S3e2`, `S9a1` to `S6r2`, `S4d1`, `S4d2`, `S5a1` to `S5i1` |
 | [cheats.md](cheats.md) | Sheet 4, family 11: 11a Cheats tab in game, 11b add or import, 11c cheat database, 11d consent, 11e and 11f run rule (linked on sheet 3), 11g save markers, 11h cheat database setting | `S11a1` to `S11h3`, linked `S11e1On3` to `S11f3On3` |
 | [randomizer.md](randomizer.md) | Sheet 5: 10a game page · Randomize, 10b Randomize dialog, 10c building, 10d variant states, 10e New run with Randomizer, 10f join and play, 10g Library, slots and Storage, 10h Server › Tools | `S5Index`, `S10a1` to `S10h3`, handoff sheets `S10aH` to `S10hH` |
+| [readable-pass.md](readable-pass.md) | Sheet 6: the readable revision r6 (yellow for acting, warnings as sentences, status filters, three columns, text size, gamepad hints) on 12 representative screens; wins over older boards | `S6Index`, `S3c1R6` to `S3c3R6`, `S3g1R6`, `S3g6R6`, `S9c1R6`, `S9a1R6`, `S6f1R6`, `S3n1R6`, `S0R6Pad1`, `S0R6Pad2`, `S0R6Kinari` |
 | [decisions.md](decisions.md) | The designer's decisions, the accepted review decisions and the open points | `SAllIndex`, index boards |
 
-`SAllIndex` (page "0 All sheets") is the index of all four sheets (293 boards) with the 21 accepted gaps in the design system; it is summarised in [decisions.md](decisions.md). Sheet 5 "Randomizer" (page "5 Randomizer", batch 5, 2026-10-23) was added later with its own index `S5Index`. The cheats family 11 (2026-10-23) was added to sheet 4, with 11e and 11f linked on sheet 3; `SAllIndex` now counts 391 boards and 32 open gaps. `S04H` is the Round 5 index with the "Later" list.
+`SAllIndex` (page "0 All sheets") is the index of all four sheets (293 boards) with the 21 accepted gaps in the design system; it is summarised in [decisions.md](decisions.md). Sheet 5 "Randomizer" (page "5 Randomizer", batch 5, 2026-10-23) was added later with its own index `S5Index`. The cheats family 11 (2026-10-23) was added to sheet 4, with 11e and 11f linked on sheet 3; `SAllIndex` now counts 391 boards and 32 open gaps. `S04H` is the Round 5 index with the "Later" list. Sheet 6 "Readable pass" (page "6 Readable pass", 2026-10-26) redraws 12 screens in design system revision r6 with its own index `S6Index`; it has no Kinari twins.
 
 ## Roadmap packages
 
