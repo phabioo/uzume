@@ -37,7 +37,7 @@ Item {
             const k = width / 96
             ctx.scale(k, k)
             // M14 42 L30 38 L30 56 A18 18 0 0 0 66 56 L66 16 L82 10 L82 56 A34 34 0 0 1 14 56 Z
-            ctx.fillStyle = cv.inkColor
+            ctx.fillStyle = Theme.cssColor(cv.inkColor)
             ctx.beginPath()
             ctx.moveTo(14, 42)
             ctx.lineTo(30, 38)
@@ -49,7 +49,7 @@ Item {
             ctx.arc(48, 56, 34, 0, Math.PI, false)    // outer bowl, right to left through the bottom
             ctx.closePath()
             ctx.fill()
-            ctx.fillStyle = cv.lightColor
+            ctx.fillStyle = Theme.cssColor(cv.lightColor)
             ctx.beginPath()
             ctx.arc(48, 30, 9, 0, 2 * Math.PI)
             ctx.fill()

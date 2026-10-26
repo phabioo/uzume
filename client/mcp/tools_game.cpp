@@ -82,9 +82,9 @@ void installGameTools(McpToolRegistry& registry, ui::PlayerController& player) {
     ToolDef t;
     t.name = QStringLiteral("game_state");
     t.description = QStringLiteral(
-        "State of the running game: running | paused | starting | failed | idle, the frame number, the screens, the core's render mode and the measurements of the diagnostics overlay (fps, frame times, sizes, audio).");
+        "State of the running game: running | paused | starting | failed | idle, the frame number, the frame layout and the chosen screen layout (ui_layout), the screens, the core's render mode and the measurements of the diagnostics overlay (fps, frame times, sizes, audio).");
     t.inputSchema = schema();
-    t.handler = [session](const QJsonObject&, ToolReply reply) {
+    t.handler = [session, pc](const QJsonObject&, ToolReply reply) {
       ui::GameSession* gs = session();
       if (gs == nullptr) return reply(ToolResult::error(QStringLiteral("app_closing")));
       QJsonArray screens;
@@ -96,7 +96,12 @@ void installGameTools(McpToolRegistry& registry, ui::PlayerController& player) {
                     {QStringLiteral("title"), gs->title()},
                     {QStringLiteral("error"), gs->errorText()},
                     {QStringLiteral("frame"), static_cast<double>(gs->frameNumber())},
+                    // "layout" is the frame arrangement of the core output (single | vertical | horizontal); "ui_layout" is the screen
+                    // layout the player chose (stacked | side | large | top | bottom), with "screen_swap".
                     {QStringLiteral("layout"), gs->displayProfile().layout},
+                    {QStringLiteral("ui_layout"), pc && pc->sessions() ? pc->sessions()->screenLayout() : QString()},
+                    {QStringLiteral("screen_swap"), pc && pc->sessions() ? pc->sessions()->screenSwap() : false},
+                    {QStringLiteral("fast_forward_ratio"), gs->fastForwardRatio()},
                     {QStringLiteral("screens"), screens},
                     {QStringLiteral("fast_forward"), gs->fastForward()}};
       const ui::EmulationDiagnostics d = gs->diagnostics();

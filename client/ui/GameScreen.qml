@@ -114,6 +114,7 @@ Rectangle {
             Qt.callLater(focusLocal)
         } else {
             root.closePopover()
+            root.hotkeySheetPinned = false
             root.screenSheetPlugin = ""
             if (root.fullscreen && root.enteredHere) root.setFullscreen(false)   // leaving the game view: the window goes back to where it was
         }
@@ -143,8 +144,20 @@ Rectangle {
     function handleEscape() {
         if (!root.visible) return   // game in the background (Library shown): Esc never acts on it
         if (root.closePluginScreen()) return
+        if (hudLayer.closeMenu()) return   // a HUD or notice menu takes the Esc first, the game keeps running
+        if (root.hotkeySheetPinned) { root.hotkeySheetPinned = false; return }
         if (root.closePopover()) return
         if (root.session.active) root.session.togglePause()
+    }
+    // "⋯ › Hotkeys": the hold-Select sheet stays over the game until Esc or Close.
+    property bool hotkeySheetPinned: false
+    // "Change hotkeys": Controllers > Hotkeys (hotkeys are a tab of the Controllers screen, not a Settings section).
+    function openHotkeySettings() {
+        root.hotkeySheetPinned = false
+        const w = root.Window.window
+        root.player.leaveGameView()
+        if (w && w.openControllersHotkeys) w.openControllersHotkeys()
+        else root.player.showControllers()
     }
     // The pause dialog: what viewers see (only while shared) and where the game was saved.
     readonly property string pauseViewersText: root.ctl.shared
@@ -240,7 +253,10 @@ Rectangle {
         var action = root.player.controllers.hotkeyAction(e.key)
         if (action === "layout" && (e.modifiers & Qt.ShiftModifier)) action = "swap"
         if (action !== "" && action !== "fullscreen" && root.runHotkey(action)) e.accepted = true
-        else if (e.key === Qt.Key_Escape && root.session.active) { root.session.togglePause(); e.accepted = true }
+        else if (e.key === Qt.Key_Escape && root.session.active) {
+            if (!hudLayer.closeMenu()) root.session.togglePause()
+            e.accepted = true
+        }
     }
     Keys.onPressed: (e) => {
         if (!root.visible) return   // game in the background: hotkeys do not act on it from other screens
@@ -304,6 +320,7 @@ Rectangle {
         onFullscreenRequested: root.toggleFullscreen()
         onResetRequested: root.openPopover("reset")
         onGameSettingsRequested: gameSettings.open(root.player.runningGameId)
+        onHotkeysRequested: root.hotkeySheetPinned = true
         onPanelToggled: root.panelCollapsed = !root.panelCollapsed
         onPickerToggled: root.togglePopover("picker")
         onLayoutMenuClosed: Qt.callLater(root.focusLocal)   // the layout hotkey keeps working after the menu
@@ -409,6 +426,7 @@ Rectangle {
                 PluginHudLayer {
                     id: hudLayer
                     player: root.player
+                    bottomInset: root.multiMode ? 42 : 0   // the tile name bars of the Multiview
                     // The bottom-left widget stack: the toasts sit above it (it is 16 px from the edge)
                     property Item leftStack: null
                     Component.onCompleted: {
@@ -424,14 +442,17 @@ Rectangle {
                     id: padSheet
                     objectName: "padHotkeySheetLoader"
                     // Created only while the button is held: the sheet's grid never rearranges while the stage is set up.
-                    active: root.visible && root.tab === "session" && root.session.active && !root.session.paused
-                            && root.player.controllers.holdSheetHeld
+                    active: root.visible && root.tab === "session" && root.session.active
+                            && (root.hotkeySheetPinned || (!root.session.paused && root.player.controllers.holdSheetHeld))
                     anchors.centerIn: parent
                     z: 15
                     sourceComponent: UzHotkeySheet {
                         objectName: "padHotkeySheet"
                         width: Math.min(implicitWidth, Math.max(0, playArea.width - 2 * Theme.space3))
                         modifier: root.player.controllers.padHotkeyModifier
+                        pinned: root.hotkeySheetPinned
+                        onCloseRequested: root.hotkeySheetPinned = false
+                        onChangeRequested: root.openHotkeySettings()
                         keys: root.player.controllers.padSheetRows.map(function (r) {
                             if (r.action === "layout" && root.screenLayouts.length < 2) return [r.key, r.label, qsTr("One screen")]
                             if (r.action === "speedup" && !root.session.fastForwardAvailable) return [r.key, r.label, qsTr("Not available")]
@@ -448,7 +469,7 @@ Rectangle {
                     anchors.left: parent.left
                     anchors.bottom: parent.bottom
                     anchors.margins: Theme.space3
-                    anchors.bottomMargin: Theme.space3 + (hudLayer.leftStack && hudLayer.leftStack.visible && hudLayer.leftStack.height > 0 ? hudLayer.leftStack.height + Theme.space2 - Theme.space3 + Theme.space2 : 0)
+                    anchors.bottomMargin: Theme.space3 + hudLayer.bottomInset + (hudLayer.leftStack && hudLayer.leftStack.visible && hudLayer.leftStack.height > 0 ? hudLayer.leftStack.height + Theme.space2 - Theme.space3 + Theme.space2 : 0)
                     spacing: Theme.space1
                     z: 12
                     readonly property real maxToastWidth: Math.max(240, playArea.width - 2 * Theme.space3)

@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 
 // Label / value rows of the stage diagnostics (design-system.md "StageDiagnostics"): labels in muted Mono caps at the left, values in
-// ink Mono right aligned and elided; a "warn" row carries the Yamabuki "!" square. rows: [[label, value], [label, value, "warn"]].
+// ink Mono right aligned and wrapped; a "warn" row carries the Yamabuki "!" square. rows: [[label, value], [label, value, "warn"]].
 GridLayout {
     id: root
     property var rows: []
@@ -19,7 +19,9 @@ GridLayout {
             Layout.fillWidth: !isLabel
             Layout.minimumWidth: 0
             implicitHeight: Math.max(16, (isLabel ? labelText.implicitHeight : valueText.implicitHeight))
-            implicitWidth: isLabel ? labelText.implicitWidth : valueRow.implicitWidth
+            // Natural width of the value from an unwrapped probe: the wrapped Text's own implicitWidth depends on its width (binding loop)
+            readonly property bool warnRow: !isLabel && row[2] === "warn"
+            implicitWidth: isLabel ? labelText.implicitWidth : probe.implicitWidth + (warnRow ? 16 : 0)
             Text {
                 id: labelText
                 visible: cell.isLabel
@@ -30,6 +32,13 @@ GridLayout {
                 font.letterSpacing: 0.6
                 font.capitalization: Font.AllUppercase
                 color: Theme.muted
+            }
+            Text {
+                id: probe
+                visible: false
+                text: cell.isLabel ? "" : cell.row[1]
+                textFormat: Text.PlainText
+                font: valueText.font
             }
             Row {
                 id: valueRow
@@ -47,8 +56,10 @@ GridLayout {
                     id: valueText
                     text: cell.isLabel ? "" : cell.row[1]
                     textFormat: Text.PlainText
-                    width: Math.min(implicitWidth, Math.max(0, cell.width - 16))
-                    elide: Text.ElideRight
+                    // Long values wrap onto further lines instead of eliding (right aligned, break anywhere in a long run)
+                    width: Math.min(probe.implicitWidth, Math.max(0, cell.width - (cell.warnRow ? 16 : 0)))
+                    wrapMode: Text.WrapAtWordBoundaryOrAnywhere
+                    horizontalAlignment: Text.AlignRight
                     font.family: Theme.mono
                     font.pixelSize: Theme.roles.meta.size
                     color: Theme.ink

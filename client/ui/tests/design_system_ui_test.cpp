@@ -7,6 +7,7 @@
 #include <QQmlEngine>
 #include <QSignalSpy>
 #include <QtTest>
+#include <functional>
 
 #include "testsupport.h"
 
@@ -143,7 +144,7 @@ Item {
                      items: [{ heading: "Server" }, { label: "Switch server" }, { label: "Share", hint: "Invite code", shortcut: "Ctrl+I" },
                              { separator: true }, { label: "Remove", danger: true }, { label: "Locked", disabled: true }] }
         UzToast { objectName: "toast"; kind: "warning"; text: "Home server needs an update to work with this version."; action: "Undo"; shortcut: "F5" }
-        UzStageDiagnostics { objectName: "stageDiag"; rows: [["FPS", "60.0"], ["Latency", "42 ms"], ["Audio", "underrun", "warn"]] }
+        UzStageDiagnostics { objectName: "stageDiag"; rows: [["FPS", "60.0"], ["Latency", "42 ms"], ["Audio", "underrun", "warn"], ["Frame", "Buffer 259 ms · 69 underruns · 4 dropped · 48000 Hz stereo · long tail"]] }
         UzHotkeySheet { objectName: "hotkeys" }
     }
 
@@ -548,6 +549,22 @@ class DesignSystemTest : public QObject {
     focus(toast->findChild<QQuickItem*>("toastClose"));
     key(Qt::Key_Space);
     QCOMPARE(cls.count(), 1);
+  }
+
+  // Long values wrap onto further lines instead of ending in "…".
+  void stageDiagnosticsValuesWrap() {
+    QQuickItem* diag = byName("stageDiag");
+    QQuickItem* value = nullptr;
+    const QString want = QStringLiteral("Buffer 259 ms · 69 underruns · 4 dropped · 48000 Hz stereo · long tail");
+    std::function<void(QQuickItem*)> walk = [&](QQuickItem* it) {   // delegates of a Repeater are visual children only
+      if (it->property("text").toString() == want) value = it;
+      for (QQuickItem* c : it->childItems()) walk(c);
+    };
+    walk(diag);
+    QVERIFY(value != nullptr);
+    QVERIFY(!value->property("truncated").toBool());
+    QVERIFY2(value->property("lineCount").toInt() > 1, "the long value wraps");
+    QVERIFY(value->mapToItem(diag, QPointF(value->width(), 0)).x() <= diag->width());
   }
 
   void stageDiagnosticsCopy() {

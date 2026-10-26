@@ -54,8 +54,11 @@ class FastForwardUiTest : public QObject {
     QVERIFY(gs->fastForward());
     QTest::keyClick(h.window, Qt::Key_Space);  // Space toggles (off)
     QTRY_VERIFY(!gs->fastForward());
+    // Off and on read differently: the ratio alone looked the same in both states.
+    QTRY_COMPARE(h.item("fastForwardButton")->property("text").toString(), QStringLiteral("Speed-up 2×"));
     QTest::keyClick(h.window, Qt::Key_Space);
     QTRY_VERIFY(gs->fastForward());
+    QTRY_COMPARE(h.item("fastForwardButton")->property("text").toString(), QStringLiteral("Speed-up on · 2×"));
 
     // Header at 1280 px (Windows fonts are wider): every header button lies inside the header, none overlap, and at
     // least 120 px stay free between "Library" and the right-hand controls.
@@ -85,7 +88,7 @@ class FastForwardUiTest : public QObject {
 
     // Speed menu (split button, right half): changes the ratio of the running game; the value and the indicator follow.
     QCOMPARE(gs->fastForwardRatio(), 2.0);
-    QCOMPARE(h.item("fastForwardButton")->property("text").toString(), QStringLiteral("Speed-up 2×"));
+    QCOMPARE(h.item("fastForwardButton")->property("text").toString(), QStringLiteral("Speed-up on · 2×"));
     // The speed menu is the chevron next to the button, or, when the header is tight, the speed entries of the "..." menu.
     const auto openSpeed = [&]() {
       if (h.item("speedValueButton") != nullptr && h.item("speedValueButton")->isVisible()) return h.click("speedValueButton");
@@ -99,7 +102,7 @@ class FastForwardUiTest : public QObject {
     QVERIFY(h.click("menuItem_speed_6"));
     QCOMPARE(gs->fastForwardRatio(), 6.0);
     QTRY_VERIFY(h.item("menuItem_speed_2") == nullptr || !h.item("menuItem_speed_2")->isVisible());
-    QCOMPARE(h.item("fastForwardButton")->property("text").toString(), QStringLiteral("Speed-up 6×"));
+    QCOMPARE(h.item("fastForwardButton")->property("text").toString(), QStringLiteral("Speed-up on · 6×"));
     QVERIFY(h.item("fastForwardIndicator")->isVisible());
 
     // Still usable while the own Session is shared (no block): Space and the button keep working.

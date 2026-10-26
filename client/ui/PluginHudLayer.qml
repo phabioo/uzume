@@ -12,6 +12,8 @@ Item {
     readonly property PluginsController plugins: player.plugins
     property int infoTimeoutMs: 8000            // info notices dismiss themselves
     property int hintMs: 2000                   // "HUD hidden · F4 to show"
+    // Space kept free at the bottom: in the Multiview the tile name bar (40 px + frame) sits there and no widget may cover it.
+    property real bottomInset: 0
     signal detailsRequested()                   // notice "Details": open the Plugin console tab
 
     anchors.fill: parent
@@ -36,26 +38,29 @@ Item {
         visible: root.hudShown
         plugins: root.plugins
         widgets: root.cornerLists["top-left"]
+        menuAnchor: root.menuAnchor
         onMenuRequested: (entry, anchor) => root.openHudMenu(entry, anchor)
     }
     PluginHudStack {
         id: bottomLeft
         objectName: "hudStack_bottom-left"
-        x: Theme.space2; y: root.height - Theme.space2 - height
+        x: Theme.space2; y: root.height - root.bottomInset - Theme.space2 - height
         visible: root.hudShown
         upwards: true
         plugins: root.plugins
         widgets: root.cornerLists["bottom-left"]
+        menuAnchor: root.menuAnchor
         onMenuRequested: (entry, anchor) => root.openHudMenu(entry, anchor)
     }
     PluginHudStack {
         id: bottomRight
         objectName: "hudStack_bottom-right"
-        x: root.width - Theme.space2 - width; y: root.height - Theme.space2 - height
+        x: root.width - Theme.space2 - width; y: root.height - root.bottomInset - Theme.space2 - height
         visible: root.hudShown
         upwards: true
         plugins: root.plugins
         widgets: root.cornerLists["bottom-right"]
+        menuAnchor: root.menuAnchor
         onMenuRequested: (entry, anchor) => root.openHudMenu(entry, anchor)
     }
 
@@ -71,7 +76,7 @@ Item {
         objectName: "hudRestoreButton"
         visible: !root.hudShown || root.hiddenWidgets.length > 0
         anchors.horizontalCenter: parent.horizontalCenter
-        y: root.height - 62 - height     // above the bottom edge of the game, not on it (3h-3, P45)
+        y: root.height - root.bottomInset - 62 - height     // above the bottom edge of the game, not on it (3h-3, P45)
         width: restoreLabel.implicitWidth + 2 * Theme.space15
         height: Theme.row28
         color: Theme.surface
@@ -87,7 +92,15 @@ Item {
             color: Theme.ink2
         }
         HoverHandler { id: restoreHover; cursorShape: Qt.PointingHandCursor }
-        TapHandler { onTapped: root.openRestoreMenu(restorePill) }
+        // Left click shows everything again at once; the menu with the per-plugin entries stays on the right click.
+        TapHandler { acceptedButtons: Qt.LeftButton; onTapped: root.showAllHud() }
+        TapHandler { acceptedButtons: Qt.RightButton; onTapped: root.openRestoreMenu(restorePill) }
+    }
+    function showAllHud() {
+        closeMenu()
+        var h = root.hiddenWidgets
+        plugins.hudAllHidden = false
+        for (var i = 0; i < h.length; ++i) plugins.showHud(h[i].pluginId)
     }
 
     // "HUD hidden · F4 to show" for 2 s after Hide all
@@ -126,7 +139,7 @@ Item {
     Component.onCompleted: syncToasts()
     Connections {
         target: root.plugins
-        function onToastsChanged() { root.syncToasts() }
+        function onToastsChanged() { root.syncToasts(); root.syncMenuToast() }
     }
     readonly property int hiddenToasts: Math.max(0, toastIds.count - 3)
 
@@ -136,7 +149,7 @@ Item {
         width: 390
         spacing: Theme.space1
         x: root.width - Theme.space2 - width
-        y: root.height - (bottomRight.height > 0 && bottomRight.visible ? bottomRight.height + Theme.space1 : 0) - Theme.space2 - height
+        y: root.height - root.bottomInset - (bottomRight.height > 0 && bottomRight.visible ? bottomRight.height + Theme.space1 : 0) - Theme.space2 - height
         Rectangle {
             objectName: "toastPill"
             visible: root.hiddenToasts > 0
@@ -197,6 +210,35 @@ Item {
     }
 
     // ---- menus
+    // Closes the open HUD or notice menu; true when there was one (Esc closes it before it would pause the game).
+    function closeMenu() {
+        if (!menu.open) return false
+        menu.open = false
+        return true
+    }
+    property bool wasPaused: false
+    readonly property Item menuAnchor: menu.open ? menu.anchorItem : null
+    // The menu goes when the game resumes, the whole HUD is hidden, or the widget / notice it belongs to is gone.
+    Connections {
+        target: root.player.gameSession
+        function onStateChanged() {
+            var p = root.player.gameSession.paused
+            if (root.wasPaused && !p) root.closeMenu()
+            root.wasPaused = p
+        }
+    }
+    onHudShownChanged: if (!hudShown && menuKind === "hud") closeMenu()
+    onCornerListsChanged: {
+        if (!menu.open || menuKind !== "hud" || !menuEntry) return
+        for (var c in cornerLists)
+            for (var i = 0; i < cornerLists[c].length; ++i)
+                if (cornerLists[c][i].pluginId === menuEntry.pluginId) return
+        closeMenu()
+    }
+    onHiddenToastsChanged: syncMenuToast()
+    function syncMenuToast() {
+        if (menu.open && menuKind === "toast" && menuEntry && toastData(menuEntry.toastId) === null) closeMenu()
+    }
     property var menuEntry: null                 // HUD widget entry or toast of the open menu
     property string menuKind: ""                 // "hud" | "toast"
     function openHudMenu(entry, anchor) {

@@ -32,13 +32,13 @@ Item {
             // M 41.6 11.6 A 22 22 0 1 0 49.9 31.6: large arc, counter-clockwise, centre (28.06, 28.94)
             const cx = 28.06, cy = 28.94, r = 22
             const a1 = Math.atan2(11.6 - cy, 41.6 - cx), a2 = Math.atan2(31.6 - cy, 49.9 - cx)
-            ctx.strokeStyle = cv.stroke
+            ctx.strokeStyle = Theme.cssColor(cv.stroke)
             ctx.lineWidth = 2.5
             ctx.lineCap = "round"
             ctx.beginPath()
             ctx.arc(cx, cy, r, a1, a2, true)
             ctx.stroke()
-            ctx.fillStyle = cv.point
+            ctx.fillStyle = Theme.cssColor(cv.point)
             ctx.beginPath()
             ctx.arc(49.9, 31.6, 2.2, 0, 2 * Math.PI)
             ctx.fill()

@@ -70,7 +70,7 @@ Item {
         onPaint: {
             const ctx = getContext("2d")
             ctx.reset()
-            ctx.strokeStyle = line
+            ctx.strokeStyle = Theme.cssColor(line)
             ctx.lineWidth = 1.5
             ctx.setLineDash([3, 3])
             ctx.strokeRect(1, 1, width - 2, height - 2)
