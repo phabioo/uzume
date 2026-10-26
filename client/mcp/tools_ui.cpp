@@ -4,6 +4,8 @@
 // never operated: ui_click and ui_key/ui_type (Return, Enter, Space) on them answer isError "needs_confirmation_in_app".
 #include <QAccessible>
 #include <QCoreApplication>
+#include <QElapsedTimer>
+#include <QEventLoop>
 #include <QGuiApplication>
 #include <QHash>
 #include <QJsonDocument>
@@ -483,7 +485,55 @@ void scrollIntoView(QQuickItem* it) {
     else if (inContent.y() + it->height() > y + viewH) y = inContent.y() + it->height() - viewH + 8;
     const qreal maxY = (std::max)(qreal(0), ch.toReal() - viewH);
     a->setProperty("contentY", std::clamp<qreal>(y, 0, maxY));
+    const QVariant cw = a->property("contentWidth"), cx = a->property("contentX");
+    if (cw.isValid() && cx.isValid() && cw.toReal() > a->width() + 1) {
+      const qreal viewW = a->width();
+      qreal x = cx.toReal();
+      if (inContent.x() < x) x = inContent.x() - 8;
+      else if (inContent.x() + it->width() > x + viewW) x = inContent.x() + it->width() - viewW + 8;
+      a->setProperty("contentX", std::clamp<qreal>(x, 0, (std::max)(qreal(0), cw.toReal() - viewW)));
+    }
   }
+}
+
+// Runs the event loop for `ms` (polish, animations, layout); the calling tool is waiting, so this is what a person's pause is.
+void pause(int ms) {
+  QEventLoop loop;
+  QTimer::singleShot(ms, &loop, &QEventLoop::quit);
+  loop.exec();
+}
+
+// True when a usable part of the item is inside the window and every clipping ancestor.
+bool inView(QQuickItem* it) {
+  const QRectF full = it->mapRectToScene(QRectF(0, 0, it->width(), it->height()));
+  QRectF r = full;
+  for (QQuickItem* a = it->parentItem(); a != nullptr; a = a->parentItem())
+    if (a->clip()) r = r.intersected(a->mapRectToScene(QRectF(0, 0, a->width(), a->height())));
+  if (QQuickWindow* w = it->window()) r = r.intersected(QRectF(0, 0, w->width(), w->height()));
+  return r.width() > 0 && r.height() > 0 && r.width() >= (std::min)(full.width(), qreal(8)) && r.height() >= (std::min)(full.height(), qreal(8));
+}
+
+// Brings the item into view and waits until it stays there: a page can still be animating its scroll position (a jump to a
+// settings section) or laying out, and would move the item again. False when it cannot be brought into view within ~2.5 s.
+bool ensureVisible(QQuickItem* item) {
+  QPointer<QQuickItem> it(item);
+  QRectF last;
+  int stable = 0;
+  QElapsedTimer t;
+  t.start();
+  while (it != nullptr && t.elapsed() < 2500) {
+    scrollIntoView(it);
+    pause(30);
+    if (it == nullptr) return false;
+    const QRectF r = it->mapRectToScene(QRectF(0, 0, it->width(), it->height()));
+    if (inView(it) && r == last) {
+      if (++stable >= 2) return true;
+    } else {
+      stable = 0;
+    }
+    last = r;
+  }
+  return it != nullptr && inView(it);
 }
 
 // The point to click on an item: the middle of the part that is inside the window and every clipping ancestor.
@@ -705,8 +755,8 @@ void installUiTools(McpToolRegistry& registry, ui::PlayerController& player) {
         if (!item->isVisible()) return reply(ToolResult::error(QStringLiteral("target_not_visible")));
         if (!item->isEnabled()) return reply(ToolResult::error(QStringLiteral("target_disabled")));
         w = item->window();
-        scrollIntoView(item);
-        QCoreApplication::processEvents();  // the Flickable moved: positions are final after this
+        ensureVisible(item);
+        if (item == nullptr) return reply(ToolResult::error(QStringLiteral("target_gone")));
       } else if (w == nullptr) {
         w = pickWindow(QString(), &err);
       }
@@ -794,7 +844,8 @@ void installUiTools(McpToolRegistry& registry, ui::PlayerController& player) {
       }
       w->requestActivate();
       if (!target.isEmpty()) {
-        scrollIntoView(item);
+        ensureVisible(item);
+        if (item == nullptr) return reply(ToolResult::error(QStringLiteral("target_gone")));
         item->forceActiveFocus(Qt::OtherFocusReason);
       }
       if (a.value(QStringLiteral("clear")).toBool(false)) {
@@ -879,7 +930,8 @@ void installUiTools(McpToolRegistry& registry, ui::PlayerController& player) {
         if (d.hit) return reply(refuse(QStringLiteral("ui_key"), d));
       }
       if (!target.isEmpty()) {
-        scrollIntoView(item);
+        ensureVisible(item);
+        if (item == nullptr) return reply(ToolResult::error(QStringLiteral("target_gone")));
         item->forceActiveFocus(Qt::OtherFocusReason);
       }
       pressKey(w, key, mods, textForKey(key, mods));
@@ -921,7 +973,8 @@ void installUiTools(McpToolRegistry& registry, ui::PlayerController& player) {
         if (f.item == nullptr) return reply(ToolResult::error(f.error));
         item = f.item;
         w = item->window();
-        if (!clickPoint(item, &pos)) return reply(ToolResult::error(QStringLiteral("target_outside_window")));
+        ensureVisible(item);
+        if (item == nullptr || !clickPoint(item, &pos)) return reply(ToolResult::error(QStringLiteral("target_outside_window")));
       } else {
         if (w == nullptr) w = pickWindow(QString(), &err);
         if (w == nullptr) return reply(ToolResult::error(err));

@@ -257,7 +257,9 @@ ColumnLayout {
         editField.forceActiveFocus()
     }
     function editFinished(ok: bool, message: string) {
-        if (!editDialog.shown) return
+        // Only the answer to the save of this dialog counts: a late answer of an earlier request (a toggle, another page) must
+        // not close a dialog that was opened in the meantime.
+        if (!editDialog.shown || !root.editBusy) return
         root.editBusy = false
         if (ok) {
             editDialog.close()
