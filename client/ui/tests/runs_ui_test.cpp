@@ -270,6 +270,7 @@ class RunsUiTest : public QObject {
     QCOMPARE(runs->startRulesOptions().at(0).toMap().value("value").toString(), kPluginId);
     QVERIFY(h.item("runRulesSelect")->isVisible());
     QCOMPARE(h.item("runRulesHint")->property("text").toString(), QStringLiteral("Only installed run plugins are listed."));
+    QCOMPARE(h.item("runStartSlotNote")->property("text").toString(), QStringLiteral("Each person gets their own save slot for this run. Main is not touched."));
     h.item("runNameField")->setProperty("text", QStringLiteral("Summer Duo"));
     QTRY_COMPARE(h.item("runStartSlotNote")->property("text").toString(), QStringLiteral("Each person gets Run: Summer Duo. Main is not touched."));
     QVERIFY(h.item("runStartUnverified") == nullptr || !h.item("runStartUnverified")->isVisible());  // nothing picked yet

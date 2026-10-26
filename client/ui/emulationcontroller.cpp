@@ -581,7 +581,7 @@ void EmulationController::rebuild() {
       QVariantList fb;
       for (const FbOption& o : uzumeOptions()) {
         if (isProfileKey(o.key)) continue;  // controller profiles are chosen per system or game
-        fb.append(row(o.key, o.label, o.description, !o.category.isEmpty() ? o.category : o.perSystem ? tr("Speed-up") : tr("Display"), o.values, QString(), o.defaultValue, true));
+        fb.append(row(o.key, o.label, o.description, !o.category.isEmpty() ? o.category : (o.perSystem && !isTwoScreenKey(o.key)) ? tr("Speed-up") : tr("Display"), o.values, QString(), o.defaultValue, true));
       }
       groups.append(QVariantMap{{QStringLiteral("id"), QStringLiteral("uzume")},
                                 {QStringLiteral("title"), tr("Uzume")},

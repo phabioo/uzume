@@ -127,7 +127,7 @@ class PlayerController : public QObject {
   Q_PROPERTY(bool canRegisterLocalRoms READ canRegisterLocalRoms NOTIFY hubChanged)  // handshake feature local_roms_v1
   // Background core updates (quiet indicator on the Emulation page): active, text ("Updating X to V"), lastText ("Updated X to V")
   Q_PROPERTY(QVariantMap coreUpdate READ coreUpdate NOTIFY coreUpdateChanged)
-  Q_PROPERTY(QVariantList coreWarnings READ coreWarnings NOTIFY hubChanged)  // core_missing / core_version_mismatch
+  Q_PROPERTY(QVariantList coreWarnings READ coreWarnings NOTIFY coreWarningsChanged)  // core_missing / core_version_mismatch
   // Emulation page (3e), Controllers page (3f), applied settings
   Q_PROPERTY(uzume::ui::EmulationController* emulation READ emulation CONSTANT)
   Q_PROPERTY(uzume::ui::ControllersController* controllers READ controllers CONSTANT)
@@ -442,6 +442,7 @@ class PlayerController : public QObject {
   void autoConnectChanged();
   void pairingChanged();
   void hubChanged();
+  void coreWarningsChanged();  // hub handshake, the server's systems/cores or the local cores changed
   void attentionChanged();
   void hubLinkChanged();
   void libraryStateChanged();

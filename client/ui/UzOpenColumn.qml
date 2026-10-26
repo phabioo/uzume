@@ -36,6 +36,7 @@ Item {
         anchors.left: parent.left
         anchors.bottom: parent.bottom
         anchors.bottomMargin: Theme.space05
+        width: parent.width
         spacing: Theme.space05
         visible: root.lines.length > 0
         Rectangle { width: 24; height: 1; color: Theme.rule }
@@ -43,6 +44,8 @@ Item {
             model: root.lines
             delegate: Text {
                 required property string modelData
+                width: parent.width
+                wrapMode: Text.WordWrap
                 text: modelData
                 textFormat: Text.PlainText
                 font.family: Theme.mono

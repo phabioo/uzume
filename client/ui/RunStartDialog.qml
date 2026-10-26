@@ -309,7 +309,8 @@ UzDialog {
             Layout.bottomMargin: Theme.space05
             wrapMode: Text.Wrap
             textFormat: Text.PlainText
-            text: qsTr("Each person gets Run: %1. Main is not touched.").arg(nameField.text.trim() !== "" ? nameField.text.trim() : "…")
+            text: nameField.text.trim() !== "" ? qsTr("Each person gets Run: %1. Main is not touched.").arg(nameField.text.trim())
+                                               : qsTr("Each person gets their own save slot for this run. Main is not touched.")
             font.family: Theme.sans
             font.pixelSize: Theme.roles.input.size
             lineHeight: Theme.roles.small.line
