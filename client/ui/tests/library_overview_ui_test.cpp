@@ -178,7 +178,13 @@ class LibraryOverviewUiTest : public QObject {
     QVERIFY(h.item("statusChip_all") == nullptr && !shown(h, "readyFirstToggle"));  // no status chips, Ready first sits in the sort menu
     const auto sceneRect = [&](const char* name) { QQuickItem* it = h.item(name); return it->mapRectToScene(it->boundingRect()); };
     const QRectF chip = sceneRect("scopeChip_all"), sort = sceneRect("sortControl"), toolbar = sceneRect("libraryToolbar");
-    QVERIFY2(qAbs(chip.center().y() - sort.center().y()) < 4 && toolbar.height() <= 40, "chips and sort share one toolbar row");
+    const QByteArray widths = QStringLiteral("chips and sort share one toolbar row (toolbar %1 px, chips %2, sort+view %3, search %4)")
+                                  .arg(toolbar.width())
+                                  .arg(h.item("libraryChips")->property("natural").toReal())
+                                  .arg(h.item("libraryToolbar2")->property("natural").toReal())
+                                  .arg(h.item("searchField")->width())
+                                  .toUtf8();
+    QVERIFY2(qAbs(chip.center().y() - sort.center().y()) < 4 && toolbar.height() <= 40, widths.constData());
     QVERIFY(shown(h, "continueCard"));
     QCOMPARE(visibleCount(h, "continueCard") + visibleCount(h, "recentEntry"), 1);
     QCOMPARE(h.item("continueCard")->height(), 64.0);
