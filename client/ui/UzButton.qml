@@ -13,6 +13,9 @@ Button {
     property string kind: "outline"
     property string size: "md"
     property bool on: false
+    // Only the person may operate it: the debug MCP server (ADR 0032 D4) refuses to click it. Danger buttons are destructive by default;
+    // set true on others that share, install or overwrite.
+    property bool destructive: kind === "danger"
     property bool busy: false
     property int textFormat: Text.PlainText  // names and titles from peers, plugins and the Hub are never markup
     property bool busyOnClick: false
