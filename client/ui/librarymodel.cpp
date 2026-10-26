@@ -54,7 +54,8 @@ QHash<int, QByteArray> LibraryModel::roleNames() const {
           {ReadyGroupRole, "readyGroup"}, {AddedTextRole, "addedText"}, {OnHubRole, "onHub"},
           {LocalFileRole, "localFile"}, {PlaySecondsRole, "playSeconds"}, {PlayTimeTextRole, "playTimeText"},
           {SessionsRole, "sessions"}, {LastPlayedMsRole, "lastPlayedMs"}, {LastPlayedTextRole, "lastPlayedText"},
-          {FavoriteRole, "favorite"}, {CollectionIdsRole, "collectionIds"}};
+          {FavoriteRole, "favorite"}, {CollectionIdsRole, "collectionIds"},
+          {StatusWordRole, "statusWord"}, {StatusWarnRole, "statusWarn"}};
 }
 
 QString LibraryModel::formatSize(qint64 bytes) {
@@ -159,6 +160,17 @@ QVariant LibraryModel::data(const QModelIndex& index, int role) const {
         tone = QStringLiteral("ok");
       }
       return role == TileTextRole ? QVariant(text) : QVariant(tone);
+    }
+    case StatusWordRole: {
+      QString t = data(index, TileTextRole).toString();
+      // Drop the leading symbol ("▲ ", "✕ ", "↓ ", "● ", "⟳ ") and call a missing download what the chip calls it.
+      if (!t.isEmpty() && !t.at(0).isLetterOrNumber() && t.size() > 1 && t.at(1) == QLatin1Char(' ')) t = t.mid(2);
+      if (t.startsWith(tr("Download required"))) t = tr("Not downloaded") + t.mid(tr("Download required").size());
+      return t;
+    }
+    case StatusWarnRole: {
+      const QString tone = data(index, TileToneRole).toString();
+      return tone == QLatin1String("amber") || tone == QLatin1String("error");
     }
     case ProgressRole: {
       const qint64 total = it.status.totalBytes > 0 ? it.status.totalBytes : it.game.romSize;
@@ -753,7 +765,7 @@ void LibraryModel::setStatus(const QString& romSha256, const RomStatus& status) 
     // roles that show progress.
     for (int row = 0; row < visible_.size(); ++row) {
       if (items_.at(visible_.at(row)).game.romSha256 == romSha256) {
-        emit dataChanged(index(row), index(row), {ProgressRole, StatusTextRole, TileTextRole});
+        emit dataChanged(index(row), index(row), {ProgressRole, StatusTextRole, TileTextRole, StatusWordRole});
       }
     }
     return;

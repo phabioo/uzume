@@ -73,7 +73,7 @@ Rectangle {
     }
     UzFocusRing { visible: root.activeFocus }
     HoverHandler { id: hover; cursorShape: Qt.PointingHandCursor }
-    TapHandler { onTapped: { root.forceActiveFocus(); menu.visible ? menu.close() : menu.open() } }
+    MouseArea { anchors.fill: parent; onClicked: { root.forceActiveFocus(); menu.visible ? menu.close() : menu.open() } }
     Keys.onPressed: (event) => {
         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space || event.key === Qt.Key_Down) {
             menu.open()

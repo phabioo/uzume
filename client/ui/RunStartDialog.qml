@@ -29,6 +29,11 @@ UzDialog {
         root.open()
         nameField.forceActiveFocus()
     }
+    // "Start a run" from a game page: the game is already chosen.
+    function openStartFor(gameId: string) {
+        root.openStart()
+        game.selectedId = gameId
+    }
     function openInvite(runId: string) {
         root.mode = "invite"
         root.inviteRunId = runId

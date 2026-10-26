@@ -89,7 +89,9 @@ class LibraryModel : public QAbstractListModel {
     LastPlayedMsRole,    // qint64 Unix ms, max(server last played, this device's); 0 = never
     LastPlayedTextRole,  // "Today", "Yesterday", "3 days ago", "DD.MM.YYYY", "–" when never
     FavoriteRole,        // bool
-    CollectionIdsRole    // QStringList
+    CollectionIdsRole,   // QStringList
+    StatusWordRole,      // the status line without its symbol ("Ready", "Core missing", "Not downloaded · 1 MB")
+    StatusWarnRole       // bool: the row needs attention (warning square before the word)
   };
   Q_ENUM(Roles)
 

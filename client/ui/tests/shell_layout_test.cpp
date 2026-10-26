@@ -36,21 +36,25 @@ class ShellLayoutTest : public QObject {
     const QRectF t = rectOf(title), u = rectOf(upload), s = rectOf(search);
     QVERIFY2(!t.intersects(u), qPrintable(QStringLiteral("%1: title %2,%3 %4x%5 intersects Upload ROM %6,%7 %8x%9")
                                               .arg(QLatin1String(when)).arg(t.x()).arg(t.y()).arg(t.width()).arg(t.height()).arg(u.x()).arg(u.y()).arg(u.width()).arg(u.height())));
-    QVERIFY2(!t.intersects(s), when);
-    QVERIFY2(!s.intersects(u), when);
-    // One page header: search and Upload ROM sit at the right of the title while they fit, otherwise they wrap below it. The
-    // title never shortens and the actions never leave the header.
+    // One page header: Upload ROM sits at the right of the title while it fits, otherwise it wraps below it. The title never
+    // shortens and the action never leaves the header.
     const QRectF hd = rectOf(h.item("libraryHeader"));
-    QVERIFY2(t.left() >= hd.left() - 0.5 && s.left() >= hd.left() - 0.5, when);
-    QVERIFY2(s.right() <= hd.right() + 0.5, when);
+    QVERIFY2(t.left() >= hd.left() - 0.5, when);
     QVERIFY2(h.item("libraryTitle")->property("truncated").toBool() == false, when);
-    if (s.top() >= t.bottom() - 0.5) {
-      QVERIFY2(u.top() >= t.bottom() - 0.5, when);
-    } else {
-      QVERIFY2(t.right() <= s.left() + 0.5 && s.right() <= u.left() + 0.5, when);
+    QVERIFY2(u.right() <= hd.right() + 0.5, when);
+    // The toolbar (3c-1-r6): row 1 the status chips, row 2 the search; both below the header and inside the column.
+    const QRectF tb = rectOf(h.item("libraryToolbar")), tb2 = rectOf(h.item("libraryToolbar2"));
+    QVERIFY2(tb.top() >= hd.bottom() - 0.5 && tb2.top() >= tb.bottom() - 0.5, when);
+    QVERIFY2(!s.intersects(u) && s.width() >= 100 && s.right() <= tb2.right() + 0.5, when);
+    QRectF previous;
+    for (const char* name : {"statusChip_all", "statusChip_ready", "statusChip_attention", "statusChip_download"}) {
+      QQuickItem* chip = h.item(name);
+      QVERIFY2(chip != nullptr && chip->isVisible(), when);
+      const QRectF c = rectOf(chip);
+      QVERIFY2(c.right() <= tb.right() + 0.5 && c.left() >= tb.left() - 0.5, when);
+      QVERIFY2(!c.intersects(previous), when);
+      previous = c;
     }
-    QVERIFY2(s.width() >= 100, when);
-    QVERIFY2(u.right() <= rectOf(h.item("libraryHeader")).right() + 0.5, when);
   }
 
   static void checkUserBlock(Harness& h, const char* when) {

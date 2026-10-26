@@ -116,6 +116,7 @@ qt_add_qml_module(uzume_ui
     UzNavItem.qml
     UzNavGroupHead.qml
     GameTile.qml
+    GameCard.qml
     DetailPane.qml
     LibraryScreen.qml
     GameGrid.qml

@@ -8,7 +8,8 @@ ColumnLayout {
     id: root
     required property PlayerController player
     readonly property var sections: player.plugins.detailSections
-    visible: sections.length > 0
+    property bool placed: true       // false while the host shows another tab
+    visible: placed && sections.length > 0
     spacing: Theme.space3
 
     // Collapsed sections (plugin ids), kept while the pane lives (3c-7).

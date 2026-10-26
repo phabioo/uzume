@@ -381,7 +381,7 @@ class LibrarySavesUiTest : public QObject {
     QTRY_VERIFY(!shown(h, "savesView"));
     QVERIFY(shown(h, "saveSummary"));
     openSavesView(h);
-    QVERIFY(h.click("savesBack"));
+    QVERIFY(h.click("tab_Overview"));
     QTRY_VERIFY(!shown(h, "savesView"));
     QVERIFY(shown(h, "saveSummary"));
   }
@@ -577,7 +577,7 @@ class LibrarySavesUiTest : public QObject {
     uitest::saveShot(h.window, QStringLiteral("library-saves-offline"));
     checkInColumn(h, {"savesOfflineBanner", "savesTryAgain", "currentBar", "historyRow"});
     // Summary: "View saves →", Offline pill and the note
-    QVERIFY(h.click("savesBack"));
+    QVERIFY(h.click("tab_Overview"));
     QTRY_VERIFY(shown(h, "saveSummary"));
     QCOMPARE(textOf(h, "manageSavesLink"), QStringLiteral("View saves →"));
     QCOMPARE(h.item("saveSyncPill")->property("text").toString(), QStringLiteral("Offline"));
@@ -1081,7 +1081,7 @@ class LibrarySavesUiTest : public QObject {
       const QString what = QStringLiteral("%1x%2%3").arg(size.width()).arg(size.height()).arg(wide ? QStringLiteral("-wide") : QString());
       // Overview
       QTRY_VERIFY(shown(h, "saveSummary") || shown(h, "savesView"));
-      if (shown(h, "savesView")) QVERIFY(h.click("savesBack"));
+      if (shown(h, "savesView")) QVERIFY(h.click("tab_Overview"));
       QTRY_VERIFY(shown(h, "saveSummary"));
       widen(wide);
       {
@@ -1096,7 +1096,7 @@ class LibrarySavesUiTest : public QObject {
                         "saveVersion", "saveMeta", "saveSyncPill", "saveCounts", "manageSavesLink", "playButton", "playShareButton"}, 12);
       if (QTest::currentTestFailed()) { qWarning("[uitest] overview layout failed at %s", qPrintable(what)); return; }
       // Saves view with a restore confirmation (long labels, switcher)
-      QVERIFY(h.click("manageSavesLink"));
+      QVERIFY(h.click("tab_Saves"));  // the link may sit below the fold of a short window; the tab never does
       QTRY_VERIFY(shown(h, "savesView"));
       QTRY_VERIFY(shown(h, "slotSwitcher"));
       hist->requestRestore(1);
@@ -1109,7 +1109,7 @@ class LibrarySavesUiTest : public QObject {
       if (QTest::currentTestFailed()) { qWarning("[uitest] saves view layout failed at %s", qPrintable(what)); return; }
       uitest::saveShot(h.window, QStringLiteral("library-saves-%1").arg(what));
       hist->cancelRestore();
-      QVERIFY(h.click("savesBack"));
+      QVERIFY(h.click("tab_Overview"));
     }
     h.window->resize(1280, 800);
   }
@@ -1155,7 +1155,7 @@ Item {
     function fill(n) {
         for (let i = 0; i < n; ++i) {
             games.append({gameId: "g" + i, title: "Homebrew " + i, system: "nds", monogram: "H", stateKind: "ready",
-                          tileText: "Ready", tileTone: "ok", progress: 0, addedText: "", onHub: true, localFile: false,
+                          tileText: "Ready", tileTone: "ok", statusWord: "Ready", statusWarn: false, progress: 0, addedText: "", onHub: true, localFile: false,
                           playTimeText: "–", lastPlayedText: "–"})
         }
     }

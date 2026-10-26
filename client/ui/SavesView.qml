@@ -36,6 +36,7 @@ FocusScope {
     property string newSlotError: ""
     readonly property bool live: inGame && hist.liveApply   // restore / upload restart the running game from the save
     signal back()
+    signal startRunRequested()
 
     objectName: "savesView"
     readonly property bool historyAvailable: hist.available   // Hub advertises saves_v2 (history, restore, snapshots)
@@ -184,6 +185,7 @@ FocusScope {
             Item {
                 id: backButton
                 objectName: "savesBack"
+                visible: root.inGame || root.backTitle !== ""   // in the Library the detail tabs lead back
                 anchors.left: parent.left
                 anchors.right: updated.visible ? updated.left : refresh.left
                 anchors.rightMargin: 8
@@ -278,9 +280,18 @@ FocusScope {
 
                 UzLabel {
                     objectName: "savesTitle"
+                    visible: root.inGame
                     text: qsTr("Saves")
                     font.pixelSize: 20
                     font.weight: Font.DemiBold
+                }
+                // The Library's saves tab (3c-3-r6): "Play from Main" is the primary under the title, "Start a run" sits on top.
+                UzButton {
+                    objectName: "savesStartRun"
+                    visible: !root.inGame && root.player.runs.available && root.game.onHub !== false
+                    size: "sm"
+                    text: qsTr("Start a run")
+                    onClicked: root.startRunRequested()
                 }
 
                 // Slot tabs, or the switcher when there are more than three slots

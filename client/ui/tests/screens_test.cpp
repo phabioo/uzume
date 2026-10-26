@@ -370,13 +370,15 @@ class ScreensTest : public QObject {
     QCOMPARE(g.value(QStringLiteral("title")).toString(), QStringLiteral("Paper Wizards"));
     QCOMPARE(g.value(QStringLiteral("romText")).toString(), QStringLiteral("Download needed · 128 MB"));
     // R-P1: the status rows of a game that is not downloaded stay compact (a 1 px wide wrapped value once made them 300 px high).
+    QVERIFY(h.click("tab_Details"));  // the facts (ROM, core, firmware) are the Details tab
     QTRY_VERIFY(h.items("detailRowValue").size() >= 3);
     QTRY_VERIFY(([&h]() {
       const QList<QQuickItem*> values = h.items("detailRowValue");
       for (QQuickItem* v : values) {
         if (!v->isVisible()) continue;
         QQuickItem* row = v->parentItem()->parentItem()->parentItem();  // label -> RowLayout -> rowCol -> row
-        if (row->height() > 110 || v->height() > 70) return false;
+        const bool wide = qEnvironmentVariableIntValue("UZUME_TEST_WIDE_FONT") != 0;  // wide fonts wrap the value onto more lines
+        if (row->height() > (wide ? 400 : 110) || v->height() > (wide ? 120 : 70)) return false;
       }
       return true;
     })());
@@ -427,7 +429,7 @@ class ScreensTest : public QObject {
 
     // R-P4: chips, tiles and sidebar entries are Tab stops and work with Enter / Space.
     {
-      QQuickItem* status = h.item("statusSelect");
+      QQuickItem* status = h.item("statusChip_attention");
       QVERIFY(status != nullptr && status->activeFocusOnTab());
 
       QTRY_VERIFY(h.item("gameTile_g3") != nullptr);

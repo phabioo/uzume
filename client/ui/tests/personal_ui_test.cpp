@@ -82,6 +82,28 @@ class PersonalUiTest : public QObject {
     for (int i = 0; i < m->rowCount(); ++i) out << m->data(m->index(i, 0), LibraryModel::GameIdRole).toString();
     return out;
   }
+  // The collection control (3c-1-r6) is a select with a menu: open it and choose an entry by its value.
+  static bool pickCollection(Harness& h, const char* value) {
+    if (!h.click("collectionSelect")) return false;
+    const QByteArray name = QByteArray("menuItem_collection_") + value;
+    if (!QTest::qWaitFor([&]() { return shown(h, name.constData()); }, 3000)) return false;
+    return h.click(name.constData());
+  }
+  static bool newCollectionEntry(Harness& h) {
+    if (!h.click("collectionSelect")) return false;
+    if (!QTest::qWaitFor([&]() { return shown(h, "menuItem_collectionNew"); }, 3000)) return false;
+    return h.click("menuItem_collectionNew");
+  }
+  // "Label · count" of every entry of the collection menu.
+  static QStringList collectionLabels(Harness& h) {
+    QStringList out;
+    QObject* picker = h.window->findChild<QObject*>(QStringLiteral("collectionPicker"));
+    if (picker == nullptr) return out;
+    for (const QVariant& v : picker->property("items").toList()) {
+      if (v.toMap().contains(QStringLiteral("label")) && v.toMap().value(QStringLiteral("value")).toString() != QLatin1String("__new")) out << v.toMap().value(QStringLiteral("label")).toString();
+    }
+    return out;
+  }
   static int requests(FakeHub& hub, const QString& path, const char* method) { return hub.count(path, method); }
   static void selectGame(Harness& h, const QString& id) {
     h.controller->selectGame(id);
@@ -103,15 +125,12 @@ class PersonalUiTest : public QObject {
     Harness h;
     QVERIFY(h.start());
     pair(h, hub);
-    QTRY_VERIFY_WITH_TIMEOUT(shown(h, "collectionChips"), 5000);
-    QTRY_VERIFY_WITH_TIMEOUT(shown(h, "collection_c2"), 5000);
-    QCOMPARE(textOf(h, "collection_all"), QStringLiteral("All"));
-    QCOMPARE(h.item("collection_all")->property("count").toInt(), 3);
-    QCOMPARE(h.item("collection_favorites")->property("count").toInt(), 1);
-    QCOMPARE(h.item("collection_c1")->property("count").toInt(), 2);
-    QCOMPARE(textOf(h, "collection_c1"), QStringLiteral("Couch co-op"));
-    QVERIFY(shown(h, "collectionNew"));
-    QCOMPARE(textOf(h, "collectionNew"), QStringLiteral("+ Collection"));
+    QTRY_VERIFY_WITH_TIMEOUT(shown(h, "collectionSelect"), 5000);
+    QTRY_VERIFY_WITH_TIMEOUT(collectionLabels(h).size() == 4, 5000);
+    const QStringList labels = collectionLabels(h);
+    QCOMPARE(labels.value(0), QStringLiteral("All collections · 3"));
+    QCOMPARE(labels.value(1), QStringLiteral("Favourites · 1"));
+    QVERIFY(labels.contains(QStringLiteral("Couch co-op · 2")));
     // Recently played is the default: g2 (Oct 22), g1 (Oct 20), then the never played game
     QCOMPARE(h.controller->library()->sortKey(), QStringLiteral("played"));
     QCOMPARE(order(h), (QStringList{"g2", "g1", "g3"}));
@@ -123,20 +142,19 @@ class PersonalUiTest : public QObject {
       }
       return QStringList(byY.values());
     };
-    QTRY_COMPARE(visibleTexts("tilePlayed"), (QStringList{"45 min", "12 h", "–"}));
+    QTRY_COMPARE(visibleTexts("tileLastPlayed").size(), 3);
     const QStringList last = visibleTexts("tileLastPlayed");
-    QCOMPARE(last.size(), 3);
     QCOMPARE(last.last(), QStringLiteral("–"));
     QVERIFY(last.first() != QStringLiteral("–"));
     uitest::saveShot(h.window, QStringLiteral("library-3c-0"));
 
     // Chips filter
-    QVERIFY(h.click("collection_favorites"));
+    QVERIFY(pickCollection(h, "favorites"));
     QTRY_COMPARE(order(h), QStringList{"g1"});
-    QVERIFY(h.click("collection_c2"));
+    QVERIFY(pickCollection(h, "c2"));
     QTRY_COMPARE(order(h), QStringList{"g2"});
     QVERIFY(shown(h, "collectionMenuButton"));
-    QVERIFY(h.click("collection_all"));
+    QVERIFY(pickCollection(h, "all"));
     QTRY_COMPARE(order(h).size(), 3);
     QVERIFY(!shown(h, "collectionMenuButton"));
 
@@ -152,8 +170,8 @@ class PersonalUiTest : public QObject {
     Harness h;
     QVERIFY(h.start());
     pair(h, hub);
-    QTRY_VERIFY_WITH_TIMEOUT(shown(h, "collectionNew") && shown(h, "collection_c2"), 5000);
-    QVERIFY(h.click("collectionNew"));
+    QTRY_VERIFY_WITH_TIMEOUT(shown(h, "collectionSelect") && collectionLabels(h).size() == 4, 5000);
+    QVERIFY(newCollectionEntry(h));
     QTRY_VERIFY(shown(h, "collectionNameDialog"));
     QVERIFY(!h.item("collectionNameConfirm")->isEnabled());
     h.item("collectionNameField")->setProperty("text", QStringLiteral("nuzlocke"));  // used (any case)
@@ -164,12 +182,10 @@ class PersonalUiTest : public QObject {
     QVERIFY(h.click("collectionNameConfirm"));
     QTRY_VERIFY(!shown(h, "collectionNameDialog"));
     QCOMPARE(requests(hub, QStringLiteral("/api/v1/collections"), "POST"), 1);
-    QTRY_VERIFY(shown(h, "collection_c3"));
-    QCOMPARE(textOf(h, "collection_c3"), QStringLiteral("Speedruns"));
-    QCOMPARE(h.item("collection_c3")->property("count").toInt(), 0);
+    QTRY_VERIFY(collectionLabels(h).contains(QStringLiteral("Speedruns · 0")));
     // The server says 409: shown in the dialog
     hub.collections.append(QJsonObject{{"id", "c9"}, {"name", "Taken elsewhere"}, {"game_ids", QJsonArray()}, {"created_at", "x"}});
-    QVERIFY(h.click("collectionNew"));
+    QVERIFY(newCollectionEntry(h));
     QTRY_VERIFY(shown(h, "collectionNameDialog"));
     h.item("collectionNameField")->setProperty("text", QStringLiteral("Taken elsewhere"));
     QVERIFY(h.click("collectionNameConfirm"));
@@ -186,8 +202,8 @@ class PersonalUiTest : public QObject {
     Harness h;
     QVERIFY(h.start());
     pair(h, hub);
-    QTRY_VERIFY_WITH_TIMEOUT(shown(h, "collection_c1"), 5000);
-    QVERIFY(h.click("collection_c1"));
+    QTRY_VERIFY_WITH_TIMEOUT(collectionLabels(h).contains(QStringLiteral("Couch co-op · 2")), 5000);
+    QVERIFY(pickCollection(h, "c1"));
     QTRY_VERIFY(shown(h, "collectionMenuButton"));
     // Rename
     // The menu is a Popup: open it with its button, choose through its `chosen` signal.
@@ -202,7 +218,7 @@ class PersonalUiTest : public QObject {
     QVERIFY(h.click("collectionNameConfirm"));
     QTRY_VERIFY(!shown(h, "collectionNameDialog"));
     QCOMPARE(requests(hub, QStringLiteral("/api/v1/collections/c1"), "PATCH"), 1);
-    QTRY_COMPARE(textOf(h, "collection_c1"), QStringLiteral("Couch"));
+    QTRY_VERIFY(collectionLabels(h).contains(QStringLiteral("Couch · 2")));
     // Delete: the confirm says games stay
     QVariantMap deleteItem{{"label", "Delete collection..."}};
     QVERIFY(QMetaObject::invokeMethod(menu, "chosen", Q_ARG(QVariant, deleteItem), Q_ARG(int, 2)));
@@ -211,7 +227,7 @@ class PersonalUiTest : public QObject {
     QVERIFY(h.click("collectionDeleteConfirm"));
     QTRY_VERIFY(!shown(h, "collectionDeleteDialog"));
     QCOMPARE(requests(hub, QStringLiteral("/api/v1/collections/c1"), "DELETE"), 1);
-    QTRY_VERIFY(!shown(h, "collection_c1"));
+    QTRY_VERIFY(!collectionLabels(h).contains(QStringLiteral("Couch · 2")));
     QCOMPARE(h.controller->library()->collectionFilter(), QStringLiteral("all"));  // the open chip went away: back to All
     QCOMPARE(order(h).size(), 3);                                                    // every game is still there
   }
@@ -234,13 +250,13 @@ class PersonalUiTest : public QObject {
     Harness h;
     QVERIFY(h.start());
     pair(h, hub);
-    QTRY_VERIFY_WITH_TIMEOUT(shown(h, "collection_c3"), 5000);
-    QVERIFY(h.click("collection_favorites"));
+    QTRY_VERIFY_WITH_TIMEOUT(collectionLabels(h).contains(QStringLiteral("Empty one · 0")), 5000);
+    QVERIFY(pickCollection(h, "favorites"));
     QTRY_VERIFY(shown(h, "libraryEmptyText"));
     QCOMPARE(h.item("libraryEmptyText")->property("title").toString(), QStringLiteral("No favourites yet."));
     QVERIFY(textOf(h, "collectionEmptyHint").contains(QStringLiteral("Favourites are per person and follow you to every PC.")));
     QVERIFY(!shown(h, "collectionEmptyActions"));
-    QVERIFY(h.click("collection_c3"));
+    QVERIFY(pickCollection(h, "c3"));
     QTRY_COMPARE(h.item("libraryEmptyText")->property("title").toString(), QStringLiteral("This collection is empty."));
     QVERIFY(shown(h, "emptyCollectionRename") && shown(h, "emptyCollectionDelete"));
     QVERIFY(h.click("emptyCollectionDelete"));
@@ -272,7 +288,7 @@ class PersonalUiTest : public QObject {
     QTRY_VERIFY(h.item("favoriteButton")->property("on").toBool());
     QTRY_COMPARE(requests(hub, QStringLiteral("/api/v1/games/g2/favorite"), "PUT"), 1);
     QVERIFY(hub.favoriteGames.contains(QStringLiteral("g2")));
-    QCOMPARE(h.item("collection_favorites")->property("count").toInt(), 2);
+    QVERIFY(collectionLabels(h).contains(QStringLiteral("Favourites · 2")));
     QVERIFY(h.click("favoriteButton"));
     QTRY_VERIFY(!h.item("favoriteButton")->property("on").toBool());
     QTRY_COMPARE(requests(hub, QStringLiteral("/api/v1/games/g2/favorite"), "DELETE"), 1);
@@ -387,10 +403,10 @@ class PersonalUiTest : public QObject {
     selectGame(h, QStringLiteral("g1"));
     QTest::qWait(300);
     QVERIFY(!h.controller->personal()->supported());
-    QVERIFY(!shown(h, "collectionChips"));
+    QVERIFY(!shown(h, "collectionSelect"));
     QVERIFY(!shown(h, "favoriteButton"));
     QVERIFY(!shown(h, "personalFacts"));
-    QVERIFY(!shown(h, "tilePlayed"));
+    QVERIFY(!shown(h, "tileLastPlayed"));
     // Today's local last played still orders the list
     h.controller->library()->setLastPlayed({{"g3", 9000}});
     QCOMPARE(order(h).first(), QStringLiteral("g3"));
