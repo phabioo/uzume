@@ -1668,6 +1668,11 @@ class EmulationControllersTest : public QObject {
     QVERIFY(!c->profileBuiltin());
     QCOMPARE(c->profileName(), QStringLiteral("Standard Gamepad copy"));
     QCOMPARE(deviceRow(h, QStringLiteral("gamepad")).value(QStringLiteral("profile")).toString(), QStringLiteral("Standard Gamepad copy"));
+    // Readable pass 7: the bound key is shown once. "A" on the A button is the key frame alone, never "[A] A", and a row that still
+    // has its default shows neither "Default: …" nor Reset.
+    QVERIFY(visible(h, "mapGlyphs_a"));
+    QVERIFY(!visible(h, "mapText_a"));
+    QVERIFY(!visible(h, "mapReset_a") && !visible(h, "mapDefault_a"));
     QVERIFY(h.click("mapField_a"));
     QCOMPARE(c->listening(), QStringLiteral("a"));
     QCOMPARE(text(h, "mapText_a"), QStringLiteral("Press a button…"));
@@ -1675,6 +1680,11 @@ class EmulationControllersTest : public QObject {
     c->gamepads()->poll();
     QVERIFY(c->listening().isEmpty());
     QCOMPARE(text(h, "mapText_a"), QStringLiteral("L"));   // left shoulder = DS "L" in the generic set
+    // The changed row names its default and offers Reset; the untouched row b offers neither.
+    QVERIFY(visible(h, "mapReset_a"));
+    QVERIFY(visible(h, "mapDefault_a"));
+    QCOMPARE(text(h, "mapDefault_a"), QStringLiteral("Default: A"));
+    QVERIFY(!visible(h, "mapReset_b") && !visible(h, "mapDefault_b"));
     QCOMPARE(text(h, "mapText_l"), QStringLiteral("Unassigned"));  // LB, taken away from L (a token drives one input)
     pad.button(LB, false);
     c->gamepads()->poll();

@@ -28,7 +28,7 @@ Rectangle {
     readonly property bool wideHeader: content.width >= 640
     // Buttons table (grid 14 | flex | 240 | 72): the mapping field and the action cell give way on a narrow column.
     readonly property bool tight: content.width < 480
-    readonly property int padActionWidth: tight ? 56 : 72
+    readonly property int padActionWidth: tight ? 96 : 220
     // Hotkeys table: ACTION | KEY | GAMEPAD | Reset
     // Hotkey columns (3f-4): ACTION 1fr | KEY 150 | GAMEPAD 170 | state 70. KEY and GAMEPAD never shrink, so "Press a key…" and
     // "Select+RT" are shown in full; the action column gives way (it elides).
@@ -1080,7 +1080,7 @@ Rectangle {
                                             implicitHeight: 32
                                             color: "transparent"
                                             border.width: 1
-                                            border.color: mrow.modelData.listening ? Theme.accent : Theme.rule2
+                                            border.color: mrow.modelData.listening ? Theme.accent : (field.activeFocus ? Theme.ink : Theme.rule2)
                                             opacity: root.ctl.profileBuiltin ? 0.85 : 1
                                             RowLayout {
                                                 anchors.fill: parent
@@ -1104,7 +1104,12 @@ Rectangle {
                                                     }
                                                 }
                                                 KeyText {
+                                                    id: mapName
                                                     objectName: "mapText_" + mrow.modelData.input
+                                                    // The key is shown once: a name that only repeats its single key frame ("[A] A") is left out.
+                                                    readonly property bool repeatsKey: !mrow.modelData.listening && mrow.modelData.glyphs.length === 1
+                                                                                       && String(mrow.modelData.glyphs[0]).toLowerCase() === String(mrow.modelData.bindingName).toLowerCase()
+                                                    visible: !repeatsKey
                                                     caps: root.ctl.device.kind === "keyboard" && mrow.modelData.mapped && !mrow.modelData.listening
                                                     Layout.fillWidth: true
                                                     Layout.minimumWidth: 0
@@ -1117,6 +1122,7 @@ Rectangle {
                                                     font.pixelSize: Theme.roles.input.size
                                                     elide: Text.ElideRight
                                                 }
+                                                Item { Layout.fillWidth: true; Layout.minimumWidth: 0; visible: !mapName.visible }   // keeps the clear button at the right edge
                                                 UzKbd {
                                                     visible: mrow.modelData.listening && field.width >= 200
                                                     keys: "Esc"
@@ -1139,6 +1145,16 @@ Rectangle {
                                             Layout.preferredWidth: root.padActionWidth
                                             Layout.minimumWidth: root.padActionWidth
                                             Layout.maximumWidth: root.padActionWidth
+                                            UzLabel {
+                                                objectName: "mapDefault_" + mrow.modelData.input
+                                                visible: mrow.modelData.changed
+                                                Layout.fillWidth: true
+                                                Layout.minimumWidth: 0
+                                                elide: Text.ElideRight
+                                                text: qsTr("Default: %1").arg(mrow.modelData.defaultName)
+                                                font.pixelSize: Theme.roles.small.size
+                                                color: Theme.muted
+                                            }
                                             UzButton {
                                                 objectName: "mapReset_" + mrow.modelData.input
                                                 Layout.minimumWidth: 0
@@ -1149,13 +1165,7 @@ Rectangle {
                                                 text: qsTr("Reset")
                                                 onClicked: root.ctl.resetBinding(mrow.modelData.input)
                                             }
-                                            UzLabel {
-                                                visible: !mrow.modelData.changed
-                                                text: qsTr("Default")
-                                                font.pixelSize: Theme.roles.small.size
-                                                color: Theme.disabledInk
-                                            }
-                                            Item { Layout.fillWidth: true }
+                                            Item { Layout.fillWidth: true; visible: !mrow.modelData.changed }
                                         }
                                     }
                                 }

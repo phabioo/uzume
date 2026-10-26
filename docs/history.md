@@ -57,6 +57,7 @@ Milestone sections in order. Names of the products in old text (FrameBeam Hub, P
 - [0.17 Operations and safety](#017-operations-and-safety)
 - [0.18 Uzume: one app, one server, new name](#018-uzume-one-app-one-server-new-name)
 - [0.19 Player comfort and library](#019-player-comfort-and-library)
+- [0.19.x Readable UI pass](#019x-readable-ui-pass)
 
 ### 0.1.1 Finish the PoC
 
@@ -435,6 +436,22 @@ Cut into 8 packages on 2026-10-23, one thread and PR each: wave A packages 1 to 
 - [x] Done (PR #220): Storage overview in the app (Settings › This PC › Storage and Server › Storage: ROMs, saves, snapshots, cores, backups, screenshots; clean-up suggestions) (S)
 - [x] Done (PR #217): Per-game overrides for core options, layout and controller profile (builds on the Game override page of 0.10) (M)
 - [x] Done (PR #212): NDS and 3DS screen layouts: hotkey switch, bottom screen in its own window or on a second monitor (M)
+
+### 0.19.x Readable UI pass
+
+Decided by Fabio on 2026-10-26 (package B of the UI scan after 0.19): the app takes the readable revision r6 of the design system, spec [readable-pass.md](design/uzume/readable-pass.md), decisions in [decisions.md](design/uzume/decisions.md#sheet-6--readable-pass-2026-10-26). Built before 0.20 in one thread, PRs one after another (plan PR #223); it adds no function. Released as 0.19.x betas.
+
+- [x] Done (PR #224): Tokens and controls: r6 tokens in `Theme.qml` (`ruleControl`, `badge`, `markerNav`, raised `dim`, `selected`), control borders at 3:1 or more, Toggle off with a filled knob, neutral selection, warnings as an ink sentence with the Yamabuki square, functional text at least 11 px Mono / 12 px Sans, accessible names on toggles, selects, fields and "×" buttons
+- [x] Done (PR #226): Text size and Reduce motion: scale 100 % / 125 % / TV from one Theme factor, Settings › This PC › Appearance rows, Reduce motion follows the system until changed
+- [x] Done (PR #227): Keyboard and gamepad everywhere: second columns as focusable `ColumnNav` rows (Settings, Emulation, Controllers, admin), binding fields, screenshot strip, Continue tile and panel rail; B / Esc goes one level back; `UzHintRow` on every main page after pad input; a test that walks each page by keys only
+- [x] Done (PR #230): Layout and wide font: one `UzPageHeader` on every page with actions that wrap below the title, dialog button rows that wrap and stack, at most three columns below 1440 px (help columns and input tests as disclosures, decoration only at 1440 px and wider), wide-font tests in CI at 16 to 18 px letter spacing
+- [x] Done (PR #231): Library: status filter chips with counts, List / Grid switch, game detail with one problem sentence whose fix becomes the primary, start checklist only while starting or after a failure, Saves with the start actions on top and File details closed, Remove from library with Undo
+- [x] Done (PR #233): Running game: header with Pause / Resume as the primary and Fullscreen back, plugin tabs with icon, short label and More, Diagnostics with a Details section (encoder, bitrate, per-person path, RTT, loss, relay reason), Diagnostics in the hold-Select sheet
+- [x] Done (PR #234): Settings, controllers and admin: nav badges (Status, Systems & cores, Settings), mapping table with the key shown once and Default / Reset only on changed rows, Systems & cores and Plugins only in the nav (Settings links there), docs closed (features, history)
+
+Not built: the panel tabs Run · Chat · Saves of board 3g-1-r6 (Chat comes with 0.23; the first tab stays Session). Qt has no system "reduce motion" hint, so Reduce motion is off until the user turns it on.
+
+Tests only Fabio can do: the gamepad on the shell pages with a real pad, Text size TV on a TV, the wide Windows font, Kinari and Sumi visually.
 
 ## Decisions from the roadmap
 

@@ -281,7 +281,7 @@ void FakeHub::handleAdmin(QSslSocket* sock, const FakeRequest& req) {
   if (adminDirectory && handleDirectory(sock, req, path, body)) return;
   const QString callKey = QString::fromLatin1(req.method) + QLatin1Char(' ') + path;
   ++adminCalls[callKey];
-  lastAdminBody = req.body;
+  if (req.method != "GET") lastAdminBody = req.body;
   adminBodies[callKey] = req.body;
   if (adminHook) adminHook(callKey);
   if (adminRoutes.contains(callKey)) {

@@ -102,6 +102,38 @@ class AdminUsersUiTest : public QObject {
     QVERIFY(text(h.item("personHint")).isEmpty() || !shown(h.item("personHint")));
   }
 
+  // Readable pass 7: role chips with counts filter the list; every person has the "⋯" menu; open invites are rows of their own.
+  void roleChipsFilterThePeopleList() {
+    FakeHub hub(QStringLiteral("a"));
+    adminHub(hub);
+    QVERIFY(hub.start());
+    Harness h;
+    QVERIFY(h.start());
+    pair(h, hub);
+    openUsers(h);
+    const auto chipCount = [&h](const char* name) { return h.item(name) ? h.item(name)->property("count").toInt() : -1; };
+    QTRY_COMPARE(chipCount("usersRoleChip_all"), 3);
+    QCOMPARE(chipCount("usersRoleChip_admin"), 1);
+    QCOMPARE(chipCount("usersRoleChip_member"), 2);
+    QCOMPARE(chipCount("usersRoleChip_invited"), 1);
+    QVERIFY(h.item("usersRoleChip_all")->property("active").toBool());
+    QVERIFY(shown(h.item("personMenu_u_2")));   // "⋯" per person
+    QVERIFY(h.click("usersRoleChip_admin"));
+    QTRY_VERIFY(!shown(h.item("peopleTableRow_1")));
+    QCOMPARE(text(h.item("peopleTableCell_0_role")), QStringLiteral("Admin"));
+    QVERIFY(h.click("usersRoleChip_member"));
+    QTRY_VERIFY(shown(h.item("peopleTableRow_1")));
+    QCOMPARE(text(h.item("peopleTableCell_0_role")), QStringLiteral("Member"));
+    QVERIFY(!shown(h.item("peopleTableRow_2")));
+    QVERIFY(h.click("usersRoleChip_invited"));
+    QTRY_COMPARE(text(h.item("peopleTableCell_0_role")), QStringLiteral("Invited"));
+    QCOMPARE(text(h.item("peopleTableCell_0_status")), QStringLiteral("Not joined yet"));
+    QVERIFY(shown(h.item("withdrawOpenInvite_i_1")));
+    QVERIFY(!shown(h.item("peopleTableRow_1")));
+    QVERIFY(h.click("usersRoleChip_all"));
+    QTRY_VERIFY(shown(h.item("peopleTableRow_2")));
+  }
+
   void createInviteShowsTheCodeOnce() {
     FakeHub hub(QStringLiteral("a"));
     adminHub(hub);

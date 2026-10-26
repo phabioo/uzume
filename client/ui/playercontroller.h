@@ -172,6 +172,13 @@ class PlayerController : public QObject {
   Q_PROPERTY(QString logFile READ logFile CONSTANT)
   // Shell (sidebar user block, Settings footer)
   Q_PROPERTY(QString deviceName READ deviceName CONSTANT)
+  // Admin attention (readable pass 7): what needs an admin, one entry per open problem: {id, severity warn|error, text,
+  // actionLabel, target}. Server problems of /admin/status, core problems, a server update on offer, games in save conflict.
+  // Empty for anyone who is not an admin of a server with the admin area. The counts feed the badges of AppNav.
+  Q_PROPERTY(QVariantList attention READ attention NOTIFY attentionChanged)
+  Q_PROPERTY(int attentionCount READ attentionCount NOTIFY attentionChanged)
+  Q_PROPERTY(int coreProblemCount READ coreProblemCount NOTIFY attentionChanged)
+  Q_PROPERTY(bool serverUpdatePending READ serverUpdatePending NOTIFY attentionChanged)
   Q_PROPERTY(bool isAdmin READ isAdmin NOTIFY hubChanged)  // handshake `user.role` is "admin"; false for older servers
   Q_PROPERTY(QString userName READ userName NOTIFY hubChanged)  // Hub user (handshake `user`); empty for older Hubs
   Q_PROPERTY(QString playerVersion READ playerVersion CONSTANT)
@@ -294,6 +301,12 @@ class PlayerController : public QObject {
   QVariantMap coreUpdate() const;
   QStringList uploadFilters() const;
   QVariantList coreWarnings() const;
+  QVariantList attention() const;
+  int attentionCount() const { return attention().size(); }
+  int coreProblemCount() const;
+  bool serverUpdatePending() const;
+  // Runs the target of an attention entry: "page:<server page>", "settings:<section>" or "library:attention".
+  Q_INVOKABLE void openAttention(const QString& target);
   QVariantMap saveConflict() const { return conflict_; }
   QString saveNote() const { return saves_ ? saves_->note() : QString(); }
   SaveSync* saveSync() { return saves_.get(); }
@@ -429,6 +442,7 @@ class PlayerController : public QObject {
   void autoConnectChanged();
   void pairingChanged();
   void hubChanged();
+  void attentionChanged();
   void hubLinkChanged();
   void libraryStateChanged();
   void selectedGameChanged();

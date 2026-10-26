@@ -76,4 +76,4 @@ Every pair used for information meets 4.5:1 for text and 3:1 for control borders
 
 ## Building it
 
-The Qt app takes the tokens from `tokens.json` into `client/ui/Theme.qml` and the components into the `Uz*` controls; the scope and order of the UI pass (packages A, B, C of the scan) is planned in [the roadmap](../../roadmap.md) once chosen. Until a screen is rebuilt, the rules above apply to every change touching it.
+The Qt app takes the tokens from `tokens.json` into `client/ui/Theme.qml` and the components into the `Uz*` controls; this was built as the 0.19.x readable UI pass ([history](../../history.md#019x-readable-ui-pass)); the panel tabs Run · Chat · Saves wait for the Chat tab (0.23). Until a screen is rebuilt, the rules above apply to every change touching it.

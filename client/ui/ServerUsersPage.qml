@@ -37,11 +37,23 @@ Item {
     readonly property string thisDeviceId: root.admin.thisDeviceId()
     readonly property int adminCount: root.users.filter(u => u.role === "admin" && !u.disabled).length
     readonly property var selected: root.userById(root.selectedId)
-    readonly property int selectedIndex: root.peopleRows.findIndex(r => r.id === root.selectedId)
-    readonly property var peopleRows: root.users.map(u => ({
-        id: u.id, person: u.display_name, since: qsTr("Since %1").arg(root.monthText(u.created_at)),
-        role: u.role === "admin" ? qsTr("Admin") : qsTr("Member"), status: root.statusText(u), devices: String(u.devices ?? 0),
+    readonly property int selectedIndex: root.shownRows.findIndex(r => r.id === root.selectedId)
+    readonly property var peopleRows: root.users.map((u, n) => ({
+        id: u.id, person: u.display_name, since: qsTr("Since %1").arg(root.monthText(u.created_at)), order: n + 1, invite: false,
+        isAdmin: u.role === "admin", online: !u.disabled && root.isOnline(u),
+        role: u.role === "admin" ? qsTr("Admin") : qsTr("Member"), status: root.nowText(u), devices: String(u.devices ?? 0),
         played: root.playText(u.play_seconds) }))
+    // Role chips above the list: All · Admins · Members · Open invites (counts). Open invites are listed as rows of their own.
+    property string roleFilter: "all"
+    readonly property var roleCounts: ({ all: root.users.length, admin: root.users.filter(u => u.role === "admin").length,
+                                         member: root.users.filter(u => u.role !== "admin").length, invited: root.openInvites })
+    readonly property var openInviteRows: root.invites.filter(i => i.status === "active").map((i, n) => ({
+        id: "invite:" + i.id, inviteId: i.id, person: i.for_user ? qsTr("Pairing code for %1").arg(i.for_user) : qsTr("Invite"),
+        since: qsTr("Expires %1").arg(root.dateText(i.expires_at)), order: n + 1, invite: true, isAdmin: false, online: false,
+        role: qsTr("Invited"), status: qsTr("Not joined yet"), devices: "", played: "" }))
+    readonly property var shownRows: root.roleFilter === "invited" ? root.openInviteRows
+        : root.roleFilter === "admin" ? root.peopleRows.filter(r => r.isAdmin)
+        : root.roleFilter === "member" ? root.peopleRows.filter(r => !r.isAdmin) : root.peopleRows
     readonly property var inviteRows: root.invites.map(i => ({
         id: i.id, kind: i.for_user ? qsTr("Pairing code for %1").arg(i.for_user) : qsTr("Invite"),
         trust: i.authorize_device ? qsTr("Trusted at once") : qsTr("Needs approval"),
@@ -65,6 +77,15 @@ Item {
         return root.devices.filter(d => d.user_id === u.id && d.status === "trusted").map(d => d.name)
     }
     function isOnline(u: var): bool { return root.devices.some(d => d.user_id === u.id && d.status === "trusted" && d.online) }
+    // What the person does now: playing a Session (from the status the server reports), else online / last seen.
+    function nowText(u: var): string {
+        if (!u.disabled) {
+            for (const se of (root.admin.status.sessions ?? [])) {
+                if (se.owner === u.display_name) return qsTr("Playing %1").arg(se.game_title)
+            }
+        }
+        return root.statusText(u)
+    }
     function statusText(u: var): string {
         if (u.disabled) return qsTr("Can't sign in")
         if (root.isOnline(u)) return qsTr("Online")

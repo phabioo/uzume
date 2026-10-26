@@ -57,7 +57,8 @@ After a server certificate change (renewal) the server card shows the stored and
 - Game Boy, Game Boy Color and Game Boy Advance ([ADR 0024](../adr/0024-system-template-and-game-boy.md)): the server admin installs a core (for example mGBA, or Gambatte for GB/GBC). Extensions `.gb`, `.gbc`, `.gba`; one screen. A boot ROM/BIOS is optional and used only in firmware mode `native`. Keyboard and gamepad use the same bindings as other systems; L/R exist only on the GBA.
 - 3DS saves sync with the server like other saves (the game's save data and extdata only, not system data). Restore, upload and conflict resolution in a running 3DS game restart the game with the new save (as for NDS).
 - ROM cache: Settings → "ROM cache limit" (default 20 GB, 0 = unlimited). The least recently used ROMs are removed first; the running or starting game, active downloads and `.part` files are never removed. Trimming runs at startup, when a ROM is ready, when a game ends and when the limit changes. "Clear ROM cache" asks for confirmation and shows the freed size. Settings › This PC › Storage shows what the app keeps on this PC and offers clean-ups (games not played in 60 days, older core versions); each asks first, and saves are never offered.
-- Settings: Appearance (Dark / Light / System), Updates (channel, automatic install), Hubs.
+- Settings: Appearance (Dark / Light / System, Text size 100 % / 125 % / TV, Reduce motion), Updates (channel, automatic install), Hubs.
+- Gamepad outside the game: D-pad or left stick moves, A chooses, B goes back one level, Y focuses search (Library, Emulation), L / R switch the Library status filter. The hint row at the bottom shows these while a gamepad was the last input. Esc does the same as B on the keyboard.
 
 Saves sync automatically; see [saves.md](saves.md). Sharing and watching: [sessions-over-the-internet.md](sessions-over-the-internet.md).
 

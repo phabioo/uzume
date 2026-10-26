@@ -349,6 +349,13 @@ QVariantList ControllersController::rows() const {
     QStringList labels;
     for (const QString& t : tokens) labels.append(tokenLabel(t));
     const QVariantMap d = describeBinding(set, tokens);
+    const QStringList defTokens = def.bindings.value(in.id);
+    QString defaultName = defTokens.isEmpty() ? tr("Unassigned") : describeBinding(set, defTokens).value(QStringLiteral("name")).toString();
+    if (defaultName.isEmpty()) {  // keyboard: the key caps carry the name
+      QStringList defLabels;
+      for (const QString& t : defTokens) defLabels.append(tokenLabel(t));
+      defaultName = defLabels.join(QStringLiteral(" / "));
+    }
     l.append(QVariantMap{{QStringLiteral("input"), in.id},
                          {QStringLiteral("label"), in.label},
                          {QStringLiteral("target"), target},
@@ -356,6 +363,7 @@ QVariantList ControllersController::rows() const {
                          {QStringLiteral("glyphs"), d.value(QStringLiteral("glyphs"))},
                          {QStringLiteral("bindingName"), labels.isEmpty() ? tr("Unassigned") : d.value(QStringLiteral("name"))},
                          {QStringLiteral("mapped"), !labels.isEmpty()},
+                         {QStringLiteral("defaultName"), defaultName},
                          {QStringLiteral("changed"), changed},
                          {QStringLiteral("listening"), listening_ == in.id}});
   }
