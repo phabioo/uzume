@@ -469,7 +469,7 @@ class EmulationControllersTest : public QObject {
     QVERIFY(visible(h, "lockedHint"));
     // Category chips: the categories of this scope.
     QCOMPARE(emu->categories(), (QStringList{QStringLiteral("Audio"), QStringLiteral("System"), QStringLiteral("Picture")}));  // + Uzume's picture options
-    QVERIFY(visible(h, "category_Audio") && visible(h, "category_System"));
+    QTRY_VERIFY(visible(h, "category_Audio") && visible(h, "category_System"));  // the tabs fit once the new section is laid out
     // Nothing changed yet: "Default" in every row, no dot, no "Reset N changed".
     QCOMPARE(text(h, "optionOrigin_melonds_audio_interpolation"), QStringLiteral("Default"));
     QVERIFY(!visible(h, "changedDot_melonds_audio_interpolation"));
