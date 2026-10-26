@@ -443,6 +443,45 @@ class SessionsUiTest : public QObject {
     ctl->refreshDiagnostics();
     QCOMPARE(firstParticipant().value(QStringLiteral("line3")).toString(), QStringLiteral("RTT — · Loss —"));  // no TURN server in the FakeHub ack
     QCOMPARE(firstParticipant().value(QStringLiteral("pill")).toString(), QStringLiteral("Relayed (TURN)"));
+    // Details (readable pass): decoder, bitrate and a row per person with path, RTT, loss and the reason for a relay in one sentence
+    remote.rttMs = 64.0;
+    remote.packetLossPercent = 1.2;
+    remote.relayReason = RelayReason::DirectFailed;
+    remote.width = 1024;
+    remote.height = 768;
+    ctl->setStatsOverride(nullptr, {{QStringLiteral("s1"), remote}});
+    ctl->refreshDiagnostics();
+    QQuickTest::qWaitForPolish(h.window);
+    {
+      QCOMPARE(firstParticipant().value(QStringLiteral("path")).toString(), QStringLiteral("Relay"));
+      QCOMPARE(firstParticipant().value(QStringLiteral("rtt")).toString(), QStringLiteral("64 ms"));
+      QCOMPARE(firstParticipant().value(QStringLiteral("loss")).toString(), QStringLiteral("1.2 %"));
+      QVERIFY(firstParticipant().value(QStringLiteral("reason")).toString().startsWith(QStringLiteral("Relay because")));
+      QTRY_VERIFY(visibleItem(h, "diagDetails") != nullptr);
+      QVERIFY(visibleItem(h, "diagDetailsToggle") != nullptr);   // open by default
+      QVERIFY(visibleItem(h, "diagDetailRows") != nullptr && visibleItem(h, "diagPeople") != nullptr);
+      QVERIFY(visibleItem(h, "diagPath") != nullptr);
+      QCOMPARE(textOf(visibleItem(h, "diagPath")), QStringLiteral("Relay"));
+      QCOMPARE(textOf(visibleItem(h, "diagRtt")), QStringLiteral("64 ms"));
+      QCOMPARE(textOf(visibleItem(h, "diagLoss")), QStringLiteral("1.2 %"));
+      QVERIFY(textOf(visibleItem(h, "diagReason")).contains(QStringLiteral("no direct path")));
+      QVariant text;
+      QVERIFY(QMetaObject::invokeMethod(visibleItem(h, "diagnosticsOverlay"), "fullText", Q_RETURN_ARG(QVariant, text)));
+      QVERIFY(text.toString().contains(QStringLiteral("Decoder h264")));
+      const QVariantList rows = visibleItem(h, "diagnosticsOverlay")->property("detailRows").toList();
+      QStringList labels;
+      for (const QVariant& r : rows) labels << r.toList().at(0).toString();
+      QVERIFY2(labels.contains(QStringLiteral("Decoder")) && labels.contains(QStringLiteral("Bitrate")) && labels.contains(QStringLiteral("Resolution")), qPrintable(labels.join(',')));
+      // Collapsing the section hides the content, the header stays; the state is remembered
+      QVERIFY(ctl->diagnostics()->streamingOpen());
+      QVERIFY(h.click("diagDetailsToggle"));
+      QTRY_VERIFY(!ctl->diagnostics()->streamingOpen());
+      QTRY_VERIFY(visibleItem(h, "diagPeople") == nullptr && visibleItem(h, "diagDetailRows") == nullptr);
+      QVERIFY(visibleItem(h, "diagDetailsToggle") != nullptr);
+      QVERIFY(h.click("diagDetailsToggle"));
+      QTRY_VERIFY(ctl->diagnostics()->streamingOpen());
+      QTRY_VERIFY(visibleItem(h, "diagPeople") != nullptr);
+    }
     uitest::saveShot(h.window, QStringLiteral("p4-diagnostics-remote"));
     ctl->setStatsOverride(nullptr, {});
     QVERIFY(clickMore(h, "diagnostics"));

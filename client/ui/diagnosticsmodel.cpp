@@ -1,5 +1,6 @@
 #include "diagnosticsmodel.h"
 
+#include <QCoreApplication>
 #include <QUrl>
 #include <algorithm>
 #include <cmath>
@@ -296,14 +297,74 @@ QString DiagnosticsModel::turnEndpoint(const QList<TurnServer>& servers) {
   return {};
 }
 
-QVariantMap DiagnosticsModel::participant(const QString& name, const QString& role, const Pill& pill, const QString& line2, const QString& line3) {
-  return {{QStringLiteral("name"), name},
-          {QStringLiteral("role"), role},
-          {QStringLiteral("pill"), pill.text},
-          {QStringLiteral("tone"), pill.tone},
-          {QStringLiteral("relayed"), pill.tone == QLatin1String("warn")},
-          {QStringLiteral("line2"), line2},
-          {QStringLiteral("line3"), line3}};
+QVariantMap DiagnosticsModel::participant(const QString& name, const QString& role, const Pill& pill, const QString& line2, const QString& line3,
+                                          const QVariantMap& link) {
+  QVariantMap m{{QStringLiteral("name"), name},
+                {QStringLiteral("role"), role},
+                {QStringLiteral("pill"), pill.text},
+                {QStringLiteral("tone"), pill.tone},
+                {QStringLiteral("relayed"), pill.tone == QLatin1String("warn")},
+                {QStringLiteral("line2"), line2},
+                {QStringLiteral("line3"), line3}};
+  m.insert(link);
+  return m;
+}
+
+QVariantMap DiagnosticsModel::linkFields(std::optional<double> rttMs, std::optional<double> lossPercent, const QString& connectionType,
+                                         RelayReason reason) {
+  const bool known = !connectionType.isEmpty() && connectionType != QLatin1String("unknown");
+  const bool relayed = isRelayed(connectionType);
+  return QVariantMap{{QStringLiteral("path"), !known ? QString() : (relayed ? tr("Relay") : tr("Direct"))},
+                     {QStringLiteral("rtt"), rttMs ? tr("%1 ms").arg(qRound(*rttMs)) : QString()},
+                     {QStringLiteral("loss"), lossPercent ? tr("%1 %").arg(fixed(*lossPercent, 1)) : QString()},
+                     {QStringLiteral("reason"), relayed ? relayReasonSentence(reason) : QString()}};
+}
+
+QString DiagnosticsModel::relayReasonSentence(RelayReason reason) {
+  switch (reason) {
+    case RelayReason::Forced: return tr("Relay because it is forced on this PC.");
+    case RelayReason::NoLocalSrflx: return tr("Relay because no STUN server could be reached from this PC.");
+    case RelayReason::NoRemoteSrflx: return tr("Relay because the other side has no public address.");
+    case RelayReason::DirectFailed: return tr("Relay because no direct path was found: strict NAT or a firewall.");
+    case RelayReason::None: break;
+  }
+  return {};
+}
+
+namespace {
+QVariantList detailRows(const QString& codecLabel, const QString& codecValue, const SessionStats& s) {
+  QVariantList rows;
+  if (!codecValue.isEmpty()) {
+    rows.append(QVariant(QVariantList{codecLabel, codecValue}));
+  }
+  if (s.videoBitrateKbps > 0.0) {
+    rows.append(QVariant(QVariantList{QCoreApplication::translate("uzume::ui::DiagnosticsModel", "Bitrate"),
+                                      QCoreApplication::translate("uzume::ui::DiagnosticsModel", "%1 Mbit/s").arg(DiagnosticsModel::mbit(s.videoBitrateKbps))}));
+  }
+  if (s.width > 0 && s.height > 0) {
+    QString v = QStringLiteral("%1 × %2").arg(s.width).arg(s.height);
+    if (s.fps > 0.0) {
+      v += QCoreApplication::translate("uzume::ui::DiagnosticsModel", " · %1 fps").arg(qRound(s.fps));
+    }
+    rows.append(QVariant(QVariantList{QCoreApplication::translate("uzume::ui::DiagnosticsModel", "Resolution"), v}));
+  }
+  return rows;
+}
+}  // namespace
+
+QVariantList DiagnosticsModel::hostDetailRows(const SessionStats& s) {
+  QString enc = s.encoderName;
+  if (!enc.isEmpty()) {
+    enc += QStringLiteral(" · H.264");
+    if (s.gpuInput) {
+      enc += tr(" · GPU-direct");
+    }
+  }
+  return detailRows(tr("Encoder"), enc, s);
+}
+
+QVariantList DiagnosticsModel::viewerDetailRows(const SessionStats& s) {
+  return detailRows(tr("Decoder"), s.decoderName.isEmpty() ? QString() : s.decoderName + QStringLiteral(" · H.264"), s);
 }
 
 }  // namespace uzume::ui

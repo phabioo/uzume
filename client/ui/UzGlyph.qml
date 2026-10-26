@@ -23,6 +23,7 @@ Item {
         mic: "M6 2 H10 V9 H6 Z M3.5 7.5 V11 H12.5 V7.5 M8 11 V14 M5.5 14 H10.5",
         micOff: "M6 2 H10 V9 H6 Z M3.5 7.5 V11 H12.5 V7.5 M8 11 V14 M5.5 14 H10.5 M2 2 L14 14",
         up: "M8 13 V3 M4 7 L8 3 L12 7", down: "M8 3 V13 M4 9 L8 13 L12 9",
+        fullscreen: "M2 6 V2 H6 M10 2 H14 V6 M14 10 V14 H10 M6 14 H2 V10",
         left: "M13 8 H3 M7 4 L3 8 L7 12", right: "M3 8 H13 M9 4 L13 8 L9 12"
     })
 

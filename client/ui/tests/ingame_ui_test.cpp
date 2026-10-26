@@ -8,6 +8,7 @@
 #include <QtTest>
 
 #include "audiocontroller.h"
+#include "controllerscontroller.h"
 #include "fakehub.h"
 #include "gameview.h"
 #include "savestore.h"
@@ -83,6 +84,12 @@ bool openReset(Harness& h) { return clickMore(h, "reset"); }
 QRectF sceneRect(QQuickItem* i) { return i ? i->mapRectToScene(QRectF(0, 0, i->width(), i->height())) : QRectF(); }
 QRectF rectOf(Harness& h, const char* name) { return sceneRect(visibleItem(h, name)); }
 QString textOf(QQuickItem* i) { return i ? i->property("text").toString() : QString();}
+// The attached ToolTip.text of an item.
+QString tooltipOf(QQuickItem* i) {
+  if (i == nullptr) return {};
+  const QQmlProperty p(i, QStringLiteral("ToolTip.text"), qmlContext(i));
+  return p.isValid() ? p.read().toString() : QString();
+}
 
 // Failure diagnostics: the chain from an item up to the window with the geometry and the layout minimum of every ancestor.
 QString chain(QQuickItem* it) {
@@ -140,17 +147,17 @@ emu::DisplayProfile ndsProfile() {
   return p;
 }
 
-void startPreview(Harness& h, bool library) {
+void startPreview(Harness& h, bool library, const QString& title = QStringLiteral("Lumen Drift")) {
   GameSession* gs = h.controller->gameSession();
   if (library) {
     h.controller->selectGame(QStringLiteral("g1"));
     h.controller->adoptPreviewGame(QStringLiteral("g1"));
   }
-  gs->setPreview(QStringLiteral("Lumen Drift"), frame(), ndsProfile(), EmulationDiagnostics());
+  gs->setPreview(title, frame(), ndsProfile(), EmulationDiagnostics());
   gs->setPreviewFastForwardSupported(true);
   emit gs->started();
   QTRY_COMPARE_WITH_TIMEOUT(h.controller->screen(), QStringLiteral("game"), 8000);
-  if (!library) h.controller->sessions()->gameStarted(QStringLiteral("g1"), QStringLiteral("Lumen Drift"));
+  if (!library) h.controller->sessions()->gameStarted(QStringLiteral("g1"), title);
   h.controller->sessions()->setTab(QStringLiteral("session"));
   QQuickTest::qWaitForPolish(h.window);
 }
@@ -247,9 +254,10 @@ class InGameUiTest : public QObject {
 
   static const QStringList& zoneNames() {
     static const QStringList z{QStringLiteral("backToLibraryButton"), QStringLiteral("gameTitle"), QStringLiteral("multiviewTitle"),
-                               QStringLiteral("modeSegment"), QStringLiteral("pauseButton"), QStringLiteral("fastForwardButton"), QStringLiteral("speedValueButton"),
+                               QStringLiteral("modeSegment"), QStringLiteral("fastForwardButton"), QStringLiteral("speedValueButton"),
                                QStringLiteral("layoutSwitch"), QStringLiteral("tabMultiview"), QStringLiteral("addSessionToggle"), QStringLiteral("panelToggle"),
-                               QStringLiteral("leaveMultiview"), QStringLiteral("leaveButton"), QStringLiteral("moreButton")};
+                               QStringLiteral("leaveMultiview"), QStringLiteral("leaveButton"), QStringLiteral("fullscreenButton"), QStringLiteral("pauseButton"),
+                               QStringLiteral("moreButton")};
     return z;
   }
 
@@ -653,7 +661,7 @@ class InGameUiTest : public QObject {
       resize(h, sz.width(), sz.height());
       const qreal mid = rectOf(h, "gameHeader").center().y();
       int checked = 0;
-      for (const char* name : {"backToLibraryButton", "pauseButton", "fastForwardButton", "speedValueButton", "layoutSwitch", "tabMultiview", "panelToggle", "moreButton"}) {
+      for (const char* name : {"backToLibraryButton", "fastForwardButton", "speedValueButton", "layoutSwitch", "tabMultiview", "panelToggle", "fullscreenButton", "pauseButton", "moreButton"}) {
         QQuickItem* btn = visibleItem(h, name);
         if (btn == nullptr) continue;   // not shown at this size (layout picker without layouts)
         ++checked;
@@ -757,11 +765,13 @@ class InGameUiTest : public QObject {
     QVERIFY(h.click("resetConfirm"));
     QTRY_VERIFY(!shown(h, "resetConfirm"));
 
-    // The "..." menu holds Fullscreen, Diagnostics, Reset and Hotkeys
+    // Fullscreen is an icon button in the header; the "..." menu holds Diagnostics, Screenshot, Hotkeys, Reset game and Report a problem
     resize(h, 1280, 800);
     QVERIFY(h.click("moreButton"));
     QTRY_VERIFY(shown(h, "menuItem_diagnostics"));
-    QVERIFY(shown(h, "menuItem_fullscreen") && shown(h, "menuItem_reset") && shown(h, "menuItem_hotkeys"));
+    QVERIFY(shown(h, "fullscreenButton") != shown(h, "menuItem_fullscreen"));   // the menu lists it only when the header is too tight for its button
+    QVERIFY(shown(h, "menuItem_screenshot") && shown(h, "menuItem_reset") && shown(h, "menuItem_hotkeys") && shown(h, "menuItem_report"));
+    QCOMPARE(textOf(visibleItem(h, "menuItem_reset")), QStringLiteral("Reset game …"));
     // 0.19: "Settings for this game…" in the menu opens the per-game dialog over the game; Done closes it.
     QVERIFY(shown(h, "menuItem_gameSettings"));
     QVERIFY(h.click("menuItem_gameSettings"));
@@ -799,6 +809,124 @@ class InGameUiTest : public QObject {
     QTRY_VERIFY(!ctl->diagnostics()->isOpen());
   }
 
+  // Header (56 px) with a long title: ← Library, title (elided, full title as tooltip), Layout, Multiview, Panel, Fullscreen, Pause as
+  // the primary, "⋯"; it fits at 1280 and with wide fonts (text size TV, letter spacing).
+  void headerFitsALongTitleAndWideFonts() {
+    FakeHub hub(QStringLiteral("a"));
+    Harness h;
+    pair(hub, h, false);
+    const QString longTitle = QStringLiteral("Coral Saga: The Long Tide of the Northern Archipelago");
+    startPreview(h, false, longTitle);
+    resize(h, 1280, 800);
+    const auto check = [&](const QString& tag) {
+      QCOMPARE(rectOf(h, "gameHeader").height(), 56.0);
+      const QString problem = zonesProblem(h, zoneNames());
+      QVERIFY2(problem.isEmpty(), qPrintable(tag + QStringLiteral(": ") + problem));
+      QVERIFY2(shown(h, "backToLibraryButton") && shown(h, "gameTitle") && shown(h, "pauseButton") && shown(h, "moreButton"), qPrintable(tag));
+      QQuickItem* title = visibleItem(h, "gameTitle");
+      QCOMPARE(textOf(title), longTitle);
+      QCOMPARE(tooltipOf(title), longTitle);   // the full title, also where it is elided
+      QVERIFY2(sceneRect(title).right() <= sceneRect(visibleItem(h, "pauseButton")).left() + 0.5, qPrintable(tag + QStringLiteral(": title runs into Pause")));
+    };
+    check(QStringLiteral("100 %"));
+    // Order and content of the header at 1280: Layout, Multiview, Panel, Fullscreen, Pause, "⋯" from left to right
+    if (shown(h, "layoutSwitch") && shown(h, "tabMultiview") && shown(h, "panelToggle") && shown(h, "fullscreenButton")) {   // not at the very wide font of the widefont run
+      QQuickItem* fs = visibleItem(h, "fullscreenButton");
+      QCOMPARE(tooltipOf(fs), QStringLiteral("Fullscreen · F11"));
+      QCOMPARE(textOf(visibleItem(h, "pauseButton")), QStringLiteral("Pause"));
+      QCOMPARE(visibleItem(h, "pauseButton")->property("kind").toString(), QStringLiteral("primary"));   // the one yellow button
+      QCOMPARE(visibleItem(h, "moreButton")->property("kind").toString(), QString());
+      QVERIFY(sceneRect(visibleItem(h, "panelToggle")).right() <= sceneRect(fs).left() + 0.5);
+      QVERIFY(sceneRect(fs).right() <= sceneRect(visibleItem(h, "pauseButton")).left() + 0.5);
+    }
+    if (shown(h, "fullscreenButton")) {
+      // The same as F11: the game screen goes fullscreen (the header goes away); the test puts it back
+      QQuickItem* screen = visibleItem(h, "gameHeader");
+      while (screen != nullptr && !QString::fromLatin1(screen->metaObject()->className()).startsWith(QLatin1String("GameScreen"))) screen = screen->parentItem();
+      QVERIFY(screen != nullptr && !screen->property("fullscreen").toBool());
+      QVERIFY(h.click("fullscreenButton"));
+      QTRY_VERIFY(screen->property("fullscreen").toBool());
+      screen->setProperty("fullscreen", false);
+      QTRY_VERIFY(shown(h, "gameHeader"));
+    }
+    h.controller->setTextSize(QStringLiteral("tv"));
+    resize(h, 1280, 800);
+    check(QStringLiteral("tv text size"));
+    widenFonts(h, 6.0);
+    check(QStringLiteral("tv text size, letters spaced"));
+    h.controller->setTextSize(QStringLiteral("100"));
+    resize(h, 1280, 800);
+    check(QStringLiteral("100 % again"));
+    // A function that left the header for narrowness is in the menu: Fullscreen then is listed
+    if (!shown(h, "fullscreenButton")) {
+      QVERIFY(h.click("moreButton"));
+      QTRY_VERIFY(shown(h, "menuItem_fullscreen"));
+      QTest::keyClick(h.window, Qt::Key_Escape);
+    }
+  }
+
+  // Pause is the primary: Resume while paused; the menu has Diagnostics, Screenshot, Hotkeys, Reset game and Report a problem.
+  void pauseIsThePrimaryAndTheMenuIsShort() {
+    FakeHub hub(QStringLiteral("a"));
+    Harness h;
+    pair(hub, h, false);
+    startPreview(h, false);
+    resize(h, 1440, 900);
+    GameSession* gs = h.controller->gameSession();
+    QCOMPARE(visibleItem(h, "pauseButton")->property("kind").toString(), QStringLiteral("primary"));
+    QVERIFY(h.click("pauseButton"));
+    QTRY_VERIFY(gs->isPaused());
+    QTRY_COMPARE(textOf(visibleItem(h, "pauseButton")), QStringLiteral("Resume"));
+    QVERIFY(h.click("pauseButton"));
+    QTRY_VERIFY(!gs->isPaused());
+    QVERIFY(h.click("moreButton"));
+    QTRY_VERIFY(shown(h, "menuItem_diagnostics"));
+    QStringList order;
+    for (const char* n : {"menuItem_diagnostics", "menuItem_screenshot", "menuItem_hotkeys", "menuItem_reset", "menuItem_report"}) {
+      QVERIFY2(shown(h, n), n);
+      order << QString::number(sceneRect(visibleItem(h, n)).top());
+    }
+    for (int i = 1; i < order.size(); ++i) QVERIFY2(order[i - 1].toDouble() < order[i].toDouble(), "menu order: Diagnostics, Screenshot, Hotkeys, Reset, Report");
+    QCOMPARE(textOf(visibleItem(h, "menuItem_diagnostics")), QStringLiteral("Diagnostics"));
+    QCOMPARE(textOf(visibleItem(h, "menuItem_report")), QStringLiteral("Report a problem …"));
+    QTest::keyClick(h.window, Qt::Key_Escape);
+    QTRY_VERIFY(!shown(h, "menuItem_diagnostics"));
+  }
+
+  // The hold-Select sheet lists Diagnostics, and the gamepad hotkey toggles the diagnostics block like F3.
+  void holdSelectSheetListsDiagnosticsAndTogglesIt() {
+    FakeHub hub(QStringLiteral("a"));
+    Harness h;
+    pair(hub, h, false);
+    startPreview(h, false);
+    resize(h, 1280, 800);
+    ControllersController* c = h.controller->controllers();
+    bool listed = false;
+    for (const QVariant& v : c->padSheetRows()) listed = listed || v.toMap().value(QStringLiteral("action")).toString() == QLatin1String("diagnostics");
+    QVERIFY2(listed, "the sheet rows carry the diagnostics action");
+    // The sheet is created while the hotkey button is held; the test holds it open by forcing the loader (the grid reads the same rows).
+    QQuickItem* loader = h.item("padHotkeySheetLoader");
+    QVERIFY(loader != nullptr);
+    loader->setProperty("active", true);
+    QTRY_VERIFY(h.item("padHotkeySheet") != nullptr);
+    QQuickItem* sheet = h.item("padHotkeySheet");
+    QVariantList keys = sheet->property("keys").toList();
+    QString label;
+    for (const QVariant& k : keys) {
+      const QVariantList kv = k.toList();
+      if (kv.size() >= 2 && kv.at(1).toString() == QLatin1String("Diagnostics")) label = kv.at(1).toString();
+    }
+    QCOMPARE(label, QStringLiteral("Diagnostics"));
+    loader->setProperty("active", false);
+    DiagnosticsModel* diag = h.controller->sessions()->diagnostics();
+    QVERIFY(!diag->isOpen());
+    emit c->padHotkeyTriggered(QStringLiteral("diagnostics"));
+    QTRY_VERIFY(diag->isOpen());
+    QTRY_VERIFY(shown(h, "diagnosticsOverlay"));
+    emit c->padHotkeyTriggered(QStringLiteral("diagnostics"));
+    QTRY_VERIFY(!diag->isOpen());
+  }
+
   void singleDiagnosticsToggleAndOverlayPosition() {
     FakeHub hub(QStringLiteral("a"));
     Harness h;
@@ -817,6 +945,7 @@ class InGameUiTest : public QObject {
       QTRY_VERIFY(shown(h, "diagnosticsOverlay"));
       const QString problem = overlayProblem(h);
       QVERIFY2(problem.isEmpty(), qPrintable(QStringLiteral("%1 px: ").arg(sz.width()) + problem));
+      QVERIFY(!shown(h, "diagDetails"));   // no session: no Details section (and no empty rows)
       // F3 hides it again, the menu entry reads "Hide diagnostics" meanwhile
       QVERIFY(h.click("moreButton"));
       QTRY_VERIFY(shown(h, "menuItem_diagnostics"));

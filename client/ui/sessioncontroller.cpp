@@ -1206,13 +1206,15 @@ void SessionController::refreshDiagnostics() {
           viewerRows.append(DiagnosticsModel::participant(
               v.displayName, tr("viewer"), DiagnosticsModel::connectionPill(l.connectionType),
               DiagnosticsModel::decoderLine(l.reportDecoder, kbps, l.reportFps),
-              DiagnosticsModel::linkLine(l.rttMs, loss, l.connectionType, turn, l.relayReason)));
+              DiagnosticsModel::linkLine(l.rttMs, loss, l.connectionType, turn, l.relayReason),
+              DiagnosticsModel::linkFields(l.rttMs, loss, l.connectionType, l.relayReason)));
         }
         people.append(DiagnosticsModel::participant(tr("You"), tr("host"), {tr("Local"), QStringLiteral("neutral")},
                                                     DiagnosticsModel::hostLine(local),
                                                     DiagnosticsModel::hostSendingLine(std::max(viewers, local.viewers))));
         people.append(viewerRows);
         groups.append(QVariantMap{{QStringLiteral("surface"), id}, {QStringLiteral("title"), tr("Tile %1 · your session").arg(tileNo)},
+                                  {QStringLiteral("details"), DiagnosticsModel::hostDetailRows(local)},
                                   {QStringLiteral("participants"), people}});
       }
     } else if (const Remote* r = remote(id)) {
@@ -1226,10 +1228,12 @@ void SessionController::refreshDiagnostics() {
       groups.append(QVariantMap{
           {QStringLiteral("surface"), id},
           {QStringLiteral("title"), tr("Tile %1 · %2's session").arg(tileNo).arg(who)},
+          {QStringLiteral("details"), DiagnosticsModel::viewerDetailRows(st)},
           {QStringLiteral("participants"),
            QVariantList{DiagnosticsModel::participant(who, tr("host"), DiagnosticsModel::connectionPill(st.connectionType),
                                                       DiagnosticsModel::decoderLine(st.decoderName, st.videoBitrateKbps, st.fps),
-                                                      DiagnosticsModel::linkLine(st.rttMs, loss, st.connectionType, turn, st.relayReason))}}});
+                                                      DiagnosticsModel::linkLine(st.rttMs, loss, st.connectionType, turn, st.relayReason),
+                                                      DiagnosticsModel::linkFields(st.rttMs, loss, st.connectionType, st.relayReason))}}});
     }
   }
   diagnostics_->setTiles(tiles);

@@ -51,41 +51,36 @@ Rectangle {
             out.push({ id: "console", kind: "console", name: qsTr("Plugin console"), icon: "", dot: "", origin: "official", mark: ">_" })
         return out
     }
-    // Fitting: 1-2 tabs show labels while they fit; with 3 or more only Session and the open tab keep their label (the others
-    // shrink to their icon); if it is still too wide the last tabs move into the "+n ▾" popover.
-    readonly property int tabGap: 22
-    readonly property int iconTabWidth: 28
+    // Fitting: every tab shows a short label (a plugin tab its icon in front of it; a label never grows past `tabLabelMax`). Session
+    // and the open tab always stay; when the rest does not fit, the last tabs move into the "More" tab menu. In a very wide font
+    // the labels of Session and the open tab elide to a share of the bar.
+    readonly property int tabGap: 18
+    readonly property int tabLabelMax: 96
+    readonly property int tabIconSize: 16
     readonly property var tabPlan: {
         var all = tabEntries, n = all.length, avail = tabBar.width - 2 * Theme.space3, gapW = root.tabGap
-        function labelW(e) { return Math.ceil(tabFm.advanceWidth(e.name)) + (e.dot !== "" ? 10 : 0) }
-        var labelAll = n <= 2
-        if (labelAll) {
-            var sum = (n - 1) * gapW
-            for (var k = 0; k < n; ++k) sum += labelW(all[k])
-            labelAll = sum <= avail
-        }
+        function labelW(e) { return Math.min(root.tabLabelMax, Math.ceil(tabFm.advanceWidth(e.name))) + (e.dot !== "" ? 10 : 0) }
+        function iconW(e) { return e.kind === "plugin" ? root.tabIconSize + 6 : 0 }
+        // The "More" tab measured with the real font, so a wide font cannot push it out of the bar.
+        function overflowW(count) { return count > 0 ? Math.ceil(tabFm.advanceWidth(qsTr("More") + " ▾")) + gapW : 0 }
         var shown = []
-        for (var i = 0; i < n; ++i)
-            shown.push({ e: all[i], label: labelAll || all[i].kind === "game" || all[i].id === root.panelTab })
+        for (var i = 0; i < n; ++i) shown.push({ e: all[i], label: true })
         function total() {
             var w = (shown.length - 1) * gapW
-            for (var j = 0; j < shown.length; ++j) w += shown[j].label ? labelW(shown[j].e) : root.iconTabWidth
+            for (var j = 0; j < shown.length; ++j) w += labelW(shown[j].e) + iconW(shown[j].e)
             return w
         }
         var overflow = []
-        // The "+n ▾" tab measured with the real font, so a wide font cannot push it out of the bar.
-        function overflowW(count) { return count > 0 ? Math.ceil(tabFm.advanceWidth("+" + count + " ▾")) + gapW : 0 }
-        while (total() + overflowW(overflow.length) > avail && shown.length > 2) {   // Session and one more tab always stay
+        while (total() + overflowW(overflow.length) > avail && shown.length > 1) {
             var idx = -1
             for (var m = shown.length - 1; m > 0; --m) if (shown[m].e.id !== root.panelTab) { idx = m; break }
             if (idx < 0) break
             overflow.unshift(shown.splice(idx, 1)[0].e)
         }
-        // Session and the open tab alone can still be wider than the bar (very wide font): their labels then elide to a share of it.
-        var textSum = 0, labeled = 0
-        for (var q = 0; q < shown.length; ++q) if (shown[q].label) { ++labeled; textSum += Math.ceil(tabFm.advanceWidth(shown[q].e.name)) }
-        var fixedW = total() - textSum + overflowW(overflow.length)
-        var textMax = labeled > 0 && fixedW + textSum > avail ? Math.max(16, Math.floor((avail - fixedW) / labeled)) : 100000
+        var textSum = 0
+        for (var q = 0; q < shown.length; ++q) textSum += Math.min(root.tabLabelMax, Math.ceil(tabFm.advanceWidth(shown[q].e.name)))
+        var fixedW = total() - textSum - (shown.reduce(function (a, s) { return a + (s.e.dot !== "" ? 10 : 0) }, 0)) + overflowW(overflow.length)
+        var textMax = shown.length > 0 && fixedW + textSum > avail ? Math.max(16, Math.floor((avail - fixedW) / shown.length)) : root.tabLabelMax
         return { shown: shown, overflow: overflow, textMax: textMax }
     }
     FontMetrics { id: tabFm; font.family: Theme.sans; font.pixelSize: 13 }
@@ -286,7 +281,6 @@ Rectangle {
                         id: tabItem
                         required property var modelData
                         readonly property var entry: modelData.e
-                        readonly property bool showLabel: modelData.label
                         readonly property bool open: root.panelTab === entry.id
                         readonly property string marker: root.originMarker(entry.origin)
                         objectName: "panelTab_" + entry.id
@@ -295,6 +289,7 @@ Rectangle {
                         activeFocusOnTab: true
                         Accessible.role: Accessible.PageTab
                         Accessible.name: entry.name
+                        Accessible.description: tabItem.marker
                         Accessible.selected: open
                         Keys.onPressed: (event) => {
                             if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) { root.panelTab = tabItem.entry.id; event.accepted = true }
@@ -304,24 +299,16 @@ Rectangle {
                             anchors.verticalCenter: parent.verticalCenter
                             spacing: 6
                             PluginTabIcon {
-                                visible: tabItem.entry.kind === "plugin" && !tabItem.showLabel
+                                objectName: "panelTabIcon"
+                                visible: tabItem.entry.kind === "plugin"
                                 anchors.verticalCenter: parent.verticalCenter
-                                size: root.iconTabWidth - 8
+                                size: root.tabIconSize
                                 chipRadius: 0
                                 name: tabItem.entry.pluginName || tabItem.entry.name
                                 icon: tabItem.entry.icon
-                                dot: tabItem.entry.dot
-                            }
-                            UzMono {
-                                visible: tabItem.entry.mark !== "" && !tabItem.showLabel
-                                text: tabItem.entry.mark
-                                font.pixelSize: 12
-                                color: tabItem.open ? Theme.ink : Theme.muted
-                                anchors.verticalCenter: parent.verticalCenter
                             }
                             Text {
                                 objectName: "panelTabLabel"
-                                visible: tabItem.showLabel
                                 text: tabItem.entry.name
                                 textFormat: Text.PlainText
                                 width: Math.min(implicitWidth, root.tabPlan.textMax)
@@ -334,7 +321,7 @@ Rectangle {
                             }
                             Rectangle {   // news / paused marker of a plugin tab
                                 objectName: "tabDot"
-                                visible: tabItem.showLabel && tabItem.entry.dot !== ""
+                                visible: tabItem.entry.dot !== ""
                                 anchors.verticalCenter: parent.verticalCenter
                                 width: 4; height: 4
                                 color: Theme.accent
@@ -344,7 +331,7 @@ Rectangle {
                         UzFocusRing { visible: tabItem.activeFocus }
                         TapHandler { onTapped: root.panelTab = tabItem.entry.id }
                         HoverHandler { id: tabHover; cursorShape: Qt.PointingHandCursor }
-                        ToolTip.visible: tabHover.hovered && (!tabItem.showLabel || tabItem.marker !== "")
+                        ToolTip.visible: tabHover.hovered
                         ToolTip.delay: 400
                         ToolTip.text: tabItem.entry.name + (tabItem.marker !== "" ? " · " + tabItem.marker : "")
                     }
@@ -357,7 +344,10 @@ Rectangle {
                     width: overflowLabel.implicitWidth
                     activeFocusOnTab: true
                     Accessible.role: Accessible.Button
-                    Accessible.name: qsTr("%1 more tabs").arg(root.tabPlan.overflow.length)
+                    Accessible.name: qsTr("More tabs")
+                    ToolTip.visible: overflowHover.hovered
+                    ToolTip.delay: 400
+                    ToolTip.text: qsTr("%n more tab(s)", "", root.tabPlan.overflow.length)
                     Accessible.onPressAction: root.overflowRequested()
                     Keys.onPressed: (event) => {
                         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
@@ -374,7 +364,7 @@ Rectangle {
                     Text {
                         id: overflowLabel
                         anchors.verticalCenter: parent.verticalCenter
-                        text: "+" + root.tabPlan.overflow.length + " ▾"
+                        text: qsTr("More") + " ▾"
                         textFormat: Text.PlainText
                         font.family: Theme.sans
                         font.pixelSize: 13

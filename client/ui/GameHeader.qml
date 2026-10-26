@@ -4,12 +4,13 @@ import QtQuick.Layouts
 import Uzume.App
 
 // RunHeader of the running game (boards 3g and 3r, design-system.md "RunHeader"): 56 px, `ground`, one `rule` line below.
-// Left: back to the Library, a rule, the title, the system chip, the sub line ("Shared · 2 watching" / "Not shared"; in the Multiview
-// "<server> · N people" and the layout switch). Right: the watchers as avatars and the header buttons. Session: Pause,
-// Speed-up (with its speed menu), Layout, Multiview, Panel (toggled) and the "⋯" menu (Reset, Fullscreen, Diagnostics,
-// Hotkeys, Report a problem). Multiview: the audio label, Pause, Speed-up, Layout, Add tile, Panel, Leave and "⋯". Watching only:
-// the Session as title, Panel and Leave. When the width runs out (windows below about 1100 px, wide fonts) the optional parts
-// give way in four steps (`level`) and their functions move into the "⋯" menu, so every function stays reachable.
+// Left: back to the Library, a rule, the title (elided, the full title is its tooltip), the system chip, the sub line ("Shared · 2
+// watching" / "Not shared"; in the Multiview "<server> · N people" and the layout switch). Right: the watchers as avatars and the
+// header buttons. Session: Speed-up (with its speed menu), Sound, Layout, Multiview, Panel (toggled), the Fullscreen icon button,
+// Pause / Resume as the one primary and the "⋯" menu (Diagnostics, Screenshot, Hotkeys, Reset game, Report a problem). Multiview:
+// the audio label, Speed-up, Layout, Add tile, Panel, Leave, Fullscreen, Pause and "⋯". Watching only: the Session as title, Panel,
+// Leave, Fullscreen. When the width runs out (windows below about 1100 px, wide fonts) the optional parts give way in four steps
+// (`level`) and their functions move into the "⋯" menu, so every function stays reachable; Pause / Resume never moves.
 // The Add tile popover and the Reset dialog live in the game screen (they cover the stage); this header reports the clicks.
 Rectangle {
     id: root
@@ -97,10 +98,12 @@ Rectangle {
             const add = (x) => { w += x + (n > 0 ? gap : 0); ++n }
             if (watchingOnly) {
                 if (ctl.tab !== "session" && ctl.surfaceCount >= 1) add(addButton.implicitWidth)
-                add(volumeButton.implicitWidth); add(panelButton.implicitWidth); add(leaveButton.implicitWidth); add(moreButton.implicitWidth)
+                add(volumeButton.implicitWidth); add(panelButton.implicitWidth); add(leaveButton.implicitWidth)
+                if (l < 2) add(fullscreenButton.implicitWidth)
+                add(moreButton.implicitWidth)
             } else {
                 if (l < 1 && watchers.length > 0) add(watchers.length * 16 + 8 + Theme.space1)
-                if (l < 3 && own) add(pauseButton.implicitWidth)
+                if (own) add(pauseButton.implicitWidth)
                 if (l < 3 && own && session.fastForwardAvailable) add(fastForwardButton.implicitWidth + (l < 1 ? speedValueButton.implicitWidth : 0))
                 add(volumeButton.implicitWidth)
                 if (l < 1 && layouts.length > 1) add(layoutButton.implicitWidth)
@@ -108,6 +111,7 @@ Rectangle {
                 if (multi && ctl.surfaceCount >= 1) add(addButton.implicitWidth)
                 if (l < 2) add(panelButton.implicitWidth)
                 if (multi) add(leaveMulti.implicitWidth)
+                if (l < 2) add(fullscreenButton.implicitWidth)
                 if (own || multi) add(moreButton.implicitWidth)
                 if (multi && l < 1) add(audioLabel.implicitWidth)
             }
@@ -148,16 +152,15 @@ Rectangle {
         else if (item.value !== undefined) root.ctl.chooseScreenLayout(item.value)
     }
     readonly property var speedItems: root.session.speedUpRatios.map(function (r) { return { label: r + "×", name: "speed_" + r, value: Number(r) } })
+    // "⋯": Diagnostics (F3), Screenshot (F12), Settings for this game, Hotkeys, Reset game …, Report a problem …. Parts that
+    // left the header because it is narrow (`level`) are listed first, so every function stays reachable.
     readonly property var moreItems: {
         const it = []
         const cur = (cond) => cond ? qsTr("Current") : ""
-        if (root.own || root.multi) {
-            it.push({ heading: qsTr("This game") })
-            if (root.level >= 3 && root.own) {
-                it.push({ label: root.session.paused ? qsTr("Resume") : qsTr("Pause"), shortcut: "Esc", name: "pause" })
-                if (root.session.fastForwardAvailable)
-                    it.push({ label: root.session.fastForward ? qsTr("Speed-up off") : qsTr("Speed-up"), shortcut: root.key(root.hotkeys.speedup), name: "speedup" })
-            }
+        const playing = root.own || root.multi
+        if (playing) {
+            if (root.level >= 3 && root.own && root.session.fastForwardAvailable)
+                it.push({ label: root.session.fastForward ? qsTr("Speed-up off") : qsTr("Speed-up"), shortcut: root.key(root.hotkeys.speedup), name: "speedup" })
             if (root.level >= 2 && !root.watchingOnly) {
                 it.push({ label: root.panelShown ? qsTr("Hide panel") : qsTr("Show panel"), name: "panel" })
                 if (!root.multi && root.own) it.push({ label: qsTr("Multiview"), name: "multiview" })
@@ -173,23 +176,19 @@ Rectangle {
                         it.push({ label: qsTr("Speed-up speed: %1×").arg(r[i]), hint: cur(Math.abs(root.session.fastForwardRatio - Number(r[i])) < 0.001), name: "speed_" + r[i] })
                 }
             }
-            if (root.own && root.session.active)
-                it.push({ label: qsTr("Take screenshot"), shortcut: root.key(root.hotkeys.screenshot), name: "screenshot" })
-            if (root.own) it.push({ label: qsTr("Settings for this game…"), name: "gameSettings" })
+            if (root.level >= 2)
+                it.push({ label: qsTr("Fullscreen"), shortcut: root.key(root.hotkeys.fullscreen), name: "fullscreen" })
+        } else if (root.level >= 2) {
             it.push({ label: qsTr("Fullscreen"), shortcut: root.key(root.hotkeys.fullscreen), name: "fullscreen" })
-            it.push({ label: root.diag.open ? qsTr("Hide diagnostics") : qsTr("Diagnostics"), shortcut: root.key(root.hotkeys.diagnostics), name: "diagnostics" })
-            if (root.own) {
-                it.push({ separator: true })
-                it.push({ label: qsTr("Reset %1…").arg(root.session.title), danger: true, name: "reset" })
-            }
-            it.push({ separator: true })
-        } else {
-            it.push({ label: root.diag.open ? qsTr("Hide diagnostics") : qsTr("Diagnostics"), shortcut: root.key(root.hotkeys.diagnostics), name: "diagnostics" })
-            it.push({ separator: true })
         }
-        it.push({ heading: qsTr("Help") })
-        it.push({ label: qsTr("Hotkeys…"), name: "hotkeys" })
-        it.push({ label: qsTr("Report a problem…"), name: "report" })
+        it.push({ label: root.diag.open ? qsTr("Hide diagnostics") : qsTr("Diagnostics"), shortcut: root.key(root.hotkeys.diagnostics), name: "diagnostics" })
+        if (root.own && root.session.active)
+            it.push({ label: qsTr("Screenshot"), shortcut: root.key(root.hotkeys.screenshot), name: "screenshot" })
+        if (root.own) it.push({ label: qsTr("Settings for this game…"), name: "gameSettings" })
+        it.push({ label: qsTr("Hotkeys"), hint: qsTr("Hold Select on a pad"), name: "hotkeys" })
+        if (root.own) it.push({ label: qsTr("Reset game …"), danger: true, name: "reset" })
+        it.push({ separator: true })
+        it.push({ label: qsTr("Report a problem …"), name: "report" })
         return it
     }
     function runMore(name) {
@@ -212,7 +211,7 @@ Rectangle {
         id: moreMenu
         objectName: "morePopover"
         items: root.moreItems
-        menuWidth: 260
+        menuWidth: 280
         onChosen: (item) => root.runMore(item.name)
     }
     UzMenu {
@@ -344,6 +343,11 @@ Rectangle {
                 font.pixelSize: Theme.roles.headerTitle.size
                 font.weight: Theme.roles.headerTitle.weight
                 color: Theme.ink
+                Accessible.name: text
+                HoverHandler { id: titleHover }
+                ToolTip.visible: titleHover.hovered && text !== ""
+                ToolTip.delay: 500
+                ToolTip.text: text
             }
             UzSystemChip {
                 visible: root.systemCode !== "" && !root.multi
@@ -404,20 +408,6 @@ Rectangle {
                 visible: root.watchers.length > 0 && root.level < 1 && !root.watchingOnly
                 Layout.rightMargin: Theme.space1
                 people: root.watchers
-            }
-            UzButton {
-                id: pauseButton
-                objectName: "pauseButton"
-                visible: root.own && root.level < 3
-                size: "sm"
-                focusPolicy: Qt.TabFocus
-                text: root.session.paused ? qsTr("Resume") : qsTr("Pause")
-                on: root.session.paused
-                enabled: root.session.state === GameSession.Running || root.session.state === GameSession.Paused
-                ToolTip.visible: hovered
-                ToolTip.delay: 500
-                ToolTip.text: (root.session.paused ? qsTr("Resume") : qsTr("Pause")) + (root.multi ? qsTr(" your game") : "") + " · Esc"
-                onClicked: root.session.togglePause()
             }
             UzButton {
                 id: fastForwardButton
@@ -523,6 +513,32 @@ Rectangle {
                 ToolTip.delay: 500
                 ToolTip.text: qsTr("Leave the Session")
                 onClicked: root.player.leaveGameView()
+            }
+            UzIconButton {
+                id: fullscreenButton
+                objectName: "fullscreenButton"
+                visible: root.level < 2
+                focusPolicy: Qt.TabFocus
+                glyph: "fullscreen"
+                Accessible.name: qsTr("Fullscreen")
+                ToolTip.visible: hovered
+                ToolTip.delay: 500
+                ToolTip.text: qsTr("Fullscreen") + " · " + (root.key(root.hotkeys.fullscreen) !== "" ? root.hotkeys.fullscreen : "F11")
+                onClicked: root.fullscreenRequested()
+            }
+            UzButton {
+                id: pauseButton
+                objectName: "pauseButton"
+                visible: root.own
+                size: "sm"
+                focusPolicy: Qt.TabFocus
+                text: root.session.paused ? qsTr("Resume") : qsTr("Pause")
+                kind: "primary"
+                enabled: root.session.state === GameSession.Running || root.session.state === GameSession.Paused
+                ToolTip.visible: hovered
+                ToolTip.delay: 500
+                ToolTip.text: (root.session.paused ? qsTr("Resume") : qsTr("Pause")) + (root.multi ? qsTr(" your game") : "") + " · Esc"
+                onClicked: root.session.togglePause()
             }
             UzIconButton {
                 id: moreButton

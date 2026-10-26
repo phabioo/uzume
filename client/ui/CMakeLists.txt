@@ -233,6 +233,7 @@ qt_add_qml_module(uzume_ui
     UzPopover.qml
     UzToast.qml
     UzStageDiagnostics.qml
+    UzDiagRows.qml
     UzHotkeySheet.qml
     UzMenu.qml
     UzMenuList.qml
