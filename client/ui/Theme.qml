@@ -15,19 +15,19 @@ QtObject {
     // explicitly, so the tables are also read through tok().
     readonly property var sumi: ({
         ground: "#1c1b19", surface: "#242320", scrim: "#cc1c1b19", stage: "#171614", placeholder: "#262521", placeholderRule: "#34322e",
-        ink: "#efece4", ink2: "#d3cfc5", muted: "#a19d94", dim: "#8a867c", rule: "#3a3833", rule2: "#2b2a27",
-        hover: "#242320", pressed: "#2c2b28", selected: "#1af8b500",
+        ink: "#efece4", ink2: "#d3cfc5", muted: "#a19d94", dim: "#96928a", rule: "#3a3833", ruleControl: "#7a766d", badge: "#efece4", rule2: "#2b2a27",
+        hover: "#242320", pressed: "#2c2b28", selected: "#2a2925",
         disabledGround: "#262521", disabledInk: "#6b6861", disabledRule: "#2b2a27",
         accent: "#f8b500", accentHover: "#ffc42e", accentPressed: "#dba000", accentText: "#f8b500", onAccent: "#1c1b19",
         danger: "#ee836f", dangerTint: "#1aee836f", ok: "#68be8d"
     })
     readonly property var kinari: ({
         ground: "#fbfaf5", surface: "#ffffff", scrim: "#ccfbfaf5", stage: "#f3f1e9", placeholder: "#e9e6dc", placeholderRule: "#d6d2c6",
-        ink: "#1c1b19", ink2: "#3a3936", muted: "#5f5c55", dim: "#74706a", rule: "#d6d2c6", rule2: "#e9e6dd",
-        hover: "#f4f2ea", pressed: "#ebe8de", selected: "#29f8b500",
+        ink: "#1c1b19", ink2: "#3a3936", muted: "#5f5c55", dim: "#6a665f", rule: "#d6d2c6", ruleControl: "#86817a", badge: "#1c1b19", rule2: "#e9e6dd",
+        hover: "#f4f2ea", pressed: "#ebe8de", selected: "#ece9de",
         disabledGround: "#efede6", disabledInk: "#a3a097", disabledRule: "#e9e6dd",
         accent: "#f8b500", accentHover: "#ffc42e", accentPressed: "#e0a400", accentText: "#715c1f", onAccent: "#1c1b19",
-        danger: "#b94047", dangerTint: "#12b94047", ok: "#007b43"
+        danger: "#ac3a41", dangerTint: "#12b94047", ok: "#006b3a"
     })
     function withAlpha(c: color, a: real): color { return Qt.rgba(c.r, c.g, c.b, a) }
     function tok(name: string, isDark: bool): color { return (isDark ? sumi : kinari)[name] }
@@ -45,6 +45,8 @@ QtObject {
     readonly property color muted: dark ? sumi.muted : kinari.muted
     readonly property color dim: dark ? sumi.dim : kinari.dim
     readonly property color rule: dark ? sumi.rule : kinari.rule
+    readonly property color ruleControl: dark ? sumi.ruleControl : kinari.ruleControl   // border of everything operable (>= 3:1)
+    readonly property color badge: dark ? sumi.badge : kinari.badge                     // count badge fill (text: ground)
     readonly property color rule2: dark ? sumi.rule2 : kinari.rule2
     // States
     readonly property color hover: dark ? sumi.hover : kinari.hover
@@ -59,6 +61,8 @@ QtObject {
     readonly property color accentPressed: dark ? sumi.accentPressed : kinari.accentPressed
     readonly property color accentText: dark ? sumi.accentText : kinari.accentText
     readonly property color inkOnAccent: sumi.onAccent
+    // Active nav marker (token marker-nav): Yamabuki on Sumi, accent-text on Kinari. marker-under (tabs) is the same colour.
+    readonly property color markerNav: dark ? sumi.accent : kinari.accentText
     // Status
     readonly property color danger: dark ? sumi.danger : kinari.danger
     readonly property color dangerTint: dark ? sumi.dangerTint : kinari.dangerTint
@@ -90,10 +94,11 @@ QtObject {
     // Use: font.pixelSize: Theme.roles.body.size; font.weight: Theme.roles.body.weight; font.letterSpacing: Theme.roles.body.spacing.
     readonly property var roles: ({
         title:         { family: sans, size: 40, line: 40, weight: Font.Light,    spacing: -0.8,  upper: false },
-        sectionLabel:  { family: mono, size: 10, line: 16, weight: Font.Medium,   spacing: 1.4,   upper: true },
+        sectionLabel:  { family: mono, size: 11, line: 16, weight: Font.Medium,   spacing: 1.54,   upper: true },
         body:          { family: sans, size: 14, line: 22, weight: Font.Normal,   spacing: 0,     upper: false },
-        meta:          { family: mono, size: 10, line: 16, weight: Font.Normal,   spacing: 0.6,   upper: true },
-        meta11:        { family: mono, size: 11, line: 16, weight: Font.Normal,   spacing: 0,     upper: false },
+        meta:          { family: mono, size: 11, line: 16, weight: Font.Normal,   spacing: 0.66,  upper: true },
+        meta12:        { family: mono, size: 12, line: 16, weight: Font.Normal,   spacing: 0,     upper: false },
+        meta11:        { family: mono, size: 12, line: 16, weight: Font.Normal,   spacing: 0,     upper: false },   // old name of meta12
         dialogTitle:   { family: sans, size: 20, line: 28, weight: Font.Normal,   spacing: -0.2,  upper: false },
         headerTitle:   { family: sans, size: 16, line: 24, weight: Font.Medium,   spacing: 0,     upper: false },
         itemTitle:     { family: sans, size: 14, line: 22, weight: Font.Medium,   spacing: 0,     upper: false },
@@ -103,10 +108,10 @@ QtObject {
         input:         { family: sans, size: 13, line: 20, weight: Font.Normal,   spacing: 0,     upper: false },
         fieldLabel:    { family: sans, size: 12, line: 16, weight: Font.Medium,   spacing: 0,     upper: false },
         small:         { family: sans, size: 12, line: 18, weight: Font.Normal,   spacing: 0,     upper: false },
-        tableHeader:   { family: mono, size: 10, line: 16, weight: Font.Medium,   spacing: 1.2,   upper: true },
-        systemCode:    { family: mono, size: 10, line: 14, weight: Font.Medium,   spacing: 0.6,   upper: true },
-        tag:           { family: mono, size: 10, line: 16, weight: Font.DemiBold, spacing: 1.0,   upper: true },
-        address:       { family: mono, size: 11, line: 16, weight: Font.Normal,   spacing: 0,     upper: false },
+        tableHeader:   { family: mono, size: 11, line: 16, weight: Font.Medium,   spacing: 1.32,   upper: true },
+        systemCode:    { family: mono, size: 11, line: 14, weight: Font.Medium,   spacing: 0.66,   upper: true },
+        tag:           { family: mono, size: 11, line: 16, weight: Font.DemiBold, spacing: 1.1,   upper: true },
+        address:       { family: mono, size: 12, line: 16, weight: Font.Normal,   spacing: 0,     upper: false },
         inviteCode:    { family: mono, size: 28, line: 36, weight: Font.Medium,   spacing: 3.92,  upper: true },
         verticalLabel: { family: mono, size: 10, line: 16, weight: Font.Normal,   spacing: 2.4,   upper: true },
         wordmarkNav:   { family: sans, size: 17, line: 20, weight: Font.DemiBold, spacing: -0.17, upper: false },
@@ -141,6 +146,9 @@ QtObject {
     readonly property int personMarker: 40
     readonly property int markNav: 20
     readonly property int menu: 200
+    readonly property int targetMin: 32      // smallest hit target (icon buttons, the x of a field, row actions)
+    readonly property int targetTv: 44       // smallest focus target at the TV text scale
+    readonly property int columnsCompactMax: 1440   // below this window width at most three columns including AppNav
 
     // Radius: none. The app icon tile (22.5 %) is the only rounded shape and is not drawn by QML.
     readonly property int radiusNone: 0
@@ -179,10 +187,10 @@ QtObject {
     function toneColor(tone: string): color {
         switch (tone) {
         case "ok": return ok
-        case "warn": return accentText
+        case "warn": return ink2
         case "error": return danger
         case "info": return ink2
-        case "amber": return accentText
+        case "amber": return ink2
         default: return muted
         }
     }
@@ -204,7 +212,7 @@ QtObject {
         switch (tone) {
         case "info": return tok("ink2", dark)
         case "ok": return tok("ok", dark)
-        case "warning": return tok("accentText", dark)
+        case "warning": return tok("ink2", dark)
         case "danger": return tok("danger", dark)
         default: return tok("muted", dark)
         }
@@ -249,7 +257,7 @@ QtObject {
         case "textSecondary": return tok("ink2", dark)
         case "textMuted": return tok("muted", dark)
         case "textMeta": return tok("muted", dark)
-        case "textFaint": return tok("dim", dark)
+        case "textFaint": return tok("muted", dark)
         case "textDisabled": return tok("disabledInk", dark)
         case "textOnAccent": return tok("onAccent", dark)
         case "accent": return tok("accent", dark)
@@ -257,7 +265,7 @@ QtObject {
         case "card": return tok("ground", dark)
         case "cardBorder": return tok("rule", dark)
         case "border": return tok("rule", dark)
-        case "borderButton": return tok("rule", dark)
+        case "borderButton": return tok("ruleControl", dark)
         case "hover": return tok("hover", dark)
         case "selection": return tok("selected", dark)
         case "track": return tok("rule2", dark)

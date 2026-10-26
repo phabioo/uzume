@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Users</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/uzume/tokens.css">
+<link rel="stylesheet" href="ds/uzume/components/bundle.css">
+<script src="ds/uzume/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--accent-text)}a:hover{color:var(--ink)}
+</style>
+</helmet>
+<div class="uz" data-theme="sumi" style="width: 1280px; height: 800px; display: flex; background: var(--ground); color: var(--ink); font-family: var(--font-sans); overflow: hidden">
+  <div style="width: 232px; height: 800px; flex: none">
+    <x-import component-from-global-scope="Uzume.AppNav" active="Users" density="compact" online="{{online}}" user="{{user}}" badges="{{badges}}" notifications="{{zero}}" style="height: 800px"></x-import>
+  </div>
+  <main style="flex: 1; min-width: 0; padding: 32px 56px 0 40px; display: flex; flex-direction: column; gap: 22px; box-sizing: border-box">
+    <x-import component-from-global-scope="Uzume.PageHeader" label="Server" title="Users" meta="4 people · 1 invite open" actions="{{headActions}}"></x-import>
+    <div style="display: flex; gap: 8px; flex-wrap: wrap">
+      <x-import component-from-global-scope="Uzume.FilterChip" selected="{{yes}}" count="{{c4}}">All</x-import>
+      <x-import component-from-global-scope="Uzume.FilterChip" count="{{c1}}">Admins</x-import>
+      <x-import component-from-global-scope="Uzume.FilterChip" count="{{c2}}">Members</x-import>
+      <x-import component-from-global-scope="Uzume.FilterChip" count="{{c1}}">Invited</x-import>
+    </div>
+    <div role="table" aria-label="Users" style="display: flex; flex-direction: column">
+      <div role="row" style="display: grid; grid-template-columns: minmax(0, 1fr) 120px 240px 200px; gap: 16px; height: 32px; align-items: center; border-bottom: 1px solid var(--rule); padding: 0 12px; font: 500 11px/16px var(--font-mono); letter-spacing: .12em; color: var(--muted)">
+        <span role="columnheader">NAME</span><span role="columnheader">ROLE</span><span role="columnheader">NOW</span><span role="columnheader"></span>
+      </div>
+      <sc-for list="{{people}}" as="p" hint-placeholder-count="4">
+        <div role="row" style="display: grid; grid-template-columns: minmax(0, 1fr) 120px 240px 200px; gap: 16px; height: 52px; align-items: center; border-bottom: 1px solid var(--rule-2); padding: 0 12px">
+          <span role="cell" style="display: flex; align-items: center; gap: 12px; min-width: 0">
+            <x-import component-from-global-scope="Uzume.Avatar" name="{{p.name}}" person="{{p.person}}" size="{{s28}}" status="{{p.presence}}"></x-import>
+            <span style="display: flex; flex-direction: column; min-width: 0">
+              <span style="font: 500 14px/20px var(--font-sans); color: var(--ink)">{{p.name}}</span>
+              <span style="font: 400 12px/16px var(--font-sans); color: var(--muted)">{{p.sub}}</span>
+            </span>
+          </span>
+          <span role="cell" style="font: 400 13px/20px var(--font-sans); color: var(--ink-2)">{{p.role}}</span>
+          <span role="cell" style="font: 400 13px/20px var(--font-sans); color: var(--ink-2)">{{p.now}}</span>
+          <span role="cell" style="display: flex; gap: 8px; justify-content: flex-end">
+            <sc-if value="{{p.invite}}" hint-placeholder-val="{{false}}"><x-import component-from-global-scope="Uzume.Button" size="sm">Copy invite</x-import></sc-if>
+            <x-import component-from-global-scope="Uzume.Menu" items="{{p.menu}}" label="{{p.menuLabel}}"></x-import>
+          </span>
+        </div>
+      </sc-for>
+    </div>
+    <button type="button" aria-expanded="false" style="align-self: flex-start; display: flex; align-items: center; gap: 8px; background: none; border: 0; padding: 0; color: var(--ink-2); font: 500 13px/20px var(--font-sans); cursor: pointer">
+      <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6 L8 11 L13 6" fill="none" stroke="currentColor" stroke-width="1.5"></path></svg>Help<span style="font: 400 12px/16px var(--font-mono); color: var(--muted)">ROLES AND INVITES</span>
+    </button>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, U = window.Uzume;
+    const headActions = U ? h(U.Button, { size: 'sm', variant: 'primary' }, 'Invite someone') : null;
+    const member = [{ label: 'Make admin' }, { label: 'Reset password …' }, { label: 'Sign out everywhere …' }, { separator: true }, { label: 'Remove user …', danger: true }];
+    const people = [
+      { name: 'Lena', person: 'momo', sub: 'You', role: 'Admin', now: 'Online · Library', presence: 'online', menu: [{ label: 'My account' }] },
+      { name: 'Max', person: 'wasurenagusa', sub: 'Joined 12 Oct', role: 'Member', now: 'Playing Harbor Rally · GBA', presence: 'online', menu: member },
+      { name: 'Jonas', person: 'moegi', sub: 'Joined 14 Oct', role: 'Member', now: 'Online · idle', presence: 'online', menu: member },
+      { name: 'Sam', person: 'fuji', sub: 'Invite expires in 6 days', role: 'Invited', now: 'Not joined yet', presence: 'offline', invite: true, menu: [{ label: 'New invite code' }, { separator: true }, { label: 'Revoke invite …', danger: true }] }
+    ].map((p) => ({ ...p, menuLabel: 'More actions for ' + p.name }));
+    return {
+      yes: true, zero: 0, c4: 4, c2: 2, c1: 1, s28: 28, headActions, people,
+      badges: { Status: { warning: 'Backup' }, 'Systems & cores': { warning: '1 core' }, Settings: { warning: 'Update' } },
+      online: [{ name: 'Max', person: 'wasurenagusa', playing: 'Harbor Rally', system: 'GBA' }, { name: 'Jonas', person: 'moegi' }],
+      user: { name: 'Lena', role: 'Admin', person: 'momo' }
+    };
+  }
+}
+</script>
+</body>
+</html>

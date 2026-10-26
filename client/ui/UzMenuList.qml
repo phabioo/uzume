@@ -73,16 +73,18 @@ FocusScope {
                 Component {
                     id: headComp
                     Text {
-                        topPadding: Theme.space1
-                        bottomPadding: Theme.space05
+                        topPadding: 6
+                        bottomPadding: 2
                         leftPadding: Theme.space15
                         text: entry.modelData.heading
                         textFormat: Text.PlainText
                         font.family: Theme.mono
-                        font.pixelSize: 10
+                        font.pixelSize: Theme.roles.meta.size
                         font.weight: Font.Medium
                         font.letterSpacing: 1.4
                         font.capitalization: Font.AllUppercase
+                        lineHeight: 15
+                        lineHeightMode: Text.FixedHeight
                         color: Theme.muted
                     }
                 }

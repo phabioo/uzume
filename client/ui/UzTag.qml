@@ -21,9 +21,9 @@ Rectangle {
     readonly property string iconKind: icon !== "auto" ? icon : (textHasSymbol || small ? "none" : kind === "ok" ? "check" : kind === "danger" ? "cross" : (tone === "warn" || tone === "amber") ? "warn" : "none")
     readonly property color fg: disabled ? Theme.disabledInk
         : plane ? (kind === "accent" ? Theme.inkOnAccent : kind === "neutral" ? Theme.ink : Theme.ground)
-        : (kind === "accent" ? Theme.accentText : kind === "ok" ? Theme.ink : kind === "danger" ? Theme.danger : Theme.ink2)
+        : (kind === "accent" ? Theme.ink : kind === "ok" ? Theme.ink : kind === "danger" ? Theme.danger : Theme.ink2)
     readonly property color edge: disabled ? Theme.disabledRule
-        : kind === "accent" ? Theme.accent : kind === "ok" ? Theme.ok : kind === "danger" ? Theme.danger
+        : kind === "accent" ? (plane ? Theme.accent : Theme.ruleControl) : kind === "ok" ? Theme.ok : kind === "danger" ? Theme.danger
         : (plane ? Theme.pressed : Theme.rule)
     readonly property color iconColor: disabled ? Theme.disabledInk : (plane ? fg : (kind === "ok" ? Theme.ok : fg))
 
@@ -53,14 +53,20 @@ Rectangle {
             strokeWidth: 1.6
             color: root.iconColor
         }
-        Text {
+        Rectangle {   // warning: the Yamabuki square with an ink "!" (r6), the text next to it stays ink
+            objectName: "tagWarnSquare"
             visible: root.iconKind === "warn"
             anchors.verticalCenter: parent.verticalCenter
-            text: "!"
-            font.family: Theme.sans
-            font.pixelSize: 10
-            font.weight: Font.Bold
-            color: root.fg
+            width: 12; height: 12
+            color: root.disabled ? "transparent" : Theme.accent
+            Text {
+                anchors.centerIn: parent
+                text: "!"
+                font.family: Theme.sans
+                font.pixelSize: Theme.roles.meta.size
+                font.weight: Font.Bold
+                color: root.disabled ? Theme.disabledInk : Theme.inkOnAccent
+            }
         }
         Text {
             id: label
@@ -70,7 +76,7 @@ Rectangle {
             width: Math.min(probe.implicitWidth, Math.max(0, root.width - 14 - (root.iconKind !== "none" ? 14 : 0)))
             anchors.verticalCenter: parent.verticalCenter
             font.family: Theme.mono
-            font.pixelSize: 10
+            font.pixelSize: Theme.roles.meta.size
             font.weight: Font.Medium
             font.letterSpacing: 0.6
             font.capitalization: root.small ? Font.MixedCase : Font.AllUppercase

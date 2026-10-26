@@ -2,14 +2,15 @@ import QtQuick
 import QtQuick.Layouts
 import Uzume.App
 
-// Segmented choice (design-system.md "Segmented"): square, one `rule` frame, items 28 px (sm 26) with 12 px text; the active
-// option is a Yamabuki plane with `on-accent` text. Also the This PC / Server and Layout switches.
+// Segmented choice (design-system.md "Segmented"): square, one `rule-control` frame, items 28 px (sm 26) with 12 px text; the active
+// option is an `ink` plane with `ground` text (r6). Also the This PC / Server and Layout switches.
 // options: [{ value, label, name, disabled, underline }] (name = objectName of the segment).
 Rectangle {
     id: root
     property var options: []
     property string current: ""
     property bool stretch: false
+    property string accessibleName: ""   // spoken name of the group (the label next to it)
     property int segmentHeight: Theme.row28
     signal picked(string value)
 
@@ -20,12 +21,16 @@ Rectangle {
     radius: 0
     color: "transparent"
     border.width: 1
-    border.color: Theme.rule
+    border.color: Theme.ruleControl
 
     // Keyboard (R-P4): one tab stop for the whole control; Left/Right (Up/Down, Home/End) move the selection like a radio group.
     activeFocusOnTab: true
     Accessible.role: Accessible.RadioButton
     Accessible.name: {
+        if (accessibleName !== "") return accessibleName + ": " + selectedLabel
+        return selectedLabel
+    }
+    readonly property string selectedLabel: {
         for (const o of options) if (o.value === current) return o.label
         return ""
     }
@@ -70,7 +75,7 @@ Rectangle {
                 clip: true
                 implicitWidth: segLabel.implicitWidth + 28
                 radius: 0
-                color: active ? Theme.accent : (segHover.hovered && seg.modelData.disabled !== true ? Theme.hover : "transparent")
+                color: active ? Theme.ink : (segHover.hovered && seg.modelData.disabled !== true ? Theme.hover : "transparent")
                 Behavior on color { ColorAnimation { duration: Theme.durFast } }
                 Text {
                     id: segLabel
@@ -83,7 +88,7 @@ Rectangle {
                     font.family: Theme.sans
                     font.pixelSize: Theme.roles.small.size
                     font.weight: seg.active ? Font.Medium : Font.Normal
-                    color: seg.modelData.disabled === true ? Theme.disabledInk : (seg.active ? Theme.inkOnAccent : (segHover.hovered ? Theme.ink : Theme.muted))
+                    color: seg.modelData.disabled === true ? Theme.disabledInk : (seg.active ? Theme.ground : (segHover.hovered ? Theme.ink : Theme.muted))
                 }
                 Rectangle {
                     visible: seg.modelData.underline === true
@@ -91,7 +96,7 @@ Rectangle {
                     anchors.horizontalCenter: parent.horizontalCenter
                     width: parent.width - 16
                     height: 2
-                    color: seg.active ? Theme.inkOnAccent : Theme.accent
+                    color: seg.active ? Theme.ground : Theme.ink
                 }
                 HoverHandler { id: segHover; cursorShape: seg.modelData.disabled === true ? Qt.ArrowCursor : Qt.PointingHandCursor }
                 TapHandler { enabled: seg.modelData.disabled !== true; onTapped: root.picked(seg.modelData.value) }

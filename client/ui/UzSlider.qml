@@ -78,7 +78,7 @@ Slider {
                 anchors.verticalCenter: parent.verticalCenter
                 width: parent.width
                 height: 1
-                color: !control.enabled ? Theme.disabledRule : (control.hovered ? Theme.ink2 : Theme.rule)
+                color: !control.enabled ? Theme.disabledRule : (control.hovered ? Theme.ink2 : Theme.ruleControl)
             }
             Rectangle {   // fill
                 objectName: "sliderFill"

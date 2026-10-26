@@ -8,8 +8,10 @@
   --ink: #efece4;
   --ink-2: #d3cfc5;
   --muted: #a19d94;
-  --dim: #8a867c;
+  --dim: #96928a;
   --rule: #3a3833;
+  --rule-control: #7a766d;
+  --badge: #efece4;
   --rule-2: #2b2a27;
   --hover: #242320;
   --pressed: #2c2b28;
@@ -18,7 +20,7 @@
   --accent-pressed: #dba000;
   --accent-text: #f8b500;
   --on-accent: #1c1b19;
-  --selected: rgba(248,181,0,.10);
+  --selected: #2a2925;
   --danger: #ee836f;
   --danger-tint: rgba(238,131,111,.10);
   --ok: #68be8d;
@@ -35,7 +37,8 @@
   --elevation: none;
   --focus-ring: 0 0 0 2px #1c1b19, 0 0 0 4px #f8b500;
   --focus-ring-inset: inset 0 0 0 2px #f8b500;
-  --marker-start: inset 2px 0 0 #f8b500;
+  --marker-start: inset 2px 0 0 #efece4;
+  --marker-nav: inset 2px 0 0 #f8b500;
   --marker-under: inset 0 -2px 0 #f8b500;
   --audio-ring: inset 0 0 0 1px #f8b500;
 }
@@ -47,17 +50,19 @@
   --ink: #1c1b19;
   --ink-2: #3a3936;
   --muted: #5f5c55;
-  --dim: #74706a;
+  --dim: #6a665f;
   --rule: #d6d2c6;
+  --rule-control: #86817a;
+  --badge: #1c1b19;
   --rule-2: #e9e6dd;
   --hover: #f4f2ea;
   --pressed: #ebe8de;
   --accent-pressed: #e0a400;
   --accent-text: #715c1f;
-  --selected: rgba(248,181,0,.16);
-  --danger: #b94047;
+  --selected: #ece9de;
+  --danger: #ac3a41;
   --danger-tint: rgba(185,64,71,.07);
-  --ok: #007b43;
+  --ok: #006b3a;
   --disabled-ground: #efede6;
   --disabled-ink: #a3a097;
   --disabled-rule: #e9e6dd;
@@ -65,6 +70,9 @@
   --placeholder-rule: #d6d2c6;
   --focus-ring: 0 0 0 2px #f8b500, 0 0 0 3px #1c1b19;
   --focus-ring-inset: inset 0 0 0 2px #f8b500, inset 0 0 0 3px #1c1b19;
+  --marker-start: inset 2px 0 0 #1c1b19;
+  --marker-nav: inset 2px 0 0 #715c1f;
+  --marker-under: inset 0 -2px 0 #715c1f;
 }
 :root {
   /* spacing */
@@ -92,9 +100,16 @@
   --person-marker: 40px;
   --mark-nav: 20px;
   --menu: 200px;
+  --target-min: 32px;
+  --target-tv: 44px;
+  --columns-compact-max: 1440px;
   /* radius */
   --radius-none: 0;
   --radius-app-icon: 22.5%;
+  /* scale */
+  --text-scale-standard: 1;
+  --text-scale-large: 1.25;
+  --text-scale-tv: 1.25;
   /* type families */
   --font-sans: "IBM Plex Sans", sans-serif;
   --font-mono: "IBM Plex Mono", monospace;
@@ -107,13 +122,11 @@
 @font-face { font-family: 'IBM Plex Mono'; src: url('fonts/IBMPlexMono-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
 @font-face { font-family: 'IBM Plex Mono'; src: url('fonts/IBMPlexMono-Medium.woff2') format('woff2'); font-weight: 500; font-style: normal; font-display: swap; }
 @font-face { font-family: 'IBM Plex Mono'; src: url('fonts/IBMPlexMono-SemiBold.woff2') format('woff2'); font-weight: 600; font-style: normal; font-display: swap; }
-/* Ma roles */
 .title { font-family: var(--font-sans); font-size: 40px; line-height: 40px; font-weight: 300; letter-spacing: -0.02em; }
-.section-label { font-family: var(--font-mono); font-size: 10px; line-height: 16px; font-weight: 500; letter-spacing: 0.14em; }
+.section-label { font-family: var(--font-mono); font-size: 11px; line-height: 16px; font-weight: 500; letter-spacing: 0.14em; }
 .body { font-family: var(--font-sans); font-size: 14px; line-height: 22px; font-weight: 400; }
-.meta { font-family: var(--font-mono); font-size: 10px; line-height: 16px; font-weight: 400; letter-spacing: 0.06em; }
-.meta-11 { font-family: var(--font-mono); font-size: 11px; line-height: 16px; font-weight: 400; }
-/* App sizes */
+.meta { font-family: var(--font-mono); font-size: 11px; line-height: 16px; font-weight: 400; letter-spacing: 0.06em; }
+.meta-12 { font-family: var(--font-mono); font-size: 12px; line-height: 16px; font-weight: 400; }
 .dialog-title { font-family: var(--font-sans); font-size: 20px; line-height: 28px; font-weight: 400; letter-spacing: -0.01em; }
 .header-title { font-family: var(--font-sans); font-size: 16px; line-height: 24px; font-weight: 500; }
 .item-title { font-family: var(--font-sans); font-size: 14px; line-height: 22px; font-weight: 500; }
@@ -123,13 +136,12 @@
 .input { font-family: var(--font-sans); font-size: 13px; line-height: 20px; font-weight: 400; }
 .field-label { font-family: var(--font-sans); font-size: 12px; line-height: 16px; font-weight: 500; }
 .small { font-family: var(--font-sans); font-size: 12px; line-height: 18px; font-weight: 400; }
-.table-header { font-family: var(--font-mono); font-size: 10px; line-height: 16px; font-weight: 500; letter-spacing: 0.12em; }
-.system-code { font-family: var(--font-mono); font-size: 10px; line-height: 14px; font-weight: 500; letter-spacing: 0.06em; }
-.tag { font-family: var(--font-mono); font-size: 10px; line-height: 16px; font-weight: 600; letter-spacing: 0.1em; }
-.address { font-family: var(--font-mono); font-size: 11px; line-height: 16px; font-weight: 400; }
+.table-header { font-family: var(--font-mono); font-size: 11px; line-height: 16px; font-weight: 500; letter-spacing: 0.12em; }
+.system-code { font-family: var(--font-mono); font-size: 11px; line-height: 14px; font-weight: 500; letter-spacing: 0.06em; }
+.tag { font-family: var(--font-mono); font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: 0.1em; }
+.address { font-family: var(--font-mono); font-size: 12px; line-height: 16px; font-weight: 400; }
 .invite-code { font-family: var(--font-mono); font-size: 28px; line-height: 36px; font-weight: 500; letter-spacing: 0.14em; }
 .vertical-label { font-family: var(--font-mono); font-size: 10px; line-height: 16px; font-weight: 400; letter-spacing: 0.24em; }
-/* Brand */
 .wordmark-nav { font-family: var(--font-sans); font-size: 17px; line-height: 20px; font-weight: 600; letter-spacing: -0.01em; }
 .wordmark-display { font-family: var(--font-sans); font-size: 46px; line-height: 46px; font-weight: 600; letter-spacing: -0.035em; }
 .jp-accent { font-family: var(--font-jp); font-size: 15px; line-height: 20px; font-weight: 400; }

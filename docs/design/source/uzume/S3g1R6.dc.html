@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Running game</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/uzume/tokens.css">
+<link rel="stylesheet" href="ds/uzume/components/bundle.css">
+<script src="ds/uzume/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--accent-text)}a:hover{color:var(--ink)}
+</style>
+</helmet>
+<div class="uz" data-theme="sumi" style="width: 1280px; height: 800px; display: flex; flex-direction: column; background: var(--ground); color: var(--ink); font-family: var(--font-sans); overflow: hidden">
+  <header style="height: 56px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 16px 0 20px; border-bottom: 1px solid var(--rule); position: relative">
+    <a href="S3c1R6.dc.html" style="font: 400 13px/20px var(--font-sans); color: var(--ink-2); text-decoration: none; white-space: nowrap">← Library</a>
+    <span style="width: 1px; height: 20px; background: var(--rule); margin: 0 8px"></span>
+    <span title="Coral Saga: The Long Tide of the Northern Archipelago" style="flex: 1; min-width: 0; font: 500 16px/24px var(--font-sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Coral Saga: The Long Tide of the Northern Archipelago</span>
+    <x-import component-from-global-scope="Uzume.SystemChip" system="3DS"></x-import>
+    <span style="width: 16px"></span>
+    <x-import component-from-global-scope="Uzume.Button" size="sm">Layout · Stacked</x-import>
+    <x-import component-from-global-scope="Uzume.Button" size="sm">Multiview</x-import>
+    <x-import component-from-global-scope="Uzume.Button" size="sm" aria-pressed="true">Panel</x-import>
+    <span style="position: relative; display: inline-flex">
+      <button type="button" aria-label="Fullscreen" aria-describedby="fs-tip" style="width: 32px; height: 32px; display: grid; place-items: center; background: transparent; border: 1px solid var(--rule-control); color: var(--ink); cursor: pointer; box-shadow: var(--focus-ring); padding: 0">
+        <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 6 V2 H6 M10 2 H14 V6 M14 10 V14 H10 M6 14 H2 V10" fill="none" stroke="currentColor" stroke-width="1.5"></path></svg>
+      </button>
+      <span id="fs-tip" role="tooltip" style="position: absolute; top: 40px; left: 50%; transform: translateX(-50%); white-space: nowrap; padding: 4px 8px; background: var(--surface); border: 1px solid var(--rule); font: 400 12px/16px var(--font-sans); color: var(--ink); z-index: 3">Fullscreen · <span style="font-family: var(--font-mono)">F11</span></span>
+    </span>
+    <x-import component-from-global-scope="Uzume.Button" size="sm" variant="primary">Pause</x-import>
+    <x-import component-from-global-scope="Uzume.Menu" items="{{menu}}" label="More game actions" open="{{yes}}" width="{{w220}}"></x-import>
+  </header>
+  <div style="flex: 1; min-height: 0; display: flex">
+    <div style="flex: 1; min-width: 0; background: var(--stage); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; position: relative">
+      <div aria-label="Top screen, 400 × 240" role="img" style="width: 600px; height: 360px; background: #0e0d0c; border: 1px solid var(--rule-2); display: grid; place-items: center; font: 400 12px/16px var(--font-mono); color: var(--muted)">400 × 240</div>
+      <div aria-label="Bottom screen, 320 × 240" role="img" style="width: 480px; height: 300px; background: #0e0d0c; border: 1px solid var(--rule-2); display: grid; place-items: center; font: 400 12px/16px var(--font-mono); color: var(--muted)">320 × 240</div>
+    </div>
+    <aside aria-label="Panel" style="width: 320px; flex: none; border-left: 1px solid var(--rule); display: flex; flex-direction: column; background: var(--ground)">
+      <div role="tablist" style="display: flex; gap: 16px; padding: 0 16px; border-bottom: 1px solid var(--rule-2); height: 44px; align-items: stretch">
+        <sc-for list="{{tabs}}" as="t" hint-placeholder-count="5">
+          <button type="button" role="tab" aria-selected="{{t.on}}" style="{{t.style}}">
+            <sc-if value="{{t.icon}}" hint-placeholder-val="{{false}}"><span aria-hidden="true" style="width: 14px; height: 14px; border: 1.5px solid currentColor; box-sizing: border-box; display: inline-block"></span></sc-if>
+            {{t.label}}
+            <sc-if value="{{t.more}}" hint-placeholder-val="{{false}}"><svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6 L8 11 L13 6" fill="none" stroke="currentColor" stroke-width="1.5"></path></svg></sc-if>
+          </button>
+        </sc-for>
+      </div>
+      <div style="padding: 20px 16px; display: flex; flex-direction: column; gap: 16px; overflow: hidden">
+        <div style="display: flex; flex-direction: column; gap: 4px">
+          <span style="font: 500 11px/16px var(--font-mono); letter-spacing: .14em; color: var(--muted)">SOULLINK · RUN 2</span>
+          <span style="font: 500 16px/24px var(--font-sans)">Area 4 · 3 of 4 linked</span>
+        </div>
+        <x-import component-from-global-scope="Uzume.StatusIcon" kind="warning" size="sm">Max has not caught in Area 4 yet.</x-import>
+        <div style="display: flex; flex-direction: column; border-top: 1px solid var(--rule)">
+          <sc-for list="{{links}}" as="l" hint-placeholder-count="4">
+            <div style="display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--rule-2)">
+              <span style="font: 400 13px/20px var(--font-sans); color: var(--ink)">{{l.place}}</span>
+              <span style="font: 400 12px/20px var(--font-mono); color: var(--ink-2)">{{l.state}}</span>
+            </div>
+          </sc-for>
+        </div>
+        <x-import component-from-global-scope="Uzume.Button" size="sm">Open run tab</x-import>
+      </div>
+    </aside>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const tab = (on) => 'display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; padding: 0; cursor: pointer; font: ' + (on ? '500' : '400') + ' 13px/20px var(--font-sans); color: ' + (on ? 'var(--ink)' : 'var(--ink-2)') + '; box-shadow: ' + (on ? 'var(--marker-under)' : 'none') + ';';
+    const tabs = [
+      { label: 'Run', on: 'false' }, { label: 'Chat', on: 'false' }, { label: 'Saves', on: 'false' },
+      { label: 'SoulLink', on: 'true', icon: true }, { label: 'More', on: 'false', more: true }
+    ].map((t) => ({ ...t, style: tab(t.on === 'true') }));
+    return {
+      yes: true, w220: 220, tabs,
+      menu: [
+        { label: 'Diagnostics', shortcut: 'F3' }, { label: 'Screenshot', shortcut: 'F12' }, { label: 'Hotkeys', hint: 'Hold Select on a pad' },
+        { label: 'Reset game …' }, { separator: true }, { label: 'Report a problem …' }
+      ],
+      links: [
+        { place: 'Area 1', state: 'LINKED · 4 / 4' }, { place: 'Area 2', state: 'LINKED · 4 / 4' },
+        { place: 'Area 3', state: 'LINKED · 4 / 4' }, { place: 'Area 4', state: 'OPEN · 3 / 4' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

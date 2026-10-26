@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>6 Readable pass</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/uzume/tokens.css">
+<link rel="stylesheet" href="ds/uzume/components/bundle.css">
+<script src="ds/uzume/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--accent-text)}a:hover{color:var(--ink)}
+</style>
+</helmet>
+<div class="uz" data-theme="sumi" style="width: 1280px; height: 800px; box-sizing: border-box; padding: 56px; background: var(--ground); color: var(--ink); font-family: var(--font-sans); display: flex; gap: 56px">
+  <div style="width: 440px; flex: none; display: flex; flex-direction: column; gap: 24px">
+    <div style="display: flex; flex-direction: column; gap: 8px">
+      <span style="font: 500 11px/16px var(--font-mono); letter-spacing: .14em; color: var(--muted); text-transform: uppercase">Sheet 6 · Uzume · readable revision</span>
+      <h1 style="margin: 0; font: 300 40px/40px var(--font-sans); letter-spacing: -.02em">Readable pass</h1>
+      <p style="margin: 0; font: 400 14px/22px var(--font-sans); color: var(--ink-2)">The same screens, content and flows as sheets 2 and 4, redrawn in the readable revision of the system. 1280 × 800, Sumi unless noted.</p>
+    </div>
+    <div style="display: flex; flex-direction: column; border-top: 1px solid var(--rule)">
+      <sc-for list="{{boards}}" as="b" hint-placeholder-count="12">
+        <div style="display: flex; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--rule-2)">
+          <span style="width: 104px; flex: none; font: 500 12px/20px var(--font-mono); color: var(--ink)">{{b.code}}</span>
+          <span style="font: 400 13px/20px var(--font-sans); color: var(--ink-2)">{{b.text}}</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+  <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+    <span style="font: 500 11px/16px var(--font-mono); letter-spacing: .14em; color: var(--muted); text-transform: uppercase">Decisions that change earlier boards</span>
+    <ol style="margin: 0; padding: 0 0 0 28px; display: flex; flex-direction: column; gap: 9px; font: 400 13px/19px var(--font-sans); color: var(--ink-2)">
+      <li><b style="color: var(--ink); font-weight: 500">Yellow is for acting.</b> Primary button, focus ring, active nav and tab marker. Selected chips, segments and rows are neutral: an ink plane, or the selected tint with a 2 px ink marker. All boards.</li>
+      <li><b style="color: var(--ink); font-weight: 500">Warnings are a sentence.</b> Ink text with the small Yamabuki square, no separate warning hue, never colour alone. All boards.</li>
+      <li><b style="color: var(--ink); font-weight: 500">Status filters with counts</b> are always visible in the library toolbar, next to collections, search and sort. 3c-1, 3c-2.</li>
+      <li><b style="color: var(--ink); font-weight: 500">List and grid.</b> The grid comes back with monogram tiles, a system chip and a status line; the list shows the system as a chip. 3c-2.</li>
+      <li><b style="color: var(--ink); font-weight: 500">One problem, once.</b> The game detail shows a problem as one sentence with its fix. When the game cannot start, the fix becomes the primary ("Install core and play"). The start checklist only appears while starting or after a failure. 3c-1.</li>
+      <li><b style="color: var(--ink); font-weight: 500">Saves:</b> start actions stay on top; SHA-256 and the local path sit under a closed "File details". 3c-3.</li>
+      <li><b style="color: var(--ink); font-weight: 500">Game header:</b> Pause / Resume is the primary, Fullscreen is back as an icon button with a tooltip, Diagnostics and the rest stay in ⋯. 3g-1.</li>
+      <li><b style="color: var(--ink); font-weight: 500">Plugin tabs</b> show icon and label; overflow goes into "More". 3g-1.</li>
+      <li><b style="color: var(--ink); font-weight: 500">Diagnostics</b> get a visible "Details" section; the hold-Select sheet gets Diagnostics. 3g-6.</li>
+      <li><b style="color: var(--ink); font-weight: 500">Three columns at 1280.</b> The input test moves into a disclosure under the device header; help columns become a "Help" disclosure. 9a-1, 6f, 3n.</li>
+      <li><b style="color: var(--ink); font-weight: 500">Mapping table</b> shows the key once; "Default" and Reset only on changed rows. 9a-1.</li>
+      <li><b style="color: var(--ink); font-weight: 500">Appearance</b> gains Text size (100 % · 125 % · TV) and Reduce motion. 9c-1.</li>
+      <li><b style="color: var(--ink); font-weight: 500">Nav badges</b> for Systems &amp; cores (core problems) and Settings (server update), besides Status. 6f.</li>
+      <li><b style="color: var(--ink); font-weight: 500">Wide fonts:</b> page header actions wrap below the title; dialog buttons stack inside the dialog. 6f, 0-r6-pad-2.</li>
+      <li><b style="color: var(--ink); font-weight: 500">HintRow</b> on every main page while the last input was a gamepad. 0-r6-pad-1, 0-r6-pad-2.</li>
+    </ol>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      boards: [
+        { code: '3c-1-r6', text: 'Library list: 12 games that all need attention, one selected, game detail' },
+        { code: '3c-2-r6', text: 'Library grid with status filters and a focused tile' },
+        { code: '3c-3-r6', text: 'Game saves: start actions on top, file details closed' },
+        { code: '3g-1-r6', text: 'Running game: header at 1280 with a long title, plugin tabs' },
+        { code: '3g-6-r6', text: 'Diagnostics summary and details, hold-Select sheet' },
+        { code: '9c-1-r6', text: 'Settings › This PC › Appearance, focus on a section row' },
+        { code: '9a-1-r6', text: 'Controllers: mapping table, input test disclosure, focused binding' },
+        { code: '6f-app-1-r6', text: 'Server status with nav badges, header with a wide font' },
+        { code: '3n-app-1-r6', text: 'Users with the Help disclosure' },
+        { code: '0-r6-pad-1', text: 'Library at TV scale with the HintRow' },
+        { code: '0-r6-pad-2', text: 'Settings at TV scale, danger confirm with a wide font' },
+        { code: '0-r6-kinari', text: 'Kinari: selection, warning and control borders labelled' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

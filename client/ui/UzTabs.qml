@@ -65,7 +65,7 @@ FocusScope {
                     x: tabLabel.implicitWidth + Theme.space1
                     width: Math.max(18, countText.implicitWidth + 10)
                     height: 18
-                    color: Theme.accent
+                    color: Theme.badge
                     Text {
                         id: countText
                         objectName: "tabCountText_" + tab.modelData
@@ -73,9 +73,9 @@ FocusScope {
                         text: String(tab.count)
                         textFormat: Text.PlainText
                         font.family: Theme.mono
-                        font.pixelSize: 10
+                        font.pixelSize: Theme.roles.tag.size
                         font.weight: Font.DemiBold
-                        color: Theme.inkOnAccent
+                        color: Theme.ground
                     }
                 }
                 Rectangle {   // marker-under
@@ -83,7 +83,7 @@ FocusScope {
                     anchors.bottom: parent.bottom
                     width: parent.width
                     height: 2
-                    color: Theme.accent
+                    color: Theme.markerNav
                 }
                 Accessible.role: Accessible.PageTab
                 Accessible.name: tab.modelData

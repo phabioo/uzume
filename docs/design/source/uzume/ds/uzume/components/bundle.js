@@ -1,4 +1,4 @@
-/* @ds-bundle: {"format":4,"namespace":"Uzume","components":[{"name":"AppNav"},{"name":"Toggle"},{"name":"Select"},{"name":"Menu"},{"name":"SettingsRow"},{"name":"GamepadHint"},{"name":"Checkbox"},{"name":"Tag"},{"name":"Kbd"},{"name":"HelpColumn"},{"name":"Slider"},{"name":"Popover"},{"name":"Button"},{"name":"TextField"},{"name":"SearchField"},{"name":"SystemChip"},{"name":"FilterChip"},{"name":"Tabs"},{"name":"RunTabs"},{"name":"Segmented"},{"name":"Progress"},{"name":"TableRow"},{"name":"Toast"},{"name":"Dialog"},{"name":"StatusIcon"},{"name":"StatusLine"},{"name":"SectionLabel"},{"name":"PageHeader"},{"name":"OpenColumn"},{"name":"RegisterMarks"},{"name":"GameCover"},{"name":"MultiviewTile"},{"name":"Enso"},{"name":"StateBlock"},{"name":"Avatar"},{"name":"RunHeader"},{"name":"GameStage"},{"name":"RunnerRow"},{"name":"ChatMessage"},{"name":"Mark"},{"name":"Lockup"},{"name":"AppIcon"},{"name":"ServerGlyph"}]} */
+/* @ds-bundle: {"format":4,"namespace":"Uzume","components":[{"name":"AppNav"},{"name":"Toggle"},{"name":"Select"},{"name":"Menu"},{"name":"SettingsRow"},{"name":"GamepadHint"},{"name":"Checkbox"},{"name":"Tag"},{"name":"Kbd"},{"name":"HelpColumn"},{"name":"Slider"},{"name":"Popover"},{"name":"Button"},{"name":"TextField"},{"name":"SearchField"},{"name":"SystemChip"},{"name":"FilterChip"},{"name":"Tabs"},{"name":"RunTabs"},{"name":"Segmented"},{"name":"Progress"},{"name":"TableRow"},{"name":"Toast"},{"name":"Dialog"},{"name":"StatusIcon"},{"name":"StatusLine"},{"name":"SectionLabel"},{"name":"PageHeader"},{"name":"OpenColumn"},{"name":"RegisterMarks"},{"name":"GameCover"},{"name":"MultiviewTile"},{"name":"Enso"},{"name":"StateBlock"},{"name":"Avatar"},{"name":"RunHeader"},{"name":"GameStage"},{"name":"RunnerRow"},{"name":"ChatMessage"},{"name":"Mark"},{"name":"Lockup"},{"name":"AppIcon"},{"name":"ServerGlyph"},{"name":"HintRow"},{"name":"ColumnNav"}]} */
 (function () {
   var React = window.React, h = React.createElement;
   function cx() { var o = []; for (var i = 0; i < arguments.length; i++) if (arguments[i]) o.push(arguments[i]); return o.join(' '); }
@@ -56,8 +56,12 @@
     return h('div', { className: cx('uz uz-section', p.className) }, h('span', null, num, p.children), p.meta ? h('span', { className: 'uz-section-meta' }, p.meta) : null);
   }
   function PageHeader(p) {
+    /* Readable revision: the eyebrow is optional (label/number), an optional meta line sits under the title,
+       and the actions wrap below the title instead of truncating it. */
+    var eyebrow = (p.label || p.number != null) ? h(SectionLabel, { number: p.number }, p.label || p.title) : null;
     return h('div', { className: 'uz uz-pagehead' },
-      h('div', { className: 'uz-pagehead-text' }, h(SectionLabel, { number: p.number }, p.label || p.title), h('h1', { className: 'uz-title' }, p.title)),
+      h('div', { className: 'uz-pagehead-text' }, eyebrow, h('h1', { className: 'uz-title' }, p.title),
+        p.meta ? h('span', { className: 'uz-pagehead-meta' }, p.meta) : null),
       p.actions ? h('div', { className: 'uz-pagehead-actions' }, p.actions) : null);
   }
   function OpenColumn(p) {
@@ -82,13 +86,22 @@
     }), p.children);
   }
   function FilterChip(p) {
-    return h('button', Object.assign({ type: 'button', 'aria-pressed': !!p.selected }, rest(p, ['selected', 'className', 'children']), { className: cx('uz uz-chip uz-focusable', p.selected && 'is-selected', p.className) }), p.children);
+    /* Readable revision: optional `count` (always visible) and `attention` (the warning square before the label). */
+    var label = typeof p.children === 'string' ? p.children : '';
+    var name = label + (p.count != null ? ', ' + p.count : '') + (p.attention ? ', needs attention' : '');
+    return h('button', Object.assign({ type: 'button', 'aria-pressed': !!p.selected, 'aria-label': name || undefined }, rest(p, ['selected', 'count', 'attention', 'className', 'children']), { className: cx('uz uz-chip uz-focusable', p.selected && 'is-selected', p.attention && 'is-attention', p.className) }),
+      p.attention ? h('span', { className: 'uz-chip-mark', 'aria-hidden': true }, '!') : null,
+      p.children,
+      p.count != null ? h('span', { className: 'uz-chip-count', 'aria-hidden': true }, p.count) : null);
   }
   function SystemChip(p) { return h('span', { className: 'uz uz-sys', title: p.title }, p.system || p.children); }
   function Tabs(p) {
+    /* Items are strings or { label, icon, count }: a plugin tab always shows its icon AND a short label, never a single letter. */
     return h('div', { className: cx('uz uz-tabs', p.size === 'lg' && 'lg'), role: 'tablist' }, (p.items || []).map(function (it) {
-      var on = it === p.active;
-      return h('button', { key: it, role: 'tab', 'aria-selected': on, className: cx('uz-tab uz-focusable', on && 'is-active'), onClick: p.onChange ? function () { p.onChange(it); } : undefined }, it);
+      var o = typeof it === 'string' ? { label: it } : it, on = o.label === p.active;
+      return h('button', { key: o.label, role: 'tab', 'aria-selected': on, title: o.label, className: cx('uz-tab uz-focusable', on && 'is-active'), onClick: p.onChange ? function () { p.onChange(o.label); } : undefined },
+        o.icon ? h('span', { className: 'uz-tab-icon', 'aria-hidden': true }, o.icon) : null, o.label,
+        o.count ? h('span', { className: 'uz-tab-count', 'aria-label': o.count + ' new' }, o.count) : null);
     }));
   }
   function RunTabs(p) {
@@ -518,7 +531,7 @@
   }
 
   function DialogFrame(p) {
-    return h('div', { className: cx('uz uz-dialog', p.size === 'lg' && 'lg', p.busy && 'is-busy'), role: 'dialog', 'aria-modal': true, 'aria-label': p.title, style: p.style },
+    return h('div', { className: cx('uz uz-dialog', p.size === 'lg' && 'lg', p.busy && 'is-busy', p.stacked && 'is-stacked'), role: 'dialog', 'aria-modal': true, 'aria-label': p.title, style: p.style },
       h('div', { className: 'uz-dialog-head' },
         h('div', { className: 'uz-dialog-headtext' }, p.label ? h('span', { className: 'uz-dialog-label' }, p.label) : null, h('h2', { className: 'uz-dialog-title' }, p.title)),
         p.onClose ? h('button', { type: 'button', className: 'uz-btn uz-btn-ghost sm uz-iconbtn uz-focusable', 'aria-label': 'Close', onClick: p.onClose }, h(MiniGlyph, { name: 'cross', size: 12 })) : null),
@@ -533,6 +546,37 @@
   function Dialog(p) {
     var frame = h(DialogFrame, p);
     return p.modal ? h('div', { className: 'uz uz-scrim', style: p.scrimStyle }, frame) : frame;
+  }
+
+  /* ---------- Readable revision ---------- */
+  function HintRow(p) {
+    /* The footer of every main page while the last input was a gamepad (always at the TV scale); keys otherwise. */
+    var pad = p.input !== 'keys';
+    function one(x, i) {
+      return pad ? h(GamepadHint, { key: i, k: x.k, label: x.label })
+        : h(Kbd, { key: i, keys: x.keys || x.k, label: x.label });
+    }
+    return h('div', { className: 'uz uz-hintrow', role: 'note', 'aria-label': 'Controls' }, (p.hints || []).map(one),
+      p.end ? h('div', { className: 'uz-hintrow-end' }, p.end.map(one)) : null);
+  }
+  function ColumnNav(p) {
+    /* The second column of Settings, Emulation, Controllers and Server settings: every row is focusable,
+       Up/Down move, Enter/A opens, Esc/B goes back to AppNav. Items: { label, meta, warning } or a { head } line. */
+    var items = p.items || [], refs = React.useRef([]);
+    function key(e, i) {
+      var d = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0; if (!d) return;
+      for (var j = i + d; j >= 0 && j < items.length; j += d) if (!items[j].head && refs.current[j]) { refs.current[j].focus(); e.preventDefault(); return; }
+    }
+    return h('nav', { className: 'uz uz-colnav', 'aria-label': p.label || 'Sections', style: p.style }, items.map(function (it, i) {
+      if (it.head) return h('div', { key: 'h' + i, className: 'uz-colnav-head' }, it.head);
+      var on = it.label === p.active;
+      return h('button', { key: it.label, ref: function (el) { refs.current[i] = el; }, type: 'button', 'aria-current': on ? 'page' : undefined,
+        className: cx('uz-colnav-item', on && 'is-active', it.label === p.focus && 'is-focus', it.label === p.hover && 'is-hover'),
+        onKeyDown: function (e) { key(e, i); }, onClick: p.onChange ? function () { p.onChange(it.label); } : undefined },
+        h('span', null, it.label),
+        it.warning ? h('span', { className: 'uz-colnav-warn' }, h('i', { 'aria-hidden': true }), it.warning)
+          : it.meta ? h('span', { className: 'uz-colnav-meta' }, it.meta) : null);
+    }));
   }
 
   /* ---------- Batch 4 ---------- */
@@ -596,6 +640,6 @@
     Toast: Toast, Dialog: Dialog, StatusIcon: StatusIcon, StatusLine: StatusLine, SectionLabel: SectionLabel, PageHeader: PageHeader,
     OpenColumn: OpenColumn, RegisterMarks: RegisterMarks, GameCover: GameCover, MultiviewTile: MultiviewTile, Enso: Enso,
     StateBlock: StateBlock, Avatar: Avatar, AvatarStack: AvatarStack, RunHeader: RunHeader, GameStage: GameStage,
-    RunnerRow: RunnerRow, ChatMessage: ChatMessage, Toggle: Toggle, Select: Select, Menu: Menu, MenuList: MenuList, SettingsRow: SettingsRow, SettingsDisclosure: SettingsDisclosure, GamepadHint: GamepadHint, NavBell: NavBell, Checkbox: Checkbox, Tag: Tag, Kbd: Kbd, HelpColumn: HelpColumn, Slider: Slider, Popover: Popover, IconButton: IconButton, MapPoint: MapPoint, VoiceMark: VoiceMark, StageDiagnostics: StageDiagnostics, HotkeySheet: HotkeySheet, Mark: Mark, Lockup: Lockup, AppIcon: AppIcon, ServerGlyph: ServerGlyph
+    RunnerRow: RunnerRow, ChatMessage: ChatMessage, Toggle: Toggle, Select: Select, Menu: Menu, MenuList: MenuList, SettingsRow: SettingsRow, SettingsDisclosure: SettingsDisclosure, GamepadHint: GamepadHint, NavBell: NavBell, Checkbox: Checkbox, Tag: Tag, Kbd: Kbd, HelpColumn: HelpColumn, Slider: Slider, Popover: Popover, IconButton: IconButton, MapPoint: MapPoint, VoiceMark: VoiceMark, StageDiagnostics: StageDiagnostics, HotkeySheet: HotkeySheet, Mark: Mark, Lockup: Lockup, AppIcon: AppIcon, ServerGlyph: ServerGlyph, HintRow: HintRow, ColumnNav: ColumnNav
   });
 })();

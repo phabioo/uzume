@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Settings at TV scale with a danger confirm</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/uzume/tokens.css">
+<link rel="stylesheet" href="ds/uzume/components/bundle.css">
+<script src="ds/uzume/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--accent-text)}a:hover{color:var(--ink)}
+.wide, .wide *{letter-spacing:.09em !important; word-spacing:.18em}
+</style>
+</helmet>
+<div class="uz" data-theme="sumi" data-scale="tv" style="width: 1280px; height: 800px; display: flex; background: var(--ground); color: var(--ink); font-family: var(--font-sans); overflow: hidden; position: relative">
+  <div style="width: 232px; height: 800px; flex: none">
+    <x-import component-from-global-scope="Uzume.AppNav" active="Settings" density="compact" user="{{user}}" style="height: 800px"></x-import>
+  </div>
+  <div style="width: 260px; flex: none; border-right: 1px solid var(--rule); padding: 32px 0 0 16px; box-sizing: border-box">
+    <x-import component-from-global-scope="Uzume.ColumnNav" items="{{sections}}" active="My account" label="Settings sections"></x-import>
+  </div>
+  <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+    <main style="flex: 1; padding: 32px 48px 0 40px; display: flex; flex-direction: column; gap: 20px; box-sizing: border-box">
+      <h1 style="margin: 0; font: 300 48px/52px var(--font-sans); letter-spacing: -.02em">My account</h1>
+      <div style="display: flex; flex-direction: column; border-top: 1px solid var(--rule)">
+        <sc-for list="{{rows}}" as="r" hint-placeholder-count="3">
+          <div style="display: flex; align-items: center; gap: 24px; min-height: 72px; border-bottom: 1px solid var(--rule-2)">
+            <span style="flex: 1; display: flex; flex-direction: column; gap: 2px">
+              <span style="font: 500 17px/24px var(--font-sans)">{{r.label}}</span>
+              <span style="font: 400 15px/22px var(--font-sans); color: var(--muted)">{{r.help}}</span>
+            </span>
+            <button type="button" style="{{r.btnStyle}}">{{r.action}}</button>
+          </div>
+        </sc-for>
+      </div>
+    </main>
+    <div style="border-top: 1px solid var(--rule)">
+      <x-import component-from-global-scope="Uzume.HintRow" hints="{{hints}}"></x-import>
+    </div>
+  </div>
+  <div style="position: absolute; inset: 0; background: var(--scrim); display: grid; place-items: center">
+    <div class="wide">
+      <x-import component-from-global-scope="Uzume.Dialog" label="My account" title="Sign out everywhere?" text="Uzume signs you out on all 3 PCs, including this one. Running sessions end and unsaved progress since the last save is lost." actions="{{actions}}" stacked="{{yes}}" hints="{{dialogHints}}"></x-import>
+    </div>
+  </div>
+  <span style="position: absolute; right: 24px; top: 20px; font: 500 12px/16px var(--font-mono); letter-spacing: .14em; color: var(--muted)">VERY WIDE FONT, SIMULATED</span>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const h = React.createElement, U = window.Uzume;
+    const actions = U ? h(React.Fragment, null,
+      h(U.Button, { variant: 'danger', state: 'focus' }, 'Sign out on all PCs'),
+      h(U.Button, null, 'Cancel')) : null;
+    const dialogHints = U ? h(React.Fragment, null, h(U.GamepadHint, { k: 'A', label: 'Choose' }), h(U.GamepadHint, { k: 'B', label: 'Cancel' })) : null;
+    const btn = (focus) => 'height: 44px; padding: 0 18px; background: transparent; cursor: pointer; font: 500 16px/1 var(--font-sans); color: var(--ink); border: 1px solid var(--rule-control);' + (focus ? ' box-shadow: var(--focus-ring);' : '');
+    return {
+      yes: true, actions, dialogHints,
+      rows: [
+        { label: 'Name', help: 'Lena', action: 'Change …', btnStyle: btn(false) },
+        { label: 'Password', help: 'Changed 3 weeks ago', action: 'Reset password …', btnStyle: btn(false) },
+        { label: 'Signed in', help: 'On 3 PCs · this PC, Living room, Laptop', action: 'Sign out everywhere …', btnStyle: btn(true) }
+      ],
+      sections: [{ head: 'Account' }, { label: 'My account', meta: 'Lena' }, { label: 'Servers', meta: '1 saved' }, { head: 'This PC' }, { label: 'Appearance', meta: 'Text size TV' }, { label: 'Audio & video', meta: 'Volume 100 %' }],
+      hints: [{ k: 'A', label: 'Choose' }, { k: 'B', label: 'Back' }, { k: 'Start', label: 'Options' }],
+      user: { name: 'Lena', role: 'Admin', person: 'momo' }
+    };
+  }
+}
+</script>
+</body>
+</html>

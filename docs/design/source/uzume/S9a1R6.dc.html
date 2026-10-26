@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Controllers</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/uzume/tokens.css">
+<link rel="stylesheet" href="ds/uzume/components/bundle.css">
+<script src="ds/uzume/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--accent-text)}a:hover{color:var(--ink)}
+</style>
+</helmet>
+<div class="uz" data-theme="sumi" style="width: 1280px; height: 800px; display: flex; background: var(--ground); color: var(--ink); font-family: var(--font-sans); overflow: hidden">
+  <div style="width: 232px; height: 800px; flex: none">
+    <x-import component-from-global-scope="Uzume.AppNav" active="Controllers" density="compact" online="{{online}}" user="{{user}}" notifications="{{zero}}" style="height: 800px"></x-import>
+  </div>
+  <div style="width: 248px; flex: none; border-right: 1px solid var(--rule); padding: 32px 0 0 16px; box-sizing: border-box">
+    <x-import component-from-global-scope="Uzume.ColumnNav" items="{{devices}}" active="Player 1" label="Controllers"></x-import>
+  </div>
+  <main style="flex: 1; min-width: 0; padding: 32px 56px 0 40px; display: flex; flex-direction: column; gap: 18px; box-sizing: border-box">
+    <x-import component-from-global-scope="Uzume.PageHeader" label="Controllers · Player 1" title="Xbox Wireless Controller" meta="Connected · USB · battery 80 %"></x-import>
+    <div style="border: 1px solid var(--rule); background: var(--surface)">
+      <button type="button" aria-expanded="true" style="width: 100%; display: flex; align-items: center; gap: 8px; background: none; border: 0; padding: 10px 14px; color: var(--ink); font: 500 13px/20px var(--font-sans); cursor: pointer; text-align: left">
+        <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 10 L8 5 L13 10" fill="none" stroke="currentColor" stroke-width="1.5"></path></svg>Input test<span style="flex: 1"></span><span style="font: 400 12px/16px var(--font-mono); color: var(--muted)">PRESS ANY BUTTON</span>
+      </button>
+      <div role="status" style="display: flex; align-items: center; gap: 24px; padding: 0 14px 12px 36px">
+        <span style="font: 400 13px/20px var(--font-sans); color: var(--ink-2)">Last pressed</span>
+        <x-import component-from-global-scope="Uzume.GamepadHint" k="A" label="A" state="pressed"></x-import>
+        <span style="font: 400 13px/20px var(--font-sans); color: var(--ink-2)">Left stick</span>
+        <span style="font: 500 12px/16px var(--font-mono); color: var(--ink)">X −0.82 · Y 0.04</span>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 16px">
+      <x-import component-from-global-scope="Uzume.Segmented" items="{{systems}}" active="NDS" label="System" size="sm"></x-import>
+      <div style="flex: 1"></div>
+      <x-import component-from-global-scope="Uzume.Button" size="sm">Reset all to default</x-import>
+    </div>
+    <div role="table" aria-label="Button mapping for NDS" style="display: flex; flex-direction: column">
+      <div role="row" style="display: grid; grid-template-columns: 200px 180px minmax(0, 1fr); gap: 16px; height: 28px; align-items: center; border-bottom: 1px solid var(--rule); padding: 0 8px; font: 500 11px/16px var(--font-mono); letter-spacing: .12em; color: var(--muted)">
+        <span role="columnheader">NDS BUTTON</span><span role="columnheader">BOUND TO</span><span role="columnheader"></span>
+      </div>
+      <sc-for list="{{rows}}" as="r" hint-placeholder-count="9">
+        <div role="row" style="display: grid; grid-template-columns: 200px 180px minmax(0, 1fr); gap: 16px; height: 40px; align-items: center; border-bottom: 1px solid var(--rule-2); padding: 0 8px">
+          <span role="cell" style="font: 400 14px/20px var(--font-sans); color: var(--ink)">{{r.action}}</span>
+          <span role="cell"><button type="button" aria-label="{{r.aria}}" style="{{r.fieldStyle}}"><span style="min-width: 22px; height: 20px; padding: 0 5px; box-sizing: border-box; display: inline-grid; place-items: center; border: 1px solid var(--ink-2); font: 500 11px/1 var(--font-mono); color: var(--ink)">{{r.key}}</span><span style="font: 400 13px/20px var(--font-sans); color: var(--ink-2)">{{r.keyName}}</span></button></span>
+          <span role="cell" style="display: flex; align-items: center; gap: 12px; justify-content: flex-end">
+            <sc-if value="{{r.changed}}" hint-placeholder-val="{{false}}">
+              <span style="font: 400 12px/16px var(--font-sans); color: var(--muted)">Default: {{r.def}}</span>
+              <x-import component-from-global-scope="Uzume.Button" size="sm" variant="ghost">Reset</x-import>
+            </sc-if>
+          </span>
+        </div>
+      </sc-for>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"focusRow":{"editor":"int","default":4,"min":1,"max":9},"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const focus = this.props.focusRow ?? 4;
+    const field = 'display: inline-flex; align-items: center; gap: 8px; width: 168px; height: 32px; padding: 0 8px; box-sizing: border-box; background: transparent; border: 1px solid var(--rule-control); cursor: pointer;';
+    const rows = [
+      ['A', 'A', 'A button'], ['B', 'B', 'B button'], ['X', 'X', 'X button'], ['Y', 'Y', 'Y button'],
+      ['L', 'LB', 'Left bumper'], ['R', 'RB', 'Right bumper'], ['Start', '≡', 'Menu'], ['Select', '⧉', 'View'],
+      ['Touch: press', 'RS', 'Right stick click', 'Right stick']
+    ].map((r, i) => ({
+      action: r[0], key: r[1], keyName: r[2], changed: !!r[3], def: r[3] || '',
+      aria: r[0] + ': bound to ' + r[2] + '. Press to change.',
+      fieldStyle: field + (i + 1 === focus ? ' box-shadow: var(--focus-ring); border-color: var(--ink);' : '')
+    }));
+    return {
+      zero: 0, rows,
+      devices: [
+        { head: 'Connected' }, { label: 'Player 1', meta: 'Xbox Wireless Controller' }, { label: 'Player 2', meta: 'Keyboard' },
+        { head: 'Seen before' }, { label: '8BitDo SN30 Pro', meta: 'Last used yesterday' }
+      ],
+      systems: ['GB', 'GBC', 'GBA', 'NDS', '3DS'],
+      online: [{ name: 'Max', person: 'wasurenagusa', playing: 'Harbor Rally', system: 'GBA' }],
+      user: { name: 'Lena', role: 'Admin', person: 'momo' }
+    };
+  }
+}
+</script>
+</body>
+</html>

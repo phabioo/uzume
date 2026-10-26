@@ -177,6 +177,30 @@ Gaps in the design system (items 28 to 32 on `SAllIndex`): a multi-line Mono cod
 
 Review fixes (applied in the canvas before the import): the unsupported example on 11a-1, 11a-3b and 11b-3 is `RAW` instead of `AR V3` (mGBA runs Action Replay MAX codes but no raw codes); the consent on 11d-1 says Main v14 "is kept as" "Before cheats" (a copy, not a rename).
 
+## Sheet 6 · Readable pass (2026-10-26)
+
+Canvas page "6 Readable pass", 13 boards with the index `S6Index`, drawn in design system revision r6; spec [readable-pass.md](readable-pass.md), values in [design-system.md](design-system.md). It follows the UI scan after 0.19 and adds no function. Fabio accepted the revision and all decisions on 2026-10-26:
+
+| # | Decision | Status |
+|---|---|---|
+| 1 | Yellow is for acting only (one primary per view, focus ring, active nav and tab marker); selection is neutral (`ink` plane or `selected` tint with the `ink` marker). | Accepted |
+| 2 | A warning has no hue of its own: an `ink` sentence with the Yamabuki square, with its fix action next to it. | Accepted |
+| 3 | The library shows status filter chips with counts (All, Ready, Needs attention, Not downloaded) at all times. | Accepted |
+| 4 | The library has a List and a Grid view. | Accepted |
+| 5 | A problem is shown once; when it blocks the main action, its fix becomes the primary ("Install core and play"). | Accepted |
+| 6 | Saves: "File details" (SHA-256, path, size) are closed by default. | Accepted |
+| 7 | Running game header: Pause / Resume is the primary, Fullscreen is back as an icon button, the rest is in `⋯`. | Accepted |
+| 8 | Plugin tabs show an icon and a short label; overflow goes into "More". | Accepted |
+| 9 | Diagnostics has a visible Details section (encoder, bitrate, per-person path and RTT); the hold-Select sheet gains Diagnostics. | Accepted |
+| 10 | At most three columns below 1440 px, AppNav included; help columns and inline tests become disclosures. | Accepted |
+| 11 | The controller mapping table shows the bound key once, plus "Default: …" and Reset only on changed rows. | Accepted |
+| 12 | Settings › This PC › Appearance gains Text size (100 % · 125 % · TV) and Reduce motion. | Accepted |
+| 13 | Nav rows carry neutral badges for problems (Status, Systems & cores, Settings). | Accepted |
+| 14 | With a wide font, page header actions wrap below the title and dialog buttons stack inside the dialog. | Accepted |
+| 15 | Every main page shows the `HintRow` while the last input was a pad; second columns are `ColumnNav` rows reachable with the D-pad. | Accepted |
+
+New in the design system (r6): tokens `rule-control`, `badge`, `marker-nav`, a raised `dim`, text size scale tokens, `target-min` 32 / `target-tv` 44, `columns-compact-max` 1440; components `HintRow` and `ColumnNav` (45 components). Where a sheet 6 board and an older board disagree, sheet 6 wins.
+
 ## Cross-sheet rules (summary)
 
 - **Terms.** Hub = "Uzume server" or "the server", Player = "Uzume" or "the app"; "Stream" only in diagnostics. Session = a running or shared game session.

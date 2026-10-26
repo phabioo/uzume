@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Settings, Appearance</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/uzume/tokens.css">
+<link rel="stylesheet" href="ds/uzume/components/bundle.css">
+<script src="ds/uzume/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--accent-text)}a:hover{color:var(--ink)}
+</style>
+</helmet>
+<div class="uz" data-theme="sumi" style="width: 1280px; height: 800px; display: flex; background: var(--ground); color: var(--ink); font-family: var(--font-sans); overflow: hidden">
+  <div style="width: 232px; height: 800px; flex: none">
+    <x-import component-from-global-scope="Uzume.AppNav" active="Settings" density="compact" online="{{online}}" user="{{user}}" notifications="{{zero}}" style="height: 800px"></x-import>
+  </div>
+  <div style="width: 248px; flex: none; border-right: 1px solid var(--rule); padding: 32px 0 0 16px; box-sizing: border-box">
+    <x-import component-from-global-scope="Uzume.ColumnNav" items="{{sections}}" active="Appearance" focus="Audio &amp; video" label="Settings sections"></x-import>
+  </div>
+  <main style="flex: 1; min-width: 0; padding: 32px 56px 0 40px; display: flex; flex-direction: column; gap: 24px; box-sizing: border-box">
+    <x-import component-from-global-scope="Uzume.PageHeader" label="Settings · This PC" title="Appearance"></x-import>
+    <div style="display: flex; flex-direction: column; border-top: 1px solid var(--rule)">
+      <x-import component-from-global-scope="Uzume.SettingsRow" label="Theme" help="Sumi is dark, Kinari is light.">
+        <x-import component-from-global-scope="Uzume.Segmented" items="{{themes}}" active="Sumi" label="Theme"></x-import>
+      </x-import>
+      <x-import component-from-global-scope="Uzume.SettingsRow" label="Text size" help="TV makes all text larger and every target at least 44 px.">
+        <x-import component-from-global-scope="Uzume.Segmented" items="{{sizes}}" active="125 %" label="Text size"></x-import>
+      </x-import>
+      <x-import component-from-global-scope="Uzume.SettingsRow" label="Reduce motion" help="Stops the ensō, slides and fades. Follows the system setting until you change it.">
+        <x-import component-from-global-scope="Uzume.Toggle" label="Reduce motion" checked="{{no}}"></x-import>
+      </x-import>
+      <x-import component-from-global-scope="Uzume.SettingsRow" label="System chips on covers" changed="{{yes}}" default-label="On">
+        <x-import component-from-global-scope="Uzume.Toggle" label="System chips on covers" checked="{{no}}"></x-import>
+      </x-import>
+      <x-import component-from-global-scope="Uzume.SettingsRow" label="Language" help="App language. Game names stay as the server has them.">
+        <x-import component-from-global-scope="Uzume.Select" options="{{langs}}" value="English" style="width: 200px"></x-import>
+      </x-import>
+    </div>
+    <button type="button" aria-expanded="false" style="align-self: flex-start; display: flex; align-items: center; gap: 8px; background: none; border: 0; padding: 4px 0; color: var(--ink-2); font: 500 13px/20px var(--font-sans); cursor: pointer">
+      <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6 L8 11 L13 6" fill="none" stroke="currentColor" stroke-width="1.5"></path></svg>Help<span style="font: 400 12px/16px var(--font-mono); color: var(--muted)">WHAT TV SCALE CHANGES</span>
+    </button>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      yes: true, no: false, zero: 0,
+      sections: [
+        { head: 'Account' }, { label: 'My account', meta: 'Lena' }, { label: 'Servers', meta: '1 saved · Home server active' },
+        { head: 'This PC' }, { label: 'Appearance', meta: 'Sumi · text 125 %' }, { label: 'Audio & video', meta: 'Volume 100 %' },
+        { label: 'Library folders', meta: '1 folder · 2 games' }, { label: 'Storage', warning: '92 % full' }, { label: 'Diagnostics', meta: 'Logs and support' }
+      ],
+      themes: ['Sumi', 'Kinari', 'Follow system'],
+      sizes: ['100 %', '125 %', 'TV'],
+      langs: ['English', 'Deutsch'],
+      online: [{ name: 'Max', person: 'wasurenagusa', playing: 'Harbor Rally', system: 'GBA' }],
+      user: { name: 'Lena', role: 'Admin', person: 'momo' }
+    };
+  }
+}
+</script>
+</body>
+</html>
