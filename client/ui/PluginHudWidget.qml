@@ -2,16 +2,20 @@ import QtQuick
 import Uzume.App
 
 // One HUD widget (board 5b-2, "HUD widget"): drawn on the stage, so it keeps a stage-appropriate look: `surface` plane, 1 px
-// `rule` frame (`ink-2` when lit), padding 8 12, at most 240 wide, square. It takes no input: hover (or focus) only brightens it and shows the "⋯"
+// `rule` frame (`ink-2` when lit), padding 8 12, at most 320 wide, square. It takes no input: hover (or focus) only brightens it and shows the "⋯"
 // menu button and, for non-official plugins, the "Unverified" / "Local" marker.
 Item {
     id: root
     required property var entry                    // PluginsController.hudWidgets entry
     property string marker: ""
-    readonly property bool lit: hover.containsMouse || menuButton.hovered
+    property Item menuAnchor: null                 // the "⋯" button whose menu is open (any widget), if any
+    readonly property bool menuOpen: menuAnchor !== null && menuAnchor === menuButton
+    // The hover zone includes the "⋯" button and the gap to it, and the button stays while its menu is open.
+    readonly property bool lit: hover.containsMouse || zoneHover.hovered || menuButton.hovered || menuOpen
+    readonly property int maxWidth: 320
     signal menuRequested(Item anchor)
 
-    readonly property real maxInner: 240 - 2 * Theme.space15
+    readonly property real maxInner: maxWidth - 2 * Theme.space15
     readonly property bool rightSide: entry && entry.corner === "bottom-right"
     readonly property bool topSide: entry && entry.corner === "top-left"
     width: bg.width
@@ -20,7 +24,7 @@ Item {
 
     Rectangle {
         id: bg
-        width: Math.min(240, row.width + 2 * Theme.space15)
+        width: Math.min(root.maxWidth, row.width + 2 * Theme.space15)
         height: row.height + 2 * Theme.space1
         color: Theme.surface
         border.width: 1
@@ -57,6 +61,13 @@ Item {
             hoverEnabled: true
             acceptedButtons: Qt.AllButtons
             onPressed: (m) => m.accepted = true
+        }
+        // Passive hover over the frame, the gap and the button (takes no input, so the game keeps its clicks beside the widget).
+        Item {
+            x: root.rightSide ? -(menuButton.width + 4) : 0
+            width: bg.width + menuButton.width + 4
+            height: bg.height
+            HoverHandler { id: zoneHover }
         }
         Rectangle {
             id: menuButton

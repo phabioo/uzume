@@ -37,6 +37,7 @@ Rectangle {
     signal fullscreenRequested()
     signal resetRequested()
     signal gameSettingsRequested()
+    signal hotkeysRequested()   // "⋯ › Hotkeys": the hotkey sheet over the game
     signal panelToggled()
     signal pickerToggled()
     signal layoutMenuClosed()
@@ -204,7 +205,7 @@ Rectangle {
         else if (name === "diagnostics") root.diag.toggle()
         else if (name === "reset") root.resetRequested()
         else if (name === "gameSettings") root.gameSettingsRequested()
-        else if (name === "hotkeys") { root.player.leaveGameView(); root.player.showControllers() }
+        else if (name === "hotkeys") root.hotkeysRequested()
         else if (name === "report") root.player.report.show()
     }
     UzMenu {
@@ -312,7 +313,7 @@ Rectangle {
             font.weight: Font.Normal
             hPadding: 0
             Accessible.name: qsTr("Library")
-            ToolTip.visible: hovered
+            ToolTip.visible: hovered && !root.menuOpen
             ToolTip.delay: 500
             ToolTip.text: root.own ? qsTr("Game keeps running, paused") : qsTr("Leave the Session and go to the Library")
             onClicked: root.player.leaveGameView()
@@ -329,11 +330,13 @@ Rectangle {
             Text {
                 id: titleText
                 objectName: root.multi ? "multiviewTitle" : "gameTitle"
-                // fillWidth + maximumWidth = preferred: never grows, but shrinks (elides) before the header overflows
+                // The title keeps its full width first; the sub text shrinks before it. fillWidth + maximumWidth = natural width: it
+                // never grows but shrinks (an item without fillWidth would not). The natural width comes from TextMetrics: an elided
+                // Text can report its elided width as implicitWidth, which then pinned the title to "Rev…".
                 Layout.fillWidth: true
-                Layout.preferredWidth: implicitWidth
-                Layout.maximumWidth: implicitWidth
-                Layout.minimumWidth: Math.min(implicitWidth, 100)
+                Layout.preferredWidth: titleMetrics.advanceWidth + 1
+                Layout.maximumWidth: titleMetrics.advanceWidth + 1
+                Layout.minimumWidth: Math.min(titleMetrics.advanceWidth + 1, 100)
                 elide: Text.ElideRight
                 textFormat: Text.PlainText
                 text: root.multi ? qsTr("Multiview")
@@ -344,6 +347,7 @@ Rectangle {
                 font.weight: Theme.roles.headerTitle.weight
                 color: Theme.ink
                 Accessible.name: text
+                TextMetrics { id: titleMetrics; font: titleText.font; text: titleText.text }
                 HoverHandler { id: titleHover }
                 ToolTip.visible: titleHover.hovered && text !== ""
                 ToolTip.delay: 500
@@ -358,6 +362,8 @@ Rectangle {
                 objectName: root.multi ? "multiSub" : (root.own ? "sharePill" : "watchLinkPill")
                 visible: text !== "" && !(root.multi && root.level >= 1)
                 Layout.fillWidth: true
+                Layout.preferredWidth: subMetrics.advanceWidth + 1
+                Layout.maximumWidth: subMetrics.advanceWidth + 1
                 Layout.minimumWidth: 0
                 elide: Text.ElideRight
                 textFormat: Text.PlainText
@@ -367,6 +373,7 @@ Rectangle {
                 font.family: Theme.sans
                 font.pixelSize: Theme.roles.buttonSm.size
                 color: Theme.muted
+                TextMetrics { id: subMetrics; font: subText.font; text: subText.text }
             }
             UzSegmented {
                 id: modeSegment
@@ -415,9 +422,10 @@ Rectangle {
                 visible: root.own && root.session.fastForwardAvailable && root.level < 3
                 size: "sm"
                 focusPolicy: Qt.TabFocus
-                text: qsTr("Speed-up %1×").arg(Math.round(root.session.fastForwardRatio * 10) / 10)
+                text: root.session.fastForward ? qsTr("Speed-up on · %1×").arg(Math.round(root.session.fastForwardRatio * 10) / 10)
+                                               : qsTr("Speed-up %1×").arg(Math.round(root.session.fastForwardRatio * 10) / 10)
                 on: root.session.fastForward
-                ToolTip.visible: hovered
+                ToolTip.visible: hovered && !root.menuOpen
                 ToolTip.delay: 500
                 ToolTip.text: qsTr("Speed-up") + (root.key(root.hotkeys.speedup) !== "" ? " · " + root.hotkeys.speedup : "")
                 onClicked: root.session.toggleFastForward()
@@ -440,7 +448,7 @@ Rectangle {
                 glyph: root.audio.effectiveMuted ? "volumeOff" : "volume"
                 on: soundPopover.opened
                 Accessible.name: qsTr("Sound")
-                ToolTip.visible: hovered
+                ToolTip.visible: hovered && !root.menuOpen
                 ToolTip.delay: 500
                 ToolTip.text: root.audio.muted ? qsTr("Sound · muted") : qsTr("Sound · %1 %").arg(root.audio.volume)
                 onClicked: soundPopover.opened ? soundPopover.close() : soundPopover.openFor(volumeButton, "below", "end")
@@ -453,7 +461,7 @@ Rectangle {
                 focusPolicy: Qt.TabFocus
                 text: qsTr("Layout")
                 on: layoutMenu.opened
-                ToolTip.visible: hovered
+                ToolTip.visible: hovered && !root.menuOpen
                 ToolTip.delay: 500
                 ToolTip.text: root.multi ? qsTr("Screen layout · all tiles") : qsTr("Screen layout · this game only")
                 onClicked: layoutMenu.opened ? layoutMenu.close() : layoutMenu.openFor(layoutButton, "below", true)
@@ -475,7 +483,7 @@ Rectangle {
                 focusPolicy: Qt.TabFocus
                 text: qsTr("Add tile")
                 on: root.popover === "picker"
-                ToolTip.visible: hovered
+                ToolTip.visible: hovered && !root.menuOpen
                 ToolTip.delay: 500
                 ToolTip.text: qsTr("Running sessions · %1 of %2 tiles").arg(root.ctl.surfaceCount).arg(root.ctl.maxSurfaces)
                 onClicked: root.pickerToggled()
@@ -488,6 +496,10 @@ Rectangle {
                 focusPolicy: Qt.TabFocus
                 text: qsTr("Panel")
                 on: root.panelShown
+                Accessible.name: root.panelShown ? qsTr("Hide panel") : qsTr("Show panel")
+                ToolTip.visible: hovered && !root.menuOpen
+                ToolTip.delay: 500
+                ToolTip.text: root.panelShown ? qsTr("Hide panel") : qsTr("Show panel")
                 onClicked: root.panelToggled()
             }
             UzButton {
@@ -497,7 +509,7 @@ Rectangle {
                 size: "sm"
                 focusPolicy: Qt.TabFocus
                 text: qsTr("Leave")
-                ToolTip.visible: hovered
+                ToolTip.visible: hovered && !root.menuOpen
                 ToolTip.delay: 500
                 ToolTip.text: root.own ? qsTr("Back to your game") : qsTr("Leave the Session")
                 onClicked: root.leaveMultiview()
@@ -509,7 +521,7 @@ Rectangle {
                 size: "sm"
                 focusPolicy: Qt.TabFocus
                 text: qsTr("Leave")
-                ToolTip.visible: hovered
+                ToolTip.visible: hovered && !root.menuOpen
                 ToolTip.delay: 500
                 ToolTip.text: qsTr("Leave the Session")
                 onClicked: root.player.leaveGameView()
@@ -521,7 +533,7 @@ Rectangle {
                 focusPolicy: Qt.TabFocus
                 glyph: "fullscreen"
                 Accessible.name: qsTr("Fullscreen")
-                ToolTip.visible: hovered
+                ToolTip.visible: hovered && !root.menuOpen
                 ToolTip.delay: 500
                 ToolTip.text: qsTr("Fullscreen") + " · " + (root.key(root.hotkeys.fullscreen) !== "" ? root.hotkeys.fullscreen : "F11")
                 onClicked: root.fullscreenRequested()
@@ -535,7 +547,7 @@ Rectangle {
                 text: root.session.paused ? qsTr("Resume") : qsTr("Pause")
                 kind: "primary"
                 enabled: root.session.state === GameSession.Running || root.session.state === GameSession.Paused
-                ToolTip.visible: hovered
+                ToolTip.visible: hovered && !root.menuOpen
                 ToolTip.delay: 500
                 ToolTip.text: (root.session.paused ? qsTr("Resume") : qsTr("Pause")) + (root.multi ? qsTr(" your game") : "") + " · Esc"
                 onClicked: root.session.togglePause()

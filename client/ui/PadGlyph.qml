@@ -92,8 +92,8 @@ Item {
             ctx.reset()
             var k = width / 16
             ctx.scale(k, k)
-            ctx.fillStyle = icon.ink
-            ctx.strokeStyle = icon.ink
+            ctx.fillStyle = Theme.cssColor(icon.ink)
+            ctx.strokeStyle = Theme.cssColor(icon.ink)
             ctx.lineJoin = "round"
             ctx.lineCap = "round"
             var s = icon.shape

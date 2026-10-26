@@ -1,8 +1,8 @@
 import QtQuick
 
-// Small line glyph (design-system bundle "Glyph": 16 x 16 box, 1.5 px stroke, square caps, no curves). Painted in device
-// pixels so it is crisp at any scale. name: chevronDown chevronUp check cross dash more bell volume volumeOff mic micOff
-// up down left right.
+// Small line glyph (design-system bundle "Glyph": 16 x 16 box, 1.5 px stroke, square caps, no curves). Built from
+// scene-graph rectangles (no Canvas: Qt 6.8 on Windows did not draw coloured Canvas strokes), so it is crisp at any scale.
+// name: chevronDown chevronUp check cross dash more bell volume volumeOff mic micOff up down left right fullscreen.
 Item {
     id: root
     property string name: "check"
@@ -27,50 +27,53 @@ Item {
         left: "M13 8 H3 M7 4 L3 8 L7 12", right: "M3 8 H13 M9 4 L13 8 L9 12"
     })
 
-    Canvas {
-        id: cv
-        readonly property real dpr: Math.max(1, Screen.devicePixelRatio)
-        width: Math.round(root.width * dpr)
-        height: Math.round(root.height * dpr)
-        scale: root.width / width
-        transformOrigin: Item.TopLeft
-        renderTarget: Canvas.Image
-        onDprChanged: requestPaint()
-        property string glyph: root.name
-        property color ink: root.color
-        property real sw: root.strokeWidth
-        onGlyphChanged: requestPaint()
-        onInkChanged: requestPaint()
-        onSwChanged: requestPaint()
-        onWidthChanged: requestPaint()
-        onPaint: {
-            const ctx = getContext("2d")
-            ctx.reset()
-            const k = width / 16
-            ctx.scale(k, k)
-            if (cv.glyph === "more") {
-                ctx.fillStyle = cv.ink
-                for (const x of [2, 7, 12]) ctx.fillRect(x, 7, 2, 2)
-                return
-            }
-            const d = root.paths[cv.glyph]
-            if (!d) return
-            ctx.strokeStyle = cv.ink
-            ctx.lineWidth = cv.sw
-            ctx.lineCap = "square"
-            ctx.lineJoin = "miter"
-            const t = d.split(/\s+/)
-            let i = 0, x = 0, y = 0, sx = 0, sy = 0
-            ctx.beginPath()
-            while (i < t.length) {
-                const c = t[i++]
-                if (c === "M") { x = +t[i++]; y = +t[i++]; sx = x; sy = y; ctx.moveTo(x, y) }
-                else if (c === "L") { x = +t[i++]; y = +t[i++]; ctx.lineTo(x, y) }
-                else if (c === "H") { x = +t[i++]; ctx.lineTo(x, y) }
-                else if (c === "V") { y = +t[i++]; ctx.lineTo(x, y) }
-                else if (c === "Z") { ctx.closePath(); x = sx; y = sy }
-            }
-            ctx.stroke()
+    // Segments [x1, y1, x2, y2] in the 16 x 16 box, parsed from the path data; "more" is three dots.
+    readonly property var segments: {
+        if (name === "more") return []
+        const d = paths[name]
+        if (!d) return []
+        const t = d.split(/\s+/)
+        const out = []
+        let i = 0, x = 0, y = 0, sx = 0, sy = 0
+        while (i < t.length) {
+            const c = t[i++]
+            if (c === "M") { x = +t[i++]; y = +t[i++]; sx = x; sy = y }
+            else if (c === "L") { const nx = +t[i++], ny = +t[i++]; out.push([x, y, nx, ny]); x = nx; y = ny }
+            else if (c === "H") { const nx = +t[i++]; out.push([x, y, nx, y]); x = nx }
+            else if (c === "V") { const ny = +t[i++]; out.push([x, y, x, ny]); y = ny }
+            else if (c === "Z") { out.push([x, y, sx, sy]); x = sx; y = sy }
+        }
+        return out
+    }
+    readonly property real k: root.width / 16
+
+    Repeater {
+        model: root.name === "more" ? 0 : root.segments.length
+        Rectangle {
+            required property int index
+            readonly property var s: root.segments[index]
+            readonly property real dx: s[2] - s[0]
+            readonly property real dy: s[3] - s[1]
+            // Square caps: extend by strokeWidth / 2 at both ends.
+            readonly property real len: Math.sqrt(dx * dx + dy * dy) + root.strokeWidth
+            width: len * root.k
+            height: root.strokeWidth * root.k
+            x: (s[0] + s[2]) / 2 * root.k - width / 2
+            y: (s[1] + s[3]) / 2 * root.k - height / 2
+            rotation: Math.atan2(dy, dx) * 180 / Math.PI
+            color: root.color
+            antialiasing: true
+        }
+    }
+    Repeater {
+        model: root.name === "more" ? [2, 7, 12] : []
+        Rectangle {
+            required property int modelData
+            x: modelData * root.k
+            y: 7 * root.k
+            width: 2 * root.k
+            height: 2 * root.k
+            color: root.color
         }
     }
 }

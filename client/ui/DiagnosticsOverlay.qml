@@ -70,7 +70,7 @@ UzStageDiagnostics {
         }
         return out
     }
-    blockWidth: 340
+    blockWidth: 400
     detailsOpen: model.streamingOpen
     onDetailsToggled: (open) => model.streamingOpen = open
 

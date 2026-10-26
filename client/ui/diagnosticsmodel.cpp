@@ -1,6 +1,7 @@
 #include "diagnosticsmodel.h"
 
 #include <QCoreApplication>
+#include <QStringList>
 #include <QUrl>
 #include <algorithm>
 #include <cmath>
@@ -149,7 +150,21 @@ QVariantMap DiagnosticsModel::emulationMap(const EmulationDiagnostics& d) {
     if (fallback && d.requestedScale > 1) {
       resolutionSub = tr("%1× requested · needs OpenGL").arg(d.requestedScale);
     } else if (d.screens > 1) {
-      resolutionSub = tr("%1 screens of %2×%3").arg(d.screens).arg(d.frameSize.width()).arg(d.frameSize.height() / d.screens);
+      // Equal screens: "2 screens of W×H"; different ones (3DS) name each size.
+      QList<QSize> sizes;
+      for (const QSize& s : d.screenSizes) sizes.append(s * scale);
+      bool equal = true;
+      for (const QSize& s : sizes) equal = equal && s == sizes.first();
+      if (sizes.size() == d.screens && !equal && d.screens == 2)
+        resolutionSub = tr("Top %1×%2 · bottom %3×%4").arg(sizes[0].width()).arg(sizes[0].height()).arg(sizes[1].width()).arg(sizes[1].height());
+      else if (sizes.size() == d.screens && !equal) {
+        QStringList parts;
+        for (const QSize& s : sizes) parts << tr("%1×%2").arg(s.width()).arg(s.height());
+        resolutionSub = parts.join(QStringLiteral(" · "));
+      } else if (sizes.size() == d.screens)
+        resolutionSub = tr("%1 screens of %2×%3").arg(d.screens).arg(sizes.first().width()).arg(sizes.first().height());
+      else
+        resolutionSub = tr("%1 screens of %2×%3").arg(d.screens).arg(d.frameSize.width()).arg(d.frameSize.height() / d.screens);
     }
   }
   m.insert(QStringLiteral("resolution"), resolution);
