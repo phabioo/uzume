@@ -148,7 +148,7 @@ class McpUiTest : public QObject {
   void treeDepthAndRootAreHonoured() {
     const Answer shallow = call(QStringLiteral("ui_tree"), {{"depth", 1}});
     QVERIFY(shallow.json().value(QStringLiteral("depthLimit")).isString());
-    const Answer part = call(QStringLiteral("ui_tree"), {{"root", "libraryHeader"}});
+    const Answer part = call(QStringLiteral("ui_tree"), {{"root", "libraryToolbar2"}});
     QVERIFY2(!part.result.isError, qPrintable(part.text()));
     QVERIFY(!findNode(part.json().value(QStringLiteral("tree")), QStringLiteral("searchField")).isEmpty());
     QVERIFY(call(QStringLiteral("ui_tree"), {{"root", "noSuchObject"}}).result.isError);

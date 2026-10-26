@@ -289,6 +289,24 @@ QVariantMap GameDetail::selectedGame() const {
     }
   }
   m.insert(QStringLiteral("playDisabledReason"), whyNot);
+  // The one problem sentence of the detail pane and its fix (readable pass 5). fix: "" (Play as usual) | "installCore" (Play
+  // installs the core first) | "retry" (the server cannot be reached) | "admin" (only an admin can fix it).
+  QString problem = whyNot;
+  QString fix;
+  if (!busy && man != nullptr) {
+    if (!coreOk && coreProvisionable) {
+      problem = tr("No %1 core on this PC yet. %2 has %3 ready.").arg(game->system.toUpper(), hubLabel, coreLabelForList);
+      fix = QStringLiteral("installCore");
+    } else if (!coreOk) {
+      fix = !hubUp && catalog_->hubOffersCore(*man) ? QStringLiteral("retry") : QStringLiteral("admin");
+    } else if (romNeedsHub) {
+      fix = QStringLiteral("retry");
+    } else if (fwBlocked) {
+      fix = QStringLiteral("admin");
+    }
+  }
+  m.insert(QStringLiteral("problemText"), problem);
+  m.insert(QStringLiteral("fixKind"), fix);
   m.insert(QStringLiteral("fileSizeText"), LibraryModel::formatSize(game->romSize));
   m.insert(QStringLiteral("hubMatchText"), game->romSha256.size() > 12 ? game->romSha256.left(4) + QStringLiteral("…") + game->romSha256.right(4) : game->romSha256);
   QString label = tr("Play");
@@ -297,6 +315,8 @@ QVariantMap GameDetail::selectedGame() const {
             : phase_ == PlayPhase::Core    ? tr("Loading core…")
             : phase_ == PlayPhase::Firmware ? tr("Checking firmware…")
                                             : tr("Downloading…");
+  } else if (fix == QLatin1String("installCore")) {
+    label = tr("Install core and play");
   } else if (kind == QLatin1String("download")) {
     label = tr("Download and play");
   } else if (kind == QLatin1String("mismatch") || kind == QLatin1String("failed")) {

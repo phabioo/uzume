@@ -29,6 +29,34 @@ Rectangle {
         }
     }
 
+    // Status chips (3c-1-r6): the ids are the library filter values.
+    readonly property var statusIds: ["all", "ready", "attention", "download"]
+    readonly property var statusLabels: ({ all: qsTr("All"), ready: qsTr("Ready"), attention: qsTr("Needs attention"), download: qsTr("Not downloaded") })
+    readonly property bool gridView: root.player.libraryView === "grid"
+    // Grid view: the detail column opens when a tile is chosen (the grid has five tiles per row at 1280 without it).
+    property bool detailOpen: false
+    readonly property bool detailShown: !root.gridView || root.detailOpen
+    // Left / Right on a status chip: the neighbour gets the focus and the filter. At the ends the key goes on (Left: AppNav).
+    function stepChip(index, dir, event) {
+        const to = statusChips.itemAt(index + dir)
+        if (!to) return
+        root.player.library.filter = root.statusIds[index + dir]
+        to.forceActiveFocus(dir > 0 ? Qt.TabFocusReason : Qt.BacktabFocusReason)
+        event.accepted = true
+    }
+    function chooseGame(gameId) {
+        root.player.selectGame(gameId)
+        if (root.gridView) root.detailOpen = true
+    }
+    // Esc / B / Left from the page: the open detail column of the grid closes first.
+    function handleBack() {
+        if (root.gridView && root.detailOpen) {
+            root.detailOpen = false
+            return true
+        }
+        return false
+    }
+
     UzPageHints {
         id: pageHints
         player: root.player
@@ -46,7 +74,7 @@ Rectangle {
             if (command === "search") {
                 search.forceActiveFocus()
             } else if (command === "filterPrev" || command === "filterNext") {
-                const ids = ["all", "ready", "attention", "download"]
+                const ids = root.statusIds
                 const i = ids.indexOf(root.player.library.filter)
                 root.player.library.filter = ids[(i + (command === "filterNext" ? 1 : ids.length - 1)) % ids.length]
             }
@@ -100,18 +128,6 @@ Rectangle {
                                        : qsTr("Library")
                 labelMeta: !root.thisPcOnly && root.player.library.totalCount > 0 ? Theme.plural(root.player.library.totalCount, qsTr("game"), qsTr("games")) : ""
                 title: qsTr("Library")
-                Item {
-                    implicitWidth: 240
-                    implicitHeight: Theme.row36
-                    UzField {
-                        id: search
-                        objectName: "searchField"
-                        anchors.fill: parent
-                        implicitHeight: Theme.row36
-                        placeholderText: qsTr("Search…")
-                        onTextChanged: root.player.library.filterText = text
-                    }
-                }
                 UzButton {
                     id: uploadButton
                     objectName: "uploadButton"
@@ -146,101 +162,170 @@ Rectangle {
                 }
             }
 
-            // Collection chips, status select, sort and "Ready first" on the same row; they wrap under the chips in a
-            // narrow column (3c-6). The count of the result is not repeated as text (P11).
+            // Row 1 (3c-1-r6): the status chips with their counts, always visible (All, Ready, Needs attention with the warning
+            // square, Not downloaded), then the collection select. Pad L / R and Left / Right on a chip switch the chip.
             Item {
-                id: toolbar
-                objectName: "libraryToolbar"
+                id: toolbarBox
                 Layout.fillWidth: true
                 Layout.minimumWidth: 0
-                // Natural width of the chips in one row (the chips wrap in a Flow, so its own implicit width is not it).
-                readonly property real chipsNatural: {
-                    let w = 0, n = 0
-                    for (let i = 0; i < chipRow.children.length; ++i) {
-                        const c = chipRow.children[i]
-                        if (c.visible && c.implicitWidth > 0) { w += c.implicitWidth; ++n }
+                implicitHeight: toolbar.height
+            Flow {
+                id: toolbar
+                objectName: "libraryToolbar"
+                width: toolbarBox.width
+                spacing: Theme.space1
+                Repeater {
+                    id: statusChips
+                    model: root.statusIds
+                    delegate: UzFilterChip {
+                        id: statusChip
+                        required property string modelData
+                        required property int index
+                        objectName: "statusChip_" + modelData
+                        text: root.statusLabels[modelData]
+                        count: root.player.library.counts[modelData]
+                        badgeAccent: modelData === "attention"
+                        maxWidth: Math.max(120, toolbarBox.width)
+                        active: root.player.library.filter === modelData
+                        onClicked: root.player.library.filter = modelData
+                        Keys.onLeftPressed: (event) => root.stepChip(index, -1, event)
+                        Keys.onRightPressed: (event) => root.stepChip(index, 1, event)
                     }
-                    return w + Math.max(0, n - 1) * Theme.space1
                 }
-                // Sort + "Ready first" side by side; in a narrow toolbar they wrap into two lines when they do not fit
-                readonly property real controlsNatural: statusSelect.implicitWidth + sortControl.implicitWidth + readyFirst.implicitWidth + 2 * controls.spacing
-                readonly property bool narrow: width < chipsNatural + controlsNatural + 24
-                implicitHeight: narrow ? (chipRow.visible ? chipRow.height + Theme.space1 : 0) + controls.height : Math.max(Theme.row36, chipRow.visible ? chipRow.height : 0)
-                // Collections (3c-0, Uzume 0.19): "All · 10", "Favourites · 3", one chip per collection and "+ Collection"; the menu of
-                // the open collection (Rename..., Delete collection...) ends the row. Hidden on a server without collections.
-                Flow {
-                    id: chipRow
-                    objectName: "collectionChips"
+                Rectangle {   // divider between the status chips and the collection
+                    visible: collectionSelect.visible
+                    width: 1; height: Theme.row28
+                    color: Theme.rule
+                }
+                // Collections (3c-0, Uzume 0.19): "All collections · 10", "Favourites · 3", one entry per collection and
+                // "+ New collection…"; the menu of the open collection (Rename..., Delete collection...) follows. Hidden on a
+                // server without collections.
+                Rectangle {
+                    id: collectionSelect
+                    objectName: "collectionSelect"
                     visible: root.player.library.personalSupported
-                    width: toolbar.width
-                    spacing: Theme.space1
-                    Repeater {
-                        model: root.player.library.collectionChips
-                        delegate: UzChip {
-                            required property var modelData
-                            objectName: "collection_" + modelData.value
-                            text: modelData.label
-                            count: modelData.count
-                            maxWidth: Math.max(120, chipRow.width)
-                            active: root.player.library.collectionFilter === modelData.value
-                            onClicked: root.player.library.collectionFilter = modelData.value
+                    readonly property var chips: root.player.library.collectionChips
+                    readonly property var current: {
+                        for (const c of chips) if (c.value === root.player.library.collectionFilter) return c
+                        return chips.length > 0 ? chips[0] : ({ value: "all", label: qsTr("All"), count: 0 })
+                    }
+                    readonly property string currentText: (current.value === "all" ? qsTr("All collections") : current.label) + " · " + current.count
+                    implicitWidth: Math.min(260, Math.max(168, collectionLabel.implicitWidth + 2 * Theme.space15 + 14 + Theme.space1))
+                    implicitHeight: Theme.row28
+                    color: collectionPicker.visible ? Theme.pressed : (Theme.dark ? "transparent" : Theme.surface)
+                    border.width: 1
+                    border.color: collectionPicker.visible ? Theme.ink : (collectionHover.hovered ? Theme.ink2 : Theme.ruleControl)
+                    activeFocusOnTab: true
+                    Accessible.role: Accessible.ComboBox
+                    Accessible.name: qsTr("Collection: %1").arg(currentText)
+                    Text {
+                        id: collectionLabel
+                        anchors.left: parent.left
+                        anchors.leftMargin: Theme.space15
+                        anchors.right: collectionArrow.left
+                        anchors.rightMargin: Theme.space1
+                        anchors.verticalCenter: parent.verticalCenter
+                        elide: Text.ElideRight
+                        text: collectionSelect.currentText
+                        textFormat: Text.PlainText
+                        font.family: Theme.sans
+                        font.pixelSize: Theme.roles.small.size
+                        color: Theme.ink
+                    }
+                    UzGlyph {
+                        id: collectionArrow
+                        anchors.right: parent.right
+                        anchors.rightMargin: Theme.space15
+                        anchors.verticalCenter: parent.verticalCenter
+                        name: collectionPicker.visible ? "chevronUp" : "chevronDown"
+                        size: 14
+                        color: Theme.muted
+                    }
+                    UzFocusRing { visible: collectionSelect.activeFocus }
+                    HoverHandler { id: collectionHover; cursorShape: Qt.PointingHandCursor }
+                    TapHandler { onTapped: { collectionSelect.forceActiveFocus(); collectionPicker.openFor(collectionSelect) } }
+                    Keys.onPressed: (event) => {
+                        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space || event.key === Qt.Key_Down) {
+                            collectionPicker.openFor(collectionSelect)
+                            event.accepted = true
                         }
                     }
-                    UzChip {
-                        objectName: "collectionNew"
-                        text: qsTr("+ Collection")
-                        onClicked: collectionDialogs.openNew("")
-                    }
-                    UzIconButton {
-                        id: collectionMore
-                        objectName: "collectionMenuButton"
-                        visible: !["all", "favorites"].includes(root.player.library.collectionFilter)
-                        height: Theme.row28
-                        width: Theme.row28
-                        glyph: "more"
-                        on: collectionMenu.opened
-                        Accessible.name: qsTr("Collection menu")
-                        onClicked: collectionMenu.openFor(collectionMore)
-                    }
-                }
-                Flow {
-                    id: controls
-                    width: toolbar.narrow ? toolbar.width : toolbar.controlsNatural
-                    spacing: Theme.space2
-                    y: toolbar.narrow && chipRow.visible ? chipRow.height + Theme.space1 : 0
-                    x: toolbar.narrow ? 0 : toolbar.width - width
-                    UzSelect {
-                        id: statusSelect
-                        objectName: "statusSelect"
-                        implicitWidth: 190
-                        height: Theme.row36
-                        Accessible.name: qsTr("Status")
-                        current: root.player.library.filter
-                        // The closed field reads "Status: Ready · 3"; the counts follow the search.
-                        model: [["all", qsTr("All")], ["ready", qsTr("Ready")], ["attention", qsTr("Needs attention")], ["download", qsTr("Not downloaded")]].map(o => ({
-                            value: o[0],
-                            label: (o[0] === root.player.library.filter ? qsTr("Status: ") : "") + o[1] + " · " + root.player.library.counts[o[0]] }))
-                        onPicked: (value) => root.player.library.filter = value
-                    }
-                    SortControl {
-                        id: sortControl
-                        current: root.player.library.sortKey
-                        onPicked: (key) => root.player.library.sortKey = key
-                    }
-                    UzToggle {
-                        id: readyFirst
-                        objectName: "readyFirstToggle"
-                        text: qsTr("Ready first")
-                        height: Theme.row36
-                        checked: root.player.library.readyFirst
-                        enabled: root.player.library.readyFirstApplicable
-                        opacity: enabled ? 1 : 0.45
-                        onToggled: {
-                            root.player.library.readyFirst = checked
-                            checked = Qt.binding(() => root.player.library.readyFirst)
+                    UzMenu {
+                        id: collectionPicker
+                        objectName: "collectionPicker"
+                        selectable: true
+                        value: root.player.library.collectionFilter
+                        items: collectionSelect.chips.map(c => ({
+                            label: (c.value === "all" ? qsTr("All collections") : c.label) + " · " + c.count,
+                            value: c.value, name: "collection_" + c.value }))
+                            .concat([{ separator: true }, { label: qsTr("+ New collection…"), value: "__new", name: "collectionNew" }])
+                        onChosen: (item) => {
+                            if (item.value === "__new") collectionDialogs.openNew("")
+                            else root.player.library.collectionFilter = item.value
                         }
                     }
                 }
+                UzIconButton {
+                    id: collectionMore
+                    objectName: "collectionMenuButton"
+                    visible: root.player.library.personalSupported && !["all", "favorites"].includes(root.player.library.collectionFilter)
+                    height: Theme.row28
+                    width: Theme.row28
+                    glyph: "more"
+                    on: collectionMenu.opened
+                    Accessible.name: qsTr("Collection menu")
+                    onClicked: collectionMenu.openFor(collectionMore)
+                }
+            }
+            }
+
+            // Row 2: search, sort, "Ready first" and the List / Grid switch.
+            Item {
+                id: toolbar2Box
+                Layout.fillWidth: true
+                Layout.minimumWidth: 0
+                implicitHeight: toolbar2.height
+            Flow {
+                id: toolbar2
+                objectName: "libraryToolbar2"
+                width: toolbar2Box.width
+                spacing: Theme.space2
+                UzField {
+                    id: search
+                    objectName: "searchField"
+                    width: Math.min(280, toolbar2Box.width)
+                    implicitHeight: Theme.row36
+                    placeholderText: qsTr("Search games")
+                    onTextChanged: root.player.library.filterText = text
+                }
+                SortControl {
+                    id: sortControl
+                    current: root.player.library.sortKey
+                    onPicked: (key) => root.player.library.sortKey = key
+                }
+                UzToggle {
+                    id: readyFirst
+                    objectName: "readyFirstToggle"
+                    text: qsTr("Ready first")
+                    height: Theme.row36
+                    checked: root.player.library.readyFirst
+                    enabled: root.player.library.readyFirstApplicable
+                    opacity: enabled ? 1 : 0.45
+                    onToggled: {
+                        root.player.library.readyFirst = checked
+                        checked = Qt.binding(() => root.player.library.readyFirst)
+                    }
+                }
+                UzSegmented {
+                    id: viewSwitch
+                    objectName: "libraryViewSwitch"
+                    accessibleName: qsTr("View")
+                    segmentHeight: Theme.row32
+                    current: root.player.libraryView
+                    options: [{ value: "list", label: qsTr("List"), name: "viewList" }, { value: "grid", label: qsTr("Grid"), name: "viewGrid" }]
+                    onPicked: (value) => { root.player.libraryView = value; root.detailOpen = false }
+                }
+            }
             }
             // "3 of 10 games": only while a chip or the search narrows the list; the unfiltered count lives in "All · 10".
             UzLabel {
@@ -465,12 +550,12 @@ Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
 
-                // Table header (board S3c0 "TableHead"): Mono table-header role over the column widths of GameTile
-                // (system 56, status 192, added 104; 12 px side padding, 16 px gap).
+                // Table header (board S3c1R6): Mono table-header role over the column widths of GameTile
+                // (no 32, system 56, status 200, played 96, added 104; 12 px side padding, 16 px gap). Only in the List view.
                 Item {
                     id: tableHead
                     objectName: "tableHead"
-                    visible: gridScroll.visible
+                    visible: gridScroll.visible && !root.gridView
                     x: gridColumn.x
                     width: gridColumn.width
                     height: visible ? Theme.row36 : 0
@@ -482,11 +567,11 @@ Rectangle {
                         spacing: Theme.space2
                         Repeater {
                             model: [
+                                { text: qsTr("No"), w: 32 },
                                 { text: qsTr("Game"), w: -1 },
                                 { text: qsTr("System"), w: 56 },
-                                { text: qsTr("Status"), w: 192 },
-                                { text: qsTr("Played"), w: gridScroll.personal ? 72 : 0 },
-                                { text: qsTr("Last played"), w: gridScroll.personal ? 104 : 0 },
+                                { text: qsTr("Status"), w: 200 },
+                                { text: qsTr("Played"), w: gridScroll.personal ? 96 : 0 },
                                 { text: qsTr("Added"), w: gridScroll.dated ? 104 : 0 }
                             ]
                             delegate: Text {
@@ -525,9 +610,12 @@ Rectangle {
                     // The table stops at Theme.gridMaxWidth (1680), left-aligned; the detail column keeps its width. One column of
                     // 44 px rows: the GameGrid is a one-column grid here, so the virtualization of large libraries stays.
                     readonly property int gridW: Math.min(Theme.gridMaxWidth, width - 4)
-                    readonly property int cellW: gridW
+                    // List: one column of 44 px rows. Grid: tiles of at least 190 px (five per row at 1280 without the detail
+                    // column), 4:3 placeholder plus title and status line.
+                    readonly property int tileColumns: Math.max(2, Math.floor(gridW / 190))
+                    readonly property int cellW: root.gridView ? Math.floor(gridW / tileColumns) : gridW
                     readonly property bool dated: root.player.library.sortKey === "added_desc" || root.player.library.sortKey === "added_asc"
-                    readonly property int cellH: Theme.row44
+                    readonly property int cellH: root.gridView ? Math.round((cellW - 24) * 3 / 4) + 10 + 24 + 4 + 20 + 28 : Theme.row44
                     readonly property bool personal: root.player.library.personalSupported
 
                     Column {
@@ -545,11 +633,12 @@ Rectangle {
                             cellWidth: gridScroll.cellW
                             cellHeight: gridScroll.cellH
                             model: LibraryGroupModel { library: root.player.library; group: root.player.library.grouped ? 0 : -1 }
+                            tiles: root.gridView
                             showAdded: gridScroll.dated
                             showPersonal: gridScroll.personal
                             selectedId: root.player.selectedGameId || ""
                             runningId: root.player.backgroundGame.id || ""
-                            onTileClicked: (gameId) => root.player.selectGame(gameId)
+                            onTileClicked: (gameId) => root.chooseGame(gameId)
                         }
 
                         // Group divider: "NOT READY · n · same sort" (only when both groups have games).
@@ -579,11 +668,13 @@ Rectangle {
                             cellWidth: gridScroll.cellW
                             cellHeight: gridScroll.cellH
                             model: LibraryGroupModel { library: root.player.library; group: 1 }
+                            tiles: root.gridView
+                            numberOffset: grid.count
                             showAdded: gridScroll.dated
                             showPersonal: gridScroll.personal
                             selectedId: root.player.selectedGameId || ""
                             runningId: root.player.backgroundGame.id || ""
-                            onTileClicked: (gameId) => root.player.selectGame(gameId)
+                            onTileClicked: (gameId) => root.chooseGame(gameId)
                         }
                     }
                 }
@@ -691,10 +782,32 @@ Rectangle {
         }
 
         DetailPane {
+            visible: root.detailShown
+            closable: root.gridView
+            onCloseRequested: root.detailOpen = false
             Layout.fillHeight: true
-            Layout.preferredWidth: Theme.detailWidth
+            Layout.preferredWidth: root.detailShown ? Theme.detailWidth : 0
             player: root.player
         }
+    }
+
+    // "Remove from library" of a local game (scan finding V4): the files stay on this PC, Undo registers them again.
+    UzToast {
+        id: removedToast
+        objectName: "removedToast"
+        visible: root.player.removedFromLibrary.title !== undefined
+        z: 60
+        anchors.left: parent.left
+        anchors.leftMargin: 232 + Theme.space3
+        anchors.bottom: pageHints.top
+        anchors.bottomMargin: Theme.space2
+        width: Math.min(560, parent.width - 232 - 2 * Theme.space3)
+        kind: "done"
+        text: qsTr("Removed from library — the file stays on this PC")
+        action: qsTr("Undo")
+        onActionTriggered: root.player.undoRemoveFromLibrary()
+        onCloseRequested: root.player.dismissRemovedFromLibrary()
+        Timer { running: removedToast.visible; interval: 10000; onTriggered: root.player.dismissRemovedFromLibrary() }
     }
 
     StartConfirmDialog { player: root.player }

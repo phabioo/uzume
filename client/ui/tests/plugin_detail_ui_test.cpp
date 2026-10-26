@@ -122,11 +122,14 @@ class PluginDetailUiTest : public QObject {
     QTRY_COMPARE_WITH_TIMEOUT(sectionTitle(), QStringLiteral("Notes for Lumen Drift"), 10000);
     QCOMPARE(textOf(visibleItem("pluginDetailName")), QStringLiteral("Drawn by Notes Plugin"));
     QVERIFY(visibleItem("pluginDetailOrigin") != nullptr);  // installed from a folder: not official
+    QVERIFY(h_.click("tab_Details"));  // the plugins row is one of the facts of the Details tab
+    QTRY_VERIFY(visibleItem("detailPluginsRow") != nullptr);
     QQuickItem* row = visibleItem("detailPluginsRow");
     QVERIFY(row != nullptr);
     QQuickItem* val = Harness::findVisual(row, QStringLiteral("detailRowValue"));
     QVERIFY(val != nullptr);
     QCOMPARE(val->property("text").toString(), QStringLiteral("1 on · Notes Plugin"));
+    QVERIFY(h_.click("tab_Overview"));
     shot(QStringLiteral("detail-plugin-section-dark"));
     h_.controller->setAppearance(QStringLiteral("light"));
     shot(QStringLiteral("detail-plugin-section-light"));

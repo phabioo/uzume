@@ -2,13 +2,14 @@ import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
 
-// Row of the game table (3c, board S3c0 "TableRow"): 44 px, hairline `rule-2` below, columns title (with the local / paused
-// tags) | system | status | added (only with a date sort). Hover = `hover` plane; selected = 2 px Yamabuki marker at the left,
-// `selected` tint and title weight 500. The column widths are shared with the table header in LibraryScreen (tableSystemW,
-// tableStatusW, tableAddedW); the title column takes the rest and elides.
+// Row of the game table (3c-1-r6): 44 px, hairline `rule-2` below, columns No | Game (with the local / paused tags) | System
+// (SystemChip) | Status (warning square + word, or a plain word) | Played (with a person) | Added (only with a date sort).
+// Hover = `hover` plane; selected = 2 px `ink` marker at the left, `selected` tint and title weight 500. The column widths are
+// shared with the table header in LibraryScreen (Theme-free constants below); the Game column takes the rest and elides.
 Item {
     id: tile
     objectName: "gameTile_" + gameId
+    required property int index
     required property string gameId
     required property string title
     required property string system
@@ -16,6 +17,8 @@ Item {
     required property string stateKind
     required property string tileText
     required property string tileTone
+    required property string statusWord   // the status without its symbol
+    required property bool statusWarn     // needs attention: warning square before the word
     required property real progress
     required property bool onHub          // false: local-only game (file stays on a Player), shows the "Local" tag
     required property bool localFile      // starts from a local file of a library folder; with onHub: "Local · on server"
@@ -26,8 +29,10 @@ Item {
     property bool showPersonal: false   // Played and Last played columns (a server that keeps them per person)
     property bool selected: false
     property bool running: false   // game paused in the background (3c-5: tag in the title cell, status line)
+    property int numberOffset: 0   // rows before this grid (the second table of Ready first goes on counting)
 
     signal clicked()
+    signal navigate(int dRow, int dCol)
 
     implicitHeight: Theme.row44
 
@@ -45,7 +50,7 @@ Item {
         visible: tile.selected
         width: 2
         height: parent.height
-        color: Theme.accent
+        color: Theme.ink
     }
     // Download progress as a 2 px strip on the hairline.
     Rectangle {
@@ -64,6 +69,13 @@ Item {
         anchors.rightMargin: Theme.space15
         spacing: Theme.space2
 
+        UzMono {   // No
+            objectName: "tileNumber"
+            Layout.preferredWidth: 32
+            text: String(tile.numberOffset + tile.index + 1)
+            color: Theme.muted
+            font.pixelSize: Theme.roles.meta.size
+        }
         Item {   // title cell: the title, then the tags; a long title shrinks and elides, the tags keep their room
             id: titleCell
             Layout.fillWidth: true
@@ -115,32 +127,36 @@ Item {
                 visible: tile.system !== ""
             }
         }
-        UzLabel {
-            objectName: "tileStatus"
-            Layout.preferredWidth: 192
-            text: tile.running ? qsTr("❚❚ Running · paused") : tile.tileText
-            font.pixelSize: Theme.roles.small.size
-            font.weight: Font.Medium
-            color: tile.running ? Theme.accentText : tile.tileTone === "neutral" ? Theme.muted : Theme.toneColor(tile.tileTone)
-            elide: Text.ElideRight
-            HoverHandler { id: statusHover }
-            ToolTip.visible: statusHover.hovered && truncated
-            ToolTip.text: text
-            ToolTip.delay: 400
+        Row {   // status: warning square + word, or a plain word
+            Layout.preferredWidth: 200
+            Layout.preferredHeight: parent.height
+            spacing: Theme.space1
+            Rectangle {
+                objectName: "tileWarn"
+                visible: tile.statusWarn && !tile.running
+                anchors.verticalCenter: parent.verticalCenter
+                width: 14; height: 14
+                color: Theme.accent
+                Text { anchors.centerIn: parent; text: "!"; font.family: Theme.sans; font.pixelSize: 10; font.weight: Font.Bold; color: Theme.inkOnAccent }
+            }
+            UzLabel {
+                objectName: "tileStatus"
+                anchors.verticalCenter: parent.verticalCenter
+                width: Math.max(0, parent.width - (tile.statusWarn && !tile.running ? 14 + Theme.space1 : 0))
+                text: tile.running ? qsTr("❚❚ Running · paused") : tile.statusWord
+                font.pixelSize: Theme.roles.input.size
+                color: Theme.ink
+                elide: Text.ElideRight
+                HoverHandler { id: statusHover }
+                ToolTip.visible: statusHover.hovered && truncated
+                ToolTip.text: text
+                ToolTip.delay: 400
+            }
         }
-        UzLabel {   // play time of the signed-in person (3c-0 "Played")
-            objectName: "tilePlayed"
-            visible: tile.showPersonal
-            Layout.preferredWidth: 72
-            text: tile.playTimeText
-            font.pixelSize: Theme.roles.small.size
-            color: tile.playTimeText === "–" ? Theme.dim : Theme.muted
-            elide: Text.ElideRight
-        }
-        UzLabel {
+        UzLabel {   // Played: when the person last played (3c-0)
             objectName: "tileLastPlayed"
             visible: tile.showPersonal
-            Layout.preferredWidth: 104
+            Layout.preferredWidth: 96
             text: tile.lastPlayedText
             font.pixelSize: Theme.roles.small.size
             color: tile.lastPlayedText === "–" ? Theme.dim : Theme.muted
@@ -165,11 +181,14 @@ Item {
     // Keyboard (R-P4): Tab reaches the row, Enter/Space selects it.
     activeFocusOnTab: true
     Accessible.role: Accessible.Button
-    Accessible.name: tile.title + ", " + tile.tileText + (tile.showPersonal && tile.playTimeText !== "–" ? ", " + tile.playTimeText : "")
+    Accessible.name: tile.title + ", " + tile.statusWord + (tile.showPersonal && tile.playTimeText !== "–" ? ", " + tile.playTimeText : "")
     Accessible.onPressAction: tile.clicked()
     Keys.onPressed: (event) => {
         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
             tile.clicked()
+            event.accepted = true
+        } else if (event.key === Qt.Key_Up || event.key === Qt.Key_Down) {
+            tile.navigate(event.key === Qt.Key_Up ? -1 : 1, 0)
             event.accepted = true
         }
     }

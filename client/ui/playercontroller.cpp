@@ -127,11 +127,20 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
       emit selectedGameChanged();
       return;
     }
+    removedShas_.clear();
     if (const auto g = library_->gameById(gameId)) {
       for (const RomFileEntry& r : g->roms) {
-        if (!localRoms_->filesFor(r.sha256).isEmpty()) ignoredRoms_.insert(r.sha256);
+        if (!localRoms_->filesFor(r.sha256).isEmpty()) {
+          ignoredRoms_.insert(r.sha256);
+          removedShas_.append(r.sha256);
+        }
       }
       saveIgnoredRoms();
+    }
+    // The Undo is offered when the files can be registered again (they are on this PC).
+    if (!removedShas_.isEmpty()) {
+      removedInfo_ = {{QStringLiteral("title"), removedTitle_}, {QStringLiteral("gameId"), gameId}};
+      emit removedFromLibraryChanged();
     }
     reloadLibrary();
   });
@@ -1086,6 +1095,7 @@ void PlayerController::onConnectionState(HubConnection::State s) {
     scanRequested_ = false;
     failedRegistrations_.clear();
     ignoredRoms_.clear();
+    dismissRemovedFromLibrary();
   }
 
   if (s == S::NeedsTrustConfirmation || s == S::NeedsPairing || s == S::AwaitingApproval || s == S::Denied ||
@@ -1890,7 +1900,32 @@ void PlayerController::uploadGameToHub(const QString& gameId) {
 void PlayerController::removeFromLibrary(const QString& gameId) {
   const auto game = model_.game(gameId);
   if (!game || game->onHub || !registrar_) return;
+  removedTitle_ = game->title;
   registrar_->unregisterGame(gameId);
+}
+
+void PlayerController::undoRemoveFromLibrary() {
+  if (removedInfo_.isEmpty()) return;
+  for (const QString& sha : std::as_const(removedShas_)) ignoredRoms_.remove(sha);
+  removedShas_.clear();
+  removedInfo_.clear();
+  saveIgnoredRoms();
+  emit removedFromLibraryChanged();
+  registerLocalFiles();
+}
+
+void PlayerController::dismissRemovedFromLibrary() {
+  if (removedInfo_.isEmpty()) return;
+  removedInfo_.clear();
+  removedShas_.clear();
+  emit removedFromLibraryChanged();
+}
+
+QString PlayerController::libraryView() const { return settings_->libraryView(); }
+
+void PlayerController::setLibraryView(const QString& view) {
+  if (view == settings_->libraryView() || !settings_->setLibraryView(view)) return;
+  emit libraryViewChanged();
 }
 
 // Library side effects of a finished upload; the message and the `upload` map are UploadController's.

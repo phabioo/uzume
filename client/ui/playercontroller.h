@@ -117,6 +117,9 @@ class PlayerController : public QObject {
   // Local ROMs (0.12): library folders of this device and the state of the folder scan: {active, done, total, text, isError}.
   Q_PROPERTY(QStringList libraryFolders READ libraryFolders NOTIFY libraryFoldersChanged)
   Q_PROPERTY(QVariantMap libraryScan READ libraryScan NOTIFY libraryScanChanged)
+  // Library view "list" | "grid" (saved per device) and the last "Remove from library" ({title} while its Undo is offered, else empty).
+  Q_PROPERTY(QString libraryView READ libraryView WRITE setLibraryView NOTIFY libraryViewChanged)
+  Q_PROPERTY(QVariantMap removedFromLibrary READ removedFromLibrary NOTIFY removedFromLibraryChanged)
   // One row per library folder (Settings): [{path, exists, count (game files found in it), scannedText ("5 min ago", "" = not
   // scanned yet), scannedFull, scanning}] and the number of game files over all folders.
   Q_PROPERTY(QVariantList libraryFolderInfo READ libraryFolderInfo NOTIFY libraryFolderInfoChanged)
@@ -397,6 +400,12 @@ class PlayerController : public QObject {
   Q_INVOKABLE void uploadGameToHub(const QString& gameId);
   // DetailPane: removes the local registration of a local-only game (the game and its saves stay on the Hub).
   Q_INVOKABLE void removeFromLibrary(const QString& gameId);
+  // Undo of the last removal: the files are registered again; the files themselves were never touched.
+  Q_INVOKABLE void undoRemoveFromLibrary();
+  Q_INVOKABLE void dismissRemovedFromLibrary();
+  QVariantMap removedFromLibrary() const { return removedInfo_; }
+  QString libraryView() const;
+  void setLibraryView(const QString& view);
   QString stopSaveError() const { return stopSaveError_; }
   Q_INVOKABLE void dismissStopSaveError();
   // Detail pane "Check again": reloads the systems registry (firmware status) after the admin changed something.
@@ -434,6 +443,8 @@ class PlayerController : public QObject {
   void uploadChanged();
   void libraryFoldersChanged();
   void libraryScanChanged();
+  void libraryViewChanged();
+  void removedFromLibraryChanged();
   void libraryFolderInfoChanged();
   void stopSaveErrorChanged();
   void coreUpdateChanged();
@@ -551,6 +562,9 @@ class PlayerController : public QObject {
   void loadFolderScans();
   void saveFolderScans() const;
   QSet<QString> dismissedCoreNotices_;  // "core_download" dismissed for this session
+  QVariantMap removedInfo_;          // {title} of the last removed game while Undo is offered
+  QString removedTitle_;             // title of the game being removed (the answer comes asynchronously)
+  QStringList removedShas_;          // hashes put on the ignore list by that removal
   QSet<QString> ignoredRoms_;        // sha256 of files the user removed from the library (until the file is gone)
   QSet<QString> failedRegistrations_;  // not retried within this connection
   bool scanRequested_ = false;       // a scan was started for the current connection

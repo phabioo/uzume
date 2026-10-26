@@ -75,6 +75,10 @@ class PlayerSettings {
   bool setLibrarySort(const QString& key);  // false: unknown key
   bool libraryReadyFirst() const { return libraryReadyFirst_; }
   bool setLibraryReadyFirst(bool on);
+  // Library view (readable UI pass 5): "list" (default) or "grid", per device.
+  static bool isValidLibraryView(const QString& view);
+  QString libraryView() const { return libraryView_; }
+  bool setLibraryView(const QString& view);  // false: unknown value
 
   // Last played per Hub profile and game, local only (Unix time in ms; 0 = never played on this device).
   qint64 lastPlayed(const QString& hubId, const QString& gameId) const;
@@ -204,6 +208,7 @@ class PlayerSettings {
   bool diagStreamingOpen_ = true;
   QString librarySort_ = QStringLiteral("played");  // recently played; Name order while nothing was played
   bool libraryReadyFirst_ = false;
+  QString libraryView_ = QStringLiteral("list");
   QString sessionVisibility_;
   QStringList libraryFolders_;
   bool developerMode_ = false;

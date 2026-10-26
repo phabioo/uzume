@@ -14,7 +14,8 @@ ColumnLayout {
     signal openRequested(string screenshotId)
 
     objectName: "screenshotSection"
-    visible: root.shots.supported && root.gameId !== ""
+    property bool placed: true       // false while the host shows another tab
+    visible: root.placed && root.shots.supported && root.gameId !== ""
     Layout.fillWidth: true
     Layout.minimumWidth: 0
     spacing: Theme.space1

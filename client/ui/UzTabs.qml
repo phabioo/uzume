@@ -11,11 +11,12 @@ FocusScope {
     property string active: ""
     property string size: "md"       // md | lg | run
     property var counts: ({})
+    property bool fit: false         // the tabs share the width equally and elide their labels (a narrow column, wide fonts)
     signal picked(string label)
 
     activeFocusOnTab: true
     implicitHeight: size === "run" ? Theme.row48 : size === "lg" ? 40 : Theme.row36
-    implicitWidth: row.implicitWidth + (size === "run" ? 2 * Theme.space3 : 0)
+    implicitWidth: fit ? 0 : row.implicitWidth + (size === "run" ? 2 * Theme.space3 : 0)
     Accessible.role: Accessible.PageTabList
 
     function step(delta) {
@@ -45,11 +46,14 @@ FocusScope {
                 readonly property bool on: modelData === root.active
                 objectName: "tab_" + modelData
                 readonly property int count: root.counts && root.counts[modelData] > 0 ? root.counts[modelData] : 0
-                width: tabLabel.implicitWidth + (count > 0 ? countBadge.width + Theme.space1 : 0)
+                width: root.fit ? Math.floor((root.width - row.spacing * Math.max(0, root.items.length - 1)) / Math.max(1, root.items.length))
+                                : tabLabel.implicitWidth + (count > 0 ? countBadge.width + Theme.space1 : 0)
                 height: root.height
                 Text {
                     id: tabLabel
                     anchors.verticalCenter: parent.verticalCenter
+                    width: root.fit ? Math.max(0, tab.width - (tab.count > 0 ? countBadge.width + Theme.space1 : 0)) : implicitWidth
+                    elide: root.fit ? Text.ElideRight : Text.ElideNone
                     text: tab.modelData
                     textFormat: Text.PlainText
                     font.family: Theme.sans
@@ -62,7 +66,7 @@ FocusScope {
                     objectName: "tabCount_" + tab.modelData
                     visible: tab.count > 0
                     anchors.verticalCenter: parent.verticalCenter
-                    x: tabLabel.implicitWidth + Theme.space1
+                    x: tabLabel.width + Theme.space1
                     width: Math.max(18, countText.implicitWidth + 10)
                     height: 18
                     color: Theme.badge
