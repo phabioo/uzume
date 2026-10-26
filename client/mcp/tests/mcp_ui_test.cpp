@@ -170,11 +170,14 @@ class McpUiTest : public QObject {
 
   // ui_click toggles a switch (a real mouse press and release on it).
   void clickTogglesSwitch() {
+    h->window->resize(1000, 380);  // short: the toggle is below the fold, so the tool has to scroll the page to it
+    QTest::qWait(100);
     const Answer nav = call(QStringLiteral("navigate"), {{"to", "settings"}, {"page", "audio"}});
     QVERIFY2(!nav.result.isError, qPrintable(nav.text()));
     QCOMPARE(nav.json().value(QStringLiteral("screen")).toString(), QStringLiteral("settings"));
     QTRY_VERIFY_WITH_TIMEOUT(h->item("audioShowVolumeToggle") != nullptr && h->item("audioShowVolumeToggle")->isVisible(), 8000);
     QQuickItem* sw = h->item("audioShowVolumeToggle");
+    QVERIFY(sw != nullptr);
     const bool before = sw->property("checked").toBool();
     const Answer a = call(QStringLiteral("ui_click"), {{"target", "audioShowVolumeToggle"}});
     QVERIFY2(!a.result.isError, qPrintable(a.text()));
@@ -182,6 +185,7 @@ class McpUiTest : public QObject {
     QCOMPARE(a.json().value(QStringLiteral("target")).toObject().value(QStringLiteral("checked")).toBool(), !before);
     call(QStringLiteral("ui_click"), {{"target", "audioShowVolumeToggle"}});  // back
     QTRY_COMPARE(sw->property("checked").toBool(), before);
+    h->window->resize(1280, 800);
   }
 
   // navigate through the controller, and the tree of the opened settings page.

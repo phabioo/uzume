@@ -186,6 +186,23 @@ class AdminSettingsUiTest : public QObject {
     QTRY_VERIFY(!shown(h, "serverSettingsPage"));
   }
 
+  // The answer of an earlier request (here simulated by calling editFinished) must not close an edit dialog that is open and has not
+  // been saved: on a slow machine the reply of a toggle arrived after the next dialog was opened and closed it.
+  void lateAnswerDoesNotCloseAnOpenEditDialog() {
+    FakeHub hub(QStringLiteral("a"));
+    adminHub(hub);
+    QVERIFY(hub.start());
+    Harness h;
+    QVERIFY(h.start());
+    pair(h, hub);
+    openPage(h, nullptr, "settingsGeneral");
+    QVERIFY(h.clickWhenReady("generalRename"));
+    QTRY_VERIFY(shown(h, "settingsEditDialog"));
+    QVERIFY(QMetaObject::invokeMethod(h.item("serverSettingsPane"), "editFinished", Q_ARG(bool, true), Q_ARG(QString, QString())));
+    QTest::qWait(100);
+    QVERIFY(shown(h, "settingsEditDialog"));
+  }
+
   void generalRenameAndUploadsPatch() {
     FakeHub hub(QStringLiteral("a"));
     adminHub(hub);

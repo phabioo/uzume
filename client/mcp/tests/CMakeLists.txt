@@ -17,3 +17,9 @@ uzume_add_test(mcp_ui mcp_ui_test.cpp ${FB_NETTEST_DIR}/fakehub.cpp ${FB_NETTEST
   LIBS uzume_mcp_tools uzume_ui uzume_uiplugin uzume_core uzume_emulation Qt6::Quick Qt6::QuickControls2 Qt6::QuickTest)
 target_include_directories(test_mcp_ui PRIVATE ${FB_NETTEST_DIR} ${FB_UITEST_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(test_mcp_ui PRIVATE FB_TEST_DATA_DIR="${FB_NETTEST_DIR}/testdata")
+
+# Report tools against FakeHub's admin directory.
+uzume_add_test(mcp_reports mcp_reports_test.cpp ${FB_NETTEST_DIR}/fakehub.cpp ${FB_NETTEST_DIR}/fakehub.h
+  LIBS uzume_mcp_tools uzume_ui uzume_uiplugin uzume_core uzume_emulation Qt6::Quick Qt6::QuickControls2 Qt6::QuickTest)
+target_include_directories(test_mcp_reports PRIVATE ${FB_NETTEST_DIR} ${FB_UITEST_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_definitions(test_mcp_reports PRIVATE FB_TEST_DATA_DIR="${FB_NETTEST_DIR}/testdata")
