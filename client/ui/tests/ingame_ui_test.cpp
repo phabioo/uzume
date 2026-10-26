@@ -783,6 +783,31 @@ class InGameUiTest : public QObject {
     QVERIFY(h.item("padHotkeySheetLoader") != nullptr);
     QVERIFY(!h.item("padHotkeySheetLoader")->property("active").toBool());
     QVERIFY(h.item("padHotkeySheet") == nullptr);
+    // "⋯ > Hotkeys" opens the same sheet over the game without leaving it; "Change hotkeys" goes to Controllers > Hotkeys.
+    QVERIFY(h.click("moreButton"));
+    QTRY_VERIFY(shown(h, "menuItem_hotkeys"));
+    QVERIFY(h.click("menuItem_hotkeys"));
+    QTRY_VERIFY(shown(h, "padHotkeySheet"));
+    QCOMPARE(h.controller->screen(), QStringLiteral("game"));
+    QVERIFY(shown(h, "hotkeySheetChange") && shown(h, "hotkeySheetClose"));
+    QTest::keyClick(h.window, Qt::Key_Escape);   // Esc closes the sheet first; the game is not paused
+    QTRY_VERIFY(!shown(h, "padHotkeySheet"));
+    QVERIFY(!gs->isPaused());
+    QVERIFY(h.click("moreButton"));
+    QTRY_VERIFY(shown(h, "menuItem_hotkeys"));
+    QVERIFY(h.click("menuItem_hotkeys"));
+    QTRY_VERIFY(shown(h, "hotkeySheetClose"));
+    QVERIFY(h.click("hotkeySheetClose"));
+    QTRY_VERIFY(!shown(h, "padHotkeySheet"));
+    QVERIFY(h.click("moreButton"));
+    QTRY_VERIFY(shown(h, "menuItem_hotkeys"));
+    QVERIFY(h.click("menuItem_hotkeys"));
+    QTRY_VERIFY(shown(h, "hotkeySheetChange"));
+    QVERIFY(h.click("hotkeySheetChange"));
+    QTRY_COMPARE(h.controller->screen(), QStringLiteral("controllers"));
+    QTRY_VERIFY(h.item("hotkeysInfo") != nullptr && h.item("hotkeysInfo")->isVisible());
+    h.controller->resumeGame();
+    QTRY_COMPARE(h.controller->screen(), QStringLiteral("game"));
     QVERIFY(h.click("moreButton"));
     QTRY_VERIFY(shown(h, "menuItem_diagnostics"));
     QTest::keyClick(h.window, Qt::Key_Escape);
@@ -807,6 +832,83 @@ class InGameUiTest : public QObject {
     QTRY_VERIFY(ctl->diagnostics()->isOpen());
     QTest::keyClick(h.window, Qt::Key_F3);
     QTRY_VERIFY(!ctl->diagnostics()->isOpen());
+  }
+
+  // "Settings for this game" of the running game: one height on every tab (no jumping), and the speed-up and layout rows show the
+  // live in-game value with its source instead of the stored default.
+  void gameSettingsShowLiveValues() {
+    FakeHub hub(QStringLiteral("a"));
+    Harness h;
+    pair(hub, h, true);
+    startPreview(h, true);
+    GameSession* gs = h.controller->gameSession();
+    SessionController* ctl = h.controller->sessions();
+    QVERIFY(h.click("moreButton"));
+    QTRY_VERIFY(shown(h, "menuItem_gameSettings"));
+    QVERIFY(h.click("menuItem_gameSettings"));
+    QTRY_VERIFY(shown(h, "gameSettingsDialog"));
+    {
+      // One height on every tab (no jumping), and the rows show the live in-game values with their source.
+      QQuickItem* host = h.item("gameSettingsHost");
+      QVERIFY(host != nullptr);
+      const QVariantList tabs = host->property("tabs").toList();
+      QVERIFY(!tabs.isEmpty());
+      const auto selectTab = [&](const QString& title) {
+        host->setProperty("activeTab", title);
+        QQuickTest::qWaitForPolish(h.window);
+        QTest::qWait(30);
+      };
+      qreal first = -1;
+      for (const QVariant& t : tabs) {
+        selectTab(t.toMap().value("title").toString());
+        QQuickItem* scroll = visibleItem(h, "gameSettingsScroll");
+        QVERIFY(scroll != nullptr);
+        if (first < 0) first = scroll->height();
+        QCOMPARE(scroll->height(), first);
+      }
+      const auto tabWith = [&](const QString& key) {
+        for (const QVariant& t : tabs)
+          for (const QVariant& r : t.toMap().value("rows").toList())
+            if (r.toMap().value("key").toString() == key) return t.toMap().value("title").toString();
+        return QString();
+      };
+      const QString speedTab = tabWith(QStringLiteral("uzume.speedup_ratio"));
+      QVERIFY(!speedTab.isEmpty());
+      selectTab(speedTab);
+      QQuickItem* row = visibleItem(h, "gameOption_uzume.speedup_ratio");
+      QVERIFY(row != nullptr);
+      QVERIFY(row->property("meta").toString().startsWith(QStringLiteral("Uses your default")));
+      gs->setFastForwardRatio(6.0);   // the header's speed menu: a live value, not stored
+      QTRY_COMPARE(visibleItem(h, "gameOption_uzume.speedup_ratio")->property("current").toString(), QStringLiteral("6"));
+      QVERIFY(visibleItem(h, "gameOption_uzume.speedup_ratio")->property("meta").toString().startsWith(QStringLiteral("Set in the game now")));
+      gs->setFastForwardRatio(2.0);
+      QTRY_VERIFY(visibleItem(h, "gameOption_uzume.speedup_ratio")->property("meta").toString().startsWith(QStringLiteral("Uses your default")));
+      const QString layoutTab = tabWith(QStringLiteral("uzume.screen_layout"));
+      if (!layoutTab.isEmpty()) {   // two-screen systems only
+        selectTab(layoutTab);
+        ctl->chooseScreenLayout(QStringLiteral("side"));
+        QTRY_COMPARE(visibleItem(h, "gameOption_uzume.screen_layout")->property("current").toString(), QStringLiteral("side"));
+        QVERIFY(visibleItem(h, "gameOption_uzume.screen_layout")->property("meta").toString().startsWith(QStringLiteral("Set in the game now")));
+        ctl->chooseScreenLayout(QStringLiteral("stacked"));
+      }
+      selectTab(tabs.first().toMap().value("title").toString());
+    }
+    QVERIFY(h.click("gameSettingsDone"));
+    QTRY_VERIFY(!shown(h, "gameSettingsDialog"));
+  }
+
+  // The title keeps its full width while there is room; only the text next to it (share state) gives way.
+  void headerTitleKeepsItsWidth() {
+    FakeHub hub(QStringLiteral("a"));
+    Harness h;
+    pair(hub, h, false);
+    startPreview(h, false, QStringLiteral("Pokémon Omega Ruby Special Edition"));
+    resize(h, 1440, 900);
+    QQuickItem* title = visibleItem(h, "gameTitle");
+    QVERIFY(title != nullptr);
+    // (the very wide font of the widefont run leaves no room for the whole title, the header then elides it by design)
+    if (qEnvironmentVariableIsSet("UZUME_TEST_WIDE_FONT")) QSKIP("the whole title does not fit the header at the wide font");
+    QVERIFY2(title->width() >= title->implicitWidth() - 0.5, qPrintable(QStringLiteral("title %1 of %2").arg(title->width()).arg(title->implicitWidth())));
   }
 
   // Header (56 px) with a long title: ← Library, title (elided, full title as tooltip), Layout, Multiview, Panel, Fullscreen, Pause as
@@ -1358,6 +1460,11 @@ class InGameUiTest : public QObject {
     QVERIFY(shown(h, "volumeButton"));
     QVERIFY(h.click("volumeButton"));
     QTRY_VERIFY(shown(h, "soundVolumeSlider"));
+    {   // the button's tooltip never shows while its popover is open (it sat over the close mark and caught clicks)
+      QQuickItem* vb = visibleItem(h, "volumeButton");
+      const QQmlProperty tipShown(vb, QStringLiteral("ToolTip.visible"), qmlContext(vb));
+      QVERIFY(tipShown.isValid() && !tipShown.read().toBool());
+    }
     QQuickItem* slider = visibleItem(h, "soundVolumeSlider");
     QVERIFY(slider != nullptr);
     QCOMPARE(slider->property("value").toInt(), 90);

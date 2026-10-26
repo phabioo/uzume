@@ -14,6 +14,9 @@ ApplicationWindow {
     minimumHeight: 600
     title: qsTr("Uzume")
     color: Theme.ground
+    // Tooltips: Qt 6.8 on Windows draws the text in the (dark) system palette; take both roles from the tokens.
+    palette.toolTipBase: Theme.surface
+    palette.toolTipText: Theme.ink
 
     // Appearance (Settings): Dark | Light | System; the game view is always dark.
     Binding {
@@ -136,10 +139,16 @@ ApplicationWindow {
             sourceComponent: SettingsScreen { player: window.player }
         }
         EmulationScreen { player: window.player }
-        ControllersScreen { player: window.player }
+        ControllersScreen { id: controllersScreen; player: window.player }
         RunsScreen { player: window.player }
         ServerScreen { player: window.player }
         StartScreen { player: window.player }
+    }
+
+    // The game's hotkey sheet "Change hotkeys": Controllers with its Hotkeys tab.
+    function openControllersHotkeys() {
+        window.player.showControllers()
+        controllersScreen.tab = "hotkeys"
     }
 
     // The page that is shown now (the Settings page lives in a Loader).

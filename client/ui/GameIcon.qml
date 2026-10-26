@@ -69,7 +69,7 @@ Item {
         onPaint: {
             var c = getContext("2d")
             c.clearRect(0, 0, width, height)
-            c.fillStyle = root.color
+            c.fillStyle = Theme.cssColor(root.color)
             c.beginPath()
             c.moveTo(0, 0)
             c.lineTo(8, 0)
@@ -92,7 +92,7 @@ Item {
         onPaint: {
             var c = getContext("2d")
             c.clearRect(0, 0, width, height)
-            c.fillStyle = root.color
+            c.fillStyle = Theme.cssColor(root.color)
             var n = root.kind === "speed" ? 2 : 1
             var w = root.kind === "speed" ? 6 : 8
             for (var i = 0; i < n; ++i) {

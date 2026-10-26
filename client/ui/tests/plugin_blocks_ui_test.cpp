@@ -422,6 +422,25 @@ class PluginBlocksUiTest : public QObject {
     shot(QStringLiteral("plugin-blocks-narrow"));
   }
 
+  // SoulLink's HUD tree (card > row(gap 8) > text + badge) at the block width of a 240 and a 320 px HUD widget: the text never gets
+  // narrower than min(its width, 96 px); the badge gives way by eliding.
+  void hudRowKeepsTheTextReadable() {
+    const char* tree = R"({"type":"card","children":[{"type":"row","gap":8,"align":"center","children":[
+      {"type":"text","id":"slText","style":"body","text":"SL · Route 103"},
+      {"type":"badge","id":"slBadge","text":"Noch keine Begegnung"}]}]})";
+    for (int blockWidth : {240 - 24 - 16 - 6, 320 - 24 - 16 - 6}) {
+      show(json(tree), true, blockWidth + 32);
+      QQuickItem* text = mustFind("plugin_slText");
+      QQuickItem* badge = mustFind("plugin_slBadge");
+      QVERIFY(text != nullptr && badge != nullptr);
+      const qreal want = (std::min)(text->implicitWidth(), 96.0);
+      QVERIFY2(text->width() >= want - 0.5, qPrintable(QStringLiteral("text %1 px of %2 (block %3)").arg(text->width()).arg(text->implicitWidth()).arg(blockWidth)));
+      QVERIFY2(rightIn(badge) <= sheet_->width() + 0.5, qPrintable(QStringLiteral("badge right %1 of %2").arg(rightIn(badge)).arg(sheet_->width())));
+      QVERIFY(badge->width() > 0);
+      shot(QStringLiteral("plugin-blocks-hud-row-%1").arg(blockWidth));
+    }
+  }
+
   void mapToolbarFitsNarrow() {
     for (int width : {300, 280}) {
       show(json(kMap), true, width);

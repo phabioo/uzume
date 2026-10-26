@@ -8,6 +8,10 @@ import QtQuick.Layouts
 Rectangle {
     id: root
     property string modifier: "Select"
+    // pinned: opened from the "⋯" menu instead of by holding the button: it stays until Esc or Close and offers "Change hotkeys".
+    property bool pinned: false
+    signal changeRequested()
+    signal closeRequested()
     property var keys: [["A", qsTr("Save state")], ["B", qsTr("Load state")], ["L", qsTr("Previous slot")], ["R", qsTr("Next slot")],
                         ["Y", qsTr("Screenshot")], ["X", qsTr("Mute")], ["UpDown", qsTr("Volume")], ["Start", qsTr("Pause menu")]]
     implicitWidth: 400
@@ -93,10 +97,33 @@ Rectangle {
         width: parent.width - 2
         height: 36
         Rectangle { width: parent.width; height: 1; color: Theme.rule2 }
+        UzButton {
+            objectName: "hotkeySheetChange"
+            visible: root.pinned
+            anchors.right: closeLink.left
+            anchors.verticalCenter: parent.verticalCenter
+            kind: "link"
+            size: "sm"
+            text: qsTr("Change hotkeys")
+            onClicked: root.changeRequested()
+        }
+        UzButton {
+            id: closeLink
+            objectName: "hotkeySheetClose"
+            visible: root.pinned
+            anchors.right: parent.right
+            anchors.rightMargin: Theme.space1
+            anchors.verticalCenter: parent.verticalCenter
+            kind: "link"
+            size: "sm"
+            text: qsTr("Close")
+            onClicked: root.closeRequested()
+        }
         Text {
             anchors.left: parent.left
             anchors.leftMargin: Theme.space2
             anchors.verticalCenter: parent.verticalCenter
+            visible: !root.pinned
             text: qsTr("Release %1 to close").arg(root.modifier)
             font.family: Theme.mono
             font.pixelSize: Theme.roles.meta.size

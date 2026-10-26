@@ -121,8 +121,13 @@ Item {
                     dark: root.dark
                     pluginId: root.pluginId
                     onAction: (a, v) => root.action(a, v)
-                    Layout.fillWidth: giveWay
-                    Layout.minimumWidth: giveWay ? 0 : implicitWidth
+                    // badges and chips give way last, by eliding; a text never gets narrower than min(its width, 96 px scaled)
+                    readonly property bool yields: kid.type === "badge" || kid.type === "chip"
+                    // fillWidth + maximumWidth = natural width: never grows, but shrinks (a Layout item without fillWidth would not)
+                    Layout.fillWidth: giveWay || yields
+                    Layout.maximumWidth: yields ? implicitWidth : Number.POSITIVE_INFINITY
+                    Layout.minimumWidth: kid.type === "text" ? Math.min(implicitWidth, Math.round(96 * Theme.textScale))
+                                         : giveWay || yields ? 0 : implicitWidth
                     Layout.fillHeight: root.node.align === "stretch"
                     Layout.alignment: root.alignFlag(false)
                 }
@@ -582,6 +587,8 @@ Item {
                 textFormat: Text.PlainText  // plugin- and peer-supplied strings are never HTML
                 id: chipLabel
                 anchors.centerIn: parent
+                width: Math.min(implicitWidth, Math.max(0, parent.width - 2 * Theme.space15))
+                elide: Text.ElideRight
                 text: root.node.text || ""
                 font.pixelSize: Theme.roles.small.size
                 font.weight: chip.picked ? Font.Medium : Font.Normal

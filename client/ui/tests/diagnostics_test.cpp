@@ -40,6 +40,18 @@ class DiagnosticsTest : public QObject {
     QVERIFY(m.value("audio").toString().contains(QStringLiteral("0 underruns")));
   }
 
+  void screenSizesSub() {
+    // Equal screens: one size; the 3DS has a narrower bottom screen: each size is named (scaled like the frame).
+    EmulationDiagnostics d = sw();
+    d.screenSizes = {QSize(256, 192), QSize(256, 192)};
+    QCOMPARE(DiagnosticsModel::emulationMap(d).value("resolutionSub").toString(), QStringLiteral("2 screens of 256×192"));
+    d.frameSize = d.baseSize = QSize(400, 480);
+    d.screenSizes = {QSize(400, 240), QSize(320, 240)};
+    QCOMPARE(DiagnosticsModel::emulationMap(d).value("resolutionSub").toString(), QStringLiteral("Top 400×240 · bottom 320×240"));
+    d.frameSize = QSize(800, 960);
+    QCOMPARE(DiagnosticsModel::emulationMap(d).value("resolutionSub").toString(), QStringLiteral("Top 800×480 · bottom 640×480"));
+  }
+
   void hardwareRows() {
     EmulationDiagnostics d = sw();
     d.hwRequested = d.hwActive = true;

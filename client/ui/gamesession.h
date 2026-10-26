@@ -41,6 +41,7 @@ struct EmulationDiagnostics {
   QSize readbackSize;            // size actually read back from the GPU when smaller than frameSize (else empty); empty while no readback runs
   QSize baseSize;                // size of the frame at 1x (system manifest)
   int screens = 0;
+  QList<QSize> screenSizes;      // size of each screen at 1x (system manifest); they differ on the 3DS (400x240 top, 320x240 bottom)
   int requestedScale = 0;        // internal resolution the core option asks for (0 = no such option)
   int cpuThreads = 0;            // logical CPU threads (software renderer subline)
   double fps = 0;                // actual, sliding 1 s window; 0 while nothing runs (paused)

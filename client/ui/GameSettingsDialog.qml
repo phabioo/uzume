@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import Uzume.App
 
@@ -43,7 +44,43 @@ Item {
         for (let i = 0; i < tabs.length; ++i) c[tabs[i].title] = tabs[i].changed
         return c
     }
+    // The game runs now: the in-game screen layout and speed-up speed are live values (header menus) that are not stored as
+    // game overrides, so the rows show them with their source instead of the stored default.
+    readonly property bool runningHere: root.gameId !== "" && root.gameId === root.player.runningGameId && root.player.gameSession.active
+    readonly property string layoutKey: "uzume.screen_layout"
+    readonly property string speedKey: "uzume.speedup_ratio"
+    function liveValue(key: string): var {
+        if (!root.runningHere) return undefined
+        if (key === root.layoutKey) return root.player.sessions.screenLayout
+        if (key === root.speedKey) return String(Math.round(root.player.gameSession.fastForwardRatio * 10) / 10)
+        return undefined
+    }
+    function isLive(r): bool {
+        const v = root.liveValue(r.key)
+        return v !== undefined && v !== r.value
+    }
+    function shownValue(r): string { return root.isLive(r) ? root.liveValue(r.key) : r.value }
+    function applyLive(key: string, value: string) {
+        if (!root.runningHere) return
+        if (key === root.layoutKey) root.player.sessions.screenLayout = value
+        else if (key === root.speedKey) root.player.gameSession.fastForwardRatio = Number(value)
+    }
+    // Tallest tab, estimated from its rows, so the dialog keeps one height on every tab (capped to the window).
+    readonly property real rowsHeight: {
+        let best = 0
+        for (let i = 0; i < tabs.length; ++i) {
+            const rows = tabs[i].rows ?? []
+            let h = 0, last = ""
+            for (let j = 0; j < rows.length; ++j) {
+                h += 76
+                if (tabs[i].id === "core" && (rows[j].category ?? "") !== last) { h += 32; last = rows[j].category ?? "" }
+            }
+            best = Math.max(best, h)
+        }
+        return best
+    }
     function rowMeta(r): string {
+        if (root.isLive(r)) return qsTr("Set in the game now · default %1").arg(r.defaultLabel)
         return r.isSet ? qsTr("Changed for this game · default %1").arg(r.defaultLabel)
                        : qsTr("Uses your default (%1)").arg(r.defaultLabel)
     }
@@ -88,14 +125,20 @@ Item {
             id: flick
             objectName: "gameSettingsScroll"
             Layout.fillWidth: true
-            Layout.preferredHeight: Math.max(120, Math.min(rowsCol.implicitHeight, (Window.height > 0 ? Window.height : 800) * 0.5))
+            // One height for every tab (the tallest, capped to the window): the dialog does not jump when the tab changes.
+            Layout.preferredHeight: {
+                const wh = Window.height > 0 ? Window.height : 800
+                return Math.max(160, Math.min(root.rowsHeight, wh * 0.6, wh - 420))
+            }
+            ScrollBar.vertical: ScrollBar { policy: flick.contentHeight > flick.height + 1 ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff }
             contentWidth: width
+            readonly property real barSpace: 14   // the scrollbar never covers the controls
             contentHeight: rowsCol.implicitHeight
             clip: true
             boundsBehavior: Flickable.StopAtBounds
             ColumnLayout {
                 id: rowsCol
-                width: flick.width
+                width: flick.width - flick.barSpace
                 spacing: 0
                 Repeater {
                     model: root.current.rows ?? []
@@ -127,10 +170,16 @@ Item {
                             description: rowItem.modelData.description
                             badge: rowItem.modelData.restart ? qsTr("applies on next start") : ""
                             values: rowItem.modelData.values
-                            current: rowItem.modelData.value
-                            changed: rowItem.modelData.isSet
-                            onValuePicked: value => root.emu.setGameOption(root.gameId, rowItem.modelData.key, value)
-                            onResetRequested: root.emu.resetGameOption(root.gameId, rowItem.modelData.key)
+                            current: root.shownValue(rowItem.modelData)
+                            changed: rowItem.modelData.isSet || root.isLive(rowItem.modelData)
+                            onValuePicked: value => {
+                                root.emu.setGameOption(root.gameId, rowItem.modelData.key, value)
+                                root.applyLive(rowItem.modelData.key, value)   // the running game follows the dialog
+                            }
+                            onResetRequested: {
+                                root.emu.resetGameOption(root.gameId, rowItem.modelData.key)
+                                root.applyLive(rowItem.modelData.key, rowItem.modelData.defaultValue)
+                            }
                         }
                     }
                 }

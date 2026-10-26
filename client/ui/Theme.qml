@@ -37,6 +37,10 @@ QtObject {
         accent: "#f8b500", accentHover: "#ffc42e", accentPressed: "#e0a400", accentText: "#715c1f", onAccent: "#1c1b19",
         danger: "#ac3a41", dangerTint: "#12b94047", ok: "#006b3a"
     })
+    // CSS string for Canvas styles: Qt 6.8 on Windows ignores a QML color value for fillStyle/strokeStyle.
+    function cssColor(c: color): string {
+        return "rgba(" + Math.round(c.r * 255) + "," + Math.round(c.g * 255) + "," + Math.round(c.b * 255) + "," + c.a + ")"
+    }
     function withAlpha(c: color, a: real): color { return Qt.rgba(c.r, c.g, c.b, a) }
     function tok(name: string, isDark: bool): color { return (isDark ? sumi : kinari)[name] }
 

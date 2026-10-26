@@ -203,6 +203,10 @@ class PluginSlotsUiTest : public QObject {
   }
   QQuickItem* layer() { return h_.item("pluginHudLayer"); }
   QPointF center(QQuickItem* it) { return it->mapToScene(QPointF(it->width() / 2, it->height() / 2)); }
+  void rightClick(QQuickItem* it) {
+    QQuickTest::qWaitForPolish(h_.window);
+    QTest::mouseClick(h_.window, Qt::RightButton, Qt::NoModifier, center(it).toPoint());
+  }
   void hover(QQuickItem* it) {
     QTest::mouseMove(h_.window, center(it).toPoint());
     QTest::qWait(60);
@@ -540,7 +544,7 @@ class PluginSlotsUiTest : public QObject {
     pc()->setPreviewUi({{"hudWidgets", hud}});
     QTRY_VERIFY(h_.item("hudWidget_net.test.tl") != nullptr && h_.item("hudWidget_net.test.tl")->isVisible());
     QQuickItem* lay = layer();
-    // At most 4 per corner (the 5th is not shown), max 240 wide, 16 from the edge, stack grows away from the corner.
+    // At most 4 per corner (the 5th is not shown), max 320 wide, 16 from the edge, stack grows away from the corner.
     QQuickItem* bl = h_.item("hudStack_bottom-left");
     int shown = 0;
     for (int i = 0; i < 5; ++i)
@@ -553,7 +557,7 @@ class PluginSlotsUiTest : public QObject {
     QTRY_VERIFY(second->mapToItem(lay, QPointF(0, 0)).y() < first->mapToItem(lay, QPointF(0, 0)).y());  // grows upwards
     QCOMPARE(qRound(first->mapToItem(lay, QPointF(0, 0)).x()), 16);
     QCOMPARE(qRound(lay->height() - (first->mapToItem(lay, QPointF(0, 0)).y() + first->height())), 16);
-    QVERIFY(first->width() <= 240);
+    QVERIFY(first->width() <= 320);
     QQuickItem* br = h_.item("hudWidget_net.test.br");
     QCOMPARE(qRound(lay->width() - (br->mapToItem(lay, QPointF(0, 0)).x() + br->width())), 16);
     QQuickItem* tl = h_.item("hudWidget_net.test.tl");
@@ -587,6 +591,18 @@ class PluginSlotsUiTest : public QObject {
     QVERIFY(freshSettings().pluginHudHidden().contains(QStringLiteral("net.test.br")));
 
     shot(QStringLiteral("slots-hud-corners"));
+
+    // The "⋯" button stays while its menu is open, even when the mouse is elsewhere, and Esc closes the menu (not the game).
+    hover(h_.item("hudWidget_net.test.bl0"));
+    QTRY_VERIFY(visibleItem("hudMenuButton") != nullptr);
+    QVERIFY(h_.click("hudMenuButton"));
+    QTRY_VERIFY(h_.item("pluginMenu")->isVisible());
+    QTest::mouseMove(h_.window, QPoint(h_.window->width() / 2, h_.window->height() / 2));
+    QTest::qWait(60);
+    QVERIFY(visibleItem("hudMenuButton") != nullptr);
+    QTest::keyClick(h_.window, Qt::Key_Escape);
+    QTRY_VERIFY(!h_.item("pluginMenu")->isVisible());
+    QVERIFY(h_.controller->gameSession()->state() != GameSession::Paused);
 
     // Hide all: widgets go, the 2 s hint shows and then disappears; the state persists.
     lay->setProperty("hintMs", 400);
@@ -942,7 +958,7 @@ class PluginSlotsUiTest : public QObject {
     pc()->hideHud(QStringLiteral("net.test.a"));
     QTRY_VERIFY(h_.item("hudRestoreButton")->isVisible());
     QCOMPARE(textOf(h_.item("hudRestoreButton")), QStringLiteral("1 widget hidden · Show"));
-    QVERIFY(h_.click("hudRestoreButton"));
+    rightClick(h_.item("hudRestoreButton"));   // the menu with the per-plugin entries is on the right click
     QTRY_VERIFY(h_.item("pluginMenu")->isVisible());
     QCOMPARE(textOf(h_.item("pluginMenuItem_show:net.test.a")), QStringLiteral("Show SoulLink widget"));
     QVERIFY(h_.item("pluginMenuItem_hideAll") != nullptr);
@@ -957,11 +973,21 @@ class PluginSlotsUiTest : public QObject {
     pc()->setHudAllHidden(true);
     QTRY_VERIFY(h_.item("hudRestoreButton")->isVisible());
     QCOMPARE(textOf(h_.item("hudRestoreButton")), QStringLiteral("HUD hidden · Show"));
-    QVERIFY(h_.click("hudRestoreButton"));
+    rightClick(h_.item("hudRestoreButton"));
     QTRY_VERIFY(h_.item("pluginMenu")->isVisible());
     QVERIFY(h_.click("pluginMenuItem_showAll"));
     QTRY_VERIFY(!pc()->hudAllHidden());
     QTRY_VERIFY(!h_.item("hudRestoreButton")->isVisible());
+
+    // Left click on the pill shows the hidden widgets and the HUD again directly (no menu).
+    pc()->hideHud(QStringLiteral("net.test.a"));
+    pc()->setHudAllHidden(true);
+    QTRY_VERIFY(h_.item("hudRestoreButton")->isVisible());
+    QVERIFY(h_.click("hudRestoreButton"));
+    QTRY_VERIFY(!pc()->hudAllHidden());
+    QTRY_VERIFY(!pc()->hudWidgets().first().toMap().value("hidden").toBool());
+    QTRY_VERIFY(!h_.item("hudRestoreButton")->isVisible());
+    QVERIFY(!h_.item("pluginMenu")->isVisible());
 
     pc()->setPreviewUi({});
   }

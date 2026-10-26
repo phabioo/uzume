@@ -552,6 +552,7 @@ EmulationDiagnostics GameSession::diagnostics() const {
   if (readbackOn_ && !frame_.isNull() && frame_.size() != d.frameSize) d.readbackSize = frame_.size();  // only while a readback runs
   d.baseSize = display_.frameSize();
   d.screens = screenCount();
+  for (const auto& s : display_.screens) d.screenSizes.append(QSize(s.width, s.height));
   d.requestedScale = requestedScaleOf(coreOptions_);
   d.cpuThreads = QThread::idealThreadCount();
   const auto t = runner_->timing();
