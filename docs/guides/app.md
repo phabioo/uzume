@@ -2,7 +2,7 @@
 
 At a glance: How to install and use the Uzume app: connect and pair, play, share and watch Sessions, run a server on this PC, collect logs and report problems. Administration of the server is in the app (SERVER group, Settings › Server). What it does: [features.md](../features.md).
 
-Contents: [Install](#install), [Play on this PC and share](#play-on-this-pc-and-share), [Set up a server on this PC](#set-up-a-server-on-this-pc), [Connect and pair](#connect-and-pair), [Play](#play), [Plugins (developer mode)](#plugins-developer-mode), [Collect logs](#collect-logs), [Connection check](#connection-check), [Report a problem](#report-a-problem), [Data directory](#data-directory), [Command line and environment](#command-line-and-environment), [Multiview](#multiview).
+Contents: [Install](#install), [Play on this PC and share](#play-on-this-pc-and-share), [Set up a server on this PC](#set-up-a-server-on-this-pc), [Connect and pair](#connect-and-pair), [Play](#play), [Plugins (developer mode)](#plugins-developer-mode), [Collect logs](#collect-logs), [Connection check](#connection-check), [Claude debugging (MCP)](#claude-debugging-mcp), [Report a problem](#report-a-problem), [Data directory](#data-directory), [Command line and environment](#command-line-and-environment), [Multiview](#multiview).
 
 Uzume (`client/`, the app) connects to a server, keeps your library and saves in sync, runs games locally and shares or watches Sessions. Feature overview: [features.md](../features.md). Internals: [app-internals.md](../reference/app-internals.md).
 
@@ -102,6 +102,54 @@ Results: "Your network allows direct connections" (green), "Only relayed connect
 
 Actions: "Copy result" (Ctrl+C) copies the result as text, "Add to problem report" keeps it for the next "Collect logs" bundle (`connection-check.json`, taken by that one bundle) and ticks it in the "Report a problem" dialog (until a report with it was sent), "Run again" (R). The text and the JSON contain addresses and server names, never the relay credentials. `UZUME_FORCE_RELAY=1` is noted in the result and makes the check report "only relayed".
 
+## Claude debugging (MCP)
+
+For developers: the app can embed a local [MCP](https://modelcontextprotocol.io) server so a Claude Code session on the same PC reads and controls the app, its plugins and the running game ([ADR 0032](../adr/0032-debug-mcp-server.md)). It is off by default, also in release builds.
+
+1. Settings › Diagnostics › Claude debugging (MCP): turn on "Allow Claude to control this app" (or start the app with `--mcp`). The port is 47615 unless you change it (1024 to 65535).
+2. "Copy setup command" and run it in Claude Code on this PC: `claude mcp add --transport http uzume http://127.0.0.1:<port>/mcp --header "Authorization: Bearer <token>"`. "New token" replaces the token at once. The token is random, lives only in the OS credential store (target `Uzume/mcp`) and is never written to a file or the log.
+3. While the server listens, a band "Claude can control this app" with a "Stop" button shows at the bottom of every screen, the game included.
+
+The server binds to `127.0.0.1` only, checks the token, the `Host` header and (if present) a loopback `Origin`, and takes `POST /mcp` with bodies up to 1 MiB. Every call is logged as `mcp: <tool> <target>`, never with arguments or results.
+
+| Tool | Arguments | Returns |
+| --- | --- | --- |
+| `status` | | version, channel, commit, OS, data directory, servers (no tokens), screen, running game, plugins |
+| `logs_tail` | `lines`, `contains?`, `level?` | newest redacted log lines (max 2000) |
+| `logs_search` | `pattern`, `max?` | matching lines of the log and its rotated files |
+| `settings_get` | | the non-secret settings summary of the diagnostics bundle |
+| `collect_diagnostics` | `path?` | writes the "Collect logs" zip (default `<data>/diag/`), returns the path |
+| `connection_check` | | runs the connection check, returns its JSON |
+| `plugins_list` | | id, version, origin, status, error, provides, permissions |
+| `plugin_console` | `id` | status, error, log, events, watched rows, budgets |
+| `plugin_ui` | `id`, `slot?` | UI trees of one or all slots |
+| `plugin_action` | `id`, `slot`, `action`, `value?` | sends a UI action to `fb.ui.on_action` |
+| `plugin_reload` | `id` | restarts the plugin, returns its status |
+| `plugin_call` | `id`, `interface`, `function`, `args` | calls a function of a `provides` table; images as PNG |
+| `plugin_eval` | `id`, `code` | runs Lua in a plugin with origin `local` only (otherwise `eval_not_allowed`), same sandbox and budgets, output captured |
+| `plugin_cache_list` / `plugin_cache_read` | `id` / `id`, `path` | cache files (PNG as image, others base64, max 8 MiB) |
+| `plugin_image` | `id`, `src` | `cache:` or `asset:` image as PNG |
+| `game_state` | | state, paused, frame, screens, diagnostics fields |
+| `memory_regions` | | regions of the core's memory map |
+| `memory_read` | `addr`, `len` | live memory, max 1 MiB, base64 |
+| `memory_search` | `start`, `end`, `pattern` or `value`+`type`, `max?` | addresses of matches, max 64 MiB scanned |
+| `romfs_list` / `romfs_read` | `path?` / `path`, `offset?`, `len?` | RomFS of the running 3DS game, max 4 MiB per read |
+| `rom_read` | `offset`, `len` | raw game file bytes, max 4 MiB |
+| `screenshot` | `screen?` (`all`, `top`, `bottom`) | PNG at the core's native size |
+| `game_input` | `buttons`, `frames`, `touch?` | holds buttons (and a touch) for N frames, then releases; keyboard and gamepad are untouched |
+| `game_pause` / `game_resume` | | pause state |
+| `game_frame_step` | `frames` | runs exactly N frames of a paused game |
+| `ui_tree` | `root?`, `depth?` (12), `visibleOnly?` (true), `window?` | the QML items of the visible windows, popups and dialogs included: type, objectName, text, label, placeholder, checked, enabled, visible, focus, accessible role and name, rect in window coordinates, a path id, `destructive`; capped at about 200 KB (`truncated`) |
+| `ui_click` | `target` (objectName, path id or text) or `x`,`y`; `button?`, `double?` | real mouse events (move, press, release) on the item, scrolled into view first |
+| `ui_type` | `target?`, `text`, `clear?`, `submit?` | real key events into the focused or the target field; the content of password fields is never returned |
+| `ui_key` | `key` (`Return`, `Escape`, `Ctrl+Shift+R`), `target?` | one key press through the shortcut map and the focus item, like the keyboard |
+| `ui_scroll` | `target?`, `dx`, `dy` | a real wheel event (notches; `dy` > 0 scrolls down) |
+| `navigate` | `to` (`library`, `game`, `settings`, `server`, `emulation`, `controllers`, `runs`, `plugin`, `plugin_settings`, `setup`), `page?`, `gameId?` | opens the screen through the controller calls the sidebar uses; `not_reachable` without a connected server or while a game is in front |
+| `game_start` / `game_stop` | `gameId`, `slot?` / | the Play and Quit game calls; a start that needs the "quit the running game?" dialog answers `confirm_pending` and leaves the decision to the person |
+| `app_screenshot` | `window?` | PNG of an app window as drawn (`grabWindow`), dialogs included |
+
+Limits: memory 1 MiB, RomFS and ROM 4 MiB, logs 2000 lines, images 4096 x 4096 per call; a tool that does not answer within 10 s fails with `timeout`. Brakes: no tool writes saves or memory, and none returns passwords, tokens or relay credentials; log lines are redacted like the diagnostics bundle. The UI tools act like a person at the keyboard, with one exception: a destructive control is never operated. `ui_click`, and `ui_key` or `ui_type` with Return, Enter or Space on it, answer `needs_confirmation_in_app` and the refusal is logged (`mcp: refused ui_click needs_confirmation_in_app <objectName>`). Destructive are danger buttons (`kind: "danger"`, the `destructive` property of `UzButton`), and buttons for deleting, removing, restoring or overwriting, "Share with others", "Stop sharing", installs and updates (which can need admin rights); "New token" and turning the server off are allowed. The match is deliberately wide: it also covers "Remove" of a library folder. `ui_tree` marks such controls with `destructive: true`. Password fields (and fields of a component with `secret`) show `***` instead of their text in `ui_tree`, in the answers of `ui_type` and in text search; typing into them is allowed. A screenshot shows what the screen shows, so do not reveal a password while Claude looks. Known limit: a control that is destructive but not marked or named as above is not recognised, so mark new ones with `destructive: true`. Game data goes only to your Claude session on this PC.
+
 ## Report a problem
 
 Settings → Diagnostics → "Report a problem…" (and "Report a problem…" in the in-game "⋯" menu) opens a dialog: describe what happened in a few words and send it, with a few attachments, to your own Uzume server. The admins of that server see it in their report list; nothing goes to anyone else. Ctrl+Enter sends, Esc cancels.
@@ -124,11 +172,11 @@ The ROM cache, `profiles.json`, `device.json`, `hubs/<id>/users/<user_id>/saves/
 ## Command line and environment
 
 ```sh
-uzume [--data-dir <path>] [--dev-allow-http] [--collect-logs <out.zip>] [--version | --version-json] [--help]
+uzume [--data-dir <path>] [--mcp] [--dev-allow-http] [--collect-logs <out.zip>] [--version | --version-json] [--help]
 uzume-cli <command> ...            # run without arguments for the usage text
 ```
 
-`--dev-allow-http` allows HTTP servers outside localhost (development only). The CLI covers `identify`, `pair`, `redeem-invite <address> --code FB-XXXX-XXXX --name <name>`, `games`, `fetch-rom`, `game upload <file> [--title T]`, `systems`, `fetch-core <system-id>`, `saves list`, `save push|pull|resolve`, `session-share --synthetic`, `session-watch` (both accept `--force-relay`) and `update-check`; the CLI has no hardware rendering. `scripts/e2e-player-hub.sh` checks the CLI against a locally built server, including a save round trip.
+`--mcp` switches [Claude debugging](#claude-debugging-mcp) on for this start only (the setting stays off). `--dev-allow-http` allows HTTP servers outside localhost (development only). The CLI covers `identify`, `pair`, `redeem-invite <address> --code FB-XXXX-XXXX --name <name>`, `games`, `fetch-rom`, `game upload <file> [--title T]`, `systems`, `fetch-core <system-id>`, `saves list`, `save push|pull|resolve`, `session-share --synthetic`, `session-watch` (both accept `--force-relay`) and `update-check`; the CLI has no hardware rendering. `scripts/e2e-player-hub.sh` checks the CLI against a locally built server, including a save round trip.
 
 | Variable | Meaning |
 |---|---|

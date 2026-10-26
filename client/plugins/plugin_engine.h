@@ -46,6 +46,7 @@ class ConsoleStore {
 };
 
 class PluginEngine;
+struct ProbeResult;
 
 struct DevWatch {
   QString label;
@@ -160,6 +161,11 @@ class PluginEngine {
   // `screen` non-empty = a named screen, otherwise the rectangle x/y/w/h (source-frame pixels).
   uint64_t requestCapture(Plugin& p, const std::string& screen, int x, int y, int w, int h);
 
+  // Debug probes of the MCP server (ADR 0032), plugin thread: call fb.provide'd function / run a chunk in the plugin's
+  // state under the normal budget. Output (print, fb.log) written meanwhile is captured into the result.
+  ProbeResult probeCall(const QString& id, const std::string& iface, const std::string& fn, const std::vector<Value>& args);
+  ProbeResult probeEval(const QString& id, const std::string& code);
+
   ConsoleStore& store;
   GameContext ctx;
   std::shared_ptr<MemoryProvider> provider;
@@ -172,6 +178,8 @@ class PluginEngine {
   std::chrono::steady_clock::time_point started;
 
  private:
+  ProbeResult probe(const QString& id, const std::function<void(lua_State*, std::vector<Value>&)>& body);
+  QList<LogLine>* m_captureLog = nullptr;  // set during a probe
   std::chrono::steady_clock::time_point m_iterDeadline;
   void load(Plugin& p);
   void setStatus(Plugin& p, PluginStatus s, const QString& error = QString());
@@ -191,6 +199,8 @@ class PluginEngine {
   std::chrono::steady_clock::time_point m_lastWatched;
 };
 
+// fb.cache file names: A-Z a-z 0-9 . _ - and /, no "..", no device names (also used by the MCP server's cache tools).
+bool validCacheName(const std::string& name);
 // plugin_api.cpp: creates the `fb` global in p.lua.
 void registerFbApi(PluginEngine& engine, Plugin& p);
 // Formats one watched value ("u8", "u16", "u32", "s32", "hex"); nullopt when not in the snapshot.

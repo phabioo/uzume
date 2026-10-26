@@ -104,7 +104,7 @@ There is no web admin: the server serves only the REST API (`/api/v1`, admin und
 - Update channel Off | Stable | Beta for the app, and for the server in Settings › Server › Updates (update now, go back). Rollback to one of the last releases from the index with a database backup first (`uzume-server rollback`, admin API `/api/v1/admin/updates/versions|rollback|resume`); "Go back" to an earlier app release from the index. See [guides/updates.md](guides/updates.md).
 - Backup and restore (`uzume-server backup` / `restore`, schedule, retention, admin API `/api/v1/admin/backups`, [guide](guides/server-backup.md)).
 - SERVER › Status with CPU, RAM, disk, Sessions, TURN and recent errors; optional Prometheus `GET /metrics` with a bearer token ([ADR 0029](adr/0029-operations-and-safety.md)).
-- Diagnostics bundle: Settings › Server › Diagnostics or `uzume-server diagnostics <out.zip>`. App: "Collect logs…" (Settings › Diagnostics, CLI `--collect-logs <out.zip>`) writes a redacted zip.
+- Diagnostics bundle: Settings › Server › Diagnostics or `uzume-server diagnostics <out.zip>`. App: "Collect logs…" (Settings › Diagnostics, CLI `--collect-logs <out.zip>`) writes a redacted zip. Claude debugging (Settings › Diagnostics, off by default, `--mcp`): a local MCP server on 127.0.0.1 with a token and a visible band lets a Claude Code session on this PC read and control the app, plugins and the running game ([guide](guides/app.md#claude-debugging-mcp), [ADR 0032](adr/0032-debug-mcp-server.md)).
 - Problem reports (`reports_v1`): "Report a problem" in the app sends a description plus redacted logs, settings, connection check and system info to your own server, or "Save as file…"; SERVER › Reports for admins.
 
 ## Packaging

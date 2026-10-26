@@ -577,6 +577,8 @@ int romRomfsList(lua_State* L) {
 
 // ------------------------------------------------------------------ fb.cache
 
+}  // namespace
+
 bool validCacheName(const std::string& n) {
   if (n.empty() || n.size() > 200 || n.front() == '/' || n.back() == '/' || n.find("..") != std::string::npos || n.find("//") != std::string::npos)
     return false;
@@ -597,6 +599,8 @@ bool validCacheName(const std::string& n) {
   }
   return true;
 }
+
+namespace {
 
 QString cacheFile(lua_State* L, Plugin& p, const std::string& name) {
   if (!validCacheName(name)) luaL_error(L, "invalid cache name '%s' (use A-Z a-z 0-9 . _ - and /, no '..')", name.c_str());

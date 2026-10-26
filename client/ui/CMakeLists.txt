@@ -36,6 +36,7 @@ qt_add_qml_module(uzume_ui
     remoteview.h remoteview.cpp
     updatescontroller.h updatescontroller.cpp
     reportcontroller.h reportcontroller.cpp
+    mcpcontroller.h mcpcontroller.cpp
     admincontroller.h admincontroller.cpp
     savehistorycontroller.h savehistorycontroller.cpp
     localhubcontroller.h localhubcontroller.cpp
@@ -293,7 +294,7 @@ if(NOT WIN32)
   target_sources(uzume_ui PRIVATE gpudisplay_platform_stub.cpp)
 endif()
 target_include_directories(uzume_ui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(uzume_ui PUBLIC uzume_core uzume_input uzume_audioutil uzume_media uzume_emulation uzume_plugins uzume_formats Qt6::Quick Qt6::QuickControls2 Qt6::Multimedia)
+target_link_libraries(uzume_ui PUBLIC uzume_core uzume_input uzume_audioutil uzume_media uzume_emulation uzume_plugins uzume_formats uzume_mcp Qt6::Quick Qt6::QuickControls2 Qt6::Multimedia)
 uzume_warnings(uzume_ui)
 
 if(BUILD_TESTING)

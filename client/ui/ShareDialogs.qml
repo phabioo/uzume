@@ -212,7 +212,7 @@ Item {
                 color: Theme.muted
             }
             actions: [
-                UzButton { objectName: "shareSetupConfirm"; kind: "primary"; text: qsTr("Share"); onClicked: dlg.submit() },
+                UzButton { objectName: "shareSetupConfirm"; destructive: true; kind: "primary"; text: qsTr("Share"); onClicked: dlg.submit() },
                 UzButton { objectName: "shareSetupBack"; text: qsTr("Back"); onClicked: root.lh.openShareDialog("intro") }
             ]
         }
@@ -308,6 +308,7 @@ Item {
             actions: [
                 UzButton {
                     objectName: "shareErrorPort"
+                    destructive: true   // retries the sharing on another port
                     visible: dlg.code === "port_in_use" && root.lh.shareSuggestedPort > 0
                     kind: "primary"
                     text: qsTr("Use %1").arg(root.lh.shareSuggestedPort)
@@ -320,6 +321,7 @@ Item {
                 UzButton {
                     objectName: "shareErrorRetry"
                     visible: dlg.code !== "port_in_use"
+                    destructive: dlg.installFlow || dlg.startFlow   // starts or installs the sharing again
                     kind: "primary"
                     text: dlg.installFlow || dlg.stopFlow || dlg.startFlow ? qsTr("Try again") : qsTr("Back")
                     onClicked: {
@@ -355,6 +357,7 @@ Item {
                 UzButton {
                     objectName: "shareAgainButton"
                     visible: root.lh.shareAgainAvailable
+                    destructive: true
                     kind: "primary"
                     text: qsTr("Share again…")
                     onClicked: { root.lh.acknowledgeStopped(); root.lh.shareAgain() }

@@ -186,6 +186,13 @@ class GameSession : public QObject {
   std::shared_ptr<emu::MemoryWatchSet> memoryWatch() const { return runner_ ? runner_->memoryWatch() : nullptr; }
   std::vector<emu::MemoryMap::RegionInfo> memoryRegions() const { return runner_ ? runner_->memoryRegions() : std::vector<emu::MemoryMap::RegionInfo>(); }
 
+  // Debug access (MCP server, ADR 0032): runs `fn` on the emulation thread between frames, also while paused, and waits
+  // (GUI thread). false: no game on a core, or the thread did not get to it within `timeoutMs`.
+  bool runOnEmuThread(std::function<void(emu::EmulatorBackend&)> fn, int timeoutMs = 3000);
+  // Paused game only: runs exactly `frames` frames (1..emu::EmulationRunner::kMaxStepFrames) and stays paused. Returns the
+  // frame count afterwards (the last frame arrives through frameChanged), -1 when not possible.
+  qint64 stepFrames(int frames);
+
   Q_INVOKABLE void pause();
   Q_INVOKABLE void resume();
   Q_INVOKABLE void togglePause();
@@ -209,7 +216,9 @@ class GameSession : public QObject {
   // Keyboard map of the keyboard profile (Qt::Key -> joypad mask); gamepad = joypad mask of P1. Both are merged.
   void setKeyboardMap(const QHash<int, quint32>& map);
   void setGamepadMask(quint32 mask);
-  quint32 joypadMask() const { return inputBlocked_ ? 0 : (keys_.mask() | pad_); }
+  quint32 joypadMask() const { return inputBlocked_ ? 0 : (keys_.mask() | pad_ | debugPad_); }
+  // Debug input (MCP server): libretro mask OR-ed on top of keyboard and gamepad without touching either.
+  void setDebugPad(quint32 mask);
   // Game in the background (Library shown): no keyboard, gamepad or pointer input reaches the core.
   void setInputBlocked(bool blocked);
   bool inputBlocked() const { return inputBlocked_; }
@@ -257,6 +266,7 @@ class GameSession : public QObject {
   QSet<int> hotkeyKeys_{Qt::Key_F11, Qt::Key_F3, Qt::Key_F5, Qt::Key_Space, Qt::Key_F7};
   QSet<int> reservedCombos_;
   quint32 pad_ = 0;
+  quint32 debugPad_ = 0;
   bool inputBlocked_ = false;
   emu::DisplayProfile display_;
   QHash<const QObject*, QSize> viewSizes_;

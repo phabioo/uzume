@@ -1,5 +1,7 @@
 #include "plugin_engine.h"
 
+#include "plugin_host.h"
+
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
@@ -117,6 +119,7 @@ void PluginEngine::setStatus(Plugin& p, PluginStatus s, const QString& error) {
 void PluginEngine::log(Plugin& p, LogLevel level, const std::string& text) {
   QString t = qs(text);
   if (t.size() > 4000) t = t.left(4000) + QStringLiteral("...");
+  if (m_captureLog != nullptr && m_captureLog->size() < 500) m_captureLog->append({QDateTime::currentMSecsSinceEpoch(), level, t});
   store.addLog(p.id(), level, t);
 }
 
@@ -212,6 +215,93 @@ void PluginEngine::callRef(Plugin& p, int ref, const std::function<int(lua_State
   } else {
     p.slowCalls = 0;
   }
+}
+
+namespace {
+constexpr size_t kProbeMaxResultBytes = 32u * 1024 * 1024;
+}
+
+ProbeResult PluginEngine::probe(const QString& id, const std::function<void(lua_State*, std::vector<Value>&)>& body) {
+  ProbeResult r;
+  Plugin* p = find(id);
+  if (p == nullptr) {
+    r.error = QStringLiteral("plugin_not_found");
+    return r;
+  }
+  if (p->status != PluginStatus::Running || !p->lua) {
+    r.error = QStringLiteral("plugin_not_running");
+    return r;
+  }
+  QList<LogLine> out;
+  m_captureLog = &out;
+  std::string err;
+  const bool ok = p->lua->run([&](lua_State* L) { body(L, r.values); }, err);
+  m_captureLog = nullptr;
+  r.output = out;
+  r.ok = ok;
+  if (!ok) {
+    r.values.clear();
+    const std::string first = LuaSandbox::firstLine(err);
+    r.error = qs(first);
+    if (err.size() > first.size()) r.trace = qs(err.substr(first.size() + 1)).left(4000);
+    if (p->lua->trip() != LuaSandbox::Trip::None) {  // same consequence as for any handler: the plugin is paused
+      r.paused = true;
+      pause(*p, err);
+    }
+  }
+  return r;
+}
+
+ProbeResult PluginEngine::probeCall(const QString& id, const std::string& iface, const std::string& fn, const std::vector<Value>& args) {
+  Plugin* p = find(id);
+  int ref = LUA_NOREF;
+  if (p != nullptr) {
+    const auto it = p->provided.find(iface);
+    if (it == p->provided.end() && p->status == PluginStatus::Running) {
+      ProbeResult r;
+      r.error = QStringLiteral("interface_not_provided");
+      return r;
+    }
+    if (it != p->provided.end()) ref = it->second;
+  }
+  return probe(id, [&](lua_State* L, std::vector<Value>& results) {
+    lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
+    lua_getfield(L, -1, fn.c_str());
+    if (!lua_isfunction(L, -1)) luaL_error(L, "'%s.%s' is not a function", iface.c_str(), fn.c_str());
+    const int fidx = lua_gettop(L);
+    luaL_checkstack(L, static_cast<int>(args.size()) + 4, "too many arguments");
+    for (const Value& a : args) pushValue(L, a);
+    lua_call(L, static_cast<int>(args.size()), LUA_MULTRET);
+    const int nres = lua_gettop(L) - fidx + 1;
+    for (int i = 0; i < nres; ++i) {
+      Value v;
+      std::string e;
+      if (!readValue(L, fidx + i, v, e, kMaxValueDepth, kProbeMaxResultBytes)) luaL_error(L, "result %d: %s", i + 1, e.c_str());
+      results.push_back(std::move(v));
+    }
+  });
+}
+
+ProbeResult PluginEngine::probeEval(const QString& id, const std::string& code) {
+  return probe(id, [&](lua_State* L, std::vector<Value>& results) {
+    // Host-side compile (the plugin's own environment has no load): first as an expression, then as statements.
+    // Text chunks only, never bytecode.
+    const std::string asExpr = "return " + code;
+    if (luaL_loadbufferx(L, asExpr.data(), asExpr.size(), "=eval", "t") != LUA_OK) {
+      lua_pop(L, 1);
+      if (luaL_loadbufferx(L, code.data(), code.size(), "=eval", "t") != LUA_OK) lua_error(L);
+    }
+    const int base = lua_gettop(L) - 1;
+    lua_call(L, 0, LUA_MULTRET);
+    const int nres = lua_gettop(L) - base;
+    luaL_checkstack(L, 4, "too many results");
+    for (int i = 0; i < nres; ++i) {
+      Value v;
+      std::string e;
+      if (!readValue(L, base + 1 + i, v, e, kMaxValueDepth, kProbeMaxResultBytes)) luaL_error(L, "result %d: %s", i + 1, e.c_str());
+      results.push_back(std::move(v));
+    }
+  });
 }
 
 void PluginEngine::load(Plugin& p) {
