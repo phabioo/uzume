@@ -141,8 +141,10 @@ class PlayerController : public QObject {
   Q_PROPERTY(uzume::ui::ReportController* report READ report CONSTANT)
   // Admin area (0.18 package 8): generic admin requests, "Confirm it's you", server status
   Q_PROPERTY(uzume::ui::AdminController* admin READ admin CONSTANT)
-  // Page of the "server" screen: status | users | systems | plugins | reports
+  // Page (tab) of the "server" screen: overview | people | games | systems | plugins | reports | settings
   Q_PROPERTY(QString serverPage READ serverPage NOTIFY serverPageChanged)
+  // Page of Server > Settings: general | network | signin | updates | backups | storage | diagnostics
+  Q_PROPERTY(QString serverSettingsPage READ serverSettingsPage NOTIFY serverSettingsPageChanged)
   // Versions (accounts-and-server.md 8k-2): the server's version from the handshake and how it relates to this app:
   // "same" | "server_older" | "app_older" | "unknown" (a version that is not SemVer, or no connection).
   Q_PROPERTY(QString hubVersion READ hubVersion NOTIFY hubChanged)
@@ -235,6 +237,7 @@ class PlayerController : public QObject {
   ReportController* report() { return report_.get(); }
   AdminController* admin() { return admin_.get(); }
   QString serverPage() const { return serverPage_; }
+  QString serverSettingsPage() const { return serverSettingsPage_; }
   LocalHubController* localHub() { return localHub_.get(); }
   OnboardingController* onboarding() { return onboarding_.get(); }
   AccountsController* accounts() { return accounts_.get(); }
@@ -378,7 +381,8 @@ class PlayerController : public QObject {
   Q_INVOKABLE void showLibrary();
   Q_INVOKABLE void showSettings();
   // Settings on one section: "account" | "appearance" | "audio" | "controllers" | "hotkeys" | "emulation" | "storage" | "hubs" |
-  // "plugins" | "updates" | "diagnostics" ("library" is an alias of "storage"), or "server:<page>" for the server scope.
+  // "plugins" | "updates" | "diagnostics" ("library" is an alias of "storage"), or "server:<page>": Server > Settings at that page
+  // for admins of a server with admin_v1 (anyone else gets the This PC section of the same name).
   Q_INVOKABLE void showSettingsSection(const QString& section);
   Q_INVOKABLE void openLogFolder();
   // "Collect logs" (Settings -> Diagnostics): diagnostics bundle zip (core/diagbundle.h). The info is gathered here, the
@@ -394,9 +398,12 @@ class PlayerController : public QObject {
   // view, else asks the window to show the plugin screen sheet (pluginScreenRequested). Plugins have no sidebar entry.
   Q_INVOKABLE void openPluginScreen(const QString& pluginId);
   Q_INVOKABLE void showRuns();  // Runs screen (docs/design/legacy/plugins.md 4j-2)
-  // Admin area: screen "server" on a page (status | users | systems | plugins | reports; unknown -> status). Only for
-  // admins of a server with admin_v1 (otherwise the screen shows the member block); reads the server status again.
+  // Admin area: screen "server" on a tab (overview | people | games | systems | plugins | reports | settings; the old ids
+  // status and users are aliases of overview and people; unknown -> overview). Only for admins of a server with admin_v1
+  // (otherwise the screen shows the member block); reads the server status again.
   Q_INVOKABLE void showServerPage(const QString& page);
+  // Server > Settings page (unknown -> general); does not leave the screen.
+  Q_INVOKABLE void setServerSettingsPage(const QString& page);
   Q_INVOKABLE void showSetupAssistant();
   Q_INVOKABLE void hideSetupAssistant();
   // "Plugin settings" / "Notice settings…": Settings -> Plugins (pluginId highlights its row; empty = the section only).
@@ -435,6 +442,7 @@ class PlayerController : public QObject {
   void screenChanged();
   void pluginScreenRequested(const QString& pluginId);
   void serverPageChanged();
+  void serverSettingsPageChanged();
   void setupAssistantChanged();
   void settingsSectionRequested(const QString& section);
   // Settings screen: scroll to a section ("plugins") and highlight a plugin row.
@@ -566,7 +574,8 @@ class PlayerController : public QObject {
 
   QString screen_ = QStringLiteral("connection");
   QString page_ = QStringLiteral("library");  // page shown while connected: library | settings | emulation | controllers | plugin
-  QString serverPage_ = QStringLiteral("status");
+  QString serverPage_ = QStringLiteral("overview");
+  QString serverSettingsPage_ = QStringLiteral("general");
   bool setupAssistantOpen_ = false;
   bool inviteBusy_ = false;
   std::unique_ptr<LocalRomIndex> localRoms_;

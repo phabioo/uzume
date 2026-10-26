@@ -1,6 +1,6 @@
 # Sessions: LAN and internet
 
-At a glance: How to share a running game as a Session: first on a LAN, then over the internet with the embedded TURN relay, Cloudflare TURN or your own coturn ([coturn-on-a-vps.md](coturn-on-a-vps.md)); what to do when a Session does not connect. Network settings are in the app (Settings › Server › Network & sharing).
+At a glance: How to share a running game as a Session: first on a LAN, then over the internet with the embedded TURN relay, Cloudflare TURN or your own coturn ([coturn-on-a-vps.md](coturn-on-a-vps.md)); what to do when a Session does not connect. Network settings are in the app (Server › Settings › Network & sharing).
 
 A Session shares a running game from one app with other apps. Audio and video flow directly between the apps (WebRTC, H.264 + Opus); the server only handles presence, signaling and, optionally, a relay. Decisions: [ADR 0006](../adr/0006-sessions-phase4.md), [ADR 0012](../adr/0012-internet-sessions-and-save-comfort.md).
 
@@ -21,7 +21,7 @@ Requirements:
   - UDP and TCP `3478` (STUN/TURN)
   - UDP `49160-49199` (relay range, 40 allocations)
 
-Switch it on in the app (Settings › Server › Network & sharing, then restart the server), or in `/etc/uzume/server.env` and restart the service:
+Switch it on in the app (Server › Settings › Network & sharing, then restart the server), or in `/etc/uzume/server.env` and restart the service:
 
 ```sh
 UZUME_TURN=1
@@ -29,7 +29,7 @@ UZUME_PUBLIC_HOST=hub.example.org
 # optional: UZUME_TURN_PORT=3478, UZUME_TURN_RELAY_PORTS=49160-49199, UZUME_TURN_RELAY_IP=<fixed public IPv4>
 ```
 
-Values saved in Settings › Server › Network & sharing override `server.env` and the flags (reset per field to return to the `server.env` value); `server.env` only gives the initial values. This also applies to the port and the save retention values. The web form refuses ports below 1024; set those with `install-server.sh --port` (note that a port saved in the web form then still wins until reset). The Network page shows the state (on/off, resolved IPv4, ports, active allocations) and the forwards needed. Apps pair with the DNS name; credentials are issued automatically and expire after 12 hours. Relay is IPv4 only; direct IPv6 paths still work when both apps allow them. The server does not configure the router.
+Values saved in Server › Settings › Network & sharing override `server.env` and the flags (reset per field to return to the `server.env` value); `server.env` only gives the initial values. This also applies to the port and the save retention values. The web form refuses ports below 1024; set those with `install-server.sh --port` (note that a port saved in the web form then still wins until reset). The Network page shows the state (on/off, resolved IPv4, ports, active allocations) and the forwards needed. Apps pair with the DNS name; credentials are issued automatically and expire after 12 hours. Relay is IPv4 only; direct IPv6 paths still work when both apps allow them. The server does not configure the router.
 ## Supported setups
 
 LAN, internet with a router port forward (recommended, this page), or a VPN such as WireGuard or Tailscale. The relay behind it can be the server's embedded TURN (this page), Cloudflare TURN or an external TURN server such as your own coturn on a VPS ([coturn-on-a-vps.md](coturn-on-a-vps.md), [server-configuration.md](server-configuration.md)); several can be active at once. An external relay needs no router port forward on the server side (ADR 0012, amendment 2026-10-12).

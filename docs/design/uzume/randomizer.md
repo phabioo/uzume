@@ -172,7 +172,7 @@ New bar "Variants 2.4 GB"; tools count under "Cores, firmware, tools". Section V
 
 ## 10h Server › Tools
 
-Handoff [`S10hH`](../source/uzume/S10hH.dc.html). AppNav SERVER group gains **Tools** after Systems & cores (passed as AppNav groups on this sheet; earlier sheets keep the default).
+Handoff [`S10hH`](../source/uzume/S10hH.dc.html). The Server screen gains a **Tools** tab after Systems & cores (passed as AppNav groups on this sheet; earlier sheets keep the default).
 
 ### 10h-1 Tools
 

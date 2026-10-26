@@ -1455,6 +1455,17 @@ void PlayerController::showSettings() {
 }
 
 void PlayerController::showSettingsSection(const QString& section) {
+  if (section.startsWith(QLatin1String("server:"))) {
+    const QString page = section.mid(7);
+    if (isAdmin() && admin_->available()) {
+      setServerSettingsPage(page);
+      showServerPage(QStringLiteral("settings"));
+      return;
+    }
+    showSettings();
+    emit settingsSectionRequested(page);  // no admin area: the This PC section of the same name
+    return;
+  }
   showSettings();
   emit settingsSectionRequested(section);
 }
@@ -1471,9 +1482,12 @@ void PlayerController::showServerPage(const QString& page) {
   if (conn_->state() != HubConnection::State::Connected || (gameActive_ && !background_)) {
     return;
   }
-  static const QStringList pages{QStringLiteral("status"), QStringLiteral("users"), QStringLiteral("systems"),
-                                 QStringLiteral("plugins"), QStringLiteral("reports")};
-  const QString next = pages.contains(page) ? page : QStringLiteral("status");
+  static const QStringList pages{QStringLiteral("overview"), QStringLiteral("people"), QStringLiteral("games"),   QStringLiteral("systems"),
+                                 QStringLiteral("plugins"),  QStringLiteral("reports"), QStringLiteral("settings")};
+  QString next = page;
+  if (next == QLatin1String("status")) next = QStringLiteral("overview");  // the pages before the tabs
+  else if (next == QLatin1String("users")) next = QStringLiteral("people");
+  if (!pages.contains(next)) next = QStringLiteral("overview");
   if (next != serverPage_) {
     serverPage_ = next;
     emit serverPageChanged();
@@ -1481,6 +1495,15 @@ void PlayerController::showServerPage(const QString& page) {
   page_ = QStringLiteral("server");
   updateScreen();
   admin_->refreshStatus();
+}
+
+void PlayerController::setServerSettingsPage(const QString& page) {
+  static const QStringList pages{QStringLiteral("general"), QStringLiteral("network"), QStringLiteral("signin"), QStringLiteral("updates"),
+                                 QStringLiteral("backups"), QStringLiteral("storage"), QStringLiteral("diagnostics")};
+  const QString next = pages.contains(page) ? page : QStringLiteral("general");
+  if (next == serverSettingsPage_) return;
+  serverSettingsPage_ = next;
+  emit serverSettingsPageChanged();
 }
 
 void PlayerController::showControllers() {

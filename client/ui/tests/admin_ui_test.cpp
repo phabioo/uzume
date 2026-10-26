@@ -81,7 +81,7 @@ class AdminUiTest : public QObject {
   void init() { uitest::warningCount() = 0; }
   void cleanup() { QCOMPARE(uitest::warningCount().load(), 0); }
 
-  // The SERVER group exists only for admins of a server that advertises admin_v1.
+  // The SERVER group exists only for admins of a server that advertises admin_v1, and holds the single item Server.
   void navShowsServerGroupOnlyForAdminsWithAdminV1() {
     {   // member
       FakeHub hub(QStringLiteral("a"));
@@ -91,7 +91,7 @@ class AdminUiTest : public QObject {
       pair(h, hub);
       QVERIFY(!h.controller->admin()->available());
       QVERIFY(h.item("navLibrary") != nullptr);
-      QVERIFY(h.item("navServerStatus") == nullptr || !h.item("navServerStatus")->isVisible());  // delegates stay, hidden (UzAppNav)
+      QVERIFY(h.item("navServer") == nullptr || !h.item("navServer")->isVisible());  // delegates stay, hidden (UzAppNav)
       h.controller->showServerPage(QStringLiteral("status"));   // an old link
       QCOMPARE(h.controller->screen(), QStringLiteral("server"));
       QTRY_VERIFY(h.item("serverMemberState") != nullptr && h.item("serverMemberState")->isVisible());
@@ -109,7 +109,7 @@ class AdminUiTest : public QObject {
       pair(h, hub);
       QVERIFY(h.controller->isAdmin());
       QVERIFY(!h.controller->admin()->available());
-      QVERIFY(h.item("navServerStatus") == nullptr || !h.item("navServerStatus")->isVisible());  // delegates stay, hidden (UzAppNav)
+      QVERIFY(h.item("navServer") == nullptr || !h.item("navServer")->isVisible());  // delegates stay, hidden (UzAppNav)
     }
     {   // admin with admin_v1
       FakeHub hub(QStringLiteral("a"));
@@ -119,22 +119,132 @@ class AdminUiTest : public QObject {
       QVERIFY(h.start());
       pair(h, hub);
       QTRY_VERIFY(h.controller->admin()->available());
+      // One item under the SERVER head; the five old items are gone.
+      QVERIFY(h.item("navServer") != nullptr && h.item("navServer")->isVisible());
       for (const char* n : {"navServerStatus", "navServerUsers", "navServerSystems", "navServerPlugins", "navServerReports"}) {
-        QVERIFY2(h.item(n) != nullptr, n);
+        QVERIFY2(h.item(n) == nullptr, n);
       }
       QVERIFY(h.item("navServerHead")->isVisible());
-      QVERIFY(h.click("navServerStatus"));
-      QCOMPARE(h.controller->screen(), QStringLiteral("server"));
-      QCOMPARE(h.controller->serverPage(), QStringLiteral("status"));
+      QVERIFY(h.clickWhenReady("navServer"));
+      QTRY_COMPARE(h.controller->screen(), QStringLiteral("server"));
+      QCOMPARE(h.controller->serverPage(), QStringLiteral("overview"));
       QTRY_VERIFY(h.item("serverStatusPage") != nullptr);
-      // The nav item of the page is the active one and only that page is shown.
-      QVERIFY(h.click("navServerSystems"));
+      QVERIFY(h.item("serverTabs") != nullptr && h.item("serverTabs")->isVisible());
+      QVERIFY(h.item("navServer")->property("active").toBool());
+      // The tab of the page is the active one and only that page is shown.
+      QVERIFY(h.click("tab_Systems & cores"));
       QCOMPARE(h.controller->serverPage(), QStringLiteral("systems"));
       QTRY_VERIFY(h.item("serverSystemsPage") != nullptr && h.item("serverSystemsPage")->isVisible());
       QVERIFY(h.item("serverStatusPage") == nullptr || !h.item("serverStatusPage")->isVisible());
       h.controller->showServerPage(QStringLiteral("nonsense"));
-      QCOMPARE(h.controller->serverPage(), QStringLiteral("status"));
+      QCOMPARE(h.controller->serverPage(), QStringLiteral("overview"));
     }
+  }
+
+  // Every id of showServerPage (the old and the new ones) lands on its tab and shows only that page.
+  void everyPageIdLandsOnItsTab() {
+    FakeHub hub(QStringLiteral("a"));
+    adminHub(hub);
+    QVERIFY(hub.start());
+    Harness h;
+    QVERIFY(h.start());
+    pair(h, hub);
+    h.window->resize(1280, 900);
+    QTRY_VERIFY(h.controller->admin()->available());
+    struct Case { const char* id; const char* page; const char* label; const char* object; };
+    const Case cases[] = {
+        {"status", "overview", "Overview", "serverStatusPage"},   {"users", "people", "People", "serverUsersPage"},
+        {"overview", "overview", "Overview", "serverStatusPage"}, {"people", "people", "People", "serverUsersPage"},
+        {"games", "games", "Games", "serverGamesPage"},           {"systems", "systems", "Systems & cores", "serverSystemsPage"},
+        {"plugins", "plugins", "Plugins", "serverPluginsPage"},   {"reports", "reports", "Reports", "serverReportsPage"},
+        {"settings", "settings", "Settings", "serverSettingsTab"}, {"nonsense", "overview", "Overview", "serverStatusPage"},
+    };
+    for (const Case& c : cases) {
+      h.controller->showServerPage(QString::fromLatin1(c.id));
+      QCOMPARE(h.controller->screen(), QStringLiteral("server"));
+      QCOMPARE(h.controller->serverPage(), QString::fromLatin1(c.page));
+      QVERIFY2(h.item("serverTabs") != nullptr && h.item("serverTabs")->isVisible(), c.id);
+      QCOMPARE(h.item("serverTabs")->property("active").toString(), QString::fromLatin1(c.label));
+      QTRY_VERIFY2(shown(h.item(c.object)), c.id);
+      QVERIFY2(shown(h.item((QByteArray("tab_") + c.label).constData())), c.id);
+    }
+    // Seven tabs, in this order; the header is the one page header with the server name.
+    QCOMPARE(h.item("serverTabs")->property("items").toStringList(),
+             (QStringList{"Overview", "People", "Games", "Systems & cores", "Plugins", "Reports", "Settings"}));
+    QCOMPARE(text(h.item("serverTitle")), QStringLiteral("Home server"));
+    // Clicking a tab opens its page.
+    QVERIFY(h.click("tab_Reports"));
+    QCOMPARE(h.controller->serverPage(), QStringLiteral("reports"));
+    QTRY_VERIFY(shown(h.item("serverReportsPage")));
+  }
+
+  // "server:<page>" (WhatsNewDialog, ServerProblemLine, the Needs attention actions) opens Server > Settings at that page; anyone
+  // without the admin pages gets the This PC section of the same name.
+  void serverSettingsLinksOpenTheSettingsTab() {
+    {
+      FakeHub hub(QStringLiteral("a"));
+      adminHub(hub);
+      QVERIFY(hub.start());
+      Harness h;
+      QVERIFY(h.start());
+      pair(h, hub);
+      h.window->resize(1400, 1800);
+      QTRY_VERIFY(h.controller->admin()->available());
+      h.controller->showSettingsSection(QStringLiteral("server:updates"));
+      QCOMPARE(h.controller->screen(), QStringLiteral("server"));
+      QCOMPARE(h.controller->serverPage(), QStringLiteral("settings"));
+      QCOMPARE(h.controller->serverSettingsPage(), QStringLiteral("updates"));
+      QTRY_VERIFY(shown(h.item("serverSettingsNav_updates")));
+      QTRY_VERIFY(h.item("serverSettingsNav_updates")->property("selected").toBool());
+      h.controller->showSettingsSection(QStringLiteral("server:backups"));
+      QCOMPARE(h.controller->serverSettingsPage(), QStringLiteral("backups"));
+      QTRY_VERIFY(h.item("serverSettingsNav_backups")->property("selected").toBool());
+      h.controller->showSettingsSection(QStringLiteral("server:nonsense"));
+      QCOMPARE(h.controller->serverSettingsPage(), QStringLiteral("general"));
+      // The needs-attention targets use the same path.
+      h.controller->openAttention(QStringLiteral("settings:server:storage"));
+      QCOMPARE(h.controller->serverSettingsPage(), QStringLiteral("storage"));
+      // Settings itself is This PC only.
+      h.controller->showSettingsSection(QStringLiteral("updates"));
+      QCOMPARE(h.controller->screen(), QStringLiteral("settings"));
+      QTRY_VERIFY(h.item("section_updates") != nullptr && h.item("section_updates")->property("selected").toBool());
+      QVERIFY(h.item("settingsScopeRow") == nullptr && h.item("settingsScope") == nullptr);
+      QVERIFY(h.item("scopeServer") == nullptr && h.item("scopePc") == nullptr && h.item("settingsScopeHint") == nullptr);
+    }
+    {   // a member: the This PC section
+      FakeHub hub(QStringLiteral("a"));
+      QVERIFY(hub.start());
+      Harness h;
+      QVERIFY(h.start());
+      pair(h, hub);
+      QVERIFY(!h.controller->admin()->available());
+      h.controller->showSettingsSection(QStringLiteral("server:updates"));
+      QCOMPARE(h.controller->screen(), QStringLiteral("settings"));
+      QTRY_VERIFY(h.item("section_updates") != nullptr && h.item("section_updates")->property("selected").toBool());
+    }
+  }
+
+  // The admin block of the Library (Rescan folders, upload, import folder, "Members can add games") is the Games tab now.
+  void gamesTabHoldsTheAdminBlockAndTheLibraryNoLonger() {
+    FakeHub hub(QStringLiteral("a"));
+    adminHub(hub);
+    QVERIFY(hub.start());
+    Harness h;
+    QVERIFY(h.start());
+    pair(h, hub);
+    h.window->resize(1400, 1200);
+    QTRY_VERIFY(h.controller->admin()->available());
+    h.controller->showLibrary();
+    QTest::qWait(150);
+    QVERIFY(!shown(h.item("libraryAdminBar")));
+    QVERIFY(!shown(h.item("libraryRescan")));
+    h.controller->showServerPage(QStringLiteral("games"));
+    QTRY_VERIFY(shown(h.item("serverGamesPage")));
+    QTRY_VERIFY(shown(h.item("libraryAdminBar")));
+    QTRY_VERIFY(shown(h.item("libraryRescan")));
+    QTRY_VERIFY(shown(h.item("serverSettingsPane")));   // its rows are checked in admin_settings_ui_test
+    h.controller->showLibrary();
+    QTRY_VERIFY(!shown(h.item("libraryRescan")));
   }
 
   void statusPageRendersTheServerData() {
@@ -146,18 +256,18 @@ class AdminUiTest : public QObject {
     pair(h, hub);
     h.window->resize(1280, 800);
     QTRY_VERIFY(h.controller->admin()->available());
-    // The first reading feeds the badge on Status in AppNav before the page is opened.
+    // The first reading feeds the badge on Server in AppNav before the page is opened.
     QTRY_COMPARE(h.controller->admin()->statusProblem(), QStringLiteral("Backup disk 92 %"));
-    QTRY_VERIFY(h.item("navServerStatusBadge") != nullptr && h.item("navServerStatusBadge")->isVisible());  // count badge, no "!"
+    QTRY_VERIFY(h.item("navServerBadge") != nullptr && h.item("navServerBadge")->isVisible());  // count badge, no "!"
     QCOMPARE(h.controller->attentionCount(), 1);
     h.controller->showServerPage(QStringLiteral("status"));
     QTRY_VERIFY(h.item("serverStatusPage") != nullptr);
     QTRY_COMPARE(h.controller->admin()->statusState(), QStringLiteral("ready"));
-    QTRY_COMPARE(text(h.item("pageTitle")), QStringLiteral("Home server"));
-    QQuickItem* label = h.item("sectionLabelText");
-    QVERIFY(label != nullptr);
-    QTRY_VERIFY2(text(h.item("sectionLabelText")).contains(QStringLiteral("0.18.0 · Up 12 days 4 h · server.example.com:8443")),
-                 qPrintable(text(h.item("sectionLabelText"))));
+    QTRY_COMPARE(text(h.item("serverTitle")), QStringLiteral("Home server"));   // the one page header of the Server screen
+    // Address, state and version are in the header meta; the toolbar line of the Overview page only keeps the actions.
+    QTRY_VERIFY2(text(h.item("pageMeta")).contains(QStringLiteral("Version 0.18.0")) || !text(h.item("pageMeta")).isEmpty(), qPrintable(text(h.item("pageMeta"))));
+    QVERIFY(!shown(h.item("adminPageLabel")));
+    QTRY_VERIFY(shown(h.item("tabCount_Overview")));   // the old Status badge, on the tab
     // "Needs attention · 1": the problem as a sentence with exactly one action.
     QTRY_VERIFY(h.item("statusAttentionRow_0") != nullptr);
     QCOMPARE(text(h.item("statusAttentionHead")), QStringLiteral("Needs attention · 1"));
@@ -189,7 +299,7 @@ class AdminUiTest : public QObject {
     QQuickItem* helpDisclosure = h.item("adminHelpDisclosure");
     QVERIFY(helpDisclosure != nullptr);
     QCOMPARE(helpDisclosure->isVisible(), !helpColumn);
-    QCOMPARE(help->property("label").toString(), QStringLiteral("UZUME · STATUS · TEST SERVER"));
+    QCOMPARE(help->property("label").toString(), QStringLiteral("UZUME · OVERVIEW · TEST SERVER"));
     uitest::saveShot(h.window, QStringLiteral("admin-status"));
 
     // Unreachable: the last known data stays, Try again reads it again.

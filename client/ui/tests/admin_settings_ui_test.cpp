@@ -139,13 +139,12 @@ class AdminSettingsUiTest : public QObject {
   // Esc from the column leaves it for the AppNav.
   static void expectNavFocus(Harness& h) { QTRY_VERIFY(focusInside(h, "appNav")); }
 
-  // Settings, scope Server, the given page.
+  // Server › Settings, the given page.
   static void openPage(Harness& h, const char* nav, const char* pageName) {
     h.window->resize(1400, 1800);
     QTRY_VERIFY(h.controller->admin()->available());
-    h.controller->showSettings();
-    QTRY_VERIFY(h.item("scopeServer") != nullptr);
-    QVERIFY(h.clickWhenReady("scopeServer"));
+    h.controller->showServerPage(QStringLiteral("settings"));
+    QTRY_VERIFY(h.item("serverSettingsTab") != nullptr);
     QTRY_VERIFY(shown(h, "serverSettingsPage"));
     if (nav != nullptr) QVERIFY(h.clickWhenReady(nav));
     QTRY_VERIFY(shown(h, pageName));
@@ -164,7 +163,7 @@ class AdminSettingsUiTest : public QObject {
   void init() { uitest::warningCount() = 0; }
   void cleanup() { QCOMPARE(uitest::warningCount().load(), 0); }
 
-  void serverScopeListsTheSevenPages() {
+  void settingsTabListsTheSevenPages() {
     FakeHub hub(QStringLiteral("a"));
     adminHub(hub);
     QVERIFY(hub.start());
@@ -178,12 +177,21 @@ class AdminSettingsUiTest : public QObject {
       QVERIFY2(h.item(n) != nullptr, n);
     }
     QCOMPARE(text(h.item("generalName")), QStringLiteral("Home server"));
-    QCOMPARE(text(h.item("generalImport")).left(17), QStringLiteral("/srv/uzume/import"));
     QTRY_COMPARE(text(h.item("serverSettingsNavStatus_updates")), QStringLiteral("0.17.0"));
     QTRY_COMPARE(text(h.item("serverSettingsNavStatus_backups")), QStringLiteral("03:00"));
-    // This PC again: the pane goes away.
-    QVERIFY(h.click("scopePc"));
-    QTRY_VERIFY(!shown(h, "serverSettingsPage"));
+    // The import folder and "Members can add games" are on the Games tab now, not in General.
+    QVERIFY(h.item("generalImportRow") == nullptr);
+    QVERIFY(h.item("generalUploadsRow") == nullptr);
+    // At 1280 px the column keeps its 200 px and the page takes the rest: no stretched column and a squeezed page.
+    h.window->resize(1280, 800);
+    QTRY_VERIFY(h.item("serverSettingsColumnNav")->width() > 0);
+    QTRY_VERIFY2(h.item("serverSettingsColumnNav")->width() <= 200, qPrintable(QString::number(h.item("serverSettingsColumnNav")->width())));
+    QTRY_VERIFY2(h.item("serverSettingsPane")->mapToScene(QPointF(0, 0)).x() < 600,
+                 qPrintable(QString::number(h.item("serverSettingsPane")->mapToScene(QPointF(0, 0)).x())));
+    QTRY_VERIFY(h.item("serverSettingsPane")->width() > 500);
+    // Another tab: the pane goes away.
+    QVERIFY(h.click("tab_Games"));
+    QTRY_VERIFY(h.item("serverGamesPage") != nullptr && h.item("serverSettingsTab") == nullptr);
   }
 
   // The answer of an earlier request (here simulated by calling editFinished) must not close an edit dialog that is open and has not
@@ -203,7 +211,31 @@ class AdminSettingsUiTest : public QObject {
     QVERIFY(shown(h, "settingsEditDialog"));
   }
 
-  void generalRenameAndUploadsPatch() {
+  // The Games tab: rescan, upload, the import folder and "Members can add games" (moved out of the Library and of General).
+  void gamesTabHoldsImportFolderAndUploads() {
+    FakeHub hub(QStringLiteral("a"));
+    adminHub(hub);
+    const QString patch = QStringLiteral("PATCH ") + kApi + QStringLiteral("/settings");
+    hub.adminRoutes[patch] = {200, settingsBody("Home server", false)};
+    QVERIFY(hub.start());
+    Harness h;
+    QVERIFY(h.start());
+    pair(h, hub);
+    h.window->resize(1400, 1800);
+    QTRY_VERIFY(h.controller->admin()->available());
+    h.controller->showServerPage(QStringLiteral("games"));
+    QTRY_VERIFY(shown(h, "serverGamesPage"));
+    QTRY_VERIFY(shown(h, "libraryRescan"));
+    QTRY_VERIFY(shown(h, "generalImportRow"));
+    QTRY_COMPARE(text(h.item("generalImport")).left(17), QStringLiteral("/srv/uzume/import"));
+    QTRY_VERIFY(shown(h, "generalUploadsRow"));
+    QVERIFY(h.click("generalUploads"));
+    QTRY_COMPARE(calls(hub, patch), 1);
+    QCOMPARE(bodyOf(hub, patch).value("allow_user_uploads").toBool(), false);
+    QTRY_COMPARE(text(h.item("serverSettingsNote")), QStringLiteral("Only admins can add games now."));
+  }
+
+  void generalRenamePatch() {
     FakeHub hub(QStringLiteral("a"));
     adminHub(hub);
     const QString patch = QStringLiteral("PATCH ") + kApi + QStringLiteral("/settings");
@@ -220,10 +252,6 @@ class AdminSettingsUiTest : public QObject {
     QTRY_COMPARE(text(h.item("generalName")), QStringLiteral("Den"));
     QTRY_COMPARE(text(h.item("serverSettingsNote")), QStringLiteral("Renamed the server to Den."));
     QTRY_VERIFY(!shown(h, "settingsEditDialog"));
-    hub.adminRoutes[patch] = {200, settingsBody("Den", false)};
-    QVERIFY(h.click("generalUploads"));
-    QTRY_COMPARE(calls(hub, patch), 2);
-    QCOMPARE(bodyOf(hub, patch).value("allow_user_uploads").toBool(), false);
     // A refusal shows the message of the server in the dialog and keeps it open.
     hub.adminRoutes[patch] = {400, R"JSON({"error": {"code": "bad_request", "message": "Name is too long"}})JSON"};
     QVERIFY(h.clickWhenReady("generalRename"));
@@ -646,19 +674,25 @@ class AdminSettingsUiTest : public QObject {
     expectNavFocus(h);
     QCOMPARE(h.controller->screen(), QStringLiteral("settings"));
 
-    // Settings for Server: the server pages are rows of the same column.
-    QVERIFY(h.clickWhenReady("scopeServer"));
-    QTRY_VERIFY(h.item("serverSettingsNav_network") != nullptr);
-    QVERIFY(tabUntil(h, [&] { return focusIsRow(h); }));
+    // Server › Settings: the server pages are rows of a column of their own next to the page; Esc goes page -> column -> tab row -> AppNav.
+    h.controller->showServerPage(QStringLiteral("settings"));
+    QTRY_VERIFY(h.item("serverSettingsNav_network") != nullptr && shown(h, "serverSettingsNav_network"));
+    QVERIFY(tabUntil(h, [&] { return focusIsRow(h); }, 120));
     QVERIFY(focusName(h).startsWith(QStringLiteral("serverSettingsNav_")));
     for (int i = 0; i < 7 && focusName(h) != QStringLiteral("serverSettingsNav_network"); ++i) key(h, Qt::Key_Down);
     QCOMPARE(focusName(h), QStringLiteral("serverSettingsNav_network"));
     key(h, Qt::Key_Return);
     QTRY_VERIFY(shown(h, "settingsNetwork"));
     key(h, Qt::Key_Right);
-    QTRY_VERIFY(!focusIsRow(h) && focusInside(h, "settingsScroll"));
-    key(h, Qt::Key_Escape);
+    QTRY_VERIFY(!focusIsRow(h) && focusInside(h, "serverSettingsPane"));
+    key(h, Qt::Key_Escape);   // page -> column
     QTRY_VERIFY(focusIsRow(h));
+    key(h, Qt::Key_Escape);   // column -> tab row
+    QTRY_VERIFY(focusInside(h, "serverTabs"));
+    key(h, Qt::Key_Escape);   // tab row -> AppNav
+    expectNavFocus(h);
+    QCOMPARE(h.controller->screen(), QStringLiteral("server"));
+    h.controller->showSettings();
 
     // Emulation (a section of Settings): the tabs are the first stop of the content.
     h.controller->showEmulation();
@@ -696,11 +730,16 @@ class AdminSettingsUiTest : public QObject {
     QTRY_VERIFY(h.item("controllerTabs") != nullptr);
 
     // An admin page: Esc goes to the AppNav, and from there to the Library.
-    h.controller->showServerPage(QStringLiteral("status"));
+    h.controller->showServerPage(QStringLiteral("overview"));
     QTRY_VERIFY(h.item("serverScreen") != nullptr && h.item("serverScreen")->isVisible());
     QTRY_VERIFY(h.item("appNav") != nullptr);
-    // Tab walks the AppNav first, then reaches a control of the page (Esc there moves to the AppNav).
-    QVERIFY(tabUntil(h, [&] { return focusInside(h, "serverScreen") && !focusInside(h, "appNav"); }, 120));
+    // Tab walks the AppNav first, then the tab row (Esc there moves to the AppNav); Down on the tab row goes into the page, Esc back.
+    QVERIFY(tabUntil(h, [&] { return focusInside(h, "serverTabs"); }, 120));
+    QTRY_VERIFY(shown(h, "serverStatusPage"));
+    key(h, Qt::Key_Down);
+    QTRY_VERIFY(focusInside(h, "serverPageLoader") && !focusInside(h, "serverTabs"));
+    key(h, Qt::Key_Escape);   // page -> tab row
+    QTRY_VERIFY(focusInside(h, "serverTabs"));
     key(h, Qt::Key_Escape);
     expectNavFocus(h);
     key(h, Qt::Key_Escape);

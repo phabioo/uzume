@@ -1,6 +1,6 @@
 # Design: FrameBeam Hub web interface (Go html/template + htmx, light)
 
-> Legacy: the Hub web interface was removed in 0.18 (package 12, [ADR 0030](../../adr/0030-one-app-one-server-uzume.md) D2). This file is kept as a record of the old screens and their texts; the admin screens now live in the app (SERVER group, Settings › Server) as drawn in [uzume/accounts-and-server.md](../uzume/accounts-and-server.md). Do not build from it.
+> Legacy: the Hub web interface was removed in 0.18 (package 12, [ADR 0030](../../adr/0030-one-app-one-server-uzume.md) D2). This file is kept as a record of the old screens and their texts; the admin screens now live in the app (Server screen, Server › Settings) as drawn in [uzume/accounts-and-server.md](../uzume/accounts-and-server.md). Do not build from it.
 
 Source: `source/framebeam-designs-v3.dc.html`, line ranges per screen = screen container (without caption). Mock data in the script from line 1227 (`renderVals` at line 1433); all names, versions, addresses, counts and hashes are illustrative mock values (hosts are generic: `hub.example.com`, `hub.local`). Tokens: `tokens.md`; logo: `logo.md`. Dimensions in px at 1440 x 900. The revision 3s-2/3s-3 (upload panel in the CURRENT bar, handoff 2026-10-08) is specified at the end of the 3s sections and comes from `source/framebeam-designs-v4.dc.html`. The Hub has no Sessions page (architecture 09). Screen order in the source: 3j, 3k, 3s, 3l, 3m, 3n, 3o, 3q.
 

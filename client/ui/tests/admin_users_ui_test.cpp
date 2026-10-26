@@ -63,14 +63,15 @@ class AdminUsersUiTest : public QObject {
     Harness h;
     QVERIFY(h.start());
     pair(h, hub);
-    // Badges of AppNav come from the status poll: 2 waiting devices, 1 new report.
-    QTRY_VERIFY(shown(h.item("navServerUsersBadge")));
-    QTRY_VERIFY(shown(h.item("navServerReportsBadge")));
+    // The counts come from the status poll: 2 waiting devices and 1 new report on the tabs, 3 on the Server item of AppNav.
+    QTRY_VERIFY(shown(h.item("navServerBadge")));
     QCOMPARE(h.controller->admin()->pendingDevices(), 2);
     QCOMPARE(h.controller->admin()->newReports(), 1);
 
     openUsers(h);
-    QCOMPARE(text(h.item("pageTitle")), QStringLiteral("Users"));
+    QTRY_COMPARE(text(h.item("tabCountText_People")), QStringLiteral("2"));
+    QTRY_COMPARE(text(h.item("tabCountText_Reports")), QStringLiteral("1"));
+    QCOMPARE(h.controller->serverPage(), QStringLiteral("people"));
     QCOMPARE(text(h.item("personName_u_test_1")), QStringLiteral("Tester"));
     QCOMPARE(text(h.item("personName_u_2")), QStringLiteral("Lena"));
     QCOMPARE(text(h.item("peopleTableCell_0_role")), QStringLiteral("Admin"));
@@ -204,7 +205,7 @@ class AdminUsersUiTest : public QObject {
     QTRY_COMPARE(hub.adminCalls.value(QStringLiteral("POST /api/v1/admin/pairing-requests/r_2/deny")), 1);
     QTRY_VERIFY(shown(h.item("devicesNothingWaiting")));
     QTRY_VERIFY(!shown(h.item("tabCount_Devices")));
-    QTRY_VERIFY(!shown(h.item("navServerUsersBadge")));
+    QTRY_VERIFY(!shown(h.item("tabCount_People")));
 
     // Sign out a device: asks, then revokes it.
     QVERIFY(h.click("signOutDevice_d_3"));
@@ -355,9 +356,9 @@ class AdminUsersUiTest : public QObject {
     Harness h;
     QVERIFY(h.start());
     pair(h, hub);
-    QTRY_VERIFY(shown(h.item("navServerReportsBadge")));
+    QTRY_VERIFY(shown(h.item("navServerBadge")));
     openReports(h);
-    QCOMPARE(text(h.item("pageTitle")), QStringLiteral("Reports"));
+    QCOMPARE(h.controller->serverPage(), QStringLiteral("reports"));
     QCOMPARE(text(h.item("reportTitle_12")), QStringLiteral("Sound crackles in Multiview"));
     QCOMPARE(text(h.item("reportsTableCell_0_from")), QStringLiteral("Lena"));
     QCOMPARE(text(h.item("reportStatus_12")), QStringLiteral("New"));
@@ -399,7 +400,7 @@ class AdminUsersUiTest : public QObject {
     QTRY_COMPARE(hub.adminCalls.value(QStringLiteral("POST /api/v1/admin/reports/12/seen")), 1);
     QTRY_COMPARE(text(h.item("reportStatus_12")), QStringLiteral("Seen"));
     QTRY_VERIFY(!shown(h.item("tabCount_New")));
-    QTRY_VERIFY(!shown(h.item("navServerReportsBadge")));
+    QTRY_VERIFY(!shown(h.item("tabCount_Reports")));
     QVERIFY(!shown(h.item("reportMarkSeen")));
 
     // Delete asks first.
@@ -459,7 +460,7 @@ class AdminUsersUiTest : public QObject {
     h.controller->showServerPage(QStringLiteral("reports"));
     QTRY_VERIFY(shown(h.item("reportsEmpty")));
     QVERIFY(!shown(h.item("reportsTable")));
-    QVERIFY(!shown(h.item("navServerReportsBadge")));
+    QVERIFY(!shown(h.item("tabCount_Reports")));
   }
 };
 

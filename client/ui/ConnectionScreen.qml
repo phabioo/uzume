@@ -48,7 +48,7 @@ Rectangle {
                     font.pixelSize: Theme.roles.body.size
                     lineHeight: 1.4
                     text: root.childBlock ? qsTr("Games and saves stay on this PC. The server runs while Uzume is open.")
-                                          : qsTr("Enter the address of your Uzume server. Ask the person who runs the server for the address; admins find it in Uzume under Settings › Server › Network & sharing.")
+                                          : qsTr("Enter the address of your Uzume server. Ask the person who runs the server for the address; admins find it in Uzume under Server › Settings › Network & sharing.")
                 }
             }
 

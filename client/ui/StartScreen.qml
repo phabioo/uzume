@@ -74,7 +74,7 @@ Rectangle {
             break
         case "server_too_old":
             spec = { kind: "error", label: qsTr("Server too old"), title: qsTr("%1 needs an update").arg(name),
-                     text: msg !== "" ? msg : qsTr("%1 runs %2, which is too old for this version of Uzume. An admin updates it in Settings › Server › Updates or with `uzume-server update`.").arg(name).arg(root.ob.serverVersion),
+                     text: msg !== "" ? msg : qsTr("%1 runs %2, which is too old for this version of Uzume. An admin updates it in Server › Settings › Updates or with `uzume-server update`.").arg(name).arg(root.ob.serverVersion),
                      actions: [{ name: "back", text: qsTr("Back"), primary: true }] }
             break
         case "app_too_old":

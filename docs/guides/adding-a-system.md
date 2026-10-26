@@ -135,7 +135,7 @@ CI has no real core. Before calling a system done, on a real machine with the se
 1. Start the server, open Systems & Cores: the new system is listed, the buildbot offers the expected cores (and not others).
 2. Install a core; check that Update, Remove and a second system sharing the core behave.
 3. Add a homebrew or dummy ROM with the extension; start it in the app (core choice, frame size equals the manifest, input from keyboard and gamepad).
-4. Save in the game, quit, start again: the save is there; check the slot on the server (SERVER › Saves in the app); restore a history version.
+4. Save in the game, quit, start again: the save is there; check the slot on the server (Saves tab › All users in the app); restore a history version.
 5. With firmware mode `native` and your own firmware file: the app reports "Firmware required/missing" correctly and the core uses it.
 6. Plugins: with the plugin runtime, check the game identity.
 
