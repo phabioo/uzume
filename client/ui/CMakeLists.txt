@@ -145,8 +145,11 @@ qt_add_qml_module(uzume_ui
     UzSelect.qml
     UzModelSelect.qml
     UzSettingsRow.qml
-    EmulationScreen.qml
-    ControllersScreen.qml
+    EmulationContent.qml
+    ControllersContent.qml
+    HotkeysContent.qml
+    TableHeadCell.qml
+    BindingText.qml
     PadGlyph.qml
     UploadFileDialog.qml
     SaveSummary.qml

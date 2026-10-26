@@ -68,7 +68,7 @@ class PlayerController : public QObject {
   QML_ELEMENT
   QML_UNCREATABLE("Created in main.cpp")
 
-  // Navigation: "start" (first start, join, set up, add a person) | "connection" | "pairing" | "library" | "game" | "settings" | "emulation" | "controllers" | "runs" | "server"
+  // Navigation: "start" (first start, join, set up, add a person) | "connection" | "pairing" | "library" | "game" | "settings" | "runs" | "server" (Emulation, Controls and Hotkeys are sections of "settings": showEmulation(), showControllers() and showSettingsSection())
   Q_PROPERTY(QString screen READ screen NOTIFY screenChanged)
 
   // 3a
@@ -377,7 +377,8 @@ class PlayerController : public QObject {
   // Library header / Sidebar
   Q_INVOKABLE void showLibrary();
   Q_INVOKABLE void showSettings();
-  // Settings, scrolled to a section ("updates" | "hubs" | "appearance" | "library" | "storage" | "plugins" | "diagnostics").
+  // Settings on one section: "account" | "appearance" | "audio" | "controllers" | "hotkeys" | "emulation" | "storage" | "hubs" |
+  // "plugins" | "updates" | "diagnostics" ("library" is an alias of "storage"), or "server:<page>" for the server scope.
   Q_INVOKABLE void showSettingsSection(const QString& section);
   Q_INVOKABLE void openLogFolder();
   // "Collect logs" (Settings -> Diagnostics): diagnostics bundle zip (core/diagbundle.h). The info is gathered here, the

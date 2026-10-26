@@ -111,7 +111,7 @@ ApplicationWindow {
         anchors.right: parent.right
         anchors.top: parent.top
         anchors.bottom: mcpBandItem.visible ? mcpBandItem.top : parent.bottom
-        currentIndex: ["connection", "pairing", "library", "game", "settings", "emulation", "controllers", "runs", "server", "start"].indexOf(window.player.screen)
+        currentIndex: ["connection", "pairing", "library", "game", "settings", "runs", "server", "start"].indexOf(window.player.screen)
         focus: true
 
         // Back rule (readable-pass.md, design-system.md "Focus is always visible"): B / Esc go one level back on a main page.
@@ -138,17 +138,14 @@ ApplicationWindow {
             active: window.player.screen === "settings"
             sourceComponent: SettingsScreen { player: window.player }
         }
-        EmulationScreen { player: window.player }
-        ControllersScreen { id: controllersScreen; player: window.player }
         RunsScreen { player: window.player }
         ServerScreen { player: window.player }
         StartScreen { player: window.player }
     }
 
-    // The game's hotkey sheet "Change hotkeys": Controllers with its Hotkeys tab.
+    // "Change hotkeys" of the in-game hotkey sheet (GameScreen): Settings at the Hotkeys section.
     function openControllersHotkeys() {
-        window.player.showControllers()
-        controllersScreen.tab = "hotkeys"
+        window.player.showSettingsSection("hotkeys")
     }
 
     // The page that is shown now (the Settings page lives in a Loader).
@@ -195,9 +192,9 @@ ApplicationWindow {
     Component.onCompleted: window.player.onboarding.startScreenEnabled = true
     SwitchUserScreen { anchors.fill: parent; player: window.player }
 
-    // Hotkeys (frame.md "0-4 G"): Ctrl+1 to 4 Library, Runs, Emulation, Controllers; Ctrl+, Settings. Not in the game view,
-    // not before a server is connected.
-    readonly property bool navHotkeys: ["library", "runs", "emulation", "controllers", "settings", "server"].indexOf(window.player.screen) >= 0
+    // Hotkeys (frame.md "0-4 G"): Ctrl+1 Library, Ctrl+2 Runs, Ctrl+3 Emulation and Ctrl+4 Controls (sections of Settings), Ctrl+,
+    // Settings. Not in the game view, not before a server is connected.
+    readonly property bool navHotkeys: ["library", "runs", "settings", "server"].indexOf(window.player.screen) >= 0
     Shortcut { sequence: "Ctrl+1"; enabled: window.navHotkeys; onActivated: window.player.showLibrary() }
     Shortcut { sequence: "Ctrl+2"; enabled: window.navHotkeys && window.player.runs.available; onActivated: window.player.showRuns() }
     Shortcut { sequence: "Ctrl+3"; enabled: window.navHotkeys; onActivated: window.player.showEmulation() }

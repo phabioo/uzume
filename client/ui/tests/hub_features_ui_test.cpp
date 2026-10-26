@@ -432,6 +432,7 @@ class HubFeaturesUiTest : public QObject {
       QTest::qWait(150);  // the library was just shown: let the layout settle
       QVERIFY(h.click("navSettings"));
       QTest::qWait(100);
+      h.controller->showSettingsSection(QStringLiteral("appearance"));
       QCOMPARE(h.controller->screen(), QStringLiteral("settings"));
       QVERIFY(h.item("appearanceSegment") != nullptr);
       QVERIFY(h.click("appearanceLight"));
@@ -487,6 +488,7 @@ class HubFeaturesUiTest : public QObject {
     QTRY_COMPARE_WITH_TIMEOUT(h.controller->screen(), QStringLiteral("library"), 8000);
     QVERIFY(h.click("navSettings"));
     QTest::qWait(100);
+    h.controller->showSettingsSection(QStringLiteral("hubs"));
     QCOMPARE(h.controller->screen(), QStringLiteral("settings"));
     QVERIFY(h.item("hubsSection") != nullptr);
     const QString idA = hubA.hubId;
@@ -512,7 +514,7 @@ class HubFeaturesUiTest : public QObject {
 
     // Remove asks first; Cancel keeps the Hub.
     QTRY_COMPARE_WITH_TIMEOUT(h.controller->screen(), QStringLiteral("library"), 8000);
-    h.controller->showSettings();
+    h.controller->showSettingsSection(QStringLiteral("hubs"));
     QTest::qWait(100);
     QVERIFY(h.click(nm("hubMenu_", idB).constData()));
     QTest::qWait(150);
@@ -568,6 +570,7 @@ class HubFeaturesUiTest : public QObject {
 
     QVERIFY(h.click("navSettings"));
     QTest::qWait(100);
+    h.controller->showSettingsSection(QStringLiteral("hubs"));
     const QString idA = hubA.hubId;
     const QString idB = hubB.hubId;
     auto nm = [](const char* prefix, const QString& id) { return QByteArray(prefix) + id.toUtf8(); };

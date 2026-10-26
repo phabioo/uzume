@@ -99,12 +99,11 @@ class PluginHotkeysUiTest : public QObject {
     QVERIFY(!pc()->activeHotkeyCombos().contains(int(Qt::Key_F11)));
     QCOMPARE(pc()->activeHotkeyCombos().size(), 4);  // Ctrl+H, Ctrl+D, Ctrl+R, F8
 
-    // Controllers > Hotkeys: Uzume rows, one group per plugin, conflict row in the warning tone.
-    h_.controller->showControllers();
-    QTRY_COMPARE(h_.controller->screen(), QStringLiteral("controllers"));
-    QTRY_VERIFY(h_.item("tabHotkeys") != nullptr && h_.item("tabHotkeys")->isVisible());
+    // Settings > Hotkeys: Uzume rows, one group per plugin, conflict row in the warning tone.
+    h_.controller->showSettingsSection(QStringLiteral("hotkeys"));
+    QTRY_COMPARE(h_.controller->screen(), QStringLiteral("settings"));
+    QTRY_VERIFY(h_.item("hotkeysContent") != nullptr && h_.item("hotkeysContent")->isVisible());
     QQuickTest::qWaitForPolish(h_.window);
-    QVERIFY(h_.click("tabHotkeys"));
     QTRY_VERIFY(h_.item("pluginHotkeyGroup_net.test.a") != nullptr && h_.item("pluginHotkeyGroup_net.test.a")->isVisible());
     QVERIFY(h_.item("pluginHotkeyGroup_net.test.b")->isVisible());
     QCOMPARE(textOf(h_.item("uzumeHotkeyGroup")), QStringLiteral("Uzume"));

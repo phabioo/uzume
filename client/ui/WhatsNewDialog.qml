@@ -18,7 +18,7 @@ UzDialog {
     readonly property bool admin: root.player.isAdmin
     readonly property string version: root.player.updates.currentVersion
     readonly property bool want: root.player.updates.whatsNewPending
-                                 && ["library", "runs", "emulation", "controllers", "settings", "server", "plugin"].indexOf(root.player.screen) >= 0
+                                 && ["library", "runs", "settings", "server", "plugin"].indexOf(root.player.screen) >= 0
     readonly property var groups: root.parse(root.player.updates.whatsNewNotes, root.admin)
     readonly property bool serverOlder: root.admin && root.player.versionRelation === "server_older"
 

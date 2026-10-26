@@ -267,7 +267,7 @@ class ConnectionCheckUiTest : public QObject {
     QVERIFY(h.start());
     h.window->resize(1280, 900);
     pair(h, hub);
-    h.controller->showSettings();
+    h.controller->showSettingsSection(QStringLiteral("hubs"));
     QTRY_VERIFY_WITH_TIMEOUT(h.item("settingsConnectionCheckButton") != nullptr && h.item("settingsConnectionCheckButton")->isVisible(), 4000);
     QVERIFY(h.item("connectionCheckRow") != nullptr);
     ConnectionCheckController* c = h.controller->connectionCheck();

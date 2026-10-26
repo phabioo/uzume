@@ -1046,8 +1046,7 @@ void PluginsController::rebuildSidebar() {
     const plugins::UiPluginState st = host_->uiState(id);
     // A title that collides with a built-in sidebar entry ("Runs", "Library", ...) is shown as the plugin name (decision ba, 4f-3).
     QString title = st.titles.value(QStringLiteral("screen"), info->manifest.ui.screenTitle);
-    static const QStringList builtIn{QStringLiteral("library"), QStringLiteral("runs"), QStringLiteral("emulation"),
-                                     QStringLiteral("controllers"), QStringLiteral("settings")};
+    static const QStringList builtIn{QStringLiteral("library"), QStringLiteral("runs"), QStringLiteral("settings")};
     if (builtIn.contains(title.trimmed().toLower())) title = info->manifest.name;
     out.append(QVariantMap{{QStringLiteral("pluginId"), id},
                            {QStringLiteral("name"), info->manifest.name},

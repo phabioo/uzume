@@ -805,7 +805,7 @@ class InGameUiTest : public QObject {
     QVERIFY(h.click("menuItem_hotkeys"));
     QTRY_VERIFY(shown(h, "hotkeySheetChange"));
     QVERIFY(h.click("hotkeySheetChange"));
-    QTRY_COMPARE(h.controller->screen(), QStringLiteral("controllers"));
+    QTRY_COMPARE(h.controller->screen(), QStringLiteral("settings"));
     QTRY_VERIFY(h.item("hotkeysInfo") != nullptr && h.item("hotkeysInfo")->isVisible());
     h.controller->resumeGame();
     QTRY_COMPARE(h.controller->screen(), QStringLiteral("game"));
