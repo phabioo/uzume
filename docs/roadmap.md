@@ -1,6 +1,6 @@
 # Roadmap
 
-Status and plan of Uzume after the proof of concept: what is finished, what comes next up to 1.0 and what is deliberately left for later. Work is cut into one work package per thread and PR (see [workflow](workflow.md)). Next up: 0.20 (emulation). Finished milestones and the decisions behind the old numbering are in [history](history.md); what the product does today is in [features](features.md).
+Status and plan of Uzume after the proof of concept: what is finished, what comes next up to 1.0 and what is deliberately left for later. Work is cut into one work package per thread and PR (see [workflow](workflow.md)). Next up: the readable UI pass, then 0.20 (emulation). Finished milestones and the decisions behind the old numbering are in [history](history.md); what the product does today is in [features](features.md).
 
 ## Goal 1.0
 
@@ -65,12 +65,25 @@ Planned, in this order. Each section is the work list; check an item off here an
 
 | Version | Theme |
 |---|---|
+| [UI pass](#readable-ui-pass) | Readable UI pass: design system r6 in the app, before 0.20 |
 | [0.20](#020-emulation) | Emulation: save states, rewind, run-ahead, `memory.write`, snapshots, cheats |
 | [0.21](#021-randomizer) | Randomizer: game variants, tools catalog, plugin, runs with their own randomized game |
 | [0.22](#022-plugins) | Plugins: developer console, run recap, Discord Rich Presence, tracker plugins |
 | [0.23](#023-together) | Together: online status, notifications, ready check, chat, viewer role, audio mixer, voice chat, controller hand-over |
 | [0.24](#024-platforms) | Platforms: Linux app package, Vulkan |
 | [1.0](#10-test-phase) | Test phase and the SoulLink run |
+
+## Readable UI pass
+
+Decided by Fabio on 2026-10-26 (package B of the UI scan after 0.19): the app takes the readable revision r6 of the design system, spec [readable-pass.md](design/uzume/readable-pass.md), decisions in [decisions.md](design/uzume/decisions.md#sheet-6--readable-pass-2026-10-26). Built before 0.20, one thread, PRs one after another; it adds no function. Released as 0.19.x betas.
+
+- [ ] Tokens and controls: r6 tokens in `Theme.qml` (`ruleControl`, `badge`, `markerNav`, raised `dim`, `selected`), control borders at 3:1 or more, Toggle off with a filled knob, neutral selection, warnings as an ink sentence with the Yamabuki square, functional text at least 11 px Mono / 12 px Sans, accessible names on toggles, selects, fields and "×" buttons
+- [ ] Text size and Reduce motion: scale 100 % / 125 % / TV from one Theme factor, Settings › This PC › Appearance rows, Reduce motion follows the system until changed
+- [ ] Keyboard and gamepad everywhere: second columns as focusable `ColumnNav` rows (Settings, Emulation, Controllers, admin), binding fields, screenshot strip, Continue tile and panel rail; B / Esc goes one level back; `UzHintRow` on every main page after pad input; a test that walks each page by keys only
+- [ ] Layout and wide font: one `UzPageHeader` on every page with actions that wrap below the title, dialog button rows that wrap and stack, at most three columns below 1440 px (help columns and input tests as disclosures, decoration only at 1440 px and wider), wide-font tests in CI at 16 to 18 px letter spacing
+- [ ] Library: status filter chips with counts, List / Grid switch, game detail with one problem sentence whose fix becomes the primary, start checklist only while starting or after a failure, Saves with the start actions on top and File details closed, Remove from library with Undo
+- [ ] Running game: header with Pause / Resume as the primary and Fullscreen back, plugin tabs with icon, short label and More, Diagnostics with a Details section (encoder, bitrate, per-person path, RTT, loss, relay reason), Diagnostics in the hold-Select sheet
+- [ ] Settings, controllers and admin: nav badges (Status, Systems & cores, Settings), mapping table with the key shown once and Default / Reset only on changed rows, Systems & cores and Plugins only in the nav (Settings links there), docs closed (features, history)
 
 ## 0.20 Emulation
 
