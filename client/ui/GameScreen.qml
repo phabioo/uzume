@@ -10,7 +10,7 @@ import Uzume.App
 // stays visible. The menus (⋯, speed, screen layout) live in the header, the Add tile popover and the panel's tab overflow menu here. Fullscreen (F11)
 // drops header and panel; the toolbar appears when the mouse moves to the top. Without a local game (watching only) the remote
 // Session fills the surface.
-// Keys (never forwarded to the core; defaults, configurable in Controllers > Hotkeys except Esc): Esc closes an open popover,
+// Keys (never forwarded to the core; defaults, configurable in Settings > Hotkeys except Esc): Esc closes an open popover,
 // else always pauses (window and fullscreen, ADR 0026 D1) and shows the quick menu; a second Esc or "Resume" continues.
 // F11 toggles fullscreen and is the only key that leaves it; F3 the diagnostics block, F5 snapshot, Space speed-up (only when the
 // core allows it; also while the Session is shared), 1-4 select a tile in the Multiview (audio moves with "Audio here").
@@ -152,13 +152,13 @@ Rectangle {
     }
     // "⋯ › Hotkeys": the hold-Select sheet stays over the game until Esc or Close.
     property bool hotkeySheetPinned: false
-    // "Change hotkeys": Controllers > Hotkeys (hotkeys are a tab of the Controllers screen, not a Settings section).
+    // "Change hotkeys": Settings > Hotkeys (hotkeys are a Settings section).
     function openHotkeySettings() {
         root.hotkeySheetPinned = false
         const w = root.Window.window
         root.player.leaveGameView()
         if (w && w.openControllersHotkeys) w.openControllersHotkeys()
-        else root.player.showControllers()
+        else root.player.showSettingsSection("hotkeys")
     }
     // Quick menu status line: where the game was saved and who watches (and what they see while it is paused).
     readonly property SaveHistoryController saves: root.player.saveHistory
@@ -216,7 +216,7 @@ Rectangle {
         function onStateChanged() { if (!root.session.paused) Qt.callLater(root.focusLocal) }
     }
 
-    // Player hotkeys are configurable (Controllers > Hotkeys): the controller maps the Qt key to an action name.
+    // Player hotkeys are configurable (Settings > Hotkeys): the controller maps the Qt key to an action name.
     // Hints show the gamepad combo while a gamepad was the last input used, else the key (name kept: hotkeyLabels).
     readonly property var hotkeyLabels: root.player.controllers.hotkeyHints
     // Screen layout (F7): opens the layout menu in the header; in fullscreen (no header) it picks the next layout instead.

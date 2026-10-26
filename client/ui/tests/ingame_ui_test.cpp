@@ -784,7 +784,7 @@ class InGameUiTest : public QObject {
     QVERIFY(h.item("padHotkeySheetLoader") != nullptr);
     QVERIFY(!h.item("padHotkeySheetLoader")->property("active").toBool());
     QVERIFY(h.item("padHotkeySheet") == nullptr);
-    // "⋯ > Hotkeys" opens the same sheet over the game without leaving it; "Change hotkeys" goes to Controllers > Hotkeys.
+    // "⋯ > Hotkeys" opens the same sheet over the game without leaving it; "Change hotkeys" goes to Settings > Hotkeys.
     QVERIFY(h.click("moreButton"));
     QTRY_VERIFY(shown(h, "menuItem_hotkeys"));
     QVERIFY(h.click("menuItem_hotkeys"));
