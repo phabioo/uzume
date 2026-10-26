@@ -90,7 +90,7 @@ services:
       # - "49160-49199:49160-49199/udp"
     volumes:
       - uzume-data:/data
-      # Optional: a ROM folder for "Rescan folder" (read only). Set UZUME_LIBRARY_IMPORT_DIR=/roms.
+      # Optional: a ROM folder for Server › Games › "Rescan folder" (read only). Set UZUME_LIBRARY_IMPORT_DIR=/roms.
       # - /srv/roms:/roms:ro
 
 volumes:
@@ -108,7 +108,7 @@ Bridge networking is fine for the server port. For the TURN relay the server ann
 
 ## Upgrade
 
-The server never updates itself inside a container (`UZUME_SERVER_CONTAINER=1`): Settings › Server › Updates shows that a newer version exists and tells you to pull the image. Sessions end while the container restarts. `docker exec uzume-server uzume-server update` (or `update -check`) says whether a newer version exists and prints the image tag to pull; it installs nothing.
+The server never updates itself inside a container (`UZUME_SERVER_CONTAINER=1`): Server › Settings › Updates shows that a newer version exists and tells you to pull the image. Sessions end while the container restarts. `docker exec uzume-server uzume-server update` (or `update -check`) says whether a newer version exists and prints the image tag to pull; it installs nothing.
 
 ```sh
 docker compose pull && docker compose up -d

@@ -1,6 +1,6 @@
 # Server backup and restore
 
-At a glance: Back up and restore a whole Uzume server with one archive: by command line, admin API or in the app (Settings › Server › Backups). Start with what is inside; restore and its consequences are further down.
+At a glance: Back up and restore a whole Uzume server with one archive: by command line, admin API or in the app (Server › Settings › Backups). Start with what is inside; restore and its consequences are further down.
 
 Contents: [What is inside](#what-is-inside), [Settings](#settings), [Command line](#command-line), [Admin API](#admin-api), [Restore](#restore), [Docker](#docker), [Restore on a new machine](#restore-on-a-new-machine), [Limits](#limits).
 
@@ -10,7 +10,7 @@ Three ways to use it, all with the same archive:
 
 - **Command line**: `uzume-server backup`, `backup list`, `backup config`, `backup verify`, `restore`.
 - **Admin API**: `/api/v1/admin/backups` (admin device token, see [protocol/openapi](../../protocol/openapi/uzume.yaml)).
-- **App**: Settings › Server › Backups (status card, schedule, list, restore confirmation).
+- **App**: Server › Settings › Backups (status card, schedule, list, restore confirmation).
 
 ## What is inside
 
@@ -49,9 +49,9 @@ A backup runs in the background while apps keep playing; saves that arrive durin
 - The server **never deletes a backup because the disk is full**. Before it starts it checks the free space of the backup folder; if there is not enough it fails with `Not enough space on /mnt/backup: needs 1.4 GB, 0.3 GB free.` and keeps everything. The Status page and the sidebar show the problem ("Backup failed", amber) until the next backup succeeds.
 - Only "Keep last N" removes the oldest regular backups, and only **after a new backup succeeded**.
 - **Safety backups** (made automatically before a restore, name ends in `-safety`) are never removed by the retention. Delete them yourself when you no longer need them.
-- A folder the server cannot write to shows "Cannot write" (also on the Status page). "Check again" tests it again.
+- A folder the server cannot write to shows "Cannot write" (also on Server › Overview). "Check again" tests it again.
 
-The Status page has a "Disk · backup" card with the free space of the backup folder.
+Server › Overview has a "Disk · backup" card with the free space of the backup folder.
 
 ## Command line
 
@@ -89,7 +89,7 @@ The restart replaces the process in place (`exec` on Linux, an in-process restar
 
 Consequences of a restore: everything that changed since the backup is gone (users, devices and runs added later, saves uploaded later, plugin and server settings). Connected apps are disconnected for about a minute and running Sessions end. Web sessions of the admin may be gone; sign in again. ROM files are only replaced when the backup contains ROMs; without them the ROM files now on the server stay. Files of the `config/` group (own TLS certificate and key, `server.env`) are not written back to their old places; they are unpacked to `<data folder>/restored-config/` for you to copy where they belong.
 
-After a restore from the app, Settings › Server › Backups shows "Restored" with the name of the safety backup, or "Not restored" with the reason. To undo a restore, restore the safety backup.
+After a restore from the app, Server › Settings › Backups shows "Restored" with the name of the safety backup, or "Not restored" with the reason. To undo a restore, restore the safety backup.
 
 Rolling back the server itself is a separate topic: the server refuses a database from a newer version, so to go back to an older server version restore a backup made by that version.
 
@@ -106,7 +106,7 @@ services:
       - /mnt/backup/uzume:/backup     # a second volume or bind mount for the backups
 ```
 
-Then set the folder to `/backup` (`docker compose exec hub uzume-server backup config --folder /backup --schedule daily`, or in Settings › Server › Backups). The container user (uid 65532) needs write access to the host folder. The CLI works the same inside the container; `restore` needs the server stopped, so run it in a one-off container that mounts the same volumes: `docker compose run --rm --no-deps hub restore /backup/<file>` (stop the `hub` service first: `docker compose stop hub`; `reset` works the same way, see [server-docker.md](server-docker.md#server-commands-in-docker)). The restore through the web or API needs no restart policy, see above.
+Then set the folder to `/backup` (`docker compose exec hub uzume-server backup config --folder /backup --schedule daily`, or in Server › Settings › Backups). The container user (uid 65532) needs write access to the host folder. The CLI works the same inside the container; `restore` needs the server stopped, so run it in a one-off container that mounts the same volumes: `docker compose run --rm --no-deps hub restore /backup/<file>` (stop the `hub` service first: `docker compose stop hub`; `reset` works the same way, see [server-docker.md](server-docker.md#server-commands-in-docker)). The restore through the web or API needs no restart policy, see above.
 
 ## Restore on a new machine
 

@@ -391,7 +391,7 @@ Item {
         label: root.loaded ? qsTr("%1 · %2").arg(Theme.plural(root.users.length, qsTr("person"), qsTr("people")))
                                 .arg(Theme.plural(root.devices.filter(d => d.status === "trusted").length, qsTr("device"), qsTr("devices")))
                            : qsTr("Server")
-        area: qsTr("Users")
+        area: qsTr("People")
         helpItems: [
             { title: qsTr("People"), text: qsTr("Everyone who can use this server. Admins manage users, backups and the server; members play.") },
             { title: qsTr("Invites"), text: qsTr("A code lets a friend join. It is shown once, works until it expires and can be withdrawn.") },

@@ -3,15 +3,17 @@ import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import Uzume.App
 
-// Frame of every admin page (accounts-and-server.md "Rules"): 48 px top padding, 56 px left margin, the page header (Mono label,
-// Light 40 title, header actions at the far right), an optional notice area under it, scrolling content and, in wide
-// windows, the help column in the open column on the right (label `UZUME · <AREA> · <SERVER NAME>` from the real server name).
+// Frame of every admin page (accounts-and-server.md "Rules"): the page sits under the header and the tabs of ServerScreen (which
+// carry the one page header), so the frame has no page header of its own: a toolbar line with the Mono label (counts), the
+// title when it names something other than the tab (a system) and the header actions at the far right, an optional notice area
+// under it, scrolling content and, in wide windows, the help column in the open column on the right (label
+// `UZUME · <AREA> · <SERVER NAME>` from the real server name).
 // While "Confirm it's you" is valid the notice area starts with "Confirmed · 4:12 left" (8f-2).
 //
 //   AdminPage {
 //       player: root.player
-//       title: qsTr("Home server")              // the page title
-//       label: "0.18.0 · UP 2 DAYS"            // Mono label above the title (shown uppercase)
+//       title: qsTr("Home server")              // shown only when it differs from `area` and the server name
+//       label: "3 people · 5 devices"           // Mono line in the toolbar (hidden when it equals `area` or "Server")
 //       area: qsTr("Status")                    // names the help column
 //       helpItems: [{ title: qsTr("..."), text: qsTr("...") }]   // UzHelpColumn paragraphs; empty = no help column
 //       helpLines: ["..."]                      // Mono lines at the foot of the help column
@@ -19,7 +21,8 @@ import Uzume.App
 //       notice: [ UzStatusIcon { ... } ]        // lines under the header (problems, results of actions)
 //       UzTable { ... }                         // everything else is the content, spaced by 32 px
 //   }
-// objectNames: adminPage (the frame), adminPageScroll, adminPageContent, adminHelp, confirmedNote.
+// objectNames: adminPage (the frame), adminPageScroll, adminPageContent, adminToolbar, adminPageTitle, adminPageLabel, adminHelp,
+// confirmedNote.
 Item {
     id: root
     objectName: "adminPage"
@@ -30,7 +33,7 @@ Item {
     property var helpItems: []
     property var helpLines: []
     default property alias content: body.data
-    property alias headerActions: header.actions
+    property alias headerActions: actionRow.data
     property alias notice: noticeBox.data
     property alias helpExtra: help.extra
     readonly property string serverName: root.player.hubName !== "" ? root.player.hubName : qsTr("Server")
@@ -55,22 +58,59 @@ Item {
             id: page
             objectName: "adminPageContent"
             x: root.pageMargin
-            y: 48
+            y: Theme.space3
             width: Math.min(Theme.contentMaxWidth, flick.width - root.pageMargin - (root.helpShown ? Theme.space7 + Theme.openColumn + Theme.space3 : root.pageMargin))
-            spacing: Theme.space4
+            spacing: 0   // the blocks below carry their own gaps, so an empty header takes no room
 
             ColumnLayout {
+                id: headerBlock
+                readonly property bool shown: toolbar.visible || noticeBox.hasVisible
                 Layout.fillWidth: true
-                spacing: Theme.space2
-                UzPageHeader {
-                    id: header
+                Layout.bottomMargin: headerBlock.shown ? Theme.space4 : 0
+                spacing: 0
+                RowLayout {
+                    id: toolbar
+                    objectName: "adminToolbar"
                     Layout.fillWidth: true
-                    label: root.label
-                    title: root.title
+                    Layout.minimumWidth: 0
+                    visible: titleText.visible || labelText.visible || actionRow.children.length > 0
+                    spacing: Theme.space3
+                    UzLabel {
+                        id: titleText
+                        objectName: "adminPageTitle"
+                        visible: root.title !== "" && root.title !== root.area && root.title !== root.serverName
+                        Layout.maximumWidth: Math.max(0, toolbar.width / 2)
+                        text: root.title
+                        elide: Text.ElideRight
+                        color: Theme.ink
+                        font.pixelSize: Theme.roles.headerTitle.size
+                        font.weight: Theme.roles.headerTitle.weight
+                    }
+                    UzMono {
+                        id: labelText
+                        objectName: "adminPageLabel"
+                        visible: root.label !== "" && root.label !== root.area && root.label !== qsTr("Server")
+                        Layout.fillWidth: true
+                        elide: Text.ElideRight
+                        text: root.label
+                    }
+                    Item { Layout.fillWidth: !labelText.visible; Layout.preferredWidth: 0 }
+                    Row {
+                        id: actionRow
+                        objectName: "pageActions"
+                        Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                        spacing: Theme.space2
+                    }
                 }
                 ColumnLayout {
                     id: noticeBox
+                    // True while a notice line is showing (the layout itself stays visible so that this can change).
+                    readonly property bool hasVisible: {
+                        for (let i = 0; i < noticeBox.children.length; ++i) if (noticeBox.children[i].visible) return true
+                        return false
+                    }
                     Layout.fillWidth: true
+                    Layout.topMargin: toolbar.visible && noticeBox.hasVisible ? Theme.space2 : 0
                     spacing: Theme.space1
                     UzStatusIcon {
                         objectName: "confirmedNote"
@@ -88,6 +128,7 @@ Item {
             }
             UzHelpColumn {
                 id: helpInline
+                Layout.topMargin: Theme.space4
                 objectName: "adminHelpDisclosure"
                 inline: true
                 visible: root.helpItems.length > 0 && !root.helpColumn

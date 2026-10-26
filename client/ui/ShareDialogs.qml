@@ -122,7 +122,7 @@ Item {
             title: qsTr("Run a server on this PC")
             text: qsTr("Your library and saves stay. They move into the server, so friends can join you.")
             onClosed: root.lh.closeShareDialog()
-            Fact { title: qsTr("Keeps running when Uzume is closed"); text: qsTr("As a Windows service. You can stop it in Settings › Server.") }
+            Fact { title: qsTr("Keeps running when Uzume is closed"); text: qsTr("As a Windows service. You can stop it in Server › Settings.") }
             Fact { title: qsTr("Friends join with an invite"); text: qsTr("At home or over the internet; you decide next.") }
             Fact { title: qsTr("Admin rights needed once"); text: qsTr("Windows asks while the service is installed.") }
             Fact { title: qsTr("You become the admin"); text: qsTr("With a password. Nothing is lost.") }
@@ -256,7 +256,7 @@ Item {
                 objectName: "shareDoneInternetNote"
                 visible: root.lh.shareJoin === "internet"
                 title: qsTr("Internet sharing")
-                text: qsTr("Set it up in Settings › Server › Network & sharing.")
+                text: qsTr("Set it up in Server › Settings › Network & sharing.")
             }
             actions: [
                 UzButton { objectName: "shareDoneInvite"; kind: "primary"; text: qsTr("Invite a friend"); onClicked: { root.lh.acknowledgeShareDone(); root.player.showServerPage("users") } },
@@ -375,7 +375,7 @@ Item {
             objectName: "stopSharingDialog"
             shown: true
             property int waitingFor: -1
-            label: qsTr("Settings › Server")
+            label: qsTr("Server › Settings")
             title: qsTr("Stop sharing?")
             text: qsTr("Affects everyone on %1.").arg(root.player.hubName)
             onClosed: root.lh.closeShareDialog()

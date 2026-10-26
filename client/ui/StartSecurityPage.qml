@@ -71,7 +71,7 @@ StartPage {
         textFormat: Text.StyledText
         readonly property string command: "<font face='" + Theme.mono + "' color='" + Theme.ink2 + "'>uzume-server code</font>"
         text: root.setup ? qsTr("The device also shows it with %1.").arg(command)
-                         : qsTr("The code is in Settings › Server › Network &amp; sharing, or on the server with %1.").arg(command)
+                         : qsTr("The code is in Server › Settings › Network &amp; sharing, or on the server with %1.").arg(command)
         font.family: Theme.sans
         font.pixelSize: Theme.roles.small.size
         lineHeight: Theme.roles.small.line

@@ -6,8 +6,9 @@ import Uzume.App
 // AppNav (frame.md "0-4 A" to "0-4 C" and "0-4 G"): the 232 px navigation of every screen. Lockup, PLAY (Library, Runs;
 // Emulation, Controls and Hotkeys are Settings sections), the SERVER group for admins or THIS PC when there is no server, ONLINE (people with a Session),
 // Settings, the server line and the person. Compact (window below 900 px high): 28 px items, one-line ONLINE rows, no address line.
-// SERVER: Status (count of open problems), Users (count of waiting devices), Systems & cores (count of core problems),
-// Plugins, Reports (count of New). Settings carries a badge while a server update is on offer. All badges are admin-only, above 0.
+// SERVER: the single item Server (opens the Server screen on Overview; its tabs are Overview, People, Games, Systems & cores,
+// Plugins, Reports, Settings) with the badge of everything that needs an admin: open problems, waiting devices, new reports.
+// Settings carries a badge while a server update is on offer. All badges are admin-only, above 0.
 Rectangle {
     id: root
     required property PlayerController player
@@ -16,22 +17,17 @@ Rectangle {
     // The server of "Play on this PC" is not a server to the person (B-3): THIS PC instead of SERVER, no ONLINE, no server line.
     readonly property bool thisPcOnly: root.player.localHub.onThisPcOnly
     readonly property bool serverMode: root.hasServer && !root.thisPcOnly
-    // SERVER (admins of a server with admin_v1): the pages of the server screen; `page` goes to player.showServerPage().
-    readonly property var serverItems: [
-        { label: qsTr("Status"), name: "navServerStatus", page: "status" },
-        { label: qsTr("Users"), name: "navServerUsers", page: "users" },
-        { label: qsTr("Systems & cores"), name: "navServerSystems", page: "systems" },
-        { label: qsTr("Plugins"), name: "navServerPlugins", page: "plugins" },
-        { label: qsTr("Reports"), name: "navServerReports", page: "reports" }
-    ]
+    // Badge of the Server item. None of the old items (Status, Users, Systems & cores, Reports) had a warning-style badge, so it is
+    // the sum of their counts; the core problems are part of the open problems (Needs attention) and not counted twice.
+    readonly property int serverBadge: root.player.attentionCount + root.player.admin.pendingDevices + root.player.admin.newReports
     readonly property var thisPcItems: [{ label: qsTr("Systems & cores"), name: "navThisPcSystems", page: "systems" },
                                         { label: qsTr("Plugins"), name: "navThisPcPlugins", section: "plugins" }]
     // The Repeater below gets every entry once and hides the ones that do not apply. Swapping the model with the connection state
     // would destroy the delegates inside a layout that is hidden at that moment, and Qt 6.4 then crashes in
     // QQuickGridLayoutBase::rearrange on the deleted items.
-    readonly property var groupEntries: serverItems.map(function (e) { return { label: e.label, name: e.name, page: e.page, server: true } })
-                                        .concat(thisPcItems.map(function (e) { return { label: e.label, name: e.name, page: e.page, section: e.section, server: false } }))
-    readonly property bool hasGroupItems: root.serverMode ? (root.player.admin.available && serverItems.length > 0) : thisPcItems.length > 0
+    readonly property var groupEntries: thisPcItems.map(function (e) { return { label: e.label, name: e.name, page: e.page, section: e.section } })
+    readonly property bool serverItemShown: root.serverMode && root.player.admin.available
+    readonly property bool hasGroupItems: root.serverMode ? root.serverItemShown : thisPcItems.length > 0
     readonly property var online: root.serverMode ? root.player.sessions.sessions.filter(function (s) { return !s.invited }) : []
     color: Theme.ground
     implicitWidth: Theme.sidebarWidth
@@ -147,35 +143,36 @@ Rectangle {
             visible: root.hasGroupItems
             text: root.serverMode ? qsTr("Server") : qsTr("This PC")
         }
+        // SERVER (admins of a server with admin_v1): the one item of the Server screen. It sits in this column itself, not in the group
+        // layout below: a single item that appears in a nested layout kept the size 0 (Qt 6.4).
+        UzNavItem {
+            objectName: "navServer"
+            visible: root.serverItemShown
+            Layout.topMargin: Theme.space1
+            compact: root.compact
+            label: qsTr("Server")
+            active: root.player.screen === "server"
+            badge: root.serverBadge
+            badgeName: "navServerBadge"
+            onActivated: root.player.showServerPage("overview")
+        }
+        // THIS PC (no server): its items.
         ColumnLayout {
             Layout.fillWidth: true
             Layout.topMargin: Theme.space1
             spacing: 0
-            visible: root.hasGroupItems
+            visible: !root.serverMode && root.hasGroupItems
             Repeater {
                 id: groupItems
                 model: root.groupEntries
                 delegate: UzNavItem {
                     required property var modelData
                     // Systems & cores of THIS PC is a page of the server on this PC: only while that one answers.
-                    visible: modelData.server ? (root.serverMode && root.player.admin.available)
-                                              : (!root.serverMode && (modelData.page === undefined || (root.hasServer && root.player.admin.available)))
+                    visible: !root.serverMode && (modelData.page === undefined || (root.hasServer && root.player.admin.available))
                     objectName: modelData.name
                     compact: root.compact
                     label: modelData.label
                     active: modelData.page !== undefined && root.player.screen === "server" && root.player.serverPage === modelData.page
-                    // Neutral count badges, admins only and only above 0: open problems (Status), waiting devices (Users), core problems
-                    // (Systems & cores), new reports (Reports).
-                    badge: !modelData.server ? 0
-                           : modelData.page === "status" ? root.player.attentionCount
-                           : modelData.page === "users" ? root.player.admin.pendingDevices
-                           : modelData.page === "systems" ? root.player.coreProblemCount
-                           : modelData.page === "reports" ? root.player.admin.newReports : 0
-                    badgeName: !modelData.server ? ""
-                               : modelData.page === "status" ? "navServerStatusBadge"
-                               : modelData.page === "users" ? "navServerUsersBadge"
-                               : modelData.page === "systems" ? "navServerSystemsBadge"
-                               : modelData.page === "reports" ? "navServerReportsBadge" : ""
                     onActivated: modelData.page !== undefined ? root.player.showServerPage(modelData.page)
                                                               : root.player.showSettingsSection(modelData.section)
                 }

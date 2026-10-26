@@ -69,7 +69,7 @@ Tab Cheat database: MATCHED "LUMEN DRIFT · GBA · 9F3A…C21E" (Mono, short fil
 
 Boards: [`S11c2`](../source/uzume/S11c2.dc.html) · [`S11c2Kinari`](../source/uzume/S11c2Kinari.dc.html).
 
-a no match ("No cheats for this game in the database") · b off on the server ("The cheat database is off", "Admins turn it on in Settings › Server › Cheat database."; admins see Open settings) · c offline (server offline, last downloaded copy with its date) · d searching ("Looking up Lumen Drift…") · e all added (Add all turns off) · f on this PC only ("Without a server, this PC downloads the database itself.", 11h-3).
+a no match ("No cheats for this game in the database") · b off on the server ("The cheat database is off", "Admins turn it on in Server › Settings › Cheat database."; admins see Open settings) · c offline (server offline, last downloaded copy with its date) · d searching ("Looking up Lumen Drift…") · e all added (Add all turns off) · f on this PC only ("Without a server, this PC downloads the database itself.", 11h-3).
 
 ## 11d First-use consent
 
@@ -119,7 +119,7 @@ Dialog "Restore v10 "Before cheats"?" with "Cheats you turned on stay on; turn t
 
 ## 11h Cheat database setting
 
-### 11h-1 Settings › Server
+### 11h-1 Server › Settings
 
 Boards: [`S11h1`](../source/uzume/S11h1.dc.html) · [`S11h1Kinari`](../source/uzume/S11h1Kinari.dc.html). Revises the settings list of 3q.
 

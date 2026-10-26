@@ -41,7 +41,7 @@ Boards: [`S04A`](../source/uzume/S04A.dc.html). Built in: 0.18 package 3 (design
 Boards: [`S04B`](../source/uzume/S04B.dc.html) (1280 x 1240). Built in: 0.18 package 3 (design system in the app), 0.18 package 8 (app admin area).
 
 - Four views of one sidebar (232 px): B-1 admin with the server menu open, B-2 member with the user menu open, B-3 on this PC (no server), B-4 compact admin at 800 px.
-- Groups: **PLAY** (Library, Runs; Emulation, Controls and Hotkeys are sections of Settings since the usability pass), **SERVER** (Status, Users, Systems & cores, Plugins, Reports; admins only), **ONLINE** (people with a person-colour square and what they play; server only), Settings, server line, person.
+- Groups: **PLAY** (Library, Runs; Emulation, Controls and Hotkeys are sections of Settings since the usability pass), **SERVER** (one item, "Server"; admins only; it opens the Server screen with the tabs Overview, People, Games, Systems & cores, Plugins, Reports, Settings), **ONLINE** (people with a person-colour square and what they play; server only), Settings, server line, person.
 - Member: no SERVER group. On this PC (no server): **THIS PC** (Systems & cores, Plugins) instead of SERVER, no ONLINE block, no server line. Storage and Backups are never in the sidebar.
 - Server line `⋯` opens upward: Switch server, Details, Share... The person at the foot opens My account, Switch user (Ctrl+Shift+U), Sign out. The bell shows a count, `9+` above nine.
 - Compact (below 900 px, used by every 1280 x 800 screen): 28 px items, one-line ONLINE rows, no address line.
@@ -68,7 +68,7 @@ Boards: [`S04D`](../source/uzume/S04D.dc.html) · [`S04DKinari`](../source/uzume
 
 Boards: [`S04E`](../source/uzume/S04E.dc.html) · [`S04EKinari`](../source/uzume/S04EKinari.dc.html). Built in: 0.18 package 8 (app admin area).
 
-- Settings for admins has a `Segmented` switch "Settings for": This PC / Server. Under Server it says "Affects everyone on Home server."
+- Server settings are the Settings tab of the Server screen (header: label "Server", title = server name, meta = address · Online/Offline · version); app Settings has no scope switch and covers this PC and your account only. Settings › Servers has a "Server settings" link for admins. The Settings tab says "Affects everyone on Home server."
 - Server sub-pages (second column as text items with the leading Yamabuki marker, not a component): General, Network & sharing (INTERNET), Sign-in (PASSWORD), Updates (version), Backups (time), Storage (percent), Diagnostics.
 - General uses `SettingsRow`: Server name (Rename...), Address (Open Network & sharing), Joining (`Select`: Invite only; approval is only for new devices of people who already have an account), Admin tools on this PC (`Toggle`; hides the SERVER group on this PC only).
 - Members and on-this-PC-only users see **This PC** only, with no switch: My account, Appearance, Library folders, Plugins, Voice, Notifications, Servers, Updates, Diagnostics.
@@ -77,7 +77,7 @@ Boards: [`S04E`](../source/uzume/S04E.dc.html) · [`S04EKinari`](../source/uzume
 
 Boards: [`S04F`](../source/uzume/S04F.dc.html) (1280 x 1040). Built in: 0.18 package 3 (design system in the app) and every package that touches UI text.
 
-- Table FrameBeam to Uzume for every Hub and Player string: sidebar title "Uzume"; sidebar card "Home server · server.example.com:8443"; connect title "Welcome to Uzume"; connect field "Address or invite code"; Settings sections "This PC › Servers" and "Settings › Server"; update rows "Uzume 0.16.4 · this PC" and "Server 0.16.4 · Home server"; log names "App log (this PC)" / "Server log"; diagnostics bundle `uzume-diag-<device>.zip`; "Run on Home server"; "Requires server 0.16+"; "Install for everyone"; device approval "Waiting for Max to approve Desktop-LivingRoom."; tray "Uzume server is running"; window title "Uzume — Library"; sharing segment "Private · Everyone here · Invite only".
+- Table FrameBeam to Uzume for every Hub and Player string: sidebar title "Uzume"; sidebar card "Home server · server.example.com:8443"; connect title "Welcome to Uzume"; connect field "Address or invite code"; Settings sections "This PC › Servers" and "Server › Settings"; update rows "Uzume 0.16.4 · this PC" and "Server 0.16.4 · Home server"; log names "App log (this PC)" / "Server log"; diagnostics bundle `uzume-diag-<device>.zip`; "Run on Home server"; "Requires server 0.16+"; "Install for everyone"; device approval "Waiting for Max to approve Desktop-LivingRoom."; tray "Uzume server is running"; window title "Uzume — Library"; sharing segment "Private · Everyone here · Invite only".
 - Errors: "Can't reach Home server. Games on this PC still run; saves upload when it's back." and "Home server needs an update to work with this version."
 - Renames everywhere: `framebeam-server` to `uzume-server`, `framebeam://join/...` to `uzume://join/...`, `FRAMEBEAM_*` env vars to `UZUME_*` (`UZUME_PUBLIC_HOST`, `_TURN`, `_TURN_EXTERNAL`, `_DATA_DIR`), Docker image `ghcr.io/<owner>/uzume-server`, invite prefix `FB-` to `UZ-`.
 - Rule for new copy: say "server" only when the person must act on it (address, offline, update, set up); otherwise name the person ("Ask Max") or the thing ("your saves"). Never "host", "instance", "backend". Sentence case, verb first, no exclamation marks.
@@ -131,7 +131,7 @@ Boards: [`S8a4`](../source/uzume/S8a4.dc.html) · [`S8a4Kinari`](../source/uzume
 
 Boards: [`S8a5`](../source/uzume/S8a5.dc.html) · [`S8a5Kinari`](../source/uzume/S8a5Kinari.dc.html). Built in: 0.18 package 7 (app start and accounts), 0.18 package 4 (server accounts).
 
-- Step 4 "Your admin account", "Set up Home server": fields Server name, Your name, Password (required for admins, at least 12 characters), `Select` "Who can join" (default "Home network and internet"; hint "Home network only is safest. Change it later in Settings › Server › Network & sharing."). Primary **Create server**, secondary Back.
+- Step 4 "Your admin account", "Set up Home server": fields Server name, Your name, Password (required for admins, at least 12 characters), `Select` "Who can join" (default "Home network and internet"; hint "Home network only is safest. Change it later in Server › Settings › Network & sharing."). Primary **Create server**, secondary Back.
 - Progress state "Setting up...": `Progress` + checklist (done icons): Server installed, Admin account, Internet (public address and relay prepared), then "Add games: next, upload or pick a folder on the server". Note: the server cannot test itself from outside; run Connection check on a PC in another network.
 - Followed by the setup assistant (7a-app-1/2, see [accounts-and-server.md](accounts-and-server.md)).
 
@@ -163,7 +163,7 @@ Boards: [`S8b1`](../source/uzume/S8b1.dc.html) · [`S8b1Kinari`](../source/uzume
 Boards: [`S8b2`](../source/uzume/S8b2.dc.html) · [`S8b2Kinari`](../source/uzume/S8b2Kinari.dc.html). Built in: 0.18 package 7 (app start and accounts).
 
 - Label "Security check", title "Is this really Home server?" "Ask Max to read the code shown on the server. If it matches, nobody is in between." Large code `K7Q4-9WMP-2HXD` with the address below; buttons **It matches** (primary, focused) / **It doesn't match**.
-- Where Max finds it: Settings › Server › Network & sharing, or `uzume-server code`.
+- Where Max finds it: Server › Settings › Network & sharing, or `uzume-server code`.
 - Matches: Uzume remembers the certificate (existing confirmed-fingerprint flow) and goes on to invite or sign-in. Does not match: hard stop with an error square and the copy of 8c-3e; nothing is sent to the server.
 
 ### 8b-3 Join · with an invite
@@ -179,7 +179,7 @@ Boards: [`S8b3`](../source/uzume/S8b3.dc.html) · [`S8b3Kinari`](../source/uzume
 Boards: [`S8b4`](../source/uzume/S8b4.dc.html) · [`S8b4Kinari`](../source/uzume/S8b4Kinari.dc.html). Built in: 0.18 package 7 (app start and accounts), 0.18 package 4 (server accounts).
 
 - Title "Sign in" on Home server. Fields Name and Password, link "Forgot password?", primary Sign in, secondary "I have an invite". Line: "No password yet? Sign in with your name only and Max approves this PC."
-- Name is a text field. A list of names appears only when Settings › Server › Sign-in › Show names on sign-in is on (off by default) and only from the home network.
+- Name is a text field. A list of names appears only when Server › Settings › Sign-in › Show names on sign-in is on (off by default) and only from the home network.
 - Gamepad: Y opens the on-screen keyboard with masking, X shows the password, A or Enter on Sign in submits. Lockout per person per PC: 5 tries, then 5 minutes; passwords at least 12 characters.
 - Hints: A Choose, Y Keyboard, X Show password, B Back.
 
@@ -194,7 +194,7 @@ Nine states of the sign-in form:
 - 5c too many tries ("Too many wrong tries for Lena on this PC. Try again in 4:52."; wait or ask Max to reset the password)
 - 5d account turned off ("Max has turned off the account Jonas on Home server. Your saves are kept.")
 - 5e server offline ("No answer from server.example.com:8443 after 10 seconds."; Try again / Change address; games on this PC still run)
-- 5f server too old ("Home server runs 0.15.2. This version of Uzume needs 0.17.0 or newer."; Max updates in Settings › Server › Updates or `uzume-server update`)
+- 5f server too old ("Home server runs 0.15.2. This version of Uzume needs 0.17.0 or newer."; Max updates in Server › Settings › Updates or `uzume-server update`)
 - 5g no password, ask for approval ("Ask Max to approve this PC once"; device chip `Lena-PC · WINDOWS · NEW DEVICE`)
 - 5h waiting for approval (ensō, "Max sees your request in Users › Devices and gets a notification."; Cancel request)
 - 5i request declined ("Lena-PC was not approved for Lena."; Ask again; a new request is possible after 10 minutes)
