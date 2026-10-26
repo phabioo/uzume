@@ -35,6 +35,7 @@ class LibraryModel : public QAbstractListModel {
   Q_PROPERTY(int count READ rowCount NOTIFY countChanged)
   Q_PROPERTY(int totalCount READ totalCount NOTIFY countChanged)
   Q_PROPERTY(int readyCount READ readyCount NOTIFY countChanged)
+  Q_PROPERTY(int conflictCount READ conflictCount NOTIFY countChanged)  // games whose save is in conflict (admin attention list)
   Q_PROPERTY(int systemCount READ systemCount NOTIFY countChanged)  // distinct systems among all games ("ON THIS PC · 214 GAMES · 5 SYSTEMS")
   // Collection chips (3c-0, Uzume 0.19): which games belong to the shown list. "all" | "favorites" | a collection id. Combined with
   // the status chip and the search; an unknown or deleted id falls back to "all".
@@ -105,6 +106,7 @@ class LibraryModel : public QAbstractListModel {
   void setFilterText(const QString& t);
   bool readyOnly() const { return filter_ == QLatin1String("ready"); }
   void setReadyOnly(bool on);
+  int conflictCount() const;
   int totalCount() const { return static_cast<int>(items_.size()); }
   int readyCount() const;
   int systemCount() const {

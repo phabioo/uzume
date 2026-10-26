@@ -214,6 +214,11 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
   admin_ = std::make_unique<AdminController>(
       AdminController::Deps{conn_.get(), [this]() { return isAdmin(); }, [this]() { return screen_ == QLatin1String("game"); },
                             [this]() { return localHub_ ? localHub_->autoConfirmPassword() : QString(); }});
+  connect(admin_.get(), &AdminController::statusChanged, this, &PlayerController::attentionChanged);
+  connect(admin_.get(), &AdminController::countsChanged, this, &PlayerController::attentionChanged);
+  connect(admin_.get(), &AdminController::availableChanged, this, &PlayerController::attentionChanged);
+  connect(this, &PlayerController::hubChanged, this, &PlayerController::attentionChanged);
+  connect(&model_, &LibraryModel::countChanged, this, &PlayerController::attentionChanged);
   connect(systems_.get(), &HubSystems::stateChanged, this, [this]() {
     if (systems_->state() == HubSystems::State::Ready) {
       fwProblems_.clear();  // fresh registry from the Hub: validation problems are re-evaluated
@@ -1650,6 +1655,72 @@ QVariantList PlayerController::coreWarnings() const {
   }
   for (const QVariant& m : mismatches) list.append(m);
   return list;
+}
+
+int PlayerController::coreProblemCount() const {
+  if (!isAdmin() || !admin_->available()) return 0;
+  int n = 0;
+  for (const QVariant& w : coreWarnings()) n += w.toMap().value(QStringLiteral("tone")).toString() == QLatin1String("info") ? 0 : 1;
+  return n;
+}
+
+bool PlayerController::serverUpdatePending() const {
+  return isAdmin() && admin_->available() && !admin_->serverUpdateVersion().isEmpty();
+}
+
+QVariantList PlayerController::attention() const {
+  QVariantList list;
+  if (!isAdmin() || !admin_->available()) return list;
+  const auto add = [&list](const QString& id, const QString& severity, const QString& text, const QString& label, const QString& target) {
+    list.append(QVariantMap{{QStringLiteral("id"), id},
+                            {QStringLiteral("severity"), severity},
+                            {QStringLiteral("text"), text},
+                            {QStringLiteral("actionLabel"), label},
+                            {QStringLiteral("target"), target}});
+  };
+  // Problems the server reports, most urgent first. The action opens the page that fixes it.
+  for (const QVariant& v : admin_->status().value(QStringLiteral("problems")).toList()) {
+    const QVariantMap p = v.toMap();
+    const QString id = p.value(QStringLiteral("id")).toString();
+    const QString detail = p.value(QStringLiteral("detail")).toString();
+    QString target = QStringLiteral("settings:server:general");
+    if (id == QLatin1String("turn")) target = QStringLiteral("settings:server:network");
+    else if (id == QLatin1String("update") || id == QLatin1String("update-paused")) target = QStringLiteral("settings:server:updates");
+    else if (id == QLatin1String("backup")) target = QStringLiteral("settings:server:backups");
+    else if (id == QLatin1String("disk")) target = QStringLiteral("settings:server:storage");
+    QString label = p.value(QStringLiteral("action_label")).toString();
+    if (label.isEmpty()) label = tr("Open server settings");
+    add(QStringLiteral("server:") + id, p.value(QStringLiteral("severity")).toString() == QLatin1String("error") ? QStringLiteral("error") : QStringLiteral("warn"),
+        detail.isEmpty() ? p.value(QStringLiteral("title")).toString() : detail, label, target);
+  }
+  for (const QVariant& w : coreWarnings()) {
+    const QVariantMap m = w.toMap();
+    if (m.value(QStringLiteral("tone")).toString() == QLatin1String("info")) continue;
+    add(QStringLiteral("core:") + m.value(QStringLiteral("code")).toString() + QLatin1Char(':') + m.value(QStringLiteral("coreId")).toString(),
+        QStringLiteral("warn"), m.value(QStringLiteral("text")).toString(), tr("Open Systems & cores"), QStringLiteral("page:systems"));
+  }
+  if (!admin_->serverUpdateVersion().isEmpty()) {
+    add(QStringLiteral("update-available"), QStringLiteral("warn"), tr("Server update %1 is ready to install.").arg(admin_->serverUpdateVersion()),
+        tr("Install update"), QStringLiteral("settings:server:updates"));
+  }
+  if (const int conflicts = model_.conflictCount(); conflicts > 0) {
+    add(QStringLiteral("save-conflicts"), QStringLiteral("warn"),
+        conflicts == 1 ? tr("1 game has a save conflict. Neither copy is overwritten until someone decides.")
+                       : tr("%1 games have a save conflict. Neither copy is overwritten until someone decides.").arg(conflicts),
+        tr("Review conflicts"), QStringLiteral("library:attention"));
+  }
+  return list;
+}
+
+void PlayerController::openAttention(const QString& target) {
+  if (target.startsWith(QLatin1String("page:"))) {
+    showServerPage(target.mid(5));
+  } else if (target.startsWith(QLatin1String("settings:"))) {
+    showSettingsSection(target.mid(9));
+  } else if (target == QLatin1String("library:attention")) {
+    model_.setFilter(QStringLiteral("attention"));
+    showLibrary();
+  }
 }
 
 void PlayerController::dismissCoreNotice(const QString& code) {

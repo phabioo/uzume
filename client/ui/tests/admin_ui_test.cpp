@@ -2,6 +2,8 @@
 // "Confirm it's you" (park, ask, replay with the same ids, cancel, lock, no password), downloads (no partial file) and uploads,
 // plus UzTable and UzMetric in isolation. Offscreen, FakeHub with admin_v1; synthetic data only.
 #include <QDir>
+#include <QJsonArray>
+#include <QJsonObject>
 #include <QFile>
 #include <QQmlComponent>
 #include <QQmlEngine>
@@ -69,6 +71,7 @@ class AdminUiTest : public QObject {
     return {};
   }
   static QString text(QQuickItem* it) { return it ? it->property("text").toString() : QString(); }
+  static bool shown(QQuickItem* it) { return it != nullptr && it->isVisible(); }
 
  private slots:
   void initTestCase() {
@@ -145,7 +148,8 @@ class AdminUiTest : public QObject {
     QTRY_VERIFY(h.controller->admin()->available());
     // The first reading feeds the badge on Status in AppNav before the page is opened.
     QTRY_COMPARE(h.controller->admin()->statusProblem(), QStringLiteral("Backup disk 92 %"));
-    QTRY_VERIFY(h.item("navServerStatusWarn") != nullptr && h.item("navServerStatusWarn")->isVisible());
+    QTRY_VERIFY(h.item("navServerStatusBadge") != nullptr && h.item("navServerStatusBadge")->isVisible());  // count badge, no "!"
+    QCOMPARE(h.controller->attentionCount(), 1);
     h.controller->showServerPage(QStringLiteral("status"));
     QTRY_VERIFY(h.item("serverStatusPage") != nullptr);
     QTRY_COMPARE(h.controller->admin()->statusState(), QStringLiteral("ready"));
@@ -154,8 +158,10 @@ class AdminUiTest : public QObject {
     QVERIFY(label != nullptr);
     QTRY_VERIFY2(text(h.item("sectionLabelText")).contains(QStringLiteral("0.18.0 · Up 12 days 4 h · server.example.com:8443")),
                  qPrintable(text(h.item("sectionLabelText"))));
-    // The most urgent problem as a line.
-    QTRY_VERIFY(h.item("statusProblem") != nullptr);
+    // "Needs attention · 1": the problem as a sentence with exactly one action.
+    QTRY_VERIFY(h.item("statusAttentionRow_0") != nullptr);
+    QCOMPARE(text(h.item("statusAttentionHead")), QStringLiteral("Needs attention · 1"));
+    QVERIFY(h.item("statusAttentionAction_0") != nullptr && h.item("statusAttentionAction_1") == nullptr);
     QVERIFY(h.item("statusAllFine") == nullptr || !h.item("statusAllFine")->isVisible());
     // Metrics: only what the API provides; the full disk of the backup is flagged.
     for (const char* n : {"metric_cpu", "metric_memory", "metric_disk", "metric_backup"}) QVERIFY2(h.item(n) != nullptr, n);

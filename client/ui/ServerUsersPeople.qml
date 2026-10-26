@@ -2,7 +2,8 @@ import QtQuick
 import QtQuick.Layouts
 import Uzume.App
 
-// Users › People (3n-app-1, 3n-app-3): table person (since), role, status, devices; the selected person's details section under
+// Users › People (3n-app-1, 3n-app-3, 3n-app-1-r6): role chips with counts (All · Admins · Members · Open invites), table
+// avatar + person (since), role, what the person does now, play time, devices and "⋯" (open invites: Withdraw); the selected person's details section under
 // the table with the actions Make admin / Make member, Reset password, Turn off / Turn on, Remove and a new pairing code.
 // Admins cannot be turned off or removed (the server refuses); the reason is shown next to the disabled action.
 ColumnLayout {
@@ -23,30 +24,92 @@ ColumnLayout {
         : !root.isAdmin && root.u.disabled ? qsTr("Turn %1 on first.").arg(root.name) : ""
     spacing: Theme.space2
 
+    // The "⋯" menu of a person: the same actions as the details section below the list.
+    function menuFor(u: var): var {
+        if (!u) return []
+        const self = root.page.isSelf(u)
+        const admin = u.role === "admin"
+        const sole = admin && root.page.adminCount <= 1
+        const items = []
+        items.push({ name: "rename", label: qsTr("Rename…") })
+        if (admin) items.push({ name: "makeMember", label: qsTr("Make member…"), enabled: !self && !sole })
+        else items.push({ name: "makeAdmin", label: qsTr("Make admin…"), enabled: !u.disabled })
+        items.push({ name: "resetPassword", label: qsTr("Reset password…"), enabled: !self })
+        if (!admin) items.push({ name: "pairingCode", label: qsTr("New pairing code…"), enabled: !u.disabled })
+        if (u.disabled) items.push({ name: "turnOn", label: qsTr("Turn on") })
+        else items.push({ name: "turnOff", label: qsTr("Turn off…"), enabled: !admin })
+        if (!admin) items.push({ name: "remove", label: qsTr("Remove user…"), danger: true, divider: true })
+        return items
+    }
+    function runAction(name: string, u: var) {
+        if (!u) return
+        switch (name) {
+        case "rename": root.page.renameUser(u); break
+        case "makeMember": root.page.makeMember(u); break
+        case "makeAdmin": root.page.makeAdmin(u); break
+        case "resetPassword": root.page.resetPassword(u); break
+        case "pairingCode": root.page.newPairingCode(u); break
+        case "turnOn": root.page.turnOn(u, false); break
+        case "turnOff": root.page.turnOff(u); break
+        case "remove": root.page.removeUser(u); break
+        }
+    }
+
+    Flow {
+        objectName: "usersRoleChips"
+        Layout.fillWidth: true
+        spacing: Theme.space1
+        Repeater {
+            model: [{ key: "all", label: qsTr("All") }, { key: "admin", label: qsTr("Admins") },
+                    { key: "member", label: qsTr("Members") }, { key: "invited", label: qsTr("Open invites") }]
+            delegate: UzFilterChip {
+                required property var modelData
+                objectName: "usersRoleChip_" + modelData.key
+                text: modelData.label
+                count: root.page.roleCounts[modelData.key]
+                active: root.page.roleFilter === modelData.key
+                onClicked: root.page.roleFilter = modelData.key
+            }
+        }
+    }
+
     UzTable {
         id: table
         objectPrefix: "peopleTable"
         Layout.fillWidth: true
-        emptyText: qsTr("Nobody is here yet.")
+        emptyText: root.page.roleFilter === "invited" ? qsTr("No invite is open right now.") : qsTr("Nobody is here yet.")
         columns: [
-            { key: "person", title: qsTr("Person"), fill: 1.4, custom: true },
+            { key: "person", title: qsTr("Name"), fill: 1.4, custom: true },
             { key: "role", title: qsTr("Role"), width: 90 },
-            { key: "status", title: qsTr("Status"), fill: 1 },
+            { key: "status", title: qsTr("Now"), fill: 1 },
             { key: "played", title: qsTr("Play time"), width: 80, align: "right", mono: true },
-            { key: "devices", title: qsTr("Devices"), width: 80, align: "right", mono: true }
+            { key: "devices", title: qsTr("Devices"), width: 80, align: "right", mono: true },
+            { key: "action", title: "", width: 110, align: "right", custom: true }
         ]
-        rows: root.page.peopleRows
+        rows: root.page.shownRows
         currentIndex: root.page.selectedIndex
-        onPicked: (i, row) => root.page.selectedId = row.id
+        onPicked: (i, row) => { if (!row.invite) root.page.selectedId = row.id }
         cellDelegate: Component {
             Item {
                 id: cell
                 property var row: null
                 property var column: null
-                implicitHeight: col.implicitHeight
+                readonly property bool isPerson: cell.column !== null && cell.column.key === "person"
+                implicitHeight: cell.isPerson ? Math.max(col.implicitHeight, 36) : 32
+                // Name column: avatar, name, since / expiry.
+                UzAvatar {
+                    visible: cell.isPerson
+                    anchors.verticalCenter: parent.verticalCenter
+                    size: 28
+                    name: cell.row ? cell.row.person : ""
+                    person: cell.row ? cell.row.order : 1
+                    status: cell.row && !cell.row.invite ? (cell.row.online ? "online" : "offline") : ""
+                }
                 Column {
                     id: col
-                    width: parent.width
+                    visible: cell.isPerson
+                    x: 28 + Theme.space15
+                    width: parent.width - x
                     Text {
                         objectName: "personName_" + (cell.row ? cell.row.id : "")
                         width: parent.width
@@ -67,13 +130,35 @@ ColumnLayout {
                         color: Theme.muted
                     }
                 }
+                // Action column: Withdraw for an open invite (the server never lists the code, so there is nothing to copy), "⋯" for a person.
+                UzButton {
+                    objectName: "withdrawOpenInvite_" + (cell.row ? cell.row.inviteId : "")
+                    visible: !cell.isPerson && cell.row !== null && cell.row.invite === true
+                    anchors.right: parent.right
+                    anchors.rightMargin: Theme.space2
+                    anchors.verticalCenter: parent.verticalCenter
+                    size: "sm"
+                    kind: "ghost"
+                    text: qsTr("Withdraw")
+                    onClicked: root.page.withdrawInvite({ id: cell.row.inviteId })
+                }
+                MoreMenu {
+                    objectName: "personMenu_" + (cell.row ? cell.row.id : "")
+                    visible: !cell.isPerson && cell.row !== null && cell.row.invite !== true
+                    anchors.right: parent.right
+                    anchors.rightMargin: Theme.space2
+                    anchors.verticalCenter: parent.verticalCenter
+                    tooltip: qsTr("More actions for %1").arg(cell.row ? cell.row.person : "")
+                    items: cell.row && cell.row.invite !== true ? root.menuFor(root.page.userById(cell.row.id)) : []
+                    onActivated: (name) => root.runAction(name, root.page.userById(cell.row.id))
+                }
             }
         }
 
         ColumnLayout {   // details section of the selected person
             objectName: "peopleDetails"
             width: parent ? parent.width : 0
-            visible: root.u !== null
+            visible: root.u !== null && root.page.roleFilter !== "invited"
             spacing: Theme.space2
             Item { Layout.preferredHeight: Theme.space2 }
             UzSectionLabel { Layout.fillWidth: true; Layout.leftMargin: Theme.space15; Layout.rightMargin: Theme.space15; text: root.name }

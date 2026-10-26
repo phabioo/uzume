@@ -12,6 +12,7 @@
 //   resumeParked() replays them when another component already confirmed. confirmSecondsLeft counts the time left.
 // - Status: /admin/status is read when the server screen opens and every 60 s while `available` and no game is shown.
 //   statusProblem is the title of the most urgent problem ("" = none) and feeds the badge on Status in AppNav.
+// - serverUpdateVersion: the version in GET /admin/settings updates.available (not skipped); feeds the Settings badge and the Status list.
 // - Counts for the badges of AppNav: pendingDevices (waiting pairing requests, Users) and newReports (Reports). They are read
 //   with the status poll; pages call refreshCounts() after they changed something. thisDeviceId() names this PC's device.
 //
@@ -53,6 +54,7 @@ class AdminController : public QObject {
   Q_PROPERTY(QString statusProblem READ statusProblem NOTIFY statusChanged)
   Q_PROPERTY(int pendingDevices READ pendingDevices NOTIFY countsChanged)
   Q_PROPERTY(int newReports READ newReports NOTIFY countsChanged)
+  Q_PROPERTY(QString serverUpdateVersion READ serverUpdateVersion NOTIFY countsChanged)  // newer server version on offer ("" = none)
 
  public:
   struct Deps {
@@ -78,6 +80,7 @@ class AdminController : public QObject {
   QString statusState() const { return statusState_; }
   QVariantMap status() const { return status_; }
   QString statusProblem() const { return statusProblem_; }
+  QString serverUpdateVersion() const { return serverUpdateVersion_; }
   int pendingDevices() const { return pendingDevices_; }
   int newReports() const { return newReports_; }
 
@@ -163,6 +166,7 @@ class AdminController : public QObject {
   int statusGeneration_ = 0;
   int pendingDevices_ = 0;
   int newReports_ = 0;
+  QString serverUpdateVersion_;
   bool countsInFlight_ = false;
 };
 

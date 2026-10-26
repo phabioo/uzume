@@ -140,6 +140,12 @@ Rectangle {
         const g = root.player.libraryGameCount
         return Theme.plural(n, qsTr("folder"), qsTr("folders")) + " · " + Theme.plural(g, qsTr("game"), qsTr("games"))
     }
+    // Storage on this PC: percent of the volume in use (the report of the storage block), -1 while nothing is measured.
+    readonly property real storageUsedPercent: {
+        const r = root.player.localStorage.report
+        return r.totalBytes > 0 && r.freeBytes >= 0 ? Math.round((r.totalBytes - r.freeBytes) * 100 / r.totalBytes) : -1
+    }
+    readonly property bool storageNearlyFull: root.storageUsedPercent >= 90
     function updatesLine(): string {
         const u = root.updates
         if (u.updateAvailable) {
@@ -240,6 +246,9 @@ Rectangle {
                             objectName: "section_" + modelData.id
                             label: sec.modelData.name
                             selected: root.currentSection === modelData.id
+                            // Board 9c-1: Storage carries the warning square while the volume is nearly full.
+                            warn: sec.modelData.id === "storage" && root.storageNearlyFull
+                            warnName: "sectionWarn_" + sec.modelData.id
                             onClicked: root.jumpTo(sec.modelData.id)
                             UzLabel {
                                 objectName: "sectionStatus_" + sec.modelData.id
@@ -252,10 +261,12 @@ Rectangle {
                                       : sec.modelData.id === "hubs" ? (root.activeHubName !== ""
                                                                        ? qsTr("%1 saved · %2 active").arg(root.savedHubs.length).arg(root.activeHubName)
                                                                        : qsTr("%1 saved").arg(root.savedHubs.length))
-                                      : sec.modelData.id === "appearance" ? (root.player.appearance === "light" ? qsTr("Light")
-                                                                             : root.player.appearance === "system" ? qsTr("System") : qsTr("Dark"))
+                                      : sec.modelData.id === "appearance" ? (root.player.appearance === "light" ? qsTr("Kinari")
+                                                                             : root.player.appearance === "system" ? qsTr("System") : qsTr("Sumi"))
+                                                                            + " · " + (root.player.textSize === "tv" ? qsTr("text TV") : qsTr("text %1 %").arg(root.player.textSize))
                                       : sec.modelData.id === "audio" ? (root.player.audio.muted ? qsTr("Muted") : qsTr("Volume %1 %").arg(root.player.audio.volume))
                                       : sec.modelData.id === "library" ? root.libraryNavText()
+                                      : sec.modelData.id === "storage" && root.storageNearlyFull ? qsTr("%1 % full").arg(root.storageUsedPercent)
                                       : sec.modelData.id === "storage" ? (root.player.localStorage.report.usedText !== undefined ? qsTr("%1 used").arg(root.player.localStorage.report.usedText) : qsTr("%1 of %2").arg(root.player.romCache.usedText).arg(root.player.romCache.limitText))
                                       : sec.modelData.id === "plugins" ? root.player.plugins.summary
                                       : qsTr("Logs and support")

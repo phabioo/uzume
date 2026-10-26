@@ -40,10 +40,17 @@ Row {
             color: Theme.inkOnAccent
         }
     }
+    // The natural width comes from TextMetrics: a wrapping Text's implicitWidth depends on its width (binding loop).
+    TextMetrics {
+        id: sentenceMetrics
+        font: sentence.font
+        text: root.text
+    }
     Text {
+        id: sentence
         visible: root.text !== ""
         anchors.verticalCenter: parent.verticalCenter
-        width: Math.min(implicitWidth, Math.max(0, root.maxWidth - (root.small ? 14 : 20) - root.spacing))
+        width: Math.min(Math.ceil(sentenceMetrics.advanceWidth) + 1, Math.max(0, root.maxWidth - (root.small ? 14 : 20) - root.spacing))
         text: root.text
         textFormat: Text.PlainText
         wrapMode: Text.Wrap

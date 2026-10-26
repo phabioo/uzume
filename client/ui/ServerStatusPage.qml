@@ -3,8 +3,10 @@ import QtQuick.Layouts
 import Uzume.App
 
 // Server status (accounts-and-server.md 6f-app-1 and 6f-app-2) from GET /admin/status (`player.admin.status`, read again every
-// 60 s and when the page opens). Title = server name, Mono label `<version> · UP <uptime> · <public address>`; the most urgent
-// problem as a StatusIcon line; the Metrics row (CPU, Memory, Disk, Backup disk: only what the server reports); the tables
+// 60 s and when the page opens). Title = server name, Mono label `<version> · UP <uptime> · <public address>`; "Needs attention · n"
+// as one warning sentence per open problem (`player.attention`: server problems, core problems, a server update, save conflicts)
+// with exactly one action each; the health facts in three columns (Sessions now, Apps connected, Relay and what the server
+// reports: CPU, Memory, Disk, Backup disk); the tables
 // Sessions and Connected apps; the last errors in the help column. States: loading, server unreachable (Try again, Connection
 // check, hint), the member block (ServerScreen).
 // What the API does not carry is left out: no relay Mbit/s, no Direct / Relayed per Session, no system per Session.
@@ -19,6 +21,7 @@ AdminPage {
     readonly property bool unreachable: root.phase === "unreachable"
     readonly property bool forbidden: root.phase === "forbidden"
     readonly property var problems: root.ready ? (root.st.problems ?? []) : []
+    readonly property var attention: root.ready ? root.player.attention : []
     readonly property var sessionRows: root.ready ? root.sessionsOf(root.st.sessions ?? []) : []
     readonly property var appRows: root.ready ? root.appsOf(root.st.players ?? []) : []
     readonly property var metricList: root.ready ? root.metricsOf(root.st) : []
@@ -102,6 +105,15 @@ AdminPage {
             out.push({ key: "backup", label: qsTr("Backup disk"), value: qsTr("%1 %").arg(Math.round(f * 100)), fraction: f,
                        line: qsTr("%1 free").arg(root.bytesText(bd.free_bytes)), warning: root.hasProblem("backup") || f >= 0.9 })
         }
+        // Facts of the Sessions and the relay, in the same grid: only what the server reports.
+        const sessions = s.sessions ?? []
+        const watching = s.viewers ?? 0
+        out.push({ key: "sessionsNow", label: qsTr("Sessions now"), value: String(sessions.length), fraction: -1,
+                      line: watching > 0 ? qsTr("%1 running · %2 watching").arg(sessions.length).arg(watching) : qsTr("%1 running").arg(sessions.length), warning: false })
+        out.push({ key: "appsConnected", label: qsTr("Apps connected"), value: String((s.players ?? []).length), fraction: -1,
+                           line: qsTr("%1 online now").arg((s.players ?? []).filter(p => p.state !== undefined).length), warning: false })
+        out.push({ key: "relay", label: qsTr("Relay"), value: s.turn ? qsTr("On") : qsTr("Off"), fraction: -1,
+                           line: s.turn ? qsTr("%1 in use").arg(Theme.plural(s.turn.allocations, qsTr("allocation"), qsTr("allocations"))) : qsTr("Not running"), warning: false })
         return out
     }
     function sessionsOf(list: var): var {
@@ -196,19 +208,9 @@ AdminPage {
             text: root.logNote
             maxWidth: 640
         },
-        Repeater {
-            model: root.problems.slice(0, 3)
-            delegate: UzStatusIcon {
-                required property var modelData
-                objectName: "statusProblem"
-                kind: modelData.severity === "error" ? "error" : "warning"
-                text: modelData.detail !== "" ? modelData.detail : modelData.title
-                maxWidth: 640
-            }
-        },
         UzStatusIcon {
             objectName: "statusAllFine"
-            visible: root.ready && root.problems.length === 0
+            visible: root.ready && root.attention.length === 0
             kind: "done"
             text: qsTr("Everything looks fine.")
         }
@@ -254,11 +256,46 @@ AdminPage {
     }
 
     // ------------------------------------------------------------ ready
-    RowLayout {
+    ColumnLayout {
+        objectName: "statusAttention"
+        Layout.fillWidth: true
+        visible: root.ready && root.attention.length > 0
+        spacing: Theme.space1
+        UzSectionLabel { objectName: "statusAttentionHead"; Layout.fillWidth: true; text: qsTr("Needs attention · %1").arg(root.attention.length) }
+        Repeater {
+            model: root.attention
+            delegate: RowLayout {
+                id: arow
+                required property var modelData
+                required property int index
+                objectName: "statusAttentionRow_" + index
+                Layout.fillWidth: true
+                spacing: Theme.space2
+                UzStatusIcon {
+                    objectName: "statusAttentionText_" + arow.index
+                    Layout.fillWidth: true
+                    kind: arow.modelData.severity === "error" ? "error" : "warning"
+                    text: arow.modelData.text
+                    maxWidth: 720
+                }
+                UzButton {
+                    objectName: "statusAttentionAction_" + arow.index
+                    size: "sm"
+                    text: arow.modelData.actionLabel
+                    onClicked: root.player.openAttention(arow.modelData.target)
+                }
+            }
+        }
+    }
+
+    GridLayout {
+        id: metricsGrid
         objectName: "statusMetrics"
         Layout.fillWidth: true
         visible: root.ready && root.metricList.length > 0
-        spacing: 0
+        columns: root.width >= 640 ? 3 : 1
+        columnSpacing: 0
+        rowSpacing: Theme.space3
         Repeater {
             model: root.metricList
             delegate: UzMetric {
@@ -268,7 +305,7 @@ AdminPage {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
                 Layout.alignment: Qt.AlignTop
-                leftRule: index > 0
+                leftRule: metricsGrid.columns === 3 && index % 3 > 0
                 label: modelData.label
                 value: modelData.value
                 fraction: modelData.fraction

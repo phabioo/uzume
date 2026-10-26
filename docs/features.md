@@ -12,11 +12,13 @@ What the Uzume server, the protocol and the app do today. Why: [ADRs](adr/). How
 - [Packaging](#packaging)
 - [Protocol](#protocol)
 
+Look and input (readable UI pass, [readable-pass.md](design/uzume/readable-pass.md)): yellow marks only the main action, focus and the active nav item; warnings are a sentence with a yellow square. Settings › This PC › Appearance has Text size (100 %, 125 %, TV; setting `text_size`) and Reduce motion (`reduce_motion`). Every main page has one page header and at most three columns below 1440 px (help and the controller input test fold into disclosures); dialog buttons stack when they do not fit. Keyboard and gamepad reach every page: section columns, binding fields, the screenshot strip and the Continue tile are focusable, B / Esc goes one level back, and outside a running game the pad's D-pad / stick, A, B, Y and L / R drive the interface, with a hint row after pad input.
+
 There is no web admin: the server serves only the REST API (`/api/v1`, admin under `/api/v1/admin/...`, feature `admin_v1`), WSS signaling and file transfer, and no HTML pages. Administration is in the app (SERVER group, Settings › Server).
 
 ## Library and ROMs
 
-- Library with search and filter chips (live core state), folder counts, rename and delete per game for admins (saves are kept).
+- Library with search, status chips with counts (All, Ready, Needs attention, Not downloaded; pad L / R steps through them), a List / Grid switch (setting `library_view`; grid tiles with monogram and system chip), folder counts, rename and delete per game for admins (saves are kept). The game page shows the primary action under the title and at most one problem sentence; when it blocks play, its fix is the primary ("Install core and play", "Open Systems & cores" for admins, "Ask an admin"). The start checklist shows only while starting or after a failure; the Saves tab has Play from Main and Start a run on top and File details closed. Removing a local game shows a toast with Undo; the file stays on the PC.
 - ROM upload from the app (resumable); the setting "Allow users to upload games" (Settings › Server) controls whether non-admins may upload. ROM download via API with Range and ETag.
 - Hash-verified ROM cache with resumable download; limit in Settings (`rom_cache_limit_bytes`, default 20 GB, 0 = unlimited), LRU by last use, "Clear ROM cache" with confirmation.
 - Storage overview (Settings › This PC › Storage): measured in the background (path, time, Measure again), one bar with Downloaded games, Save cache, Save states, Screenshots waiting for upload, Cores and firmware and the free space of the volume; clean-up suggestions with sizes and a confirmation each: games not played in 60 days (they download again when you play; never the running game or a download in progress) and older cached core versions not in use. Clean-up never offers saves.

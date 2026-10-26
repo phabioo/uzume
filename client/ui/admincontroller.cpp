@@ -48,8 +48,9 @@ void AdminController::refreshAvailability() {
       status_.clear();
       statusProblem_.clear();
       emit statusChanged();
-      if (pendingDevices_ != 0 || newReports_ != 0) {
+      if (pendingDevices_ != 0 || newReports_ != 0 || !serverUpdateVersion_.isEmpty()) {
         pendingDevices_ = newReports_ = 0;
+        serverUpdateVersion_.clear();
         emit countsChanged();
       }
     }
@@ -371,7 +372,7 @@ void AdminController::refreshCounts() {
   if (!available_ || countsInFlight_) return;
   countsInFlight_ = true;
   const int gen = statusGeneration_;
-  auto pending = std::make_shared<int>(2);
+  auto pending = std::make_shared<int>(3);
   auto apply = [this, gen, pending](int* target, int value) {
     if (gen != statusGeneration_) return;
     if (value >= 0 && *target != value) {
@@ -392,6 +393,19 @@ void AdminController::refreshCounts() {
       n = m.contains(QStringLiteral("count_new")) ? m.value(QStringLiteral("count_new")).toInt() : 0;
     }
     apply(&newReports_, n);
+  });
+  // A server update on offer: settings.updates.available.version, skipped versions do not count. An answer that fails
+  // (older server, no such field) leaves the last value alone.
+  api_.request(QStringLiteral("GET"), QStringLiteral("/admin/settings"), QVariant(), [this, gen, pending](const AdminApi::Result& r) {
+    if (gen == statusGeneration_ && r.ok && r.data.typeId() == QMetaType::QVariantMap) {
+      const QVariantMap av = r.data.toMap().value(QStringLiteral("updates")).toMap().value(QStringLiteral("available")).toMap();
+      const QString v = av.value(QStringLiteral("skipped")).toBool() ? QString() : av.value(QStringLiteral("version")).toString();
+      if (v != serverUpdateVersion_) {
+        serverUpdateVersion_ = v;
+        emit countsChanged();
+      }
+    }
+    if (gen == statusGeneration_ && --*pending == 0) countsInFlight_ = false;
   });
 }
 

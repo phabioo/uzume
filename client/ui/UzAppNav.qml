@@ -6,8 +6,8 @@ import Uzume.App
 // AppNav (frame.md "0-4 A" to "0-4 C" and "0-4 G"): the 232 px navigation of every screen. Lockup, PLAY (Library, Runs,
 // Emulation, Controllers), the SERVER group for admins or THIS PC when there is no server, ONLINE (people with a Session),
 // Settings, the server line and the person. Compact (window below 900 px high): 28 px items, one-line ONLINE rows, no address line.
-// SERVER: Status (with a "!" badge while the server reports a problem), Users (count of waiting devices), Systems & cores,
-// Plugins, Reports (count of New).
+// SERVER: Status (count of open problems), Users (count of waiting devices), Systems & cores (count of core problems),
+// Plugins, Reports (count of New). Settings carries a badge while a server update is on offer. All badges are admin-only, above 0.
 Rectangle {
     id: root
     required property PlayerController player
@@ -178,10 +178,18 @@ Rectangle {
                     compact: root.compact
                     label: modelData.label
                     active: modelData.page !== undefined && root.player.screen === "server" && root.player.serverPage === modelData.page
-                    warnText: modelData.page === "status" && root.player.admin.statusProblem !== "" ? "!" : ""
-                    warnName: modelData.page === "status" ? "navServerStatusWarn" : ""
-                    badge: modelData.page === "users" ? root.player.admin.pendingDevices : modelData.page === "reports" ? root.player.admin.newReports : 0
-                    badgeName: modelData.page === "users" ? "navServerUsersBadge" : modelData.page === "reports" ? "navServerReportsBadge" : ""
+                    // Neutral count badges, admins only and only above 0: open problems (Status), waiting devices (Users), core problems
+                    // (Systems & cores), new reports (Reports).
+                    badge: !modelData.server ? 0
+                           : modelData.page === "status" ? root.player.attentionCount
+                           : modelData.page === "users" ? root.player.admin.pendingDevices
+                           : modelData.page === "systems" ? root.player.coreProblemCount
+                           : modelData.page === "reports" ? root.player.admin.newReports : 0
+                    badgeName: !modelData.server ? ""
+                               : modelData.page === "status" ? "navServerStatusBadge"
+                               : modelData.page === "users" ? "navServerUsersBadge"
+                               : modelData.page === "systems" ? "navServerSystemsBadge"
+                               : modelData.page === "reports" ? "navServerReportsBadge" : ""
                     onActivated: modelData.page !== undefined ? root.player.showServerPage(modelData.page)
                                                               : root.player.showSettingsSection(modelData.section)
                 }
@@ -364,6 +372,9 @@ Rectangle {
             // A newer app is available: small Yamabuki square on Settings.
             dot: root.player.updates.updateAvailable
             dotName: "settingsUpdateDot"
+            // A server update is on offer (admins only): count badge 1.
+            badge: root.player.serverUpdatePending ? 1 : 0
+            badgeName: "navSettingsBadge"
             onActivated: root.player.showSettings()
         }
 

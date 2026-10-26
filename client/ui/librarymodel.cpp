@@ -343,6 +343,14 @@ void LibraryModel::sortVisible(QList<int>& list) const {
   });
 }
 
+int LibraryModel::conflictCount() const {
+  int n = 0;
+  for (const Item& it : items_) {
+    n += it.sync == QLatin1String("conflict") ? 1 : 0;
+  }
+  return n;
+}
+
 int LibraryModel::readyCount() const {
   int n = 0;
   for (const Item& it : items_) {
