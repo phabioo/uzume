@@ -40,10 +40,20 @@ Row {
             color: Theme.inkOnAccent
         }
     }
+    // The unwrapped width comes from a hidden copy: reading the wrapping label's own implicitWidth in its width binding
+    // is a binding loop once the sentence wraps.
     Text {
+        id: natural
+        visible: false
+        text: root.text
+        textFormat: Text.PlainText
+        font: label.font
+    }
+    Text {
+        id: label
         visible: root.text !== ""
         anchors.verticalCenter: parent.verticalCenter
-        width: Math.min(implicitWidth, Math.max(0, root.maxWidth - (root.small ? 14 : 20) - root.spacing))
+        width: Math.min(natural.implicitWidth, Math.max(0, root.maxWidth - (root.small ? 14 : 20) - root.spacing))
         text: root.text
         textFormat: Text.PlainText
         wrapMode: Text.Wrap
