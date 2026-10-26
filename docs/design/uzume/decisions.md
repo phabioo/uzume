@@ -169,7 +169,7 @@ Canvas page "4 Play and plugins", 19 boards 11a to 11h with Kinari twins (11e an
 | # | Decision | Status |
 |---|---|---|
 | 1 | The run rule is drawn on a plain run (Rally Night on Harbor Rally) started by Lena, a member: the run's creator and admins change the rule. | Accepted |
-| 2 | "Cheat database" is an item after Updates in Settings › Server (3q); Systems & cores (3l) is a page, not a settings list. Without a server the block is in Settings › This PC. | Accepted |
+| 2 | "Cheat database" is an item after Updates in Server › Settings (3q); Systems & cores (3l) is a page, not a settings list. Without a server the block is in Settings › This PC. | Accepted |
 | 3 | "Before cheats" is saved each time the first cheat of a play session goes on; consent is asked once per game. | Accepted |
 | 4 | Turning cheats off in a run uses the full confirm dialog (it changes other people's games); allowing them a lighter confirm. | Accepted |
 

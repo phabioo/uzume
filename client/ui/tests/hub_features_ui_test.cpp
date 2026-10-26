@@ -379,14 +379,16 @@ class HubFeaturesUiTest : public QObject {
       QCOMPARE(h.item("userName")->property("text").toString(), QStringLiteral("lena"));
       QCOMPARE(h.item("userDevice")->property("text").toString(), h.controller->deviceName());
       QCOMPARE(h.item("userAvatarInitial")->property("text").toString(), QStringLiteral("L"));
-      // Admins get the "Settings for" switch; "Server" shows who it affects and the server settings pane (here the server has no admin_v1, so it says so).
+      // Settings is This PC only, also for admins: no "Settings for" switch. The server's settings are a tab of the Server screen (here
+      // the server has no admin_v1, so it shows the member block).
       QVERIFY(h.controller->isAdmin());
       h.controller->showSettings();
-      QTRY_VERIFY(h.item("settingsScopeRow") != nullptr && h.item("settingsScopeRow")->isVisible());
-      QVERIFY(h.click("scopeServer"));
-      QTRY_VERIFY(h.item("serverSettingsUnavailable") != nullptr && h.item("serverSettingsUnavailable")->isVisible());
-      QVERIFY(h.click("scopePc"));
-      QTRY_VERIFY(h.item("serverSettingsUnavailable") == nullptr || !h.item("serverSettingsUnavailable")->isVisible());
+      QTest::qWait(100);
+      QVERIFY(h.item("settingsScopeRow") == nullptr);
+      QVERIFY(h.item("settingsScope") == nullptr);
+      QVERIFY(h.item("scopeServer") == nullptr);
+      h.controller->showServerPage(QStringLiteral("settings"));
+      QTRY_VERIFY(h.item("serverMemberState") != nullptr && h.item("serverMemberState")->isVisible());
     }
     {
       FakeHub hub(QStringLiteral("a"));
@@ -403,7 +405,7 @@ class HubFeaturesUiTest : public QObject {
       QVERIFY(!h.controller->isAdmin());
       h.controller->showSettings();
       QTest::qWait(100);
-      QVERIFY(h.item("settingsScopeRow") == nullptr || !h.item("settingsScopeRow")->isVisible());
+      QVERIFY(h.item("settingsScopeRow") == nullptr);
     }
   }
 

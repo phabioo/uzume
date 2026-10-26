@@ -177,6 +177,9 @@ class AdminLibraryUiTest : public QObject {
     Harness h;
     start(h, hub);
     QTRY_VERIFY(h.controller->admin()->available());
+    // Rescan folders moved from the Library to the Games tab of the Server screen.
+    QVERIFY(!shown(h, "libraryRescan"));
+    h.controller->showServerPage(QStringLiteral("games"));
     QTRY_VERIFY(shown(h, "libraryRescan"));
 
     // Rescan: the result line comes from the numbers of the API.
@@ -188,6 +191,8 @@ class AdminLibraryUiTest : public QObject {
     uitest::saveShot(h.window, QStringLiteral("admin-library-rescan"));
 
     // Details of the selected game.
+    h.controller->showLibrary();
+    QVERIFY(!shown(h, "libraryRescan"));
     h.controller->selectGame(QStringLiteral("g1"));
     QTRY_VERIFY(shown(h, "libraryAdminDetails"));
     QTRY_COMPARE(text(h.item("libraryAdminUploader")), QStringLiteral("Tester"));
@@ -449,10 +454,11 @@ class AdminLibraryUiTest : public QObject {
     h.controller->updates()->applyWhatsNew(QStringLiteral("### Added\n- Plain\n"));
     QTRY_VERIFY(shown(h, "whatsNewDialog"));
     QVERIFY(h.click("whatsNewOpenUpdates"));
-    QTRY_COMPARE(h.controller->screen(), QStringLiteral("settings"));
     QVERIFY(!h.controller->updates()->whatsNewPending());
-    // An admin lands on the server's Updates page (Server scope), not on the This PC section.
-    QTRY_COMPARE(h.item("settingsScope")->property("current").toString(), QStringLiteral("server"));
+    // An admin lands on the server's Updates page (Server › Settings), not on the This PC section.
+    QTRY_COMPARE(h.controller->screen(), QStringLiteral("server"));
+    QCOMPARE(h.controller->serverPage(), QStringLiteral("settings"));
+    QCOMPARE(h.controller->serverSettingsPage(), QStringLiteral("updates"));
     QTRY_VERIFY(h.item("serverSettingsNav_updates") != nullptr && h.item("serverSettingsNav_updates")->property("selected").toBool());
   }
 
@@ -470,7 +476,8 @@ class AdminLibraryUiTest : public QObject {
       if (admin) {
         QCOMPARE(text(h.item("serverProblemAction")), QStringLiteral("Update server"));
         QVERIFY(h.click("serverProblemAction"));
-        QTRY_COMPARE(h.controller->screen(), QStringLiteral("settings"));
+        QTRY_COMPARE(h.controller->screen(), QStringLiteral("server"));   // Server › Settings › Updates
+        QCOMPARE(h.controller->serverSettingsPage(), QStringLiteral("updates"));
       }
     }
   }

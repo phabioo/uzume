@@ -549,13 +549,6 @@ Rectangle {
                 player: root.player
             }
 
-            // Admin part of the Library (package 8): Rescan folders with its result line.
-            LibraryAdminBar {
-                Layout.fillWidth: true
-                visible: root.player.admin.available
-                player: root.player
-            }
-
             // Continue block (3c-0): last played game and up to two recent ones; hidden until something was played.
             LibraryContinue {
                 Layout.fillWidth: true

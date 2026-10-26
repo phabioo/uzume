@@ -279,7 +279,10 @@ qt_add_qml_module(uzume_ui
     ServerSystemsFileDialog.qml
     ServerPluginsPage.qml
     ServerSettingsPane.qml
+    ServerGamesPage.qml
+    ServerSettingsGames.qml
     ServerSettingsGeneral.qml
+    ServerSettingsPage.qml
     ServerSettingsNetwork.qml
     ServerSettingsSignIn.qml
     ServerSettingsUpdates.qml

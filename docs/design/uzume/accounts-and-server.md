@@ -6,7 +6,7 @@ Rules that hold on every screen of this sheet:
 
 - Tables are hairline rows with the Yamabuki marker on the selected row; row details are a numbered or labelled **section under the table**, never a side panel (the open column stays free). Long admin pages put help text in the `HelpColumn` of the open column (label `UZUME · <AREA> · HOME SERVER`).
 - Admin pages use 48 px top padding (not 56) so tables fit in 800 px. Second columns (Settings, Systems, This PC) are text items with the leading Yamabuki marker; Users uses `Tabs` (People · Invites · Devices).
-- Dangerous admin steps ask "Confirm it's you" first (8f). Member versions of admin pages show a short "for admins" block and a way back; members never see the SERVER group and reach these pages only through old links and notifications.
+- Dangerous admin steps ask "Confirm it's you" first (8f). Member versions of admin pages show a short "for admins" block and a way back; members never see the Server item and reach these pages only through old links and notifications.
 - Boards are 1280 x 800 unless noted. Each has a Sumi board and a Kinari twin.
 - "Built in" gives the roadmap package; the admin API behind these screens is package 5 and the server accounts and device approval are package 4.
 
@@ -157,7 +157,7 @@ Six states: all fine (nothing extra in the sidebar), server unreachable (last kn
 
 Boards: [`S3j1`](../source/uzume/S3j1.dc.html) · [`S3j1Kinari`](../source/uzume/S3j1Kinari.dc.html). Built in: 0.18 package 8 (app admin area), 0.18 package 5 (admin API).
 
-- "Library", label `128 GAMES · 5 SYSTEMS`. Buttons Rescan folders, primary Add games... `Tabs` Games / Saves. Resumable upload strip ("Uploading Tide & Lantern.nds · 41 OF 128 MB · 2.4 MB/S", Pause, Cancel, thin `Progress`).
+- "Library", label `128 GAMES · 5 SYSTEMS`. Primary Add games... (Rescan folders and Upload ROM are on Server › Games) `Tabs` Games / Saves. Resumable upload strip ("Uploading Tide & Lantern.nds · 41 OF 128 MB · 2.4 MB/S", Pause, Cancel, thin `Progress`).
 - `TableRow`s; a status word per row ("On this PC only", "Uploading 32 %" with the row disabled). Selected row opens the admin **details section** under the table: Uploaded by, File path, SHA-256, Saves (people, versions); actions Rename..., Copy SHA-256, Rescan folder, Delete game... (danger).
 
 ### 3j-app-2 Library · dialogs and results
@@ -267,7 +267,7 @@ Six states: upload of an unsigned plugin (Checkbox per permission: Show panels i
 
 Boards: [`S3q1`](../source/uzume/S3q1.dc.html) · [`S3q1Kinari`](../source/uzume/S3q1Kinari.dc.html). Built in: 0.18 package 8 (app admin area), 0.18 package 5 (admin API).
 
-Server settings page 1 of 7, within the "Settings for: Server" switch. `SettingsRow`s: Server name (Rename...), Import folder (`/srv/uzume/import`, Change...; files are added on Rescan folders), Members can add games (`Toggle`), Joining (`Select`: Invite only), Run setup again (Open...; nothing is reset). Help in the open column.
+Server settings page 1 of 7, on the Server › Settings tab. `SettingsRow`s: Server name (Rename...), Import folder (`/srv/uzume/import`, Change...; files are added on Rescan folders in Server › Games), Members can add games (`Toggle`), Joining (`Select`: Invite only), Run setup again (Open...; nothing is reset). Help in the open column.
 
 ### 3q-app-2 Server › Network & sharing
 
@@ -333,7 +333,7 @@ Same dialog without server-only items and without the server-version line: membe
 
 Boards: [`S7a1`](../source/uzume/S7a1.dc.html) · [`S7a1Kinari`](../source/uzume/S7a1Kinari.dc.html). Built in: 0.18 package 8 (app admin area), 0.18 package 7 (app start and accounts).
 
-Runs after 8a-5 (also from Settings › Server › General › Run setup again). Six-step stepper on hairlines: 01 Systems, 02 Cores, 03 ROM folders, 04 Internet access, 05 Backups, 06 Done; every step is skippable. Step 4: public address (field), relay (built-in on), ports to forward, result "Prepared for the internet". Buttons Only home network, Skip this step (ghost), Next (primary). Hints A Next, B Skip.
+Runs after 8a-5 (also from Server › Settings › General › Run setup again). Six-step stepper on hairlines: 01 Systems, 02 Cores, 03 ROM folders, 04 Internet access, 05 Backups, 06 Done; every step is skippable. Step 4: public address (field), relay (built-in on), ports to forward, result "Prepared for the internet". Buttons Only home network, Skip this step (ghost), Next (primary). Hints A Next, B Skip.
 
 ### 7a-app-2 Setup assistant · done
 

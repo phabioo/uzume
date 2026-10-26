@@ -14,9 +14,6 @@ Rectangle {
     property string collectMessage: ""
     property string collectedPath: ""
     property string editingHubId: ""
-    // Admins can switch between this PC and the server ("Settings for"); members and users without a server see this PC only.
-    readonly property bool canSwitchScope: root.player.isAdmin && root.player.hubAddress !== ""
-    property string scope: "pc"   // pc | server
     // The sections under their group heads. "library" (the old Library folders section) is an alias of "storage".
     readonly property var sectionGroups: [
         { head: qsTr("You"), items: [
@@ -51,7 +48,7 @@ Rectangle {
 
     // Open help column (boards 9c-1, 6l-1): only on windows wide enough to keep the rows in their wide layout.
     // Controls shows the input test in this column from 1440 px on instead of the help.
-    readonly property bool inputTestColumn: root.scope === "pc" && root.currentSection === "controllers" && root.width >= Theme.columnsCompactMax
+    readonly property bool inputTestColumn: root.currentSection === "controllers" && root.width >= Theme.columnsCompactMax
     readonly property bool helpOn: root.width >= 1480 && !root.inputTestColumn
     readonly property var helpItems: {
         switch (root.currentSection) {
@@ -86,21 +83,12 @@ Rectangle {
         }
     }
 
-    onCanSwitchScopeChanged: if (!canSwitchScope) scope = "pc"
     Connections {
         target: root.player
         function onSettingsSectionRequested(section: string) {
-            // "server:<page>" opens the Server scope on that page (admins with the admin area); anyone else gets the This PC section.
-            if (section.startsWith("server:")) {
-                const page = section.substring(7)
-                if (root.canSwitchScope && root.player.admin.available && serverPane.pages.some(function (p) { return p.id === page })) {
-                    serverPane.page = page
-                    root.scope = "server"
-                    return
-                }
-                section = page
-            }
-            root.scope = "pc"
+            // The server's own settings are a tab of the Server screen (showSettingsSection handles "server:<page>" there); here a
+            // "server:<page>" that got through opens the This PC section of the same name.
+            if (section.startsWith("server:")) section = section.substring(7)
             root.jumpTo(section)
         }
     }
@@ -175,7 +163,6 @@ Rectangle {
 
     // The content of Controls and Hotkeys that takes key presses (capture of a binding, input test), else null.
     function keyContent(): var {
-        if (root.scope !== "pc") return null
         if (root.currentSection === "controllers") return secControllers.item
         if (root.currentSection === "hotkeys") return secHotkeys.item
         return null
@@ -198,7 +185,7 @@ Rectangle {
         UzPageHints {
             id: pageHints
             player: root.player
-            search: root.scope === "pc" && root.currentSection === "emulation"
+            search: root.currentSection === "emulation"
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom
@@ -217,7 +204,7 @@ Rectangle {
                 player: root.player
             }
 
-            // Second column (board 9c-1): the This PC / Server switch, the scope line and the sections.
+            // Second column (board 9c-1): the sections.
             Item {
                 Layout.fillHeight: true
                 Layout.preferredWidth: Theme.sidebar
@@ -240,41 +227,9 @@ Rectangle {
                         width: parent.width - 2 * Theme.space2 - 1
                         spacing: 0
 
-                        // Settings for: This PC / Server (admins only).
-                        ColumnLayout {
-                            objectName: "settingsScopeRow"
-                            visible: root.canSwitchScope
-                            Layout.fillWidth: true
-                            Layout.minimumWidth: 0
-                            Layout.bottomMargin: 14
-                            spacing: Theme.space05
-                            UzLabel { text: qsTr("Settings for"); color: Theme.muted; font.pixelSize: Theme.roles.fieldLabel.size; font.weight: Theme.roles.fieldLabel.weight }
-                            UzSegmented {
-                                objectName: "settingsScope"
-                                Layout.fillWidth: true
-                                stretch: true
-                                options: [{ value: "pc", label: qsTr("This PC"), name: "scopePc" }, { value: "server", label: qsTr("Server"), name: "scopeServer" }]
-                                current: root.scope
-                                onPicked: (value) => root.scope = value
-                            }
-                        }
-                        UzLabel {
-                            objectName: "settingsScopeHint"
-                            Layout.fillWidth: true
-                            Layout.leftMargin: Theme.space15
-                            Layout.rightMargin: Theme.space15
-                            Layout.bottomMargin: 14
-                            text: root.scope === "server" ? qsTr("Affects everyone on %1.").arg(root.player.hubName) : qsTr("Only affects this PC and your account.")
-                            color: Theme.muted
-                            font.pixelSize: Theme.roles.small.size
-                            lineHeight: Theme.roles.small.line
-                            lineHeightMode: Text.FixedHeight
-                            wrapMode: Text.WordWrap
-                        }
-
-                        // Groups by count and rows by index: a JS array model rebuilt on a scope change loops the layout (Qt 6.4).
+                        // Groups by count and rows by index: a JS array model rebuilt on a change loops the layout (Qt 6.4).
                         Repeater {
-                            model: root.scope !== "pc" ? 0 : root.sectionGroups.length
+                            model: root.sectionGroups.length
                             delegate: ColumnLayout {
                                 id: grp
                                 required property int index
@@ -315,12 +270,6 @@ Rectangle {
                                 }
                             }
                         }
-
-                        // Settings for: Server (admins): the seven server pages of ServerSettingsPane.
-                        Repeater {
-                            model: root.scope === "server" ? serverPane.pages : []
-                            delegate: serverPane.navDelegate
-                        }
                     }
                 }
             }
@@ -352,15 +301,9 @@ Rectangle {
                         Layout.fillWidth: true
                         Layout.minimumWidth: 0
                         number: 1
-                        label: root.scope === "server" ? qsTr("Server") : qsTr("Settings")
-                        labelMeta: root.scope === "server" ? root.player.hubName : qsTr("This PC")
-                        title: root.scope === "server" ? qsTr("Server settings") : root.sectionName(root.currentSection)
-                    }
-                    // Server settings (3q-app-1 to 3q-app-7): the pages are chosen in the second column, shown here.
-                    ServerSettingsPane {
-                        id: serverPane
-                        visible: root.scope === "server"
-                        player: root.player
+                        label: qsTr("Settings")
+                        labelMeta: qsTr("This PC")
+                        title: root.sectionName(root.currentSection)
                     }
 
                     // ------------------------------------------------------------------ MY ACCOUNT
@@ -368,7 +311,7 @@ Rectangle {
                         id: secAccount
                         width: content.width   // laid out at the page width from the first pass
                         objectName: "accountSection"
-                        visible: root.scope === "pc" && root.currentSection === "account"
+                        visible: root.currentSection === "account"
                         Layout.fillWidth: true
                         Layout.preferredWidth: 1
                         Layout.minimumWidth: 0
@@ -380,7 +323,7 @@ Rectangle {
                     ColumnLayout {
                         id: secUpdates
                         width: content.width   // laid out at the page width from the first pass
-                        visible: root.scope === "pc" && root.currentSection === "updates"
+                        visible: root.currentSection === "updates"
                         objectName: "updatesSection"
                         Layout.fillWidth: true
                         Layout.preferredWidth: 1
@@ -713,7 +656,7 @@ Rectangle {
                     ColumnLayout {
                         id: secHubs
                         width: content.width   // laid out at the page width from the first pass
-                        visible: root.scope === "pc" && root.currentSection === "hubs"
+                        visible: root.currentSection === "hubs"
                         objectName: "hubsSection"
                         Layout.fillWidth: true
                         Layout.preferredWidth: 1
@@ -775,6 +718,18 @@ Rectangle {
                                 text: qsTr("Share again…")
                                 onClicked: root.player.localHub.shareAgain()
                             }
+                        }
+
+                        // The settings of the server itself are a tab of the Server screen (admins only).
+                        UzButton {
+                            objectName: "settingsServerSettingsButton"
+                            visible: root.player.isAdmin && root.player.hubAddress !== "" && root.player.admin.available
+                            Layout.alignment: Qt.AlignLeft
+                            Layout.leftMargin: Theme.settingsDotSlot
+                            Layout.minimumWidth: 0
+                            kind: "link"
+                            text: qsTr("Server settings")
+                            onClicked: root.player.showServerPage("settings")
                         }
 
                         // Settings > Network does not exist yet: the connection check lives next to the Hubs it checks.
@@ -1095,7 +1050,7 @@ Rectangle {
                     ColumnLayout {
                         id: secAppearance
                         width: content.width   // laid out at the page width from the first pass
-                        visible: root.scope === "pc" && root.currentSection === "appearance"
+                        visible: root.currentSection === "appearance"
                         objectName: "appearanceSection"
                         Layout.fillWidth: true
                         Layout.preferredWidth: 1
@@ -1154,7 +1109,7 @@ Rectangle {
                     ColumnLayout {
                         id: secAudio
                         width: content.width   // laid out at the page width from the first pass
-                        visible: root.scope === "pc" && root.currentSection === "audio"
+                        visible: root.currentSection === "audio"
                         objectName: "audioSection"
                         Layout.fillWidth: true
                         Layout.preferredWidth: 1
@@ -1220,7 +1175,7 @@ Rectangle {
                     LibraryFoldersSection {
                         id: secLibrary
                         width: content.width   // laid out at the page width from the first pass
-                        visible: root.scope === "pc" && root.currentSection === "storage"
+                        visible: root.currentSection === "storage"
                         objectName: "libraryFoldersSection"
                         Layout.fillWidth: true
                         Layout.preferredWidth: 1
@@ -1232,7 +1187,7 @@ Rectangle {
                     ColumnLayout {
                         id: secStorage
                         width: content.width   // laid out at the page width from the first pass
-                        visible: root.scope === "pc" && root.currentSection === "storage"
+                        visible: root.currentSection === "storage"
                         objectName: "storageSection"
                         Layout.fillWidth: true
                         Layout.preferredWidth: 1
@@ -1315,7 +1270,7 @@ Rectangle {
                         id: secControllers
                         width: content.width   // laid out at the page width from the first pass
                         objectName: "controllersSection"
-                        active: root.scope === "pc" && root.currentSection === "controllers"
+                        active: root.currentSection === "controllers"
                         visible: active
                         Layout.fillWidth: true
                         Layout.preferredWidth: 1   // the width comes from the page, never from the content
@@ -1326,7 +1281,7 @@ Rectangle {
                         id: secHotkeys
                         width: content.width   // laid out at the page width from the first pass
                         objectName: "hotkeysSection"
-                        active: root.scope === "pc" && root.currentSection === "hotkeys"
+                        active: root.currentSection === "hotkeys"
                         visible: active
                         Layout.fillWidth: true
                         Layout.preferredWidth: 1   // the width comes from the page, never from the content
@@ -1337,7 +1292,7 @@ Rectangle {
                         id: secEmulation
                         width: content.width   // laid out at the page width from the first pass
                         objectName: "emulationSection"
-                        active: root.scope === "pc" && root.currentSection === "emulation"
+                        active: root.currentSection === "emulation"
                         visible: active
                         Layout.fillWidth: true
                         Layout.preferredWidth: 1   // the width comes from the page, never from the content
@@ -1349,7 +1304,7 @@ Rectangle {
                     PluginsSection {
                         id: secPlugins
                         width: content.width   // laid out at the page width from the first pass
-                        visible: root.scope === "pc" && root.currentSection === "plugins"
+                        visible: root.currentSection === "plugins"
                         objectName: "pluginsSection"
                         Layout.fillWidth: true
                         Layout.preferredWidth: 1
@@ -1362,7 +1317,7 @@ Rectangle {
                     ColumnLayout {
                         id: secDiagnostics
                         width: content.width   // laid out at the page width from the first pass
-                        visible: root.scope === "pc" && root.currentSection === "diagnostics"
+                        visible: root.currentSection === "diagnostics"
                         objectName: "diagnosticsSection"
                         Layout.fillWidth: true
                         Layout.preferredWidth: 1
@@ -1530,7 +1485,7 @@ Rectangle {
                     UzHelpColumn {
                         objectName: "settingsHelpDisclosure"
                         inline: true
-                        visible: root.scope === "pc" && !root.helpOn && !root.inputTestColumn
+                        visible: !root.helpOn && !root.inputTestColumn
                         Layout.fillWidth: true
                         items: root.helpItems
                     }

@@ -57,7 +57,7 @@ A portable, Linux or development build lists the same releases with a "View rele
 
 ### Server
 
-Settings › Server › Updates › "Earlier versions" (loaded on request), the CLI and the admin API do the same:
+Server › Settings › Updates › "Earlier versions" (loaded on request), the CLI and the admin API do the same:
 
 ```
 uzume-server rollback --list [--json]          the earlier versions and what going back does to the data
@@ -78,6 +78,6 @@ Migrations are forward-only, so what happens to the data depends on the database
 
 Before anything changes, a safety backup without ROMs is written (the same archive as [Backup and restore](server-backup.md), marked `-safety`) into the backup folder, or `<data>/backups` when none is set. The older package is staged and handed to the root helper, which re-verifies everything (signature, freshness, protocol, that it is older, the database backup and its schema) and trusts nothing in the data folder; for a database restore it stops the service, moves the live database aside (`uzume.db.rollback-<time>`), puts the backup in place with the pause written into it, installs the package and starts the service again. If the installer fails, the files are put back. On Windows the same runs through the update service and the MSI.
 
-In a container the server never goes back by itself: the Updates page shows how to pull the older image tag (`docker compose pull` with the tag, then recreate), and `rollback --list` prints the same. The Status page shows the banner "Running X · automatic updates paused" until updates are resumed.
+In a container the server never goes back by itself: the Updates page shows how to pull the older image tag (`docker compose pull` with the tag, then recreate), and `rollback --list` prints the same. Server › Overview shows the banner "Running X · automatic updates paused" until updates are resumed.
 
 Manual fallback (also for a server that cannot go back by itself): `sudo apt install --allow-downgrades ./uzume-server_<old>.deb`, and if the schema changed, restore the matching database backup from `<data>/backups/` while the server is stopped. The app is reinstalled from an older installer on the release page.

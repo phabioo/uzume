@@ -31,10 +31,11 @@ AdminPage {
     property bool logBusy: false
 
     title: root.hasData ? root.st.hub_name : root.player.hubName
-    label: root.ready ? qsTr("%1 · Up %2 · %3").arg(root.st.hub_version).arg(root.uptimeText(root.st.uptime_seconds)).arg(root.st.public_address)
+    // The header of the Server screen already shows address, state and version: no toolbar line while the data is fresh.
+    label: root.ready ? ""
          : root.unreachable && root.hasData ? qsTr("Last known · %1").arg(root.st.hub_version)
          : qsTr("Server")
-    area: qsTr("Status")
+    area: qsTr("Overview")
     helpItems: root.ready ? root.errorHelp(root.st.errors ?? []) : []
     helpLines: root.ready ? [qsTr("Read %1").arg(root.clockText(root.st.time))] : []
 

@@ -212,7 +212,7 @@ The 45 components named in the bundle header plus helpers exported with them (`T
 
 ### Frame and navigation
 
-- `AppNav`: the 232 px sidebar with the Lockup, groups PLAY (Library, Runs, Emulation, Controllers), SERVER (Status, Users, Systems & cores, Plugins, Reports; admins) or THIS PC (Systems & cores, Plugins; no server), ONLINE people, Settings, the server line (`StatusLine` + `Menu`) and the person menu; views admin / member / on this PC, compact density, count badges and the warning-word badge.
+- `AppNav`: the 232 px sidebar with the Lockup, groups PLAY (Library, Runs, Emulation, Controllers), SERVER (one item "Server"; admins) or THIS PC (Systems & cores, Plugins; no server), ONLINE people, Settings, the server line (`StatusLine` + `Menu`) and the person menu; views admin / member / on this PC, compact density, count badges and the warning-word badge.
 - `NavBell`: the bell with a count (`9+` above nine) that opens a notification `Popover`.
 - `OpenColumn`: the 152 px right column with the vertical Mono label.
 - `HelpColumn`: the open column with a HELP slot for paragraphs separated by `rule-2`.

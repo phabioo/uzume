@@ -147,7 +147,7 @@ Three states: Users from a link ("Users needs a server. On this PC there is only
 
 Boards: [`S8i1`](../source/uzume/S8i1.dc.html) · [`S8i1Kinari`](../source/uzume/S8i1Kinari.dc.html). Built in: 0.18 package 10 (on this PC and sharing).
 
-`Dialog` lg 1 of 3 "Run a server on this PC": library and saves stay and move into the server; four points: keeps running when Uzume is closed (Windows service, stop in Settings › Server), friends join with an invite (home or internet), admin rights needed once, you become the admin (with a password, nothing is lost).
+`Dialog` lg 1 of 3 "Run a server on this PC": library and saves stay and move into the server; four points: keeps running when Uzume is closed (Windows service, stop in Server › Settings), friends join with an invite (home or internet), admin rights needed once, you become the admin (with a password, nothing is lost).
 
 ### 8i-2 Share with others · set up
 
@@ -165,13 +165,13 @@ Dialog 3 of 3 "Setting up...": plain dialog (not the busy one, so the step list 
 
 Boards: [`S8i4`](../source/uzume/S8i4.dc.html) · [`S8i4Kinari`](../source/uzume/S8i4Kinari.dc.html). Built in: 0.18 package 10 (on this PC and sharing).
 
-Library now with Upload... and primary **Invite a friend**; done line "Home server is running on this PC. Home network only." Dialog "You're sharing" with SERVER (`Home server · 192.0.2.10:8443 · on this PC`) and JOIN (Home network only). Internet sharing, users and backups are now in Settings › Server and the SERVER group.
+Library now with Upload... and primary **Invite a friend**; done line "Home server is running on this PC. Home network only." Dialog "You're sharing" with SERVER (`Home server · 192.0.2.10:8443 · on this PC`) and JOIN (Home network only). Internet sharing, users and backups are now on the Server screen (People, Settings).
 
 ### 8i-5 Stop sharing
 
 Boards: [`S8i5`](../source/uzume/S8i5.dc.html) · [`S8i5Kinari`](../source/uzume/S8i5Kinari.dc.html). Built in: 0.18 package 10 (on this PC and sharing).
 
-Settings › Server › General rows: Server name, Runs on ("This PC · Windows service", Open Status), **Stop sharing...** (danger). Dialog "Stop sharing?": others cannot connect ("Can't reach Home server"), their accounts and saves are kept in `C:\ProgramData\Uzume\server` and come back if you share again, your library and saves stay on this PC. Asks Confirm it's you and admin rights.
+Server › Settings › General rows: Server name, Runs on ("This PC · Windows service", Open Overview), **Stop sharing...** (danger). Dialog "Stop sharing?": others cannot connect ("Can't reach Home server"), their accounts and saves are kept in `C:\ProgramData\Uzume\server` and come back if you share again, your library and saves stay on this PC. Asks Confirm it's you and admin rights.
 
 ### 8i-6 Share with others · states
 
@@ -193,7 +193,7 @@ Bitmaps: `WixUIDialogBmp` 493 x 312, 24-bit BMP (Welcome, Finish): Sumi strip wi
 
 Boards: [`S8l1`](../source/uzume/S8l1.dc.html) (1280 x 1040). Built in: 0.18 package 11 (installer).
 
-Four dialogs: 8L-1 Welcome ("Welcome to Uzume Setup", Next / Cancel); 8L-2 How will you use Uzume? (radio: **Uzume** - for you only; **Uzume with a server on this PC** - needs admin rights, installs for all users; **Only the server** - needs admin rights, shows address and codes at the end); 8L-3 Destination folder (per user `C:\Users\<name>\AppData\Local\Programs\Uzume\`, all users `C:\Program Files\Uzume`; needs 180 MB; games and saves are not in this folder); 8L-4 Options with a server (desktop shortcut, server port 8443, share in the home network = firewall rule; internet sharing is set up later in Settings › Server › Network & sharing).
+Four dialogs: 8L-1 Welcome ("Welcome to Uzume Setup", Next / Cancel); 8L-2 How will you use Uzume? (radio: **Uzume** - for you only; **Uzume with a server on this PC** - needs admin rights, installs for all users; **Only the server** - needs admin rights, shows address and codes at the end); 8L-3 Destination folder (per user `C:\Users\<name>\AppData\Local\Programs\Uzume\`, all users `C:\Program Files\Uzume`; needs 180 MB; games and saves are not in this folder); 8L-4 Options with a server (desktop shortcut, server port 8443, share in the home network = firewall rule; internet sharing is set up later in Server › Settings › Network & sharing).
 
 ### 8l-2 Installer · finish
 

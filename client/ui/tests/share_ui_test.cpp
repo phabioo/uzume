@@ -112,8 +112,7 @@ class ShareUiTest : public QObject {
     SHOWN("navLibrary");
     SHOWN("navThisPcSystems");
     SHOWN("navThisPcPlugins");
-    QVERIFY(!shown(h, "navServerStatus"));
-    QVERIFY(!shown(h, "navServerUsers"));
+    QVERIFY(!shown(h, "navServer"));
     QVERIFY(!shown(h, "navOnlineHead"));
     QVERIFY(!shown(h, "navServerHead") || !textOf(h, "navServerHead").contains(QStringLiteral("Server")));
     SHOWN("librarySectionLabel");
@@ -130,7 +129,7 @@ class ShareUiTest : public QObject {
     startChildOn(h, hub);
     h.controller->showServerPage(QStringLiteral("users"));
     SHOWN("serverNeedsServer");
-    QVERIFY(h.item("serverNeedsServerState")->property("title").toString().contains(QStringLiteral("Users needs a server")));
+    QVERIFY(h.item("serverNeedsServerState")->property("title").toString().contains(QStringLiteral("People needs a server")));
   }
 
   // 8i-1 .. 8i-3: intro, setup form, then beginShare gets the form values.

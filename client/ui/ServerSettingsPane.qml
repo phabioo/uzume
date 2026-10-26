@@ -2,10 +2,11 @@ import QtQuick
 import QtQuick.Layouts
 import Uzume.App
 
-// Server settings (accounts-and-server.md 3q-app-1 to 3q-app-7), the "Settings for: Server" side of the Settings screen.
+// Server settings (accounts-and-server.md 3q-app-1 to 3q-app-7), the Settings tab of the Server screen (the Games tab uses it for
+// its two server settings too, `forcePage: "games"`).
 //
 // The pane has two faces: `navDelegate` is the item of the second column (General · Network & sharing · Sign-in · Updates · Backups ·
-// Storage · Diagnostics, Mono value at the right, Yamabuki marker on the open page; SettingsScreen puts it into a Repeater over
+// Storage · Diagnostics, Mono value at the right, Yamabuki marker on the open page; ServerSettingsPage puts it into a Repeater over
 // `pages`), and the pane itself is the page area (title, result line, "Restart the server to apply" line, the page, help).
 // One page is created while it is shown. The pane owns what the pages share: the data of GET /admin/settings, GET
 // /admin/accounts/settings and GET /admin/backups/status (read again when the pane opens), the request plumbing (`call`,
@@ -20,7 +21,10 @@ ColumnLayout {
     objectName: "serverSettingsPane"
     required property PlayerController player
     readonly property AdminController admin: root.player.admin
-    property string page: "general"
+    // The page: the one chosen in the column (player.serverSettingsPage), or `forcePage` ("games": the Games tab shows one page of
+    // its own without the column).
+    property string forcePage: ""
+    readonly property string page: root.forcePage !== "" ? root.forcePage : root.player.serverSettingsPage
     readonly property var pages: [
         { id: "general", name: qsTr("General") },
         { id: "network", name: qsTr("Network & sharing") },
@@ -338,7 +342,7 @@ ColumnLayout {
         objectName: "serverSettingsNav_" + modelData.id
         label: navItem.modelData.name
         selected: root.page === modelData.id
-        onClicked: root.page = navItem.modelData.id
+        onClicked: root.player.setServerSettingsPage(navItem.modelData.id)
         UzLabel {
             objectName: "serverSettingsNavStatus_" + navItem.modelData.id
             Layout.fillWidth: true
@@ -397,6 +401,7 @@ ColumnLayout {
         onActionClicked: { root.phase = "loading"; root.load() }
     }
 
+    readonly property bool restartShown: root.pendingRestart.length > 0 && (root.page === "general" || root.page === "network" || root.page === "games")
     ColumnLayout {
         objectName: "serverSettingsPage"
         Layout.fillWidth: true
@@ -406,8 +411,9 @@ ColumnLayout {
 
         ColumnLayout {
             Layout.fillWidth: true
+            Layout.bottomMargin: root.pageName !== "" || root.note !== "" || root.restartShown ? 0 : -Theme.space4   // nothing to show: no gap
             spacing: Theme.space1
-            Eyebrow { Layout.fillWidth: true; text: root.pageName }
+            Eyebrow { Layout.fillWidth: true; visible: root.pageName !== ""; text: root.pageName }
             UzStatusIcon {
                 objectName: "serverSettingsNote"
                 visible: root.note !== ""
@@ -418,7 +424,7 @@ ColumnLayout {
             }
             RowLayout {
                 objectName: "serverSettingsRestart"
-                visible: root.pendingRestart.length > 0 && (root.page === "general" || root.page === "network")
+                visible: root.restartShown
                 Layout.fillWidth: true
                 spacing: Theme.space2
                 UzStatusIcon {
@@ -454,6 +460,7 @@ ColumnLayout {
             Layout.minimumWidth: 0
             sourceComponent: {
                 switch (root.page) {
+                case "games": return gamesPage
                 case "network": return networkPage
                 case "signin": return signInPage
                 case "updates": return updatesPage
@@ -476,6 +483,7 @@ ColumnLayout {
         }
     }
 
+    Component { id: gamesPage; ServerSettingsGames { pane: root } }
     Component { id: generalPage; ServerSettingsGeneral { pane: root } }
     Component { id: networkPage; ServerSettingsNetwork { pane: root } }
     Component { id: signInPage; ServerSettingsSignIn { pane: root } }

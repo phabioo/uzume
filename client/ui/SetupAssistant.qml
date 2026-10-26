@@ -4,7 +4,7 @@ import QtQuick.Layouts
 import Uzume.App
 
 // Setup assistant (accounts-and-server.md 7a-app-1 and 7a-app-2): six skippable steps over the window, opened by
-// `player.showSetupAssistant()` (the first start and Settings › Server › General › "Run setup again" call it; admins of a server
+// `player.showSetupAssistant()` (the first start and Server › Settings › General › "Run setup again" call it; admins of a server
 // with the admin pages only): 01 Systems, 02 Cores, 03 ROM folders, 04 Internet access, 05 Backups, 06 Done.
 // It reads what the server has (GET /admin/systems, /admin/settings, /admin/backups/settings) and never resets anything: only a
 // value the admin changed is sent (PUT /admin/settings/network/import_dir and /public_host, PUT /admin/backups/settings, a core is
@@ -347,7 +347,7 @@ FocusScope {
                     ColumnLayout {
                         spacing: Theme.space15
                         Text { Layout.fillWidth: true; wrapMode: Text.Wrap; textFormat: Text.PlainText; font.family: Theme.sans; font.pixelSize: 20; font.weight: Font.Medium; color: Theme.ink; text: qsTr("Prepare %1 for the internet").arg(root.serverName) }
-                        Text { Layout.fillWidth: true; wrapMode: Text.Wrap; textFormat: Text.PlainText; font.family: Theme.sans; font.pixelSize: Theme.roles.input.size; color: Theme.ink2; text: qsTr("Skip this if you only play at home. You can come back from Settings › Server.") }
+                        Text { Layout.fillWidth: true; wrapMode: Text.Wrap; textFormat: Text.PlainText; font.family: Theme.sans; font.pixelSize: Theme.roles.input.size; color: Theme.ink2; text: qsTr("Skip this if you only play at home. You can come back from Server › Settings.") }
                         UzMono { text: qsTr("Public address").toUpperCase() }
                         UzField { id: publicHost; objectName: "setupPublicHost"; Layout.fillWidth: true; mono: true; fill: Theme.ground; placeholderText: qsTr("server.example.com"); Accessible.name: qsTr("Public address"); onAccepted: root.next() }
                         RowLayout {
