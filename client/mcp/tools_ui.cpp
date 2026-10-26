@@ -1008,8 +1008,8 @@ void installUiTools(McpToolRegistry& registry, ui::PlayerController& player) {
     t.name = QStringLiteral("navigate");
     t.description = QStringLiteral(
         "Opens a screen through the controller calls the sidebar uses (no clicks). to: library | game (library with gameId selected) | settings "
-        "(page: account|updates|hubs|appearance|audio|library|storage|plugins|diagnostics) | server (page: status|users|systems|plugins|reports) "
-        "| emulation | controllers | runs | plugin (page = plugin id) | plugin_settings (page = plugin id) | setup. Returns the screen reached; "
+        "(page: account|appearance|audio|controllers|hotkeys|emulation|storage|hubs|plugins|updates|diagnostics; library = storage) | server (page: status|users|systems|plugins|reports) "
+        "| emulation | controllers (both open that section of Settings) | runs | plugin (page = plugin id) | plugin_settings (page = plugin id) | setup. Returns the screen reached; "
         "screens that need a connected server are refused while none is, and while a game is in front.");
     t.inputSchema = schema({{QStringLiteral("to"), typeStr(QStringLiteral("Target screen, see description."))},
                             {QStringLiteral("page"), typeStr(QStringLiteral("Settings section, server page or plugin id."))},
@@ -1021,8 +1021,9 @@ void installUiTools(McpToolRegistry& registry, ui::PlayerController& player) {
       const QString to = a.value(QStringLiteral("to")).toString();
       const QString page = a.value(QStringLiteral("page")).toString();
       const QString gameId = a.value(QStringLiteral("gameId")).toString();
-      static const QStringList settingsPages{q("account"), q("updates"), q("hubs"),    q("appearance"), q("audio"),
-                                             q("library"), q("storage"), q("plugins"), q("diagnostics")};
+      static const QStringList settingsPages{q("account"),  q("appearance"), q("audio"),   q("controllers"), q("hotkeys"),
+                                             q("emulation"), q("storage"),    q("library"), q("hubs"),        q("plugins"),
+                                             q("updates"),   q("diagnostics")};
       static const QStringList serverPages{q("status"), q("users"), q("systems"), q("plugins"), q("reports")};
       if (!gameId.isEmpty()) {
         if (!selectKnownGame(*pc, gameId)) return reply(ToolResult::error(QStringLiteral("unknown_game: %1").arg(gameId)));
@@ -1044,11 +1045,11 @@ void installUiTools(McpToolRegistry& registry, ui::PlayerController& player) {
         pc->showServerPage(page);
         expect = QStringLiteral("server");
       } else if (to == QLatin1String("emulation")) {
-        pc->showEmulation();
-        expect = QStringLiteral("emulation");
+        pc->showEmulation();  // a section of Settings
+        expect = QStringLiteral("settings");
       } else if (to == QLatin1String("controllers")) {
-        pc->showControllers();
-        expect = QStringLiteral("controllers");
+        pc->showControllers();  // a section of Settings
+        expect = QStringLiteral("settings");
       } else if (to == QLatin1String("runs")) {
         pc->showRuns();
         expect = QStringLiteral("runs");

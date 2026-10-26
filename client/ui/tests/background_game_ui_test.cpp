@@ -156,10 +156,10 @@ class BackgroundGameUiTest : public QObject {
     // Other pages stay usable, the game stays in the background.
     c->showSettings();
     QCOMPARE(c->screen(), QStringLiteral("settings"));
-    c->showEmulation();
-    QCOMPARE(c->screen(), QStringLiteral("emulation"));
+    c->showEmulation();     // a section of Settings
+    QCOMPARE(c->screen(), QStringLiteral("settings"));
     c->showControllers();
-    QCOMPARE(c->screen(), QStringLiteral("controllers"));
+    QCOMPARE(c->screen(), QStringLiteral("settings"));
     c->showLibrary();
     QCOMPARE(c->screen(), QStringLiteral("library"));
     QVERIFY(gs->isActive());

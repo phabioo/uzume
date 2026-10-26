@@ -223,7 +223,7 @@ class McpUiTest : public QObject {
   void shortcutsFire() {
     call(QStringLiteral("navigate"), {{"to", "library"}});
     QVERIFY(!call(QStringLiteral("ui_key"), {{"key", "Ctrl+4"}}).result.isError);
-    QTRY_COMPARE(h->controller->screen(), QStringLiteral("controllers"));
+    QTRY_COMPARE(h->controller->screen(), QStringLiteral("settings"));   // Controls is a section of Settings
     QVERIFY(!call(QStringLiteral("ui_key"), {{"key", "Ctrl+,"}}).result.isError);
     QTRY_COMPARE(h->controller->screen(), QStringLiteral("settings"));
     QVERIFY(!call(QStringLiteral("ui_key"), {{"key", "Ctrl+1"}}).result.isError);

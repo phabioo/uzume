@@ -1464,8 +1464,7 @@ void PlayerController::showEmulation() {
     return;
   }
   refreshEmulationPage();
-  page_ = QStringLiteral("emulation");
-  updateScreen();
+  showSettingsSection(QStringLiteral("emulation"));  // Emulation is a section of Settings
 }
 
 void PlayerController::showServerPage(const QString& page) {
@@ -1488,8 +1487,7 @@ void PlayerController::showControllers() {
   if (conn_->state() != HubConnection::State::Connected || (gameActive_ && !background_)) {
     return;
   }
-  page_ = QStringLiteral("controllers");
-  updateScreen();
+  showSettingsSection(QStringLiteral("controllers"));  // Controls is a section of Settings
 }
 
 void PlayerController::openPluginScreen(const QString& pluginId) {

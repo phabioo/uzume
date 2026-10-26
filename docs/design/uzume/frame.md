@@ -41,7 +41,7 @@ Boards: [`S04A`](../source/uzume/S04A.dc.html). Built in: 0.18 package 3 (design
 Boards: [`S04B`](../source/uzume/S04B.dc.html) (1280 x 1240). Built in: 0.18 package 3 (design system in the app), 0.18 package 8 (app admin area).
 
 - Four views of one sidebar (232 px): B-1 admin with the server menu open, B-2 member with the user menu open, B-3 on this PC (no server), B-4 compact admin at 800 px.
-- Groups: **PLAY** (Library, Runs, Emulation, Controllers), **SERVER** (Status, Users, Systems & cores, Plugins, Reports; admins only), **ONLINE** (people with a person-colour square and what they play; server only), Settings, server line, person.
+- Groups: **PLAY** (Library, Runs; Emulation, Controls and Hotkeys are sections of Settings since the usability pass), **SERVER** (Status, Users, Systems & cores, Plugins, Reports; admins only), **ONLINE** (people with a person-colour square and what they play; server only), Settings, server line, person.
 - Member: no SERVER group. On this PC (no server): **THIS PC** (Systems & cores, Plugins) instead of SERVER, no ONLINE block, no server line. Storage and Backups are never in the sidebar.
 - Server line `⋯` opens upward: Switch server, Details, Share... The person at the foot opens My account, Switch user (Ctrl+Shift+U), Sign out. The bell shows a count, `9+` above nine.
 - Compact (below 900 px, used by every 1280 x 800 screen): 28 px items, one-line ONLINE rows, no address line.
@@ -88,7 +88,7 @@ Boards: [`S04G`](../source/uzume/S04G.dc.html). Built in: 0.18 package 3 (design
 
 - Tokens used by the frame, with their roles (full list in [design-system.md](design-system.md)).
 - Server commands (help text only): `uzume-server setup-code` (setup code for first setup, 8a-4), `code` (security code to compare when joining, 8b-2), `reset-admin` (prints a one-time admin password, no data touched), `status`, `update` (newest version on its channel), `backup` (backup now into the backup folder), `restore <file>` (replaces everything, makes a safety backup first), `reset` (deletes everything, asks for the server name, only a backup brings it back). In Docker: `docker exec -it uzume-server uzume-server reset-admin`.
-- Hotkeys: Ctrl+Shift+U Switch user; Ctrl+, Settings; Ctrl+1 to 4 Library, Runs, Emulation, Controllers; Ctrl+V pastes an `uzume://` invite link anywhere; gamepad Hold Select + ↑ opens "Who's playing?" (one modifier, no Guide button). Admin pages have no hotkeys.
+- Hotkeys: Ctrl+Shift+U Switch user; Ctrl+, Settings; Ctrl+1 to 4 Library, Runs, Settings › Emulation, Settings › Controls; Ctrl+V pastes an `uzume://` invite link anywhere; gamepad Hold Select + ↑ opens "Who's playing?" (one modifier, no Guide button). Admin pages have no hotkeys.
 - AppNav measures: width 232 on the ground with a 1 px `rule` on the right; items 32 (Plex Sans 14 muted, hover fill, active ink 500 + marker); group heads Mono 500 10/16 uppercase dim led by a 12 px rule dash.
 
 ## 8a First start

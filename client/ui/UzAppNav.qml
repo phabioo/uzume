@@ -3,8 +3,8 @@ import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import Uzume.App
 
-// AppNav (frame.md "0-4 A" to "0-4 C" and "0-4 G"): the 232 px navigation of every screen. Lockup, PLAY (Library, Runs,
-// Emulation, Controllers), the SERVER group for admins or THIS PC when there is no server, ONLINE (people with a Session),
+// AppNav (frame.md "0-4 A" to "0-4 C" and "0-4 G"): the 232 px navigation of every screen. Lockup, PLAY (Library, Runs;
+// Emulation, Controls and Hotkeys are Settings sections), the SERVER group for admins or THIS PC when there is no server, ONLINE (people with a Session),
 // Settings, the server line and the person. Compact (window below 900 px high): 28 px items, one-line ONLINE rows, no address line.
 // SERVER: Status (count of open problems), Users (count of waiting devices), Systems & cores (count of core problems),
 // Plugins, Reports (count of New). Settings carries a badge while a server update is on offer. All badges are admin-only, above 0.
@@ -136,20 +136,6 @@ Rectangle {
                 badge: root.player.runs.pendingInvites
                 badgeName: "navRunsBadge"
                 onActivated: root.player.showRuns()
-            }
-            UzNavItem {
-                objectName: "navEmulation"
-                compact: root.compact
-                label: qsTr("Emulation")
-                active: root.player.screen === "emulation"
-                onActivated: root.player.showEmulation()
-            }
-            UzNavItem {
-                objectName: "navControllers"
-                compact: root.compact
-                label: qsTr("Controllers")
-                active: root.player.screen === "controllers"
-                onActivated: root.player.showControllers()
             }
         }
 
