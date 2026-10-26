@@ -63,11 +63,16 @@ ApplicationWindow {
     }
 
     // Claude debugging (ADR 0032): visible on every screen, the game included, while the MCP server listens.
-    footer: Rectangle {
+    // A plain item at the bottom (not the window footer): the window layout stays as it was while the band is off.
+    Rectangle {
+        id: mcpBandItem
         objectName: "mcpBand"
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        z: 500
         visible: window.player.mcp.listening
-        implicitHeight: visible ? 36 : 0
-        height: implicitHeight
+        height: visible ? 36 : 0
         color: Theme.surface
         Rectangle { anchors.top: parent.top; width: parent.width; height: 1; color: Theme.rule }
         RowLayout {
@@ -94,7 +99,10 @@ ApplicationWindow {
 
     StackLayout {
         id: stack
-        anchors.fill: parent
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.bottom: mcpBandItem.visible ? mcpBandItem.top : parent.bottom
         currentIndex: ["connection", "pairing", "library", "game", "settings", "emulation", "controllers", "runs", "server", "start"].indexOf(window.player.screen)
 
         ConnectionScreen { player: window.player }
