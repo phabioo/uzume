@@ -56,7 +56,9 @@ class FastForwardUiTest : public QObject {
     QTRY_VERIFY(!gs->fastForward());
     // Off and on read differently: the ratio alone looked the same in both states.
     QTRY_COMPARE(h.item("fastForwardButton")->property("value").toString(), QStringLiteral("Off · 2×"));
-    QCOMPARE(h.item("fastForwardButton")->property("text").toString(), QStringLiteral("» Speed-up"));
+    // The word gives way when the bar is narrow (level >= 1; Windows fonts are wider at the default window size).
+    const bool fullLabel = h.item("gameHeader")->property("level").toInt() < 1;
+    QCOMPARE(h.item("fastForwardButton")->property("text").toString(), fullLabel ? QStringLiteral("» Speed-up") : QStringLiteral("»"));
     QTest::keyClick(h.window, Qt::Key_Space);
     QTRY_VERIFY(gs->fastForward());
     QTRY_COMPARE(h.item("fastForwardButton")->property("value").toString(), QStringLiteral("On · 2×"));
