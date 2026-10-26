@@ -567,8 +567,9 @@ Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 // At least the table header and five rows stay visible; the page column scrolls instead of squeezing the list.
-                Layout.minimumHeight: Theme.row36 + 5 * Theme.row44
-                Layout.preferredHeight: Theme.row36 + 5 * Theme.row44
+                // The empty/loading/error block centred in it must fit too, or its actions end up below the scroll range.
+                Layout.minimumHeight: Math.max(Theme.row36 + 5 * Theme.row44, emptyBlock.visible ? emptyBlock.implicitHeight + 2 * Theme.space3 : 0)
+                Layout.preferredHeight: Layout.minimumHeight
 
                 // Table header (board S3c1R6): Mono table-header role over the column widths of GameTile
                 // (no 32, system 56, status 200, played 96, added 104; 12 px side padding, 16 px gap). Only in the List view.
@@ -700,6 +701,7 @@ Rectangle {
                 }
 
                 ColumnLayout {
+                    id: emptyBlock
                     anchors.centerIn: parent
                     width: Math.min(parent.width, 420)
                     spacing: Theme.space15
