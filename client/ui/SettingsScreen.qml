@@ -294,31 +294,16 @@ Rectangle {
                 readonly property bool wide: width >= Theme.settingsNarrowBelow
                 spacing: Theme.space4
 
-                // Page header: section label and title (Light 40, once per page).
-                ColumnLayout {
+                // Page header: the one UzPageHeader (section label, title Light 40, once per page).
+                UzPageHeader {
+                    objectName: "settingsHeader"
+                    titleName: "settingsTitle"
                     Layout.fillWidth: true
                     Layout.minimumWidth: 0
-                    spacing: Theme.space2
-                    UzSectionLabel {
-                        Layout.fillWidth: true
-                        number: 1
-                        text: root.scope === "server" ? qsTr("Server") : qsTr("This PC")
-                        meta: root.scope === "server" ? root.player.hubName : ""
-                    }
-                    Text {
-                        objectName: "settingsTitle"
-                        Layout.fillWidth: true
-                        text: qsTr("Settings")
-                        textFormat: Text.PlainText
-                        elide: Text.ElideRight
-                        font.family: Theme.sans
-                        font.pixelSize: Theme.roles.title.size
-                        font.weight: Font.Light
-                        font.letterSpacing: Theme.roles.title.spacing
-                        color: Theme.ink
-                        lineHeight: Theme.roles.title.line
-                        lineHeightMode: Text.FixedHeight
-                    }
+                    number: 1
+                    label: root.scope === "server" ? qsTr("Server") : qsTr("This PC")
+                    labelMeta: root.scope === "server" ? root.player.hubName : ""
+                    title: root.scope === "server" ? qsTr("Server settings") : qsTr("Settings")
                 }
                 // Server settings (3q-app-1 to 3q-app-7): the pages are chosen in the second column, shown here.
                 ServerSettingsPane {
@@ -1429,6 +1414,15 @@ Rectangle {
                             root.collectMessage = ok ? qsTr("Saved %1").arg(path) : qsTr("Could not save the bundle: %1").arg(message)
                         }
                     }
+                }
+
+                // Below 1440 px the help is a "Help" disclosure at the end of the content, not a fourth column.
+                UzHelpColumn {
+                    objectName: "settingsHelpDisclosure"
+                    inline: true
+                    visible: root.scope === "pc" && !root.helpOn
+                    Layout.fillWidth: true
+                    items: root.helpItems
                 }
             }
         }

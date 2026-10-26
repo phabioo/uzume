@@ -142,6 +142,7 @@ ColumnLayout {
         RowLayout {
             objectName: "accountPerson"
             Layout.fillWidth: true
+            Layout.minimumWidth: 0
             Layout.leftMargin: Theme.settingsDotSlot
             spacing: Theme.space2
             UzAvatar {
@@ -151,9 +152,14 @@ ColumnLayout {
                 status: root.loaded ? "online" : ""
             }
             ColumnLayout {
+                Layout.fillWidth: true
+                Layout.minimumWidth: 0
                 spacing: 2
                 Text {
                     objectName: "accountName"
+                    Layout.fillWidth: true
+                    Layout.minimumWidth: 0
+                    wrapMode: Text.Wrap
                     text: root.account.displayName || root.player.userName
                     textFormat: Text.PlainText
                     font.family: Theme.sans
@@ -163,6 +169,9 @@ ColumnLayout {
                 }
                 Text {
                     objectName: "accountRole"
+                    Layout.fillWidth: true
+                    Layout.minimumWidth: 0
+                    elide: Text.ElideRight
                     visible: root.loaded
                     text: (root.isAdmin ? qsTr("Admin") : qsTr("Member")) + " · " + root.serverName
                     textFormat: Text.PlainText
@@ -248,16 +257,25 @@ ColumnLayout {
         }
 
         // My devices
-        RowLayout {
+        GridLayout {
+            // The button moves below the eyebrow when the row is too narrow for both (wide fonts).
+            id: devicesHead
+            readonly property bool stackIt: devicesHead.width < devicesEyebrow.implicitWidth + signOutAll.implicitWidth + Theme.space2
             Layout.fillWidth: true
             Layout.minimumWidth: 0
             Layout.topMargin: Theme.space2
             Layout.rightMargin: root.endMargin > 0 ? root.endMargin - 8 : 0
-            Eyebrow { objectName: "accountDevicesEyebrow"; Layout.fillWidth: true; text: qsTr("My devices · %1").arg(root.ac.devices.length) }
+            columns: devicesHead.stackIt ? 1 : 2
+            columnSpacing: Theme.space2
+            rowSpacing: Theme.space1
+            Eyebrow { id: devicesEyebrow; objectName: "accountDevicesEyebrow"; Layout.fillWidth: true; text: qsTr("My devices · %1").arg(root.ac.devices.length) }
             UzButton {
+                id: signOutAll
                 objectName: "accountSignOutEverywhere"
                 kind: "danger"
                 size: "sm"
+                Layout.minimumWidth: 0
+                Layout.fillWidth: devicesHead.stackIt   // a button wider than the page elides its label instead of widening the page
                 enabled: root.loaded
                 text: qsTr("Sign out everywhere…")
                 onClicked: root.openDialog(signOutAllDialog)

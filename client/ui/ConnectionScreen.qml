@@ -29,6 +29,7 @@ Rectangle {
                     objectName: "connectEyebrow"
                     Layout.fillWidth: true
                     number: 1
+                    keepNumber: true
                     text: root.player.hubs.length === 0 ? qsTr("First start") : qsTr("Connect")
                 }
                 Text {

@@ -279,6 +279,7 @@ class ControllersGlyphsTest : public QObject {
     Harness h;
     h.gamepads = true;
     QVERIFY(h.start());
+    h.window->resize(1600, 900);   // the input test is a column from 1440 px on
     ControllersController* c = h.controller->controllers();
     QVERIFY2(c->gamepadAvailable(), qPrintable(c->gamepadNote()));
     pair(h, hub);
@@ -439,6 +440,7 @@ class ControllersGlyphsTest : public QObject {
     QVERIFY(hub.start());
     Harness h;
     QVERIFY(h.start());
+    h.window->resize(1600, 900);   // the input test is a column from 1440 px on
     pair(h, hub);
     h.controller->showControllers();
     QTest::qWait(150);
@@ -487,7 +489,7 @@ class ControllersGlyphsTest : public QObject {
     c->gamepads()->poll();
     h.controller->showControllers();
     // Longest content: two chips (LB + LT) and the names of the PlayStation / Xbox sets.
-    for (const int width : {1280, 960}) {
+    for (const int width : {1440, 960}) {
       for (const QString& set : {QStringLiteral("xbox"), QStringLiteral("playstation"), QStringLiteral("generic")}) {
         h.window->resize(width, 800);
         c->setLabelChoice(set);
@@ -529,13 +531,14 @@ class ControllersGlyphsTest : public QObject {
           QQuickItem* name = h.item("mapText_" + id);
           QVERIFY2(sceneRect(name).right() <= f.right() + 0.5, msg.constData());
         }
-        // At full width the grid is 14 | flex | 240 | 72.
-        if (width == 1280) QVERIFY2(h.item("inputTestGrid")->isVisible(), ctx.constData());
-        else QVERIFY2(!h.item("inputTestGrid")->isVisible(), ctx.constData());
+        // At 1440 px and wider the input test is a column; below that it is a disclosure (closed here, so no grid).
+        QQuickItem* testGrid = h.item("inputTestGrid");
+        if (width >= 1440) QVERIFY2(testGrid != nullptr && testGrid->isVisible(), ctx.constData());
+        else QVERIFY2(testGrid == nullptr || !testGrid->isVisible(), ctx.constData());
       }
     }
-    // Input test inside its panel at 1280.
-    h.window->resize(1280, 800);
+    // Input test inside its panel at 1440.
+    h.window->resize(1440, 800);
     QTest::qWait(100);
     QQuickItem* grid = h.item("inputTestGrid");
     QVERIFY(grid->isVisible());

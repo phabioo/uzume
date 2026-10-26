@@ -16,7 +16,8 @@ Rectangle {
     property string confirmAction: ""      // finished | abandoned | leave
     property string selectedRunId: ""
     readonly property int maxPeople: 8     // a run holds 1 to 8 people
-    readonly property bool openColumnOn: root.width >= 1100
+    // The open column (vertical label, counts) only at 1440 px and wider; the empty list keeps it from 1100 px on.
+    readonly property bool openColumnOn: root.width >= (!root.inDetail && root.runRows.length === 0 ? 1100 : Theme.columnsCompactMax)
     color: Theme.ground
 
     onVisibleChanged: if (!visible && root.runs) root.runs.closeRun()
@@ -319,7 +320,7 @@ Rectangle {
                 id: page
                 x: Theme.space7
                 y: 48
-                width: Math.max(0, Math.min(960, flick.width - 2 * Theme.space7))
+                width: Math.max(0, Math.min(Theme.contentMaxWidth, flick.width - 2 * Theme.space7))
                 spacing: Theme.space3
 
                 // ---------------------------------------------------------------- shared: message line and busy line

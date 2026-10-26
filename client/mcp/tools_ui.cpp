@@ -477,11 +477,18 @@ void scrollIntoView(QQuickItem* it) {
     QQuickItem* content = a->property("contentItem").value<QQuickItem*>();
     if (content == nullptr) continue;
     const QPointF inContent = it->mapToItem(content, QPointF(0, 0));
-    const qreal viewH = a->height();
+    // Only the part of the view inside the window counts: a view taller than the window would otherwise leave the
+    // target below the window edge.
+    QRectF view = a->mapRectToScene(QRectF(0, 0, a->width(), a->height()));
+    const qreal viewTop0 = view.top();
+    if (QQuickWindow* w = a->window()) view = view.intersected(QRectF(0, 0, w->width(), w->height()));
+    if (view.height() <= 0) continue;
+    const qreal top = view.top() - viewTop0;
+    const qreal viewH = view.height();
     qreal y = cy.toReal();
-    if (inContent.y() < y) y = inContent.y() - 8;
-    else if (inContent.y() + it->height() > y + viewH) y = inContent.y() + it->height() - viewH + 8;
-    const qreal maxY = (std::max)(qreal(0), ch.toReal() - viewH);
+    if (inContent.y() < y + top) y = inContent.y() - top - 8;
+    else if (inContent.y() + it->height() > y + top + viewH) y = inContent.y() + it->height() - top - viewH + 8;
+    const qreal maxY = (std::max)(qreal(0), ch.toReal() - a->height());
     a->setProperty("contentY", std::clamp<qreal>(y, 0, maxY));
   }
 }

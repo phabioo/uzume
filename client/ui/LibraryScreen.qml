@@ -85,68 +85,42 @@ Rectangle {
             width: Math.max(0, Math.min(parent.width - 2 * Theme.space4, Theme.gridMaxWidth))
             spacing: Theme.space2
 
-            UzSectionLabel {
-                objectName: "librarySectionLabel"
-                Layout.fillWidth: true
-                number: root.thisPcOnly ? -1 : 1
-                text: root.thisPcOnly ? qsTr("On this PC") + " · " + Theme.plural(root.player.library.totalCount, qsTr("game"), qsTr("games"))
-                                        + " · " + Theme.plural(root.player.library.systemCount, qsTr("system"), qsTr("systems"))
-                                      : qsTr("Library")
-                meta: !root.thisPcOnly && root.player.library.totalCount > 0 ? Theme.plural(root.player.library.totalCount, qsTr("game"), qsTr("games")) : ""
-            }
-
-            // Header (3c-6): title, search and "Upload ROM" in one row while they fit, plain anchors (no RowLayout:
-            // "Upload ROM" appears when the handshake reports uploads, usually after the first layout; anchors follow
-            // visibility changes immediately, P8). The title keeps its implicit width and elides only when it cannot
-            // share a row with the button; search shrinks first (down to searchMin) and then wraps onto its own line.
-            Item {
+            // Header (3c-6): the one UzPageHeader; search and "Upload ROM" are its actions and wrap below the title when the
+            // row is too narrow, the title never shortens.
+            UzPageHeader {
                 id: header
                 objectName: "libraryHeader"
+                titleName: "libraryTitle"
+                eyebrowName: "librarySectionLabel"
                 Layout.fillWidth: true
                 Layout.minimumWidth: 0
-                readonly property bool uploadShown: root.player.canUpload && !root.thisPcOnly
-                readonly property int searchMin: 140
-                readonly property real buttonSpace: uploadShown ? uploadButton.implicitWidth + Theme.space15 : 0
-                readonly property bool wrapped: width < libraryTitle.implicitWidth + Theme.space2 + searchMin + buttonSpace
-                readonly property real rowH: Math.max(Theme.row36, libraryTitle.implicitHeight)
-                implicitHeight: wrapped ? rowH + Theme.space1 + Theme.row36 : rowH
-                UzLabel {
-                    id: libraryTitle
-                    objectName: "libraryTitle"
-                    anchors.left: parent.left
-                    y: (header.rowH - height) / 2
-                    width: Math.max(0, Math.min(implicitWidth, header.width - header.buttonSpace))
-                    elide: Text.ElideRight
-                    text: qsTr("Library")
-                    font.pixelSize: Theme.roles.title.size
-                    font.weight: Font.Light
-                    font.letterSpacing: Theme.roles.title.spacing
+                number: root.thisPcOnly ? -1 : 1
+                label: root.thisPcOnly ? qsTr("On this PC") + " · " + Theme.plural(root.player.library.totalCount, qsTr("game"), qsTr("games"))
+                                         + " · " + Theme.plural(root.player.library.systemCount, qsTr("system"), qsTr("systems"))
+                                       : qsTr("Library")
+                labelMeta: !root.thisPcOnly && root.player.library.totalCount > 0 ? Theme.plural(root.player.library.totalCount, qsTr("game"), qsTr("games")) : ""
+                title: qsTr("Library")
+                Item {
+                    implicitWidth: 240
+                    implicitHeight: Theme.row36
+                    UzField {
+                        id: search
+                        objectName: "searchField"
+                        anchors.fill: parent
+                        implicitHeight: Theme.row36
+                        placeholderText: qsTr("Search…")
+                        onTextChanged: root.player.library.filterText = text
+                    }
                 }
                 UzButton {
                     id: uploadButton
                     objectName: "uploadButton"
-                    visible: header.uploadShown
-                    anchors.right: parent.right
-                    y: (header.rowH - Theme.row36) / 2
+                    visible: root.player.canUpload && !root.thisPcOnly
                     enabled: !root.player.upload.active
                     kind: "primary"
                     implicitHeight: Theme.row36
                     text: qsTr("Upload ROM")
                     onClicked: root.openUploadDialog()
-                }
-                UzField {
-                    id: search
-                    objectName: "searchField"
-                    x: header.wrapped ? 0 : header.width - header.buttonSpace - width
-                    y: header.wrapped ? header.rowH + Theme.space1 : (header.rowH - 36) / 2
-                    // 220 at 1280, 280 on a wide window; shrinks to the room the title and button leave; full width
-                    // when wrapped onto its own line.
-                    width: header.wrapped ? header.width
-                                          : Math.max(header.searchMin, Math.min(header.width >= 1400 ? 280 : 220,
-                                                header.width - libraryTitle.implicitWidth - Theme.space2 - header.buttonSpace))
-                    implicitHeight: Theme.row36
-                    placeholderText: qsTr("Search…")
-                    onTextChanged: root.player.library.filterText = text
                 }
             }
 

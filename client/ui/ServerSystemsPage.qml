@@ -637,7 +637,8 @@ Item {
                                 font.pixelSize: Theme.roles.input.size
                                 color: Theme.muted
                             }
-                            Row {
+                            Flow {
+                                Layout.fillWidth: true
                                 spacing: Theme.space1
                                 UzButton {
                                     objectName: "coreUpdate"

@@ -463,46 +463,14 @@ ColumnLayout {
             }
         }
 
-        // Help of the shown page (the open column of the boards; the Settings screen has none, so it sits under the page).
-        ColumnLayout {
+        // Help of the shown page (the open column of the boards; the Settings screen has none, so it is a "Help" disclosure under the page).
+        UzHelpColumn {
             objectName: "serverSettingsHelp"
+            inline: true
             Layout.fillWidth: true
             Layout.maximumWidth: 640
             visible: root.helpItems.length > 0
-            spacing: 0
-            UzSectionLabel { Layout.fillWidth: true; Layout.bottomMargin: Theme.space1; text: qsTr("Help") }
-            Rectangle { Layout.fillWidth: true; height: 1; color: Theme.rule }
-            Repeater {
-                model: root.helpItems
-                delegate: ColumnLayout {
-                    required property var modelData
-                    Layout.fillWidth: true
-                    Layout.topMargin: Theme.space15
-                    Layout.bottomMargin: Theme.space15
-                    spacing: 2
-                    Text {
-                        visible: modelData.title !== undefined
-                        Layout.fillWidth: true
-                        wrapMode: Text.Wrap
-                        text: modelData.title ?? ""
-                        textFormat: Text.PlainText
-                        font.pixelSize: 12
-                        font.weight: Font.Medium
-                        color: Theme.ink
-                    }
-                    Text {
-                        Layout.fillWidth: true
-                        wrapMode: Text.Wrap
-                        text: modelData.text
-                        textFormat: Text.PlainText
-                        font.pixelSize: 12
-                        lineHeight: 18
-                        lineHeightMode: Text.FixedHeight
-                        color: Theme.muted
-                    }
-                    Rectangle { Layout.fillWidth: true; Layout.topMargin: Theme.space15; height: 1; color: Theme.rule2 }
-                }
-            }
+            items: root.helpItems
         }
     }
 

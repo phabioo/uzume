@@ -310,7 +310,9 @@ class BackgroundGameUiTest : public QObject {
     h.window->resize(960, 600);
     widenFonts(h, 10.0);  // far wider than any Windows UI font: the confirm button must elide, never spill out of the dialog
     for (const char* n : {"startConfirmCancel", "startConfirmQuit"}) inside(h, n, sceneRect(h.item("startConfirmDialog")));
-    QVERIFY(sceneRect(h.item("startConfirmQuit")).left() >= sceneRect(h.item("startConfirmCancel")).right() - 0.5);
+    // The buttons stack when they do not fit side by side: the confirm first, Cancel below it.
+    const QRectF quitR = sceneRect(h.item("startConfirmQuit")), cancelR = sceneRect(h.item("startConfirmCancel"));
+    QVERIFY(quitR.left() >= cancelR.right() - 0.5 || quitR.bottom() <= cancelR.top() + 0.5);
     h.window->resize(1280, 800);
     QQuickTest::qWaitForPolish(h.window);
 
