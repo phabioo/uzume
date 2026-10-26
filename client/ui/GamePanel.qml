@@ -508,6 +508,7 @@ Rectangle {
                         objectName: "panelShareState"
                         width: parent.width
                         number: 1
+                        keepNumber: true
                         text: qsTr("Sharing")
                         meta: root.player.hubName
                     }
@@ -774,6 +775,7 @@ Rectangle {
                     UzSectionLabel {
                         width: parent.width
                         number: 2
+                        keepNumber: true
                         text: qsTr("Save")
                         meta: root.slotLabel() + (root.saves.history.length > 0 ? " · " + root.saves.history[0].versionText : "")
                     }
@@ -865,7 +867,7 @@ Rectangle {
                 y: Theme.space2
                 width: parent.width - 2 * Theme.space3
                 spacing: Theme.space15
-                UzSectionLabel { width: parent.width; number: root.saves.slotsAvailable && root.gameSession.active ? 3 : 2; text: qsTr("Quit") }
+                UzSectionLabel { width: parent.width; keepNumber: true; number: root.saves.slotsAvailable && root.gameSession.active ? 3 : 2; text: qsTr("Quit") }
                 Flow {
                     width: parent.width
                     spacing: Theme.space1

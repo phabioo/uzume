@@ -20,6 +20,10 @@ Rectangle {
     }
     // Open help column (board 3e): only when the page stays wide enough for SettingsRow's wide layout.
     readonly property bool helpOn: root.width >= 1480
+    readonly property var helpItems: [
+        { title: qsTr("Here and per game"), text: qsTr("Emulation is how games look and feel on this PC. A game can keep its own values under Per game.") },
+        { text: qsTr("Only options the core reports are listed. Uzume itself controls render mode, screen layout and firmware.") }
+    ]
     // Position of a category heading among the headings of its group (the "02 —" of the section label; 01 is the page).
     function categoryNumber(options: var, index: int): int {
         let n = 1
@@ -294,38 +298,21 @@ Rectangle {
                     readonly property bool stacked: content.width < 700
                     Layout.fillWidth: true
                     spacing: Theme.space2
-                    UzSectionLabel {
-                        Layout.fillWidth: true
-                        number: 1
-                        text: qsTr("Emulation")
-                        meta: root.emu.defaultsSelected || root.emu.gameSelected || root.emu.system.name === undefined
-                              ? qsTr("This PC only")
-                              : (root.emu.system.coreName + (root.emu.system.coreVersion !== "" ? " " + root.emu.system.coreVersion : "") + " · " + qsTr("This PC only"))
-                    }
-                    RowLayout {
+                    UzPageHeader {
+                        objectName: "emulationHeader"
+                        titleName: "emulationTitle"
                         Layout.fillWidth: true
                         Layout.minimumWidth: 0
-                        spacing: Theme.space2
-                        Text {
-                            objectName: "emulationTitle"
-                            Layout.fillWidth: true
-                            Layout.minimumWidth: 0
-                            text: root.emu.defaultsSelected ? qsTr("Defaults for all systems")
-                                  : root.emu.gameSelected ? (root.emu.selectedGame !== "" ? root.emu.game.title : qsTr("Game overrides"))
-                                  : (root.emu.system.name !== undefined ? root.emu.system.name : qsTr("Emulation"))
-                            textFormat: Text.PlainText
-                            elide: Text.ElideRight
-                            font.family: Theme.sans
-                            font.pixelSize: Theme.roles.title.size
-                            font.weight: Font.Light
-                            font.letterSpacing: Theme.roles.title.spacing
-                            color: Theme.ink
-                            lineHeight: Theme.roles.title.line
-                            lineHeightMode: Text.FixedHeight
-                        }
+                        number: 1
+                        label: qsTr("Emulation")
+                        labelMeta: root.emu.defaultsSelected || root.emu.gameSelected || root.emu.system.name === undefined
+                                   ? qsTr("This PC only")
+                                   : (root.emu.system.coreName + (root.emu.system.coreVersion !== "" ? " " + root.emu.system.coreVersion : "") + " · " + qsTr("This PC only"))
+                        title: root.emu.defaultsSelected ? qsTr("Defaults for all systems")
+                               : root.emu.gameSelected ? (root.emu.selectedGame !== "" ? root.emu.game.title : qsTr("Game overrides"))
+                               : (root.emu.system.name !== undefined ? root.emu.system.name : qsTr("Emulation"))
                         UzButton {
                             objectName: "resetAllChanged"
-                            Layout.alignment: Qt.AlignBottom
                             visible: root.emu.changedCount > 0
                             kind: "ghost"
                             text: qsTr("Reset all to default")
@@ -652,6 +639,14 @@ Rectangle {
                     color: Theme.muted
                     font.pixelSize: Theme.roles.input.size
                 }
+                // Below 1440 px the help is a "Help" disclosure at the end of the content, not a fourth column.
+                UzHelpColumn {
+                    objectName: "emulationHelpDisclosure"
+                    inline: true
+                    visible: !root.helpOn
+                    Layout.fillWidth: true
+                    items: root.helpItems
+                }
             }
         }
 
@@ -664,10 +659,7 @@ Rectangle {
             Layout.topMargin: Theme.space5 + Theme.space1
             Layout.rightMargin: Theme.space5 + Theme.space1
             label: qsTr("Uzume · Emulation · This PC")
-            items: [
-                { title: qsTr("Here and per game"), text: qsTr("Emulation is how games look and feel on this PC. A game can keep its own values under Per game.") },
-                { text: qsTr("Only options the core reports are listed. Uzume itself controls render mode, screen layout and firmware.") }
-            ]
+            items: root.helpItems
         }
     }
 

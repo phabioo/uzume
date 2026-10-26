@@ -518,22 +518,30 @@ ColumnLayout {
         }
     }
 
-    // ---- developer settings
-    RowLayout {
+    // ---- developer settings (the button moves under the text when both do not fit, wide fonts)
+    GridLayout {
+        id: devRow
         Layout.fillWidth: true
+        Layout.minimumWidth: 0
         Layout.topMargin: Theme.space1
+        columns: devRow.width < devLabel.implicitWidth + devButton.implicitWidth + columnSpacing ? 1 : 2
+        columnSpacing: Theme.space1
+        rowSpacing: Theme.space05
         UzLabel {
+            id: devLabel
             textFormat: Text.PlainText  // plugin- and peer-supplied strings are never HTML
             Layout.fillWidth: true
+            wrapMode: Text.Wrap
             text: qsTr("Developer mode and local folders:")
             color: Theme.muted
             font.pixelSize: Theme.roles.input.size
         }
         UzButton {
+            id: devButton
             textFormat: Text.PlainText
             objectName: "pluginDeveloperSettings"
             kind: "link"
-            Layout.minimumWidth: implicitWidth
+            Layout.minimumWidth: 0
             text: root.devOpen ? qsTr("Hide developer settings") : qsTr("Developer settings")
             onClicked: root.devOpen = !root.devOpen
         }

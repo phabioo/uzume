@@ -177,7 +177,12 @@ class AdminUiTest : public QObject {
     QQuickItem* page = h.item("serverStatusPage");  // the AdminPage root carries the page's objectName
     QVERIFY(help != nullptr && page != nullptr);
     qInfo("admin page width %.0f (window %d)", page->width(), h.window->width());
-    QCOMPARE(help->isVisible(), page->width() >= 880);
+    // Below 1440 px of window width the help is a "Help" disclosure at the end of the content instead.
+    const bool helpColumn = page->width() >= 880 && h.window->width() >= 1440;
+    QCOMPARE(help->isVisible(), helpColumn);
+    QQuickItem* helpDisclosure = h.item("adminHelpDisclosure");
+    QVERIFY(helpDisclosure != nullptr);
+    QCOMPARE(helpDisclosure->isVisible(), !helpColumn);
     QCOMPARE(help->property("label").toString(), QStringLiteral("UZUME · STATUS · TEST SERVER"));
     uitest::saveShot(h.window, QStringLiteral("admin-status"));
 

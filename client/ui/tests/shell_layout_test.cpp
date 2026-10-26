@@ -38,13 +38,15 @@ class ShellLayoutTest : public QObject {
                                               .arg(QLatin1String(when)).arg(t.x()).arg(t.y()).arg(t.width()).arg(t.height()).arg(u.x()).arg(u.y()).arg(u.width()).arg(u.height())));
     QVERIFY2(!t.intersects(s), when);
     QVERIFY2(!s.intersects(u), when);
-    // Title and button always share the first row; search sits between them, or wrapped on its own line below.
-    QVERIFY2(qAbs(t.center().y() - u.center().y()) < 4, when);
-    QVERIFY2(t.right() <= u.left() + 0.5, when);
+    // One page header: search and Upload ROM sit at the right of the title while they fit, otherwise they wrap below it. The
+    // title never shortens and the actions never leave the header.
+    const QRectF hd = rectOf(h.item("libraryHeader"));
+    QVERIFY2(t.left() >= hd.left() - 0.5 && s.left() >= hd.left() - 0.5, when);
+    QVERIFY2(s.right() <= hd.right() + 0.5, when);
+    QVERIFY2(h.item("libraryTitle")->property("truncated").toBool() == false, when);
     if (s.top() >= t.bottom() - 0.5) {
-      QVERIFY2(s.top() >= u.bottom() - 0.5, when);
+      QVERIFY2(u.top() >= t.bottom() - 0.5, when);
     } else {
-      QVERIFY2(qAbs(t.center().y() - s.center().y()) < 4, when);
       QVERIFY2(t.right() <= s.left() + 0.5 && s.right() <= u.left() + 0.5, when);
     }
     QVERIFY2(s.width() >= 100, when);

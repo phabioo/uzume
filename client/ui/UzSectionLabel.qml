@@ -1,13 +1,16 @@
 import QtQuick
 
 // Section label (design-system.md "SectionLabel"): Plex Mono 500 10/16, +14 %, uppercase, `dim`: a two-digit number, an em
-// dash and the name ("01 — LIBRARY"); `meta` sits at the far right (+6 %). Without a number only the name.
+// dash and the name ("01 — LIBRARY"); `meta` sits at the far right (+6 %). Without a number only the name. Below 1440 px
+// (Theme.columnsCompactMax) the number is dropped unless `keepNumber` is set (first-start, empty and waiting states, panels).
 Item {
     id: root
     property int number: -1
     property string text: ""
     property string meta: ""
-    readonly property string composed: (number >= 0 ? String(number).padStart(2, "0") + " — " : "") + text
+    property bool keepNumber: false
+    readonly property bool numbered: number >= 0 && (keepNumber || Window.width >= Theme.columnsCompactMax)
+    readonly property string composed: (numbered ? String(number).padStart(2, "0") + " — " : "") + text
     implicitHeight: 16
     implicitWidth: label.implicitWidth + (metaText.visible ? metaText.implicitWidth + Theme.space2 : 0)
     Accessible.role: Accessible.StaticText

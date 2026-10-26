@@ -3,24 +3,42 @@ import QtQuick
 // Help column (design-system.md "HelpColumn"): the open column of long admin pages with a HELP slot: a Mono "HELP" head on a
 // `rule` underline, paragraphs [{ title?, text }] separated by `rule-2` lines (12 px text, muted), `lines` at the foot.
 // Extra content goes into the default slot below the paragraphs.
+// `inline`: below 1440 px (Theme.columnsCompactMax) the help is no column but a "Help" disclosure at the end of the content
+// (closed by default; `open` opens it); it fills the width it is given and has no open column.
 Item {
     id: root
+    property bool inline: false
+    property bool open: false
     property string label: ""
     property var items: []
     property var lines: []
     default property alias extra: extraBox.data
-    implicitWidth: Theme.openColumn
-    implicitHeight: Math.max(420, help.implicitHeight + foot.implicitHeight + Theme.space3)
-    width: Theme.openColumn
+    implicitWidth: root.inline ? 0 : Theme.openColumn
+    implicitHeight: root.inline
+                    ? disclosure.height + (root.open ? help.implicitHeight + (foot.visible ? foot.implicitHeight + Theme.space2 : 0) : 0)
+                    : Math.max(420, help.implicitHeight + foot.implicitHeight + Theme.space3)
+    width: root.inline ? implicitWidth : Theme.openColumn
 
-    UzOpenColumn { anchors.fill: parent; label: root.label }
+    UzOpenColumn { visible: !root.inline; anchors.fill: parent; label: root.label }
+    UzDisclosure {
+        id: disclosure
+        objectName: "helpDisclosure"
+        visible: root.inline
+        title: qsTr("Help")
+        onOpenChanged: root.open = disclosure.open
+        Component.onCompleted: disclosure.open = root.open
+    }
+    onOpenChanged: if (disclosure.open !== root.open) disclosure.open = root.open
     Column {
         id: help
         objectName: "helpColumnBody"
+        visible: !root.inline || root.open
+        y: root.inline ? disclosure.height : 0
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.rightMargin: 28
+        anchors.rightMargin: root.inline ? 0 : 28
         Text {
+            visible: !root.inline
             width: parent.width
             bottomPadding: Theme.space1
             text: qsTr("Help")
@@ -76,7 +94,7 @@ Item {
     }
     Column {
         id: foot
-        visible: root.lines.length > 0
+        visible: root.lines.length > 0 && (!root.inline || root.open)
         anchors.left: parent.left
         anchors.bottom: parent.bottom
         spacing: Theme.space05

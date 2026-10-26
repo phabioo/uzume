@@ -15,6 +15,9 @@ Rectangle {
     property bool confirmDelete: false
     property string tab: "buttons"  // "buttons" | "hotkeys" (hotkeys are global, independent of the selected device)
     readonly property bool hotkeysTab: root.tab === "hotkeys"
+    // The input test is a fourth column only at 1440 px and wider (Theme.columnsCompactMax); below it is a disclosure.
+    readonly property bool inputTestColumn: root.width >= Theme.columnsCompactMax
+    property bool inputTestOpen: false
     // Narrow main column (input test open on a small window): tighter mapping table.
     readonly property bool compact: content.width < 520
     readonly property int mapWidth: compact ? 130 : 170
@@ -281,32 +284,20 @@ Rectangle {
                         Layout.fillWidth: true
                         Layout.minimumWidth: 0
                         spacing: Theme.space2
-                        UzSectionLabel {
-                            objectName: "devicePill"
-                            Layout.fillWidth: true
-                            number: 1
-                            text: qsTr("Controllers")
-                            meta: root.hotkeysTab ? qsTr("This PC only")
-                                  : root.ctl.device.name === undefined ? ""
-                                  : root.ctl.device.connected === true
-                                    ? (root.ctl.device.slot !== "—" ? qsTr("Connected · %1").arg(root.ctl.device.slot) : qsTr("Connected"))
-                                    : qsTr("Not connected")
-                        }
-                        Text {
-                            objectName: "controllersTitle"
+                        UzPageHeader {
+                            objectName: "controllersHeader"
+                            titleName: "controllersTitle"
                             Layout.fillWidth: true
                             Layout.minimumWidth: 0
-                            text: root.hotkeysTab ? qsTr("Hotkeys")
-                                  : root.ctl.device.name !== undefined ? root.ctl.device.name : qsTr("Controllers")
-                            textFormat: Text.PlainText
-                            elide: Text.ElideRight
-                            font.family: Theme.sans
-                            font.pixelSize: Theme.roles.title.size
-                            font.weight: Font.Light
-                            font.letterSpacing: Theme.roles.title.spacing
-                            color: Theme.ink
-                            lineHeight: Theme.roles.title.line
-                            lineHeightMode: Text.FixedHeight
+                            number: 1
+                            label: qsTr("Controllers")
+                            labelMeta: root.hotkeysTab ? qsTr("This PC only")
+                                       : root.ctl.device.name === undefined ? ""
+                                       : root.ctl.device.connected === true
+                                         ? (root.ctl.device.slot !== "—" ? qsTr("Connected · %1").arg(root.ctl.device.slot) : qsTr("Connected"))
+                                         : qsTr("Not connected")
+                            title: root.hotkeysTab ? qsTr("Hotkeys")
+                                   : root.ctl.device.name !== undefined ? root.ctl.device.name : qsTr("Controllers")
                         }
                         // Tabs (board 9a-1) with "Reset mapping" / "Reset hotkeys" at the right while something differs from the defaults.
                         RowLayout {
@@ -337,6 +328,29 @@ Rectangle {
                                 text: root.hotkeysTab ? qsTr("Reset hotkeys") : qsTr("Reset mapping")
                                 onClicked: root.hotkeysTab ? root.ctl.resetHotkeys() : root.ctl.resetProfile()
                             }
+                        }
+                    }
+
+                    // Input test below 1440 px: a disclosure under the device header (the column takes over at 1440 px).
+                    ColumnLayout {
+                        objectName: "inputTestDisclosure"
+                        visible: !root.inputTestColumn && !root.hotkeysTab
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
+                        spacing: Theme.space1
+                        UzDisclosure {
+                            objectName: "inputTestToggle"
+                            title: qsTr("Input test")
+                            onOpenChanged: root.inputTestOpen = open
+                            Component.onCompleted: open = root.inputTestOpen
+                        }
+                        Loader {
+                            objectName: "inputTestLoader"
+                            active: root.inputTestOpen && !root.inputTestColumn
+                            visible: active
+                            Layout.fillWidth: true
+                            Layout.minimumWidth: 0
+                            sourceComponent: inputTestComp
                         }
                     }
 
@@ -1216,9 +1230,9 @@ Rectangle {
                 }
             }
 
-            // Input test
+            // Input test: a column at 1440 px and wider; below that it is a disclosure under the device header (inputTestDisclosure).
             Rectangle {
-                visible: root.width >= 1180  // narrow windows keep the mapping table, the test lives on wide ones
+                visible: root.inputTestColumn
                 Layout.fillHeight: true
                 Layout.preferredWidth: Theme.inputTestWidth
                 Layout.minimumWidth: Theme.inputTestWidth  // never squeezed below the 288 px grid + margins by wide text
@@ -1230,99 +1244,108 @@ Rectangle {
                     height: parent.height
                     color: Theme.rule
                 }
-                ColumnLayout {
+                Loader {
                     anchors.fill: parent
                     anchors.margins: 24
                     anchors.topMargin: Theme.space4
-                    spacing: 14
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        Layout.minimumWidth: 0
-                        Th { Layout.fillWidth: true; text: qsTr("Input test") }
-                        UzLabel {
-                            objectName: "testLabelsNote"
-                            visible: !root.isMouse
-                            text: qsTr("Labels: %1").arg(root.ctl.labelSetName)
-                            color: Theme.muted
-                            font.pixelSize: Theme.roles.small.size
-                        }
-                    }
-                    UzLabel {
-                        Layout.fillWidth: true
-                        Layout.minimumWidth: 0
-                        text: root.ctl.device.kind === "keyboard" ? qsTr("Press keys. Active inputs light up.")
-                              : root.isMouse ? qsTr("The mouse drives the %1 input.").arg(root.ctl.touchLabel)
-                              : qsTr("Press buttons on the controller. Active inputs light up.")
-                        color: Theme.muted
-                        font.pixelSize: Theme.roles.input.size
-                        wrapMode: Text.WordWrap
-                    }
-                    // Controller-shaped grid: 7 x 5 cells of 36, gap 6; triggers and shoulders on top, back/start in the
-                    // middle, D-pad cross left, face diamond right. Glyphs follow the Button labels set.
-                    Item {
-                        // Fixed-width slot (panel width minus margins): whatever the text elsewhere in the column
-                        // measures, the layout cannot hand the grid a wider area to center in.
-                        Layout.fillWidth: true
-                        Layout.minimumWidth: 0
-                        Layout.maximumWidth: Theme.inputTestWidth - 48
-                        Layout.preferredHeight: padGrid.height
-                    Item {
-                        id: padGrid
-                        objectName: "inputTestGrid"
-                        readonly property int cell: 36
-                        readonly property int gap: 6
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        width: 7 * cell + 6 * gap
-                        height: 5 * cell + 4 * gap
-                        Repeater {
-                            model: root.ctl.testCells
-                            delegate: PadGlyph {
-                                id: tile
-                                required property var modelData
-                                objectName: "testTile_" + modelData.id
-                                x: modelData.col * (padGrid.cell + padGrid.gap)
-                                y: modelData.row * (padGrid.cell + padGrid.gap)
-                                width: modelData.span * padGrid.cell + (modelData.span - 1) * padGrid.gap
-                                size: padGrid.cell
-                                g: modelData.glyph
-                                square: modelData.square
-                                active: modelData.active
-                                visible: root.testInputIds.length === 0 || modelData.id === "" || root.testInputIds.indexOf(modelData.id) >= 0
-                            }
-                        }
-                    }
-                    }
-
-                    Th { visible: root.ctl.hasTouch; text: root.ctl.touchLabel; Layout.topMargin: 10; Layout.minimumWidth: 0; Layout.maximumWidth: Theme.inputTestWidth - 48 }
-                    Rectangle {
-                        objectName: "touchBox"
-                        visible: root.ctl.hasTouch
-                        Layout.fillWidth: true
-                        Layout.minimumWidth: 0
-                        implicitHeight: 150
-                        color: "transparent"
-                        border.width: 1
-                        border.color: Theme.rule
-                        UzLabel {
-                            anchors.centerIn: parent
-                            text: qsTr("Mouse on bottom screen")
-                            color: Theme.muted
-                            font.pixelSize: Theme.roles.input.size
-                        }
-                    }
-                    UzLabel {
-                        visible: root.ctl.hasTouch
-                        Layout.fillWidth: true
-                        Layout.minimumWidth: 0
-                        wrapMode: Text.WordWrap
-                        text: qsTr("Left mouse button = stylus")
-                        color: Theme.dim
-                        font.pixelSize: Theme.roles.small.size
-                    }
-                    Item { Layout.fillHeight: true }
+                    active: root.inputTestColumn
+                    sourceComponent: inputTestComp
                 }
             }
+        }
+    }
+
+    // The input test (one instance at a time: the column or the disclosure).
+    Component {
+        id: inputTestComp
+        ColumnLayout {
+            spacing: 14
+
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.minimumWidth: 0
+                Th { Layout.fillWidth: true; text: qsTr("Input test") }
+                UzLabel {
+                    objectName: "testLabelsNote"
+                    visible: !root.isMouse
+                    text: qsTr("Labels: %1").arg(root.ctl.labelSetName)
+                    color: Theme.muted
+                    font.pixelSize: Theme.roles.small.size
+                }
+            }
+            UzLabel {
+                Layout.fillWidth: true
+                Layout.minimumWidth: 0
+                text: root.ctl.device.kind === "keyboard" ? qsTr("Press keys. Active inputs light up.")
+                      : root.isMouse ? qsTr("The mouse drives the %1 input.").arg(root.ctl.touchLabel)
+                      : qsTr("Press buttons on the controller. Active inputs light up.")
+                color: Theme.muted
+                font.pixelSize: Theme.roles.input.size
+                wrapMode: Text.WordWrap
+            }
+            // Controller-shaped grid: 7 x 5 cells of 36, gap 6; triggers and shoulders on top, back/start in the
+            // middle, D-pad cross left, face diamond right. Glyphs follow the Button labels set.
+            Item {
+                // Fixed-width slot (panel width minus margins): whatever the text elsewhere in the column
+                // measures, the layout cannot hand the grid a wider area to center in.
+                Layout.fillWidth: true
+                Layout.minimumWidth: 0
+                Layout.maximumWidth: Theme.inputTestWidth - 48
+                Layout.preferredHeight: padGrid.height
+            Item {
+                id: padGrid
+                objectName: "inputTestGrid"
+                readonly property int cell: 36
+                readonly property int gap: 6
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: 7 * cell + 6 * gap
+                height: 5 * cell + 4 * gap
+                Repeater {
+                    model: root.ctl.testCells
+                    delegate: PadGlyph {
+                        id: tile
+                        required property var modelData
+                        objectName: "testTile_" + modelData.id
+                        x: modelData.col * (padGrid.cell + padGrid.gap)
+                        y: modelData.row * (padGrid.cell + padGrid.gap)
+                        width: modelData.span * padGrid.cell + (modelData.span - 1) * padGrid.gap
+                        size: padGrid.cell
+                        g: modelData.glyph
+                        square: modelData.square
+                        active: modelData.active
+                        visible: root.testInputIds.length === 0 || modelData.id === "" || root.testInputIds.indexOf(modelData.id) >= 0
+                    }
+                }
+            }
+            }
+
+            Th { visible: root.ctl.hasTouch; text: root.ctl.touchLabel; Layout.topMargin: 10; Layout.minimumWidth: 0; Layout.maximumWidth: Theme.inputTestWidth - 48 }
+            Rectangle {
+                objectName: "touchBox"
+                visible: root.ctl.hasTouch
+                Layout.fillWidth: true
+                Layout.minimumWidth: 0
+                implicitHeight: 150
+                color: "transparent"
+                border.width: 1
+                border.color: Theme.rule
+                UzLabel {
+                    anchors.centerIn: parent
+                    text: qsTr("Mouse on bottom screen")
+                    color: Theme.muted
+                    font.pixelSize: Theme.roles.input.size
+                }
+            }
+            UzLabel {
+                visible: root.ctl.hasTouch
+                Layout.fillWidth: true
+                Layout.minimumWidth: 0
+                wrapMode: Text.WordWrap
+                text: qsTr("Left mouse button = stylus")
+                color: Theme.dim
+                font.pixelSize: Theme.roles.small.size
+            }
+            Item { Layout.fillHeight: true }
         }
     }
 }

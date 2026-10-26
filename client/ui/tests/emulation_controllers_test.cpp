@@ -1630,7 +1630,9 @@ class EmulationControllersTest : public QObject {
     QVERIFY(c->listening().isEmpty());
     uitest::saveShot(h.window, QStringLiteral("5-controllers"));
 
-    // Input test: live tiles and the merged joypad mask of the running game path.
+    // Input test: live tiles and the merged joypad mask of the running game path (a column from 1440 px on).
+    h.window->resize(1600, 900);
+    QTest::qWait(100);
     QVERIFY(h.item("testTile_a") != nullptr);
     QVERIFY(h.item("testTile_a")->isVisible());
     // The input test draws only the buttons the viewed system has: the DS has L / R but no ZL / ZR (R-P15).
@@ -1655,8 +1657,13 @@ class EmulationControllersTest : public QObject {
     pad.button(DUp, false);
     c->gamepads()->poll();
     QCOMPARE(h.controller->gameSession()->joypadMask(), 0u);
+    // Tall enough that the whole page is in view (the pad hint row takes the bottom 44 px while the pad was the last input).
+    h.window->resize(1280, 1200);
+    QTest::qWait(150);
+    QQuickTest::qWaitForPolish(h.window);
 
-    // Duplicate -> own profile (assigned to this device), remap by "Press a button…".
+    // Duplicate -> own profile
+    // The copy is assigned to this device; remap by "Press a button…".
     QVERIFY(h.click("duplicateProfileButton"));
     QVERIFY(!c->profileBuiltin());
     QCOMPARE(c->profileName(), QStringLiteral("Standard Gamepad copy"));
@@ -2024,6 +2031,8 @@ class EmulationControllersTest : public QObject {
     pair(h, hub);
     ControllersController* c = h.controller->controllers();
     h.controller->showControllers();
+    h.window->resize(1600, 900);   // the input test is a column from 1440 px on
+    QTest::qWait(100);
     QCOMPARE(c->profileName(), QStringLiteral("Keyboard · Standard"));
 
     // Input test with the keyboard: X lights up A, the arrow lights up the D-pad.

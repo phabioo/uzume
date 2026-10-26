@@ -16,7 +16,7 @@ ColumnLayout {
     spacing: Theme.space2
     Layout.fillWidth: true
 
-    UzSectionLabel { objectName: "startSectionLabel"; Layout.fillWidth: true; number: root.number; text: root.label; meta: root.meta }
+    UzSectionLabel { objectName: "startSectionLabel"; Layout.fillWidth: true; keepNumber: true; number: root.number; text: root.label; meta: root.meta }
     RowLayout {
         Layout.fillWidth: true
         spacing: Theme.space2

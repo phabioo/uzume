@@ -35,7 +35,9 @@ Item {
     property alias helpExtra: help.extra
     readonly property string serverName: root.player.hubName !== "" ? root.player.hubName : qsTr("Server")
     readonly property string helpLabel: "UZUME · " + root.area.toUpperCase() + " · " + root.serverName.toUpperCase()
-    readonly property bool helpShown: root.helpItems.length > 0 && root.width >= 880
+    // Help: the open column at 1440 px and wider (Theme.columnsCompactMax), a "Help" disclosure at the end of the content below.
+    readonly property bool helpColumn: root.helpItems.length > 0 && root.width >= 880 && Window.width >= Theme.columnsCompactMax
+    readonly property bool helpShown: root.helpColumn
     property alias scroll: flick
     readonly property real pageMargin: Theme.space7
 
@@ -54,7 +56,7 @@ Item {
             objectName: "adminPageContent"
             x: root.pageMargin
             y: 48
-            width: Math.min(960, flick.width - root.pageMargin - (root.helpShown ? Theme.space7 + Theme.openColumn + Theme.space3 : root.pageMargin))
+            width: Math.min(Theme.contentMaxWidth, flick.width - root.pageMargin - (root.helpShown ? Theme.space7 + Theme.openColumn + Theme.space3 : root.pageMargin))
             spacing: Theme.space4
 
             ColumnLayout {
@@ -83,6 +85,15 @@ Item {
                 id: body
                 Layout.fillWidth: true
                 spacing: Theme.space4
+            }
+            UzHelpColumn {
+                id: helpInline
+                objectName: "adminHelpDisclosure"
+                inline: true
+                visible: root.helpItems.length > 0 && !root.helpColumn
+                Layout.fillWidth: true
+                items: root.helpItems
+                lines: root.helpLines
             }
         }
         UzHelpColumn {
