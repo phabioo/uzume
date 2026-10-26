@@ -5,15 +5,24 @@ import QtQuick.Layouts
 // `surface` in a `rule` frame, a Mono label with "Copy" (accent text; "Copied" with a check for a moment), label / value rows in
 // Mono 10 (labels muted uppercase, values ink, right aligned; a "warn" row carries the Yamabuki "!" square).
 // rows: [[label, value], [label, value, "warn"]]. `copyRequested()` is emitted on Copy; the owner puts the text on the clipboard.
+// Optional "Details" disclosure below the rows (`detailRows`, `people`; see the properties).
 Rectangle {
     id: root
     property string title: qsTr("Diagnostics")
     property var rows: []
+    // Details: [[label, value]] (encoder, bitrate, resolution) and one object per person {name, path, rtt, loss, reason}.
+    property var detailRows: []
+    property var people: []
+    property bool detailsOpen: true
+    property real blockWidth: 232
+    // Widths of the Path, RTT and Loss columns of the person table.
+    readonly property var pathCols: [48, 56, 48]
     property bool copied: false
     signal copyRequested()
+    signal detailsToggled(bool open)
 
-    implicitWidth: 232
-    implicitHeight: head.height + 1 + grid.implicitHeight + Theme.space1 + Theme.space15
+    implicitWidth: blockWidth
+    implicitHeight: head.height + 1 + grid.implicitHeight + Theme.space1 + Theme.space15 + (hasDetails ? detailsBox.implicitHeight + Theme.space1 : 0)
     radius: 0
     color: Theme.surface
     border.width: 1
@@ -78,57 +87,141 @@ Rectangle {
         }
         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.rule2 }
     }
-    GridLayout {
+    UzDiagRows {
         id: grid
         objectName: "diagRows"
         x: 1 + Theme.space15
         y: head.height + 1 + Theme.space1
         width: parent.width - 2 - 2 * Theme.space15
-        columns: 2
-        columnSpacing: Theme.space15
-        rowSpacing: 2
-        Repeater {
-            model: root.rows.length * 2
-            delegate: Item {
-                id: cell
-                required property int index
-                readonly property var row: root.rows[Math.floor(index / 2)]
-                readonly property bool isLabel: index % 2 === 0
-                Layout.fillWidth: !isLabel
-                Layout.minimumWidth: 0
-                implicitHeight: 16
-                implicitWidth: isLabel ? labelText.implicitWidth : valueRow.implicitWidth
-                Text {
-                    id: labelText
-                    visible: cell.isLabel
-                    text: cell.row[0]
-                    textFormat: Text.PlainText
-                    font.family: Theme.mono
-                    font.pixelSize: Theme.roles.meta.size
-                    font.letterSpacing: 0.6
-                    font.capitalization: Font.AllUppercase
-                    color: Theme.muted
-                }
-                Row {
-                    id: valueRow
-                    visible: !cell.isLabel
-                    anchors.right: parent.right
-                    spacing: 4
-                    Rectangle {
-                        visible: !cell.isLabel && cell.row[2] === "warn"
-                        width: 12; height: 12
-                        anchors.verticalCenter: parent.verticalCenter
-                        color: Theme.accent
-                        Text { anchors.centerIn: parent; text: "!"; font.family: Theme.sans; font.pixelSize: 9; font.weight: Font.Bold; color: Theme.inkOnAccent }
+        rows: root.rows
+    }
+
+    // Details (readable pass, board 3g-6): encoder / decoder, bitrate, resolution and a table per person. Shown only when there is
+    // something to show (no session: no section); `detailsOpen` is owned by the caller (persisted by the DiagnosticsModel).
+    readonly property bool hasDetails: root.detailRows.length > 0 || root.people.length > 0
+    Item {
+        id: detailsBox
+        objectName: "diagDetails"
+        visible: root.hasDetails
+        x: 1
+        y: head.height + 1 + Theme.space1 + grid.implicitHeight + Theme.space1
+        width: parent.width - 2
+        implicitHeight: visible ? detailsCol.implicitHeight : 0
+        Rectangle { width: parent.width; height: 1; color: Theme.rule2 }
+        ColumnLayout {
+            id: detailsCol
+            y: 1
+            width: parent.width
+            spacing: Theme.space05
+            UzDisclosure {
+                id: disc
+                objectName: "diagDetailsToggle"
+                title: qsTr("Details")
+                Layout.leftMargin: Theme.space05
+                Binding { target: disc; property: "open"; value: root.detailsOpen }
+                onOpenChanged: if (open !== root.detailsOpen) root.detailsToggled(open)
+            }
+            UzDiagRows {
+                objectName: "diagDetailRows"
+                visible: disc.open && root.detailRows.length > 0
+                Layout.leftMargin: Theme.space15
+                Layout.rightMargin: Theme.space15
+                Layout.fillWidth: true
+                rows: root.detailRows
+            }
+            // One row per person: name, path (Direct / Relay), RTT, loss; the reason for a relay in one sentence below the row.
+            ColumnLayout {
+                id: table
+                objectName: "diagPeople"
+                visible: disc.open && root.people.length > 0
+                Layout.leftMargin: Theme.space15
+                Layout.rightMargin: Theme.space15
+                Layout.fillWidth: true
+                Layout.bottomMargin: Theme.space15
+                spacing: 2
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Theme.space1
+                    Repeater {
+                        model: [qsTr("Person"), qsTr("Path"), qsTr("RTT"), qsTr("Loss")]
+                        delegate: Text {
+                            required property int index
+                            required property string modelData
+                            Layout.fillWidth: index === 0
+                            Layout.preferredWidth: index === 0 ? 0 : root.pathCols[index - 1]
+                            horizontalAlignment: index >= 2 ? Text.AlignRight : Text.AlignLeft
+                            text: modelData
+                            font.family: Theme.mono
+                            font.pixelSize: Theme.roles.meta.size
+                            font.letterSpacing: 0.6
+                            font.capitalization: Font.AllUppercase
+                            color: Theme.muted
+                        }
                     }
-                    Text {
-                        text: cell.isLabel ? "" : cell.row[1]
-                        textFormat: Text.PlainText
-                        width: Math.min(implicitWidth, Math.max(0, cell.width - 16))
-                        elide: Text.ElideRight
-                        font.family: Theme.mono
-                        font.pixelSize: Theme.roles.meta.size
-                        color: Theme.ink
+                }
+                Repeater {
+                    model: root.people
+                    delegate: ColumnLayout {
+                        id: person
+                        required property var modelData
+                        objectName: "diagPerson_" + modelData.name
+                        Layout.fillWidth: true
+                        spacing: 0
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: Theme.space1
+                            Text {
+                                Layout.fillWidth: true
+                                Layout.minimumWidth: 0
+                                text: person.modelData.name
+                                textFormat: Text.PlainText
+                                elide: Text.ElideRight
+                                font.family: Theme.mono
+                                font.pixelSize: Theme.roles.meta.size
+                                color: Theme.ink
+                            }
+                            Text {
+                                objectName: "diagPath"
+                                Layout.preferredWidth: root.pathCols[0]
+                                text: person.modelData.path || "—"
+                                textFormat: Text.PlainText
+                                font.family: Theme.mono
+                                font.pixelSize: Theme.roles.meta.size
+                                font.weight: person.modelData.path === qsTr("Relay") ? Font.Medium : Font.Normal
+                                color: person.modelData.path === qsTr("Relay") ? Theme.ink : Theme.ink
+                            }
+                            Text {
+                                objectName: "diagRtt"
+                                Layout.preferredWidth: root.pathCols[1]
+                                horizontalAlignment: Text.AlignRight
+                                text: person.modelData.rtt || "—"
+                                textFormat: Text.PlainText
+                                font.family: Theme.mono
+                                font.pixelSize: Theme.roles.meta.size
+                                color: Theme.ink
+                            }
+                            Text {
+                                objectName: "diagLoss"
+                                Layout.preferredWidth: root.pathCols[2]
+                                horizontalAlignment: Text.AlignRight
+                                text: person.modelData.loss || "—"
+                                textFormat: Text.PlainText
+                                font.family: Theme.mono
+                                font.pixelSize: Theme.roles.meta.size
+                                color: Theme.ink
+                            }
+                        }
+                        Text {
+                            objectName: "diagReason"
+                            visible: text !== ""
+                            Layout.fillWidth: true
+                            text: person.modelData.reason || ""
+                            textFormat: Text.PlainText
+                            wrapMode: Text.WordWrap
+                            font.family: Theme.sans
+                            font.pixelSize: Theme.roles.small.size
+                            color: Theme.ink2
+                        }
                     }
                 }
             }

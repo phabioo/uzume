@@ -7,6 +7,8 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QPainter>
+#include <QQmlContext>
+#include <QQmlProperty>
 #include <QQuickWindow>
 #include <QSignalSpy>
 #include <QtTest>
@@ -163,15 +165,25 @@ class PluginSlotsUiTest : public QObject {
     QVERIFY2(!img.isNull() && !uitest::isAllBlack(img), qPrintable(name));
     QVERIFY(img.save(QDir(shotDir_).filePath(name + QStringLiteral(".png"))));
   }
-  // Whether the panel tab bar can hold tabs with a label (names, same widths as GamePanel.qml) plus `icons` icon-only tabs.
-  // A very wide font (Windows fallback) cannot: the bar then moves tabs into "+n" and shows fewer labels, by design.
-  bool tabsFit(const QStringList& labeled, int icons) {
+  // Whether the panel tab bar can hold all these tabs with their labels (same widths as GamePanel.qml: gap 18, label at most 96, plugin
+  // icon 16 + 6, unread dot 10). A very wide font (Windows fallback) cannot: the last tabs then move into "More", by design.
+  bool tabsFit(const QStringList& names, const QStringList& withDot = {}) {
     QFont f = QGuiApplication::font();
     f.setPixelSize(13);
     const QFontMetricsF fm(f);
-    qreal w = 22.0 * (labeled.size() + icons - 1) + 28.0 * icons;   // tab gap 22, icon-only tab 28 (GamePanel.qml)
-    for (const QString& n : labeled) w += std::ceil(fm.horizontalAdvance(n)) + (n == QStringLiteral("Session") ? 0 : 10);   // 10 px for the unread dot
+    qreal w = 18.0 * (names.size() - 1);
+    for (const QString& n : names)
+      w += std::min<qreal>(96.0, std::ceil(fm.horizontalAdvance(n))) + (n == QStringLiteral("Session") ? 0 : 22) + (withDot.contains(n) ? 10 : 0);
     return w + 4 <= h_.item("panelTabBar")->width() - 48;   // 4 px slack for rounding, 24 px padding on both sides
+  }
+  // The attached ToolTip.text of an item.
+  QString tooltipOf(QQuickItem* it) {
+    const QQmlProperty p(it, QStringLiteral("ToolTip.text"), qmlContext(it));
+    return p.isValid() ? p.read().toString() : QString();
+  }
+  QString accessibleName(QQuickItem* it) {
+    const QQmlProperty p(it, QStringLiteral("Accessible.name"), qmlContext(it));
+    return p.isValid() ? p.read().toString() : QString();
   }
   int visibleCount(const char* name) {
     int n = 0;
@@ -410,8 +422,18 @@ class PluginSlotsUiTest : public QObject {
     QTRY_VERIFY(h_.item("panelTab_plugin:net.test.a") != nullptr);
     QVERIFY(h_.item("panelTab_game")->isVisible());
     QVERIFY(h_.item("panelTab_plugin:net.test.a")->isVisible());
-    if (tabsFit({"Session", "SoulLink"}, 0)) QCOMPARE(visibleCount("panelTabLabel"), 2);
+    if (tabsFit({"Session", "SoulLink"}, {"SoulLink"})) QCOMPARE(visibleCount("panelTabLabel"), 2);
     QCOMPARE(visibleCount("tabDot"), 1);  // news dot
+    {   // The plugin tab reads "SoulLink" (icon + short label, never a single letter), with a tooltip and an accessible name.
+      QQuickItem* tab = h_.item("panelTab_plugin:net.test.a");
+      QQuickItem* label = nullptr;
+      for (QQuickItem* c : tab->findChildren<QQuickItem*>(QStringLiteral("panelTabLabel"))) label = c;
+      QVERIFY(label != nullptr);
+      QCOMPARE(label->property("text").toString(), QStringLiteral("SoulLink"));
+      QVERIFY(tab->findChild<QQuickItem*>(QStringLiteral("panelTabIcon")) != nullptr);
+      QVERIFY2(tooltipOf(tab).startsWith(QStringLiteral("SoulLink")), qPrintable(tooltipOf(tab)));   // + the origin marker
+      QCOMPARE(accessibleName(tab), QStringLiteral("SoulLink"));
+    }
     QVERIFY(h_.click("panelTab_plugin:net.test.a"));
     QTRY_VERIFY(h_.item("gamePanelPlugin")->isVisible());
     shot(QStringLiteral("slots-panel-2-tabs"));
@@ -426,24 +448,27 @@ class PluginSlotsUiTest : public QObject {
     QCOMPARE(sent.at(0).at(2).toString(), QStringLiteral("go"));
     QCOMPARE(sent.at(0).at(3).toInt(), 7);
 
-    // Four tabs (Game + 3): only Game and the open tab keep their label; the others are icon-only.
+    // Four tabs (Session + 3): every tab keeps its icon and label while they fit; else the last ones go to "More".
     pc()->setPreviewUi({{"panelTabs", QVariantList{tabEntry("net.test.a", "SoulLink", "news"), tabEntry("net.test.b", "Item Helper", {}, false, "unverified"),
                                                     tabEntry("net.test.c", "Party Editor")}},
                         {"trees", trees}});
-    QTRY_COMPARE(visibleCount("panelTabLabel"), 2);  // Game + the open SoulLink tab
-    if (tabsFit({"Session", "SoulLink"}, 2)) QVERIFY(!h_.item("panelTabOverflow")->isVisible());
-    QTRY_VERIFY(h_.item("panelTabOverflow")->isVisible() || (h_.item("panelTab_plugin:net.test.c") != nullptr && h_.item("panelTab_plugin:net.test.c")->isVisible()));
+    if (tabsFit({"Session", "SoulLink", "Item Helper", "Party Editor"}, {"SoulLink"})) {
+      QTRY_COMPARE(visibleCount("panelTabLabel"), 4);
+      QVERIFY(!h_.item("panelTabOverflow")->isVisible());
+    } else {
+      QTRY_VERIFY(h_.item("panelTabOverflow")->isVisible());
+    }
     if (h_.item("panelTab_plugin:net.test.c") != nullptr && h_.item("panelTab_plugin:net.test.c")->isVisible()) {
       QVERIFY(h_.click("panelTab_plugin:net.test.c"));
-    } else {   // a very wide font moved it into the "+n" popover
+    } else {   // a very wide font moved it into the "More" menu
       QVERIFY(h_.click("panelTabOverflow"));
       QTRY_VERIFY(h_.item("menuItem_tabOverflow_plugin:net.test.c") != nullptr && h_.item("menuItem_tabOverflow_plugin:net.test.c")->isVisible());
       QVERIFY(h_.click("menuItem_tabOverflow_plugin:net.test.c"));
     }
-    QTRY_COMPARE(visibleCount("panelTabLabel"), 2);  // Game + Party Editor now
+    QTRY_VERIFY(h_.item("panelTab_plugin:net.test.c")->property("open").toBool());
     shot(QStringLiteral("slots-panel-4-tabs"));
 
-    // Narrow window (320 px panel) with many tabs: the rest moves into "+n ▾".
+    // Narrow window (320 px panel) with many tabs: the rest moves into the "More ▾" tab menu.
     h_.window->resize(1280, 800);
     QVariantList many;
     for (int i = 0; i < 9; ++i) many << tabEntry(QStringLiteral("net.test.p%1").arg(i), QStringLiteral("Plugin %1").arg(i), i == 8 ? QStringLiteral("news") : QString());
@@ -454,13 +479,22 @@ class PluginSlotsUiTest : public QObject {
       QQuickItem* it = h_.item(qPrintable(QStringLiteral("panelTab_plugin:net.test.p%1").arg(i)));
       if (it != nullptr && it->isVisible()) ++shownPlugins;
     }
-    QVERIFY(shownPlugins > 0 && shownPlugins < 9);
+    QVERIFY(shownPlugins < 9);   // some go to "More" (all of them at a very wide font)
     const QString overflowText = [&]() {
       for (QQuickItem* c : h_.item("panelTabOverflow")->childItems())
         if (c->property("text").isValid()) return c->property("text").toString();
       return QString();
     }();
-    QCOMPARE(overflowText, QStringLiteral("+%1 ▾").arg(9 - shownPlugins));
+    QCOMPARE(overflowText, QStringLiteral("More ▾"));
+    QCOMPARE(accessibleName(h_.item("panelTabOverflow")), QStringLiteral("More tabs"));
+    QVERIFY(!tooltipOf(h_.item("panelTabOverflow")).isEmpty());
+    for (int i = 0; i < 9; ++i) {   // every tab that stays shown has a label of more than one letter, a tooltip and an accessible name
+      QQuickItem* it = h_.item(qPrintable(QStringLiteral("panelTab_plugin:net.test.p%1").arg(i)));
+      if (it == nullptr || !it->isVisible()) continue;
+      const QString want = QStringLiteral("Plugin %1").arg(i);
+      QVERIFY2(tooltipOf(it).startsWith(want), qPrintable(tooltipOf(it)));
+      QCOMPARE(accessibleName(it), want);
+    }
     QVERIFY(h_.click("panelTabOverflow"));
     const QString lastId = QStringLiteral("menuItem_tabOverflow_plugin:net.test.p8");
     QTRY_VERIFY(h_.item(qPrintable(lastId)) != nullptr && h_.item(qPrintable(lastId))->isVisible());

@@ -289,6 +289,45 @@ class DiagnosticsTest : public QObject {
     QVERIFY(DiagnosticsModel::turnEndpoint({}).isEmpty());
   }
 
+  void detailsFieldsAndRows() {
+    // Link values of the Details table exist only where they are measured
+    const QVariantMap relay = DiagnosticsModel::linkFields(64.0, 1.2, QStringLiteral("relay (udp)"), RelayReason::DirectFailed);
+    QCOMPARE(relay.value("path").toString(), QStringLiteral("Relay"));
+    QCOMPARE(relay.value("rtt").toString(), QStringLiteral("64 ms"));
+    QCOMPARE(relay.value("loss").toString(), QStringLiteral("1.2 %"));
+    QVERIFY(relay.value("reason").toString().startsWith(QStringLiteral("Relay because")));
+    QVERIFY(relay.value("reason").toString().endsWith(QLatin1Char('.')));
+    const QVariantMap direct = DiagnosticsModel::linkFields(18.0, 0.1, QStringLiteral("direct (srflx)"), RelayReason::DirectFailed);
+    QCOMPARE(direct.value("path").toString(), QStringLiteral("Direct"));
+    QVERIFY(direct.value("reason").toString().isEmpty());   // a direct path has no relay reason
+    const QVariantMap unknown = DiagnosticsModel::linkFields(std::nullopt, std::nullopt, QString());
+    QVERIFY(unknown.value("path").toString().isEmpty() && unknown.value("rtt").toString().isEmpty() && unknown.value("loss").toString().isEmpty());
+    QVERIFY(DiagnosticsModel::relayReasonSentence(RelayReason::None).isEmpty());
+    for (RelayReason r : {RelayReason::Forced, RelayReason::NoLocalSrflx, RelayReason::NoRemoteSrflx, RelayReason::DirectFailed})
+      QVERIFY(DiagnosticsModel::relayReasonSentence(r).endsWith(QLatin1Char('.')));
+
+    SessionStats host;
+    host.encoderName = QStringLiteral("h264_nvenc");
+    host.gpuInput = true;
+    host.videoBitrateKbps = 8200;
+    host.width = 1024;
+    host.height = 768;
+    host.fps = 60.0;
+    const QVariantList rows = DiagnosticsModel::hostDetailRows(host);
+    QCOMPARE(rows.size(), 3);
+    QCOMPARE(rows.at(0).toList(), (QVariantList{QStringLiteral("Encoder"), QStringLiteral("h264_nvenc · H.264 · GPU-direct")}));
+    QCOMPARE(rows.at(1).toList(), (QVariantList{QStringLiteral("Bitrate"), QStringLiteral("8.2 Mbit/s")}));
+    QCOMPARE(rows.at(2).toList(), (QVariantList{QStringLiteral("Resolution"), QStringLiteral("1024 × 768 · 60 fps")}));
+    QVERIFY(DiagnosticsModel::hostDetailRows(SessionStats()).isEmpty());   // nothing measured: no rows
+    SessionStats viewer;
+    viewer.decoderName = QStringLiteral("h264");
+    QCOMPARE(DiagnosticsModel::viewerDetailRows(viewer).size(), 1);
+    // participant() merges the link values
+    const QVariantMap p = DiagnosticsModel::participant(QStringLiteral("Jonas"), QStringLiteral("viewer"), {QStringLiteral("Relayed (TURN)"), QStringLiteral("warn")}, {}, {}, relay);
+    QCOMPARE(p.value("path").toString(), QStringLiteral("Relay"));
+    QCOMPARE(p.value("name").toString(), QStringLiteral("Jonas"));
+  }
+
   void streamingSummaryCountsRelayed() {
     DiagnosticsModel m;
     QCOMPARE(m.participantCount(), 0);

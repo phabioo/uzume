@@ -435,6 +435,7 @@ Rectangle {
                         keys: root.player.controllers.padSheetRows.map(function (r) {
                             if (r.action === "layout" && root.screenLayouts.length < 2) return [r.key, r.label, qsTr("One screen")]
                             if (r.action === "speedup" && !root.session.fastForwardAvailable) return [r.key, r.label, qsTr("Not available")]
+                            if (r.action === "diagnostics") return [r.key, qsTr("Diagnostics")]   // toggles the stage block like F3
                             return [r.key, r.label]
                         })
                     }

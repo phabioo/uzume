@@ -33,7 +33,8 @@ class DiagnosticsModel : public QObject {
   Q_PROPERTY(QVariantMap emulation READ emulation NOTIFY dataChanged)
   // Multiview columns: [{surface, title, sub, local, emulation, note}] in tile order.
   Q_PROPERTY(QVariantList tiles READ tiles NOTIFY dataChanged)
-  // Streaming per Session: [{surface, title, participants:[{name, role, pill, tone, line2, line3}]}]; empty without a Session.
+  // Streaming per Session: [{surface, title, details:[[label, value]], participants:[{name, role, pill, tone, line2, line3,
+  // path, rtt, loss, reason}]}]; empty without a Session.
   Q_PROPERTY(QVariantList streaming READ streaming NOTIFY dataChanged)
   Q_PROPERTY(QString emulationSummary READ emulationSummary NOTIFY dataChanged)
   Q_PROPERTY(QString tilesSummary READ tilesSummary NOTIFY dataChanged)
@@ -94,7 +95,19 @@ class DiagnosticsModel : public QObject {
   static QString relayReasonText(RelayReason reason);
   // "host:port" of the first TURN URL ("turn:hub.example.com:3478?transport=udp"), empty if there is none.
   static QString turnEndpoint(const QList<TurnServer>& servers);
-  static QVariantMap participant(const QString& name, const QString& role, const Pill& pill, const QString& line2, const QString& line3);
+  // `link` carries the structured link values of the Details table (see linkFields); merged into the map.
+  static QVariantMap participant(const QString& name, const QString& role, const Pill& pill, const QString& line2, const QString& line3,
+                                 const QVariantMap& link = {});
+  // Details table of one person: {path: "Direct" | "Relay" | "" (not known yet), rtt: "18 ms" | "", loss: "0.1 %" | "",
+  // reason: "Relay because ..." | ""}. Only values that exist are non-empty.
+  static QVariantMap linkFields(std::optional<double> rttMs, std::optional<double> lossPercent, const QString& connectionType,
+                                RelayReason reason = RelayReason::None);
+  // One sentence for a relayed path ("Relay because no direct path was found: strict NAT or a firewall."), empty for None.
+  static QString relayReasonSentence(RelayReason reason);
+  // Details rows of a Session group, [[label, value]], only for values that exist: host "Encoder", "Bitrate", "Resolution";
+  // viewer "Decoder", "Bitrate", "Resolution".
+  static QVariantList hostDetailRows(const SessionStats& s);
+  static QVariantList viewerDetailRows(const SessionStats& s);
 
  signals:
   void statesChanged();
