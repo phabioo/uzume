@@ -29,6 +29,7 @@
 
 #include "diagbundle.h"
 #include "linkhandler.h"
+#include "mcp_tools.h"
 #include "filelog.h"
 #include "pluginimageprovider.h"
 #include "profilestore.h"
@@ -172,6 +173,7 @@ int main(int argc, char* argv[]) {
           "  --smoke-test         Load QML and exit with code 0 (code 1 on QML warnings).\n"
           "  --collect-logs <out.zip>  Write the diagnostics bundle (logs, system info; no passwords or tokens) and exit.\n"
           "  --data-dir <path>    Data directory (profiles, cache, saves) instead of the default.\n"
+          "  --mcp                Allow Claude to control this app (debug MCP server on 127.0.0.1) for this start only.\n"
           "  --dev-allow-http     Development only: also allow HTTP hubs outside localhost.\n"
           "  --setup-local-hub    Continue \"Set up a server on this PC\" (the installer starts the app with it).\n");
       return 0;
@@ -207,6 +209,8 @@ int main(int argc, char* argv[]) {
                                    QStringLiteral("Development only: also allow HTTP hubs outside localhost."));
   const QCommandLineOption setupLocalHub(QStringLiteral("setup-local-hub"),
                                          QStringLiteral("Continue \"Set up a server on this PC\" after the server was installed."));
+  const QCommandLineOption mcpOpt(QStringLiteral("mcp"), QStringLiteral("Debug MCP server on 127.0.0.1 for this start only (ADR 0032)."));
+  parser.addOption(mcpOpt);
   parser.addOption(setupLocalHub);
   parser.addOption(smoke);
   parser.addOption(dataDir);
@@ -274,6 +278,8 @@ int main(int argc, char* argv[]) {
     const int rc = app.exec();
     return g_qmlWarnings.load() > 0 ? 1 : rc;
   }
+  controller.mcp()->setToolInstaller([&controller](uzume::mcp::McpToolRegistry& r) { uzume::mcp::installTools(r, controller); });
+  if (parser.isSet(mcpOpt)) controller.mcp()->enableForThisStart();
   controller.startup();
   QObject::connect(&instance, &uzume::app::SingleInstance::activateRequested, &app, [] {
     for (QWindow* w : QGuiApplication::topLevelWindows()) {

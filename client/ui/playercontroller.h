@@ -59,6 +59,7 @@
 #include "updatescontroller.h"
 #include "admincontroller.h"
 #include "reportcontroller.h"
+#include "mcpcontroller.h"
 
 namespace uzume::ui {
 
@@ -162,6 +163,8 @@ class PlayerController : public QObject {
   Q_PROPERTY(uzume::ui::ConnectionCheckController* connectionCheck READ connectionCheck CONSTANT)
   // Save slot picker, history/restore, snapshots, "save changed elsewhere" notice (ADR 0012 D7)
   Q_PROPERTY(uzume::ui::SaveHistoryController* saveHistory READ saveHistory CONSTANT)
+  // Claude debugging (ADR 0032): switch, port, band; the MCP server itself lives in McpController.
+  Q_PROPERTY(uzume::ui::McpController* mcp READ mcp CONSTANT)
   // Log file path (empty when file logging is not active) and "open folder" (Settings)
   Q_PROPERTY(QString logFile READ logFile CONSTANT)
   // Shell (sidebar user block, Settings footer)
@@ -234,6 +237,11 @@ class PlayerController : public QObject {
   ScreenshotImageProvider* createScreenshotImageProvider() { return new ScreenshotImageProvider(screenshots_->cache()); }
   SaveHistoryController* saveHistory() { return history_.get(); }
   ConnectionCheckController* connectionCheck() { return connectionCheck_.get(); }
+  McpController* mcp() { return mcp_.get(); }
+  // Debug access (MCP server): the running game as {id, title, system, core, romPath, inputProfile}, empty map when none.
+  QVariantMap runningGameInfo() const;
+  // The player-info.json content of "Collect logs" (live values, no tokens or passwords).
+  QJsonObject diagnosticsSnapshot() const { return diagnosticsInfo(); }
   QString logFile() const;
   QString deviceName() const;
   QString userName() const;
@@ -582,6 +590,7 @@ class PlayerController : public QObject {
   bool saveReady_ = false;
   QString saveNoteStart_;  // note of the last start sync (e.g. Hub not reachable)
   QVariantMap conflict_;
+  std::unique_ptr<McpController> mcp_;  // last: destroyed first, its tools reach into everything above
 };
 
 }  // namespace uzume::ui

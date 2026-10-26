@@ -176,6 +176,14 @@ class PlayerSettings {
   QString audioOutputDevice() const { return audioOutputDevice_; }
   bool setAudioOutputDevice(const QString& id);  // empty = system default
 
+  // Claude debugging (ADR 0032, Settings > Diagnostics): the local MCP server of the app. Off by default; the port is
+  // 1024..65535 (default 47615). The token is not a setting: it lives in the credential store.
+  static constexpr int kDefaultMcpPort = 47615;
+  bool mcpEnabled() const { return mcpEnabled_; }
+  bool setMcpEnabled(bool on);
+  int mcpPort() const { return mcpPort_; }
+  bool setMcpPort(int port);  // outside 1024..65535: rejected (false)
+
   // Visibility of the own shared Session: "private" | "hub_users" | "invite_only"; "" = not chosen yet (the caller's default).
   QString sessionVisibility() const { return sessionVisibility_; }
   bool setSessionVisibility(const QString& visibility);  // anything else is rejected (false)
@@ -216,6 +224,8 @@ class PlayerSettings {
   int audioVolumeStep_ = 5;
   bool audioShowVolume_ = true;
   QString audioOutputDevice_;
+  bool mcpEnabled_ = false;
+  int mcpPort_ = kDefaultMcpPort;
 };
 
 }  // namespace uzume

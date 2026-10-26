@@ -181,6 +181,7 @@ void GameSession::launch(const LaunchConfig& config, bool restart) {
 }
 
 void GameSession::teardown() {
+  debugPad_ = 0;  // a debug button press never outlives the game
   ++runnerGen_;  // queued events of the runner that is stopped now must not reach the session any more
   if (!captureWaiters_.isEmpty()) {  // plugin captures waiting for a frame fail with the game
     auto waiters = std::move(captureWaiters_);
@@ -201,6 +202,14 @@ void GameSession::teardown() {
     fastForwardSupported_ = false;
     emit fastForwardChanged();
   }
+}
+
+bool GameSession::runOnEmuThread(std::function<void(emu::EmulatorBackend&)> fn, int timeoutMs) {
+  return runner_ && runner_->runOnEmuThread(std::move(fn), timeoutMs);
+}
+
+qint64 GameSession::stepFrames(int frames) {
+  return runner_ && state_ == Paused ? runner_->stepFrames(frames) : -1;
 }
 
 void GameSession::pause() {
@@ -619,6 +628,12 @@ void GameSession::setKeyboardMap(const QHash<int, quint32>& map) {
 void GameSession::setGamepadMask(quint32 mask) {
   if (mask == pad_) return;
   pad_ = mask;
+  applyJoypad();
+}
+
+void GameSession::setDebugPad(quint32 mask) {
+  if (mask == debugPad_) return;
+  debugPad_ = mask;
   applyJoypad();
 }
 

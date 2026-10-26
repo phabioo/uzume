@@ -63,6 +63,8 @@ constexpr const char* kAudioMutedKey = "audio_muted";
 constexpr const char* kAudioMuteBgKey = "audio_mute_in_background";
 constexpr const char* kAudioStepKey = "audio_volume_step";
 constexpr const char* kAudioShowVolumeKey = "audio_show_volume";
+constexpr const char* kMcpEnabledKey = "mcp_enabled";
+constexpr const char* kMcpPortKey = "mcp_port";
 constexpr const char* kAudioDeviceKey = "audio_output_device";
 constexpr const char* kSaveSlotsKey = "save_slots";  // { hub_id: { game_id: slot } }
 }
@@ -111,6 +113,11 @@ PlayerSettings::PlayerSettings(const QString& baseDir)
   audioMuteInBackground_ = raw_.value(QLatin1String(kAudioMuteBgKey)).toBool(true);
   if (const int st = raw_.value(QLatin1String(kAudioStepKey)).toInt(5); st == 5 || st == 10) audioVolumeStep_ = st;
   audioShowVolume_ = raw_.value(QLatin1String(kAudioShowVolumeKey)).toBool(true);
+  mcpEnabled_ = raw_.value(QLatin1String(kMcpEnabledKey)).toBool(false);
+  {
+    const int port = raw_.value(QLatin1String(kMcpPortKey)).toInt(kDefaultMcpPort);
+    mcpPort_ = port >= 1024 && port <= 65535 ? port : kDefaultMcpPort;
+  }
   audioOutputDevice_ = raw_.value(QLatin1String(kAudioDeviceKey)).toString();
   diagEmulationOpen_ = raw_.value(QLatin1String(kDiagEmulationKey)).toBool(true);
   diagStreamingOpen_ = raw_.value(QLatin1String(kDiagStreamingKey)).toBool(true);
@@ -279,6 +286,19 @@ bool PlayerSettings::setAudioVolumeStep(int percent) {
 bool PlayerSettings::setAudioShowVolume(bool on) {
   audioShowVolume_ = on;
   raw_.insert(QLatin1String(kAudioShowVolumeKey), on);
+  return save();
+}
+
+bool PlayerSettings::setMcpEnabled(bool on) {
+  mcpEnabled_ = on;
+  raw_.insert(QLatin1String(kMcpEnabledKey), on);
+  return save();
+}
+
+bool PlayerSettings::setMcpPort(int port) {
+  if (port < 1024 || port > 65535) return false;
+  mcpPort_ = port;
+  raw_.insert(QLatin1String(kMcpPortKey), port);
   return save();
 }
 

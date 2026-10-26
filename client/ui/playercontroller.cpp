@@ -72,6 +72,7 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
   downloader_ = std::make_unique<RomDownloader>(conn_.get(), cache_.get());
   saves_ = std::make_unique<SaveSync>(conn_.get(), profiles_.get());
   settings_ = std::make_unique<PlayerSettings>(profiles_->baseDir());
+  mcp_ = std::make_unique<McpController>(settings_.get(), credentials_);
   localRoms_ = std::make_unique<LocalRomIndex>(QDir(profiles_->baseDir()).filePath(QStringLiteral("cache/local-roms.json")));
   registrar_ = std::make_unique<RomRegistrar>(conn_.get());
   connect(localRoms_.get(), &LocalRomIndex::scanProgress, this, [this](int done, int total) {
@@ -717,7 +718,21 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
   });
 }
 
-PlayerController::~PlayerController() { shutdown(); }
+PlayerController::~PlayerController() {
+  mcp_.reset();  // no tool call may reach a half-destroyed controller
+  shutdown();
+}
+
+QVariantMap PlayerController::runningGameInfo() const {
+  if (!gameActive_ && !session_.isActive()) return {};
+  const emu::SystemManifest* man = catalog_ ? catalog_->manifestFor(launchGame_) : nullptr;
+  return QVariantMap{{QStringLiteral("id"), launchGame_.id},
+                     {QStringLiteral("title"), launchGame_.title},
+                     {QStringLiteral("system"), launchGame_.system},
+                     {QStringLiteral("core"), man != nullptr ? man->coreId : QString()},
+                     {QStringLiteral("romPath"), launchRom_},
+                     {QStringLiteral("inputProfile"), man != nullptr ? man->inputProfile : QString()}};
+}
 
 void PlayerController::endGameContext() {
   setBackground(false);
@@ -1004,6 +1019,7 @@ bool PlayerController::sessionBusy() const {
 }
 
 void PlayerController::startup() {
+  if (mcp_) mcp_->start();
   if (options_.enableUpdates && updates_) {
     updates_->manager()->start();
   }
