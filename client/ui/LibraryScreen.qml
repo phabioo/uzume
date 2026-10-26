@@ -232,7 +232,9 @@ Rectangle {
                 Layout.minimumWidth: 0
                 readonly property int gap: Theme.space1
                 // 0: one row, 1: search + sort / view, then the chips, 2: search, chips, then sort / view
-                readonly property int mode: width - chipRow.natural - rightRow.natural - 2 * gap >= 120 ? 0
+                // The search field may shrink to 96 px (short placeholder) before the chips leave the row: fallback
+                // fonts on Windows run wider than the Linux metrics.
+                readonly property int mode: width - chipRow.natural - rightRow.natural - 2 * gap >= 96 ? 0
                                             : width - rightRow.natural - gap >= 100 ? 1 : 2
                 implicitHeight: mode === 0 ? Theme.row36
                                 : mode === 1 ? Theme.row36 + gap + chipRow.height
@@ -245,7 +247,7 @@ Rectangle {
                            : toolbarBox.mode === 1 ? Math.min(260, toolbarBox.width - rightRow.natural - toolbarBox.gap)
                                                    : Math.min(260, toolbarBox.width)
                     implicitHeight: Theme.row36
-                    placeholderText: qsTr("Search games")
+                    placeholderText: width < 150 ? qsTr("Search") : qsTr("Search games")
                     onTextChanged: root.player.library.filterText = text
                 }
                 Shortcut {
