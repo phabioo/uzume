@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Library list</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/uzume/tokens.css">
+<link rel="stylesheet" href="ds/uzume/components/bundle.css">
+<script src="ds/uzume/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--accent-text)}a:hover{color:var(--ink)}
+</style>
+</helmet>
+<div class="uz" data-theme="sumi" style="width: 1280px; height: 800px; display: flex; background: var(--ground); color: var(--ink); font-family: var(--font-sans); overflow: hidden">
+  <div style="width: 232px; height: 800px; flex: none">
+    <x-import component-from-global-scope="Uzume.AppNav" active="Library" density="compact" online="{{online}}" user="{{user}}" badges="{{badges}}" notifications="{{two}}" style="height: 800px"></x-import>
+  </div>
+  <main style="flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 32px 32px 0 40px; gap: 20px; box-sizing: border-box">
+    <x-import component-from-global-scope="Uzume.PageHeader" title="Library" meta="12 games · 4 systems · 12 need attention"></x-import>
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
+      <x-import component-from-global-scope="Uzume.FilterChip" selected="{{yes}}" count="{{c12}}">All</x-import>
+      <x-import component-from-global-scope="Uzume.FilterChip" count="{{c0}}">Ready</x-import>
+      <x-import component-from-global-scope="Uzume.FilterChip" attention="{{yes}}" count="{{c12}}">Needs attention</x-import>
+      <x-import component-from-global-scope="Uzume.FilterChip" count="{{c0}}">Not downloaded</x-import>
+      <span style="width: 1px; height: 24px; background: var(--rule); margin: 0 4px"></span>
+      <x-import component-from-global-scope="Uzume.Select" options="{{collections}}" value="All collections" style="width: 160px"></x-import>
+    </div>
+    <div style="display: flex; align-items: center; gap: 16px">
+      <x-import component-from-global-scope="Uzume.SearchField" placeholder="Search games" shortcut="CTRL F"></x-import>
+      <div style="flex: 1"></div>
+      <span style="font: 400 12px/16px var(--font-mono); color: var(--muted)">SORT</span>
+      <x-import component-from-global-scope="Uzume.Select" options="{{sorts}}" value="Recently played" style="width: 168px"></x-import>
+      <x-import component-from-global-scope="Uzume.Segmented" items="{{views}}" active="List" label="View" size="sm"></x-import>
+    </div>
+    <div role="table" aria-label="Games" style="display: flex; flex-direction: column">
+      <div role="row" style="display: grid; grid-template-columns: 32px minmax(0, 1fr) 56px 200px 72px; gap: 12px; height: 32px; align-items: center; border-bottom: 1px solid var(--rule); padding: 0 12px; font: 500 11px/16px var(--font-mono); letter-spacing: .12em; color: var(--muted)">
+        <span role="columnheader">NO</span><span role="columnheader">GAME</span><span role="columnheader">SYSTEM</span><span role="columnheader">STATUS</span><span role="columnheader" style="text-align: right">PLAYED</span>
+      </div>
+      <sc-for list="{{games}}" as="g" hint-placeholder-count="12">
+        <div role="row" aria-selected="{{g.sel}}" tabindex="0" style="{{g.rowStyle}}">
+          <span style="font: 400 12px/16px var(--font-mono); color: var(--muted)">{{g.no}}</span>
+          <span style="{{g.titleStyle}}">{{g.title}}</span>
+          <span><x-import component-from-global-scope="Uzume.SystemChip" system="{{g.sys}}"></x-import></span>
+          <span style="display: flex; align-items: center; gap: 8px; font: 400 13px/18px var(--font-sans); color: var(--ink); white-space: nowrap; overflow: hidden">
+            <span aria-hidden="true" style="width: 14px; height: 14px; flex: none; display: grid; place-items: center; background: var(--accent); color: var(--on-accent); font: 700 10px/1 var(--font-sans)">!</span>{{g.status}}
+          </span>
+          <span style="text-align: right; font: 400 12px/16px var(--font-mono); color: var(--muted)">{{g.played}}</span>
+        </div>
+      </sc-for>
+    </div>
+  </main>
+  <aside aria-label="Game detail" style="width: 360px; flex: none; border-left: 1px solid var(--rule); display: flex; flex-direction: column; gap: 20px; padding: 32px 28px; box-sizing: border-box; background: var(--ground)">
+    <div style="display: flex; gap: 16px; align-items: flex-start">
+      <div aria-hidden="true" style="width: 88px; height: 88px; flex: none; border: 1px solid var(--rule); background: var(--placeholder); display: grid; place-items: center; font: 300 32px/1 var(--font-sans); color: var(--ink-2); position: relative">LD<span style="position: absolute; left: -1px; top: -1px; padding: 2px 6px; border: 1px solid var(--rule); background: var(--ground); font: 500 11px/14px var(--font-mono); color: var(--ink-2)">NDS</span></div>
+      <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0">
+        <h2 style="margin: 0; font: 400 24px/30px var(--font-sans); letter-spacing: -.01em">Lumen Drift</h2>
+        <span style="font: 400 12px/16px var(--font-mono); color: var(--muted)">NDS · 2 h 14 min · LAST 3 DAYS AGO</span>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 12px">
+      <x-import component-from-global-scope="Uzume.Button" variant="primary" style="align-self: stretch">Install core and play</x-import>
+      <x-import component-from-global-scope="Uzume.StatusIcon" kind="warning" size="sm">No NDS core on this PC yet. The server has melonDS DS 1.4.0 ready.</x-import>
+    </div>
+    <x-import component-from-global-scope="Uzume.Tabs" items="{{tabs}}" active="Overview"></x-import>
+    <div style="display: flex; flex-direction: column">
+      <sc-for list="{{facts}}" as="f" hint-placeholder-count="5">
+        <div style="display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--rule-2); font: 400 13px/20px var(--font-sans)">
+          <span style="color: var(--muted)">{{f.k}}</span><span style="color: var(--ink); text-align: right">{{f.v}}</span>
+        </div>
+      </sc-for>
+    </div>
+    <div style="display: flex; gap: 8px; flex-wrap: wrap">
+      <x-import component-from-global-scope="Uzume.Button" size="sm">Add to collection</x-import>
+      <x-import component-from-global-scope="Uzume.Button" size="sm">Start a run</x-import>
+      <x-import component-from-global-scope="Uzume.Menu" items="{{more}}" label="More actions for Lumen Drift"></x-import>
+    </div>
+  </aside>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"selectedRow":{"editor":"int","default":4,"min":1,"max":12},"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const sel = this.props.selectedRow ?? 4;
+    const base = 'display: grid; grid-template-columns: 32px minmax(0, 1fr) 56px 200px 72px; gap: 12px; height: 36px; align-items: center; padding: 0 12px; border-bottom: 1px solid var(--rule-2); outline: none;';
+    const list = [
+      ['Harbor Rally', 'GBA', 'Save conflict', 'YESTERDAY'],
+      ['Coral Saga', '3DS', 'Core missing', '2 DAYS'],
+      ['Tin Lantern', 'GB', 'Not downloaded', '—'],
+      ['Lumen Drift', 'NDS', 'Core missing', '3 DAYS'],
+      ['Moss Signal', 'GBC', 'BIOS missing', '1 WEEK'],
+      ['Paper Comet', 'GBA', 'Save conflict', '1 WEEK'],
+      ['Quiet Orbit', '3DS', 'Update ready', '2 WEEKS'],
+      ['Salt Meadow', 'NDS', 'Core missing', '2 WEEKS'],
+      ['Glass Harbor', 'GB', 'Not downloaded', '—'],
+      ['Ember Atlas', 'GBA', 'File changed on disk', '1 MONTH'],
+      ['Kite Relay', 'GBC', 'BIOS missing', '1 MONTH'],
+      ['North Pine', '3DS', 'Core missing', '2 MONTHS']
+    ];
+    const games = list.map((g, i) => {
+      const on = i + 1 === sel;
+      return {
+        no: String(i + 1).padStart(2, '0'), title: g[0], sys: g[1], status: g[2], played: g[3], sel: on ? 'true' : 'false',
+        rowStyle: base + (on ? ' background: var(--selected); box-shadow: var(--marker-start);' : ''),
+        titleStyle: 'font: ' + (on ? '500' : '400') + ' 14px/20px var(--font-sans); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis'
+      };
+    });
+    return {
+      yes: true, two: 2, c12: 12, c0: 0, games,
+      online: [{ name: 'Max', person: 'wasurenagusa', playing: 'Harbor Rally', system: 'GBA' }, { name: 'Jonas', person: 'moegi' }],
+      user: { name: 'Lena', role: 'Admin', person: 'momo' },
+      badges: { Status: { warning: 'Backup' }, 'Systems & cores': { warning: '2 cores' } },
+      collections: ['All collections', 'Favourites', 'SoulLink picks'],
+      sorts: ['Recently played', 'Title', 'System', 'Play time'],
+      views: ['List', 'Grid'],
+      tabs: ['Overview', 'Saves', 'Details'],
+      facts: [{ k: 'Main slot', v: 'Synced 3 days ago' }, { k: 'Core', v: 'melonDS DS · not installed' }, { k: 'Region', v: 'EU' }, { k: 'Size', v: '64 MB' }, { k: 'Added', v: '12 Oct 2026' }],
+      more: [{ label: 'Edit details' }, { label: 'Show in folder' }, { separator: true }, { label: 'Remove from library …', danger: true }]
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kinari check</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/uzume/tokens.css">
+<link rel="stylesheet" href="ds/uzume/components/bundle.css">
+<script src="ds/uzume/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--accent-text)}a:hover{color:var(--ink)}
+</style>
+</helmet>
+<div class="uz" data-theme="kinari" style="width: 1280px; height: 800px; display: flex; background: var(--ground); color: var(--ink); font-family: var(--font-sans); overflow: hidden">
+  <div style="width: 232px; height: 800px; flex: none">
+    <x-import component-from-global-scope="Uzume.AppNav" active="Library" density="compact" user="{{user}}" badges="{{badges}}" style="height: 800px"></x-import>
+  </div>
+  <main style="flex: 1; min-width: 0; padding: 32px 32px 0 40px; display: flex; flex-direction: column; gap: 18px; box-sizing: border-box">
+    <x-import component-from-global-scope="Uzume.PageHeader" title="Library" meta="Kinari · contrast labelled on the right of each part"></x-import>
+    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap">
+      <x-import component-from-global-scope="Uzume.FilterChip" selected="{{yes}}" count="{{c12}}">All</x-import>
+      <x-import component-from-global-scope="Uzume.FilterChip" count="{{c7}}">Ready</x-import>
+      <x-import component-from-global-scope="Uzume.FilterChip" attention="{{yes}}" count="{{c3}}">Needs attention</x-import>
+      <span style="flex: 1"></span>
+      <span style="font: 400 12px/16px var(--font-mono); color: var(--muted)">SELECTED CHIP: INK PLANE, GROUND TEXT 16.5:1 · CHIP BORDER RULE-CONTROL 3.7:1</span>
+    </div>
+    <div style="display: flex; gap: 24px">
+      <div role="table" aria-label="Games" style="flex: 1; min-width: 0; display: flex; flex-direction: column; border-top: 1px solid var(--rule)">
+        <sc-for list="{{games}}" as="g" hint-placeholder-count="8">
+          <div role="row" style="{{g.style}}">
+            <span style="flex: 1; min-width: 0; font: {{g.weight}} 14px/20px var(--font-sans); color: var(--ink)">{{g.title}}</span>
+            <x-import component-from-global-scope="Uzume.SystemChip" system="{{g.sys}}"></x-import>
+            <span style="width: 170px; display: flex; align-items: center; gap: 8px; font: 400 13px/18px var(--font-sans); color: var(--ink)">
+              <sc-if value="{{g.warn}}" hint-placeholder-val="{{false}}"><span aria-hidden="true" style="width: 14px; height: 14px; flex: none; display: grid; place-items: center; background: var(--accent); color: var(--on-accent); font: 700 10px/1 var(--font-sans)">!</span></sc-if>{{g.status}}
+            </span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="width: 250px; flex: none; display: flex; flex-direction: column; border-top: 1px solid var(--rule)">
+        <sc-for list="{{labels}}" as="l" hint-placeholder-count="8">
+          <div style="height: 40px; display: flex; align-items: center; border-bottom: 1px solid var(--rule-2); font: 400 12px/16px var(--font-mono); color: var(--ink-2)">{{l}}</div>
+        </sc-for>
+      </div>
+    </div>
+    <div style="display: flex; gap: 24px; align-items: flex-start">
+      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; border-top: 1px solid var(--rule)">
+        <x-import component-from-global-scope="Uzume.SettingsRow" label="Reduce motion" help="Off: muted knob, track border rule-control 3.7:1.">
+          <x-import component-from-global-scope="Uzume.Toggle" label="Reduce motion" checked="{{no}}"></x-import>
+        </x-import>
+        <x-import component-from-global-scope="Uzume.SettingsRow" label="Text size" help="Active segment: ink plane, ground text 16.5:1. No yellow.">
+          <x-import component-from-global-scope="Uzume.Segmented" items="{{sizes}}" active="125 %" label="Text size"></x-import>
+        </x-import>
+      </div>
+      <div style="width: 250px; flex: none; display: flex; flex-direction: column; gap: 8px; font: 400 12px/18px var(--font-mono); color: var(--ink-2)">
+        <span>ACTIVE NAV MARKER · ACCENT-TEXT 6.2:1</span>
+        <span>META · MUTED ON GROUND 6.4:1</span>
+        <span>DIM ON SELECTED · 4.7:1 (DECORATION ONLY)</span>
+        <span>DIVIDERS · RULE 1.45:1 (NO MINIMUM, NEVER A CONTROL)</span>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const row = 'height: 40px; display: flex; align-items: center; gap: 16px; padding: 0 12px; border-bottom: 1px solid var(--rule-2);';
+    const games = [
+      ['Harbor Rally', 'GBA', 'Ready'], ['Coral Saga', '3DS', 'Core missing', true], ['Lumen Drift', 'NDS', 'Core missing', true, true],
+      ['Moss Signal', 'GBC', 'BIOS missing', true], ['Paper Comet', 'GBA', 'Ready'], ['Quiet Orbit', '3DS', 'Ready'],
+      ['Salt Meadow', 'NDS', 'Save conflict', true], ['Tin Lantern', 'GB', 'Not downloaded']
+    ].map((g) => ({ title: g[0], sys: g[1], status: g[2], warn: !!g[3], weight: g[4] ? '500' : '400', style: row + (g[4] ? ' background: var(--selected); box-shadow: var(--marker-start);' : '') }));
+    return {
+      yes: true, no: false, c12: 12, c7: 7, c3: 3, games,
+      labels: [
+        'ROW · INK ON GROUND 16.5:1', 'WARNING · INK SENTENCE 16.5:1', 'SELECTED · INK ON TINT 14.2:1', '+ 2 PX INK MARKER 14.2:1',
+        'WARNING SQUARE · ! 9.5:1', 'SYSTEM CHIP · INK-2 11:1', 'SELECTION ≠ WARNING', 'NOT DOWNLOADED · NO SQUARE'
+      ],
+      sizes: ['100 %', '125 %', 'TV'],
+      badges: { Status: { warning: 'Backup' } },
+      user: { name: 'Lena', role: 'Admin', person: 'momo' }
+    };
+  }
+}
+</script>
+</body>
+</html>

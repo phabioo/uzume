@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Library grid</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/uzume/tokens.css">
+<link rel="stylesheet" href="ds/uzume/components/bundle.css">
+<script src="ds/uzume/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--accent-text)}a:hover{color:var(--ink)}
+</style>
+</helmet>
+<div class="uz" data-theme="sumi" style="width: 1280px; height: 800px; display: flex; background: var(--ground); color: var(--ink); font-family: var(--font-sans); overflow: hidden">
+  <div style="width: 232px; height: 800px; flex: none">
+    <x-import component-from-global-scope="Uzume.AppNav" active="Library" density="compact" online="{{online}}" user="{{user}}" badges="{{badges}}" notifications="{{zero}}" style="height: 800px"></x-import>
+  </div>
+  <main style="flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 32px 40px 0; gap: 20px; box-sizing: border-box">
+    <x-import component-from-global-scope="Uzume.PageHeader" title="Library" meta="12 games · 4 systems"></x-import>
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
+      <x-import component-from-global-scope="Uzume.FilterChip" selected="{{yes}}" count="{{c12}}">All</x-import>
+      <x-import component-from-global-scope="Uzume.FilterChip" count="{{c7}}">Ready</x-import>
+      <x-import component-from-global-scope="Uzume.FilterChip" attention="{{yes}}" count="{{c3}}">Needs attention</x-import>
+      <x-import component-from-global-scope="Uzume.FilterChip" count="{{c2}}">Not downloaded</x-import>
+      <span style="width: 1px; height: 24px; background: var(--rule); margin: 0 4px"></span>
+      <x-import component-from-global-scope="Uzume.Select" options="{{collections}}" value="All collections" style="width: 160px"></x-import>
+    </div>
+    <div style="display: flex; align-items: center; gap: 16px">
+      <x-import component-from-global-scope="Uzume.SearchField" placeholder="Search games" shortcut="CTRL F"></x-import>
+      <div style="flex: 1"></div>
+      <span style="font: 400 12px/16px var(--font-mono); color: var(--muted)">SORT</span>
+      <x-import component-from-global-scope="Uzume.Select" options="{{sorts}}" value="Recently played" style="width: 168px"></x-import>
+      <x-import component-from-global-scope="Uzume.Segmented" items="{{views}}" active="Grid" label="View" size="sm"></x-import>
+    </div>
+    <div role="list" aria-label="Games" style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 28px 24px; padding-top: 4px">
+      <sc-for list="{{games}}" as="g" hint-placeholder-count="10">
+        <div role="listitem" style="display: flex; flex-direction: column; gap: 10px; min-width: 0">
+          <button type="button" aria-label="{{g.label}}" style="{{g.artStyle}}">
+            <span style="position: absolute; left: -1px; top: -1px; padding: 2px 6px; border: 1px solid var(--rule); background: var(--ground); font: 500 11px/14px var(--font-mono); letter-spacing: .06em; color: var(--ink-2)">{{g.sys}}</span>
+            <span aria-hidden="true" style="font: 300 34px/1 var(--font-sans); color: var(--ink-2); letter-spacing: -.02em">{{g.mono}}</span>
+          </button>
+          <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0">
+            <span style="font: 500 14px/20px var(--font-sans); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{g.title}}</span>
+            <sc-if value="{{g.warn}}" hint-placeholder-val="{{false}}">
+              <span style="display: flex; align-items: center; gap: 6px; font: 400 12px/16px var(--font-sans); color: var(--ink)"><span aria-hidden="true" style="width: 12px; height: 12px; flex: none; display: grid; place-items: center; background: var(--accent); color: var(--on-accent); font: 700 9px/1 var(--font-sans)">!</span>{{g.status}}</span>
+            </sc-if>
+            <sc-if value="{{g.calm}}" hint-placeholder-val="{{true}}">
+              <span style="font: 400 12px/16px var(--font-sans); color: var(--muted)">{{g.status}}</span>
+            </sc-if>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"focusTile":{"editor":"int","default":2,"min":1,"max":10},"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const focus = this.props.focusTile ?? 2;
+    const list = [
+      ['Harbor Rally', 'HR', 'GBA', 'Ready · 12 h 40 min', false],
+      ['Coral Saga', 'CS', '3DS', 'Core missing', true],
+      ['Tin Lantern', 'TL', 'GB', 'Not downloaded · 1 MB', false],
+      ['Lumen Drift', 'LD', 'NDS', 'Ready · 2 h 14 min', false],
+      ['Moss Signal', 'MS', 'GBC', 'BIOS missing', true],
+      ['Paper Comet', 'PC', 'GBA', 'Ready · 40 min', false],
+      ['Quiet Orbit', 'QO', '3DS', 'Ready · 5 h 02 min', false],
+      ['Salt Meadow', 'SM', 'NDS', 'Save conflict', true],
+      ['Glass Harbor', 'GH', 'GB', 'Not downloaded · 1 MB', false],
+      ['Ember Atlas', 'EA', 'GBA', 'Ready · never played', false]
+    ];
+    const art = 'position: relative; width: 100%; aspect-ratio: 4 / 3; display: grid; place-items: center; background: var(--placeholder); border: 1px solid var(--rule-control); padding: 0; cursor: pointer; outline: none; font: inherit; color: inherit;';
+    const games = list.map((g, i) => ({
+      title: g[0], mono: g[1], sys: g[2], status: g[3], warn: g[4], calm: !g[4],
+      label: g[0] + ', ' + g[2] + ', ' + g[3],
+      artStyle: art + (i + 1 === focus ? ' box-shadow: var(--focus-ring); border-color: var(--ink);' : '')
+    }));
+    return {
+      yes: true, zero: 0, c12: 12, c7: 7, c3: 3, c2: 2, games,
+      online: [{ name: 'Max', person: 'wasurenagusa', playing: 'Harbor Rally', system: 'GBA' }, { name: 'Jonas', person: 'moegi' }],
+      user: { name: 'Lena', role: 'Admin', person: 'momo' },
+      badges: { 'Systems & cores': { warning: '1 core' } },
+      collections: ['All collections', 'Favourites', 'SoulLink picks'],
+      sorts: ['Recently played', 'Title', 'System', 'Play time'],
+      views: ['List', 'Grid']
+    };
+  }
+}
+</script>
+</body>
+</html>

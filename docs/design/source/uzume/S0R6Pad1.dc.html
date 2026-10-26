@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Library at TV scale</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/uzume/tokens.css">
+<link rel="stylesheet" href="ds/uzume/components/bundle.css">
+<script src="ds/uzume/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--accent-text)}a:hover{color:var(--ink)}
+</style>
+</helmet>
+<div class="uz" data-theme="sumi" data-scale="tv" style="width: 1280px; height: 800px; display: flex; background: var(--ground); color: var(--ink); font-family: var(--font-sans); overflow: hidden">
+  <div style="width: 232px; height: 800px; flex: none">
+    <x-import component-from-global-scope="Uzume.AppNav" active="Library" density="compact" user="{{user}}" style="height: 800px"></x-import>
+  </div>
+  <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+    <main style="flex: 1; min-height: 0; padding: 32px 48px 0 40px; display: flex; flex-direction: column; gap: 20px; box-sizing: border-box">
+      <div style="display: flex; align-items: flex-end; gap: 24px">
+        <h1 style="margin: 0; font: 300 48px/52px var(--font-sans); letter-spacing: -.02em">Library</h1>
+        <span style="font: 400 15px/22px var(--font-mono); color: var(--muted); padding-bottom: 6px">12 GAMES · TEXT SIZE TV</span>
+      </div>
+      <div role="group" aria-label="Status filter" style="display: flex; gap: 12px">
+        <sc-for list="{{chips}}" as="c" hint-placeholder-count="4">
+          <button type="button" aria-pressed="{{c.on}}" style="{{c.style}}"><sc-if value="{{c.warn}}" hint-placeholder-val="{{false}}"><span aria-hidden="true" style="width: 14px; height: 14px; display: inline-grid; place-items: center; background: var(--accent); color: var(--on-accent); font: 700 10px/1 var(--font-sans)">!</span></sc-if>{{c.label}}<span style="font: 400 15px/1 var(--font-mono); opacity: .85">{{c.n}}</span></button>
+        </sc-for>
+      </div>
+      <div role="list" aria-label="Games" style="display: flex; flex-direction: column; border-top: 1px solid var(--rule)">
+        <sc-for list="{{games}}" as="g" hint-placeholder-count="8">
+          <div role="listitem" tabindex="0" style="{{g.style}}">
+            <span style="font: 400 17px/24px var(--font-sans); color: var(--ink); flex: 1; min-width: 0">{{g.title}}</span>
+            <span style="padding: 2px 8px; border: 1px solid var(--rule); font: 500 14px/18px var(--font-mono); color: var(--ink-2)">{{g.sys}}</span>
+            <span style="width: 260px; display: flex; align-items: center; gap: 10px; font: 400 16px/22px var(--font-sans); color: var(--ink-2)">
+              <sc-if value="{{g.warn}}" hint-placeholder-val="{{false}}"><span aria-hidden="true" style="width: 16px; height: 16px; flex: none; display: grid; place-items: center; background: var(--accent); color: var(--on-accent); font: 700 11px/1 var(--font-sans)">!</span></sc-if>{{g.status}}
+            </span>
+          </div>
+        </sc-for>
+      </div>
+    </main>
+    <div style="border-top: 1px solid var(--rule)">
+      <x-import component-from-global-scope="Uzume.HintRow" hints="{{hints}}" end="{{end}}"></x-import>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const chip = (on) => 'height: 44px; display: inline-flex; align-items: center; gap: 10px; padding: 0 16px; cursor: pointer; font: 500 16px/1 var(--font-sans); border: 1px solid ' + (on ? 'var(--ink)' : 'var(--rule-control)') + '; background: ' + (on ? 'var(--ink)' : 'transparent') + '; color: ' + (on ? 'var(--ground)' : 'var(--ink)') + ';';
+    const chips = [['All', 12, true], ['Ready', 7], ['Needs attention', 3, false, true], ['Not downloaded', 2]].map((c) => ({ label: c[0], n: c[1], on: c[2] ? 'true' : 'false', warn: !!c[3], style: chip(!!c[2]) }));
+    const row = 'height: 52px; display: flex; align-items: center; gap: 24px; padding: 0 16px; border-bottom: 1px solid var(--rule-2); outline: none;';
+    const games = [
+      ['Harbor Rally', 'GBA', 'Ready'], ['Coral Saga', '3DS', 'Core missing', true], ['Lumen Drift', 'NDS', 'Ready'],
+      ['Moss Signal', 'GBC', 'BIOS missing', true], ['Paper Comet', 'GBA', 'Ready'], ['Quiet Orbit', '3DS', 'Ready'],
+      ['Salt Meadow', 'NDS', 'Save conflict', true], ['Tin Lantern', 'GB', 'Not downloaded']
+    ].map((g, i) => ({ title: g[0], sys: g[1], status: g[2], warn: !!g[3], style: row + (i === 2 ? ' box-shadow: var(--focus-ring-inset); background: var(--hover);' : '') }));
+    return {
+      chips, games,
+      hints: [{ k: 'A', label: 'Choose' }, { k: 'B', label: 'Back' }, { k: 'Y', label: 'Search' }, { k: 'Start', label: 'Options' }],
+      end: [{ k: 'L', label: 'Previous filter' }, { k: 'R', label: 'Next filter' }],
+      user: { name: 'Lena', role: 'Admin', person: 'momo' }
+    };
+  }
+}
+</script>
+</body>
+</html>

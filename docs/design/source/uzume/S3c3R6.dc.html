@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Game saves</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ds/uzume/tokens.css">
+<link rel="stylesheet" href="ds/uzume/components/bundle.css">
+<script src="ds/uzume/components/bundle.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:var(--accent-text)}a:hover{color:var(--ink)}
+</style>
+</helmet>
+<div class="uz" data-theme="sumi" style="width: 1280px; height: 800px; display: flex; background: var(--ground); color: var(--ink); font-family: var(--font-sans); overflow: hidden">
+  <div style="width: 232px; height: 800px; flex: none">
+    <x-import component-from-global-scope="Uzume.AppNav" active="Library" density="compact" online="{{online}}" user="{{user}}" notifications="{{zero}}" style="height: 800px"></x-import>
+  </div>
+  <main style="flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 28px 56px 0 40px; gap: 20px; box-sizing: border-box">
+    <a href="S3c1R6.dc.html" style="font: 400 13px/20px var(--font-sans); color: var(--muted); text-decoration: none">← Library</a>
+    <div style="display: flex; gap: 24px; align-items: flex-end; flex-wrap: wrap">
+      <div aria-hidden="true" style="width: 96px; height: 96px; flex: none; border: 1px solid var(--rule); background: var(--placeholder); display: grid; place-items: center; font: 300 34px/1 var(--font-sans); color: var(--ink-2); position: relative">HR<span style="position: absolute; left: -1px; top: -1px; padding: 2px 6px; border: 1px solid var(--rule); background: var(--ground); font: 500 11px/14px var(--font-mono); color: var(--ink-2)">GBA</span></div>
+      <div style="display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 240px">
+        <h1 style="margin: 0; font: 300 40px/44px var(--font-sans); letter-spacing: -.02em">Harbor Rally</h1>
+        <span style="font: 400 12px/16px var(--font-mono); color: var(--muted)">GBA · 12 H 40 MIN · LAST PLAYED YESTERDAY</span>
+      </div>
+      <div style="display: flex; gap: 12px; flex-wrap: wrap">
+        <x-import component-from-global-scope="Uzume.Button" variant="primary">Play from Main</x-import>
+        <x-import component-from-global-scope="Uzume.Button">Start a run</x-import>
+      </div>
+    </div>
+    <x-import component-from-global-scope="Uzume.Tabs" items="{{tabs}}" active="Saves" size="lg"></x-import>
+    <div style="display: flex; flex-direction: column; gap: 12px">
+      <div style="display: flex; align-items: center; gap: 12px">
+        <span style="font: 500 11px/16px var(--font-mono); letter-spacing: .14em; color: var(--muted)">SLOTS</span>
+        <div style="flex: 1"></div>
+        <x-import component-from-global-scope="Uzume.Button" size="sm">New slot</x-import>
+        <x-import component-from-global-scope="Uzume.Button" size="sm">Upload a save file</x-import>
+      </div>
+      <div role="table" aria-label="Save slots" style="display: flex; flex-direction: column; border-top: 1px solid var(--rule)">
+        <sc-for list="{{slots}}" as="s" hint-placeholder-count="3">
+          <div role="row" style="{{s.rowStyle}}">
+            <span style="{{s.nameStyle}}">{{s.name}}</span>
+            <span style="font: 400 13px/20px var(--font-sans); color: var(--ink-2)">{{s.state}}</span>
+            <span style="font: 400 12px/16px var(--font-mono); color: var(--muted)">{{s.when}}</span>
+            <span style="display: flex; gap: 8px; justify-content: flex-end">
+              <x-import component-from-global-scope="Uzume.Button" size="sm" variant="ghost">{{s.action}}</x-import>
+              <x-import component-from-global-scope="Uzume.Menu" items="{{slotMenu}}" label="{{s.menuLabel}}"></x-import>
+            </span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 10px">
+      <span style="font: 500 11px/16px var(--font-mono); letter-spacing: .14em; color: var(--muted)">SNAPSHOTS OF MAIN</span>
+      <div style="display: flex; flex-direction: column; border-top: 1px solid var(--rule)">
+        <sc-for list="{{snaps}}" as="n" hint-placeholder-count="3">
+          <div style="display: grid; grid-template-columns: 180px minmax(0, 1fr) 140px; gap: 16px; align-items: center; height: 36px; border-bottom: 1px solid var(--rule-2); padding: 0 12px">
+            <span style="font: 400 12px/16px var(--font-mono); color: var(--ink-2)">{{n.when}}</span>
+            <span style="font: 400 13px/20px var(--font-sans); color: var(--ink-2)">{{n.what}}</span>
+            <span style="display: flex; justify-content: flex-end"><x-import component-from-global-scope="Uzume.Button" size="sm" variant="ghost">Restore …</x-import></span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    <button type="button" aria-expanded="false" style="align-self: flex-start; display: flex; align-items: center; gap: 8px; background: none; border: 0; padding: 4px 0; color: var(--ink-2); font: 500 13px/20px var(--font-sans); cursor: pointer">
+      <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6 L8 11 L13 6" fill="none" stroke="currentColor" stroke-width="1.5"></path></svg>
+      File details<span style="font: 400 12px/16px var(--font-mono); color: var(--muted)">SHA-256 · LOCAL PATH · SIZE</span>
+    </button>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const row = 'display: grid; grid-template-columns: 200px minmax(0, 1fr) 160px 200px; gap: 16px; align-items: center; height: 44px; border-bottom: 1px solid var(--rule-2); padding: 0 12px;';
+    const slots = [
+      { name: 'Main', state: 'Synced with the server', when: 'YESTERDAY 21:40', action: 'Play', main: true },
+      { name: 'Route B test', state: 'Only on this PC · upload pending', when: '3 DAYS AGO', action: 'Play' },
+      { name: 'SoulLink · Run 2', state: 'Run slot, kept until the run ends', when: '1 WEEK AGO', action: 'Open run' }
+    ].map((s) => ({
+      ...s, menuLabel: 'More actions for ' + s.name,
+      rowStyle: row,
+      nameStyle: 'font: ' + (s.main ? '500' : '400') + ' 14px/20px var(--font-sans); color: var(--ink)'
+    }));
+    return {
+      zero: 0, slots,
+      tabs: ['Overview', 'Saves', 'Details'],
+      slotMenu: [{ label: 'Rename' }, { label: 'Download save file' }, { label: 'Make this Main …' }, { separator: true }, { label: 'Delete slot …', danger: true }],
+      snaps: [
+        { when: 'YESTERDAY 21:40', what: 'Automatic · after playing 1 h 12 min' },
+        { when: '22 OCT 19:05', what: 'Automatic · after playing 48 min' },
+        { when: '20 OCT 18:30', what: 'Before upload from Max’s PC' }
+      ],
+      online: [{ name: 'Max', person: 'wasurenagusa', playing: 'Harbor Rally', system: 'GBA' }, { name: 'Jonas', person: 'moegi' }],
+      user: { name: 'Lena', role: 'Admin', person: 'momo' }
+    };
+  }
+}
+</script>
+</body>
+</html>
