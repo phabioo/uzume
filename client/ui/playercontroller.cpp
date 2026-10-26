@@ -634,6 +634,8 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
   connect(controllers_.get(), &ControllersController::libretroMaskChanged, this,
           [this](quint32 mask) { session_.setGamepadMask(mask); });
   session_.setGamepadMask(controllers_->gamepads()->libretroMask());
+  // The pad drives the shell (arrows, A, B) unless a game runs unpaused: then the pad belongs to the core.
+  controllers_->setPadNavGate([this]() { return screen() != QLatin1String("game") || !session_.isActive() || session_.isPaused(); });
   connect(emulation_.get(), &EmulationController::uzumeOptionsChanged, this, &PlayerController::applyUzumeOptions);
   // The core choice of a system changed: the new core's options, status and the game detail follow at once.
   connect(emulation_.get(), &EmulationController::gameSelectionChanged, this, [this]() { refreshEmulationPage(); });

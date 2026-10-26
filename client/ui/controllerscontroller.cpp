@@ -1,5 +1,10 @@
 #include "controllerscontroller.h"
 
+#include <QCoreApplication>
+#include <QEvent>
+#include <QGuiApplication>
+#include <QKeyEvent>
+#include <QQuickWindow>
 #include <Qt>
 
 #include "controllersglyphs.h"
@@ -30,7 +35,13 @@ ControllersController::ControllersController(const QString& dataDir, QObject* pa
   });
   connect(&pads_, &input::GamepadService::stateChanged, this, &ControllersController::testChanged);
   connect(&pads_, &input::GamepadService::libretroMaskChanged, this, &ControllersController::libretroMaskChanged);
+  connect(&pads_, &input::GamepadService::polled, this, [this]() {
+    QSet<QString> all;
+    for (const auto& d : pads_.devices()) all.unite(pads_.pressedTokens(d.id));
+    feedPadNav(all, clock_.elapsed());
+  });
   connect(&pads_, &input::GamepadService::captured, this, [this](const QString& token, int deviceId) {
+    padNavMute_ = true;
     if (!padHotkeyListening_.isEmpty()) {
       capturePadHotkey(token, deviceId);
     } else {
@@ -38,19 +49,16 @@ ControllersController::ControllersController(const QString& dataDir, QObject* pa
     }
   });
   connect(&pads_, &input::GamepadService::hotkeyTriggered, this, [this](const QString& action) {
-    if (!padActive_) {
-      padActive_ = true;
-      emit hotkeyHintsChanged();
-    }
+    notePadInput();
     emit padHotkeyTriggered(action);
   });
   connect(&pads_, &input::GamepadService::stateChanged, this, [this]() {
     const auto devs = pads_.devices();
     if (!padActive_ && !devs.isEmpty() && !pads_.pressedTokens(devs.first().id).isEmpty()) {
-      padActive_ = true;
-      emit hotkeyHintsChanged();
+      notePadInput();
     }
   });
+  if (auto* app = QCoreApplication::instance()) app->installEventFilter(this);
   clock_.start();
   holdTimer_.setSingleShot(true);
   connect(&holdTimer_, &QTimer::timeout, this, &ControllersController::updateHold);
@@ -175,11 +183,27 @@ void ControllersController::syncPadHotkeys() {
   pads_.setPadHotkeys(profiles_.padHotkeyModifier(), bindings);
 }
 
+void ControllersController::notePadInput() {
+  if (!padActive_) {
+    padActive_ = true;
+    emit hotkeyHintsChanged();
+    emit padActiveChanged();
+  }
+}
+
 void ControllersController::noteKeyboardInput() {
   if (padActive_) {
     padActive_ = false;
     emit hotkeyHintsChanged();
+    emit padActiveChanged();
   }
+}
+
+bool ControllersController::eventFilter(QObject* watched, QEvent* event) {
+  if (synthesizing_) return false;
+  // Keys and the mouse mean the keyboard was used last (the hint row goes away); never consumes an event.
+  if (padActive_ && (event->type() == QEvent::KeyPress || event->type() == QEvent::MouseButtonPress)) noteKeyboardInput();
+  return QObject::eventFilter(watched, event);
 }
 
 void ControllersController::start(bool enableGamepads, int pollIntervalMs) {
@@ -889,6 +913,63 @@ void ControllersController::clearTestKeys() {
     heldKeys_.clear();
     emit testChanged();
   }
+}
+
+}  // namespace uzume::ui
+
+namespace uzume::ui {
+
+void ControllersController::sendPadKey(int key) {
+  QWindow* w = QGuiApplication::focusWindow();
+  if (w == nullptr) {
+    for (QWindow* t : QGuiApplication::topLevelWindows()) {
+      if (qobject_cast<QQuickWindow*>(t) != nullptr && t->isVisible()) { w = t; break; }
+    }
+  }
+  if (qobject_cast<QQuickWindow*>(w) == nullptr) return;
+  notePadInput();
+  synthesizing_ = true;
+  QKeyEvent press(QEvent::KeyPress, key, Qt::NoModifier);
+  QCoreApplication::sendEvent(w, &press);
+  QKeyEvent release(QEvent::KeyRelease, key, Qt::NoModifier);
+  QCoreApplication::sendEvent(w, &release);
+  synthesizing_ = false;
+}
+
+void ControllersController::feedPadNav(const QSet<QString>& tokens, qint64 nowMs) {
+  const QSet<QString> fresh = QSet<QString>(tokens).subtract(padNavPrev_);
+  padNavPrev_ = tokens;
+  const bool mute = padNavMute_;
+  padNavMute_ = false;
+  if (mute || pads_.capturing() || !padHotkeyListening_.isEmpty() || !hotkeyListening_.isEmpty() || !listening_.isEmpty() ||
+      (padNavGate_ && !padNavGate_())) {
+    padNavDir_.clear();
+    return;
+  }
+  const auto has = [&](const char* a, const char* b) { return tokens.contains(padToken(QString::fromLatin1(a))) || (b != nullptr && tokens.contains(padToken(QString::fromLatin1(b)))); };
+  const auto isNew = [&](const char* n) { return fresh.contains(padToken(QString::fromLatin1(n))); };
+  // Direction: one at a time, the first of up, down, left, right that is held.
+  QString dir;
+  int dirKey = 0;
+  if (has("dpup", "lefty-")) { dir = QStringLiteral("up"); dirKey = Qt::Key_Up; }
+  else if (has("dpdown", "lefty+")) { dir = QStringLiteral("down"); dirKey = Qt::Key_Down; }
+  else if (has("dpleft", "leftx-")) { dir = QStringLiteral("left"); dirKey = Qt::Key_Left; }
+  else if (has("dpright", "leftx+")) { dir = QStringLiteral("right"); dirKey = Qt::Key_Right; }
+  if (dir != padNavDir_) {
+    padNavDir_ = dir;
+    if (!dir.isEmpty()) {
+      sendPadKey(dirKey);
+      padNavNext_ = nowMs + 400;
+    }
+  } else if (!dir.isEmpty() && nowMs >= padNavNext_) {
+    sendPadKey(dirKey);
+    padNavNext_ = nowMs + 80;
+  }
+  if (isNew("a")) sendPadKey(Qt::Key_Return);
+  if (isNew("b")) sendPadKey(Qt::Key_Escape);
+  if (isNew("y")) { notePadInput(); emit padCommand(QStringLiteral("search")); }
+  if (isNew("leftshoulder")) { notePadInput(); emit padCommand(QStringLiteral("filterPrev")); }
+  if (isNew("rightshoulder")) { notePadInput(); emit padCommand(QStringLiteral("filterNext")); }
 }
 
 }  // namespace uzume::ui

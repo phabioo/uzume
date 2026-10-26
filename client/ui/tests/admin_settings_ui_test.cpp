@@ -8,6 +8,8 @@
 #include <QTemporaryDir>
 #include <QtTest>
 
+#include "controllerprofiles.h"
+#include "controllerscontroller.h"
 #include "fakehub.h"
 #include "testsupport.h"
 
@@ -111,6 +113,32 @@ class AdminSettingsUiTest : public QObject {
     QQuickItem* it = h.item(name);
     return it != nullptr && it->isVisible();
   }
+  // Keys-only walk helpers: the row (or control) that has the focus, found by the nearest objectName up the parent chain.
+  static QQuickItem* focused(Harness& h) { return h.window->activeFocusItem(); }
+  static QString focusName(Harness& h) {
+    for (QQuickItem* i = focused(h); i != nullptr; i = i->parentItem()) {
+      if (!i->objectName().isEmpty()) return i->objectName();
+    }
+    return {};
+  }
+  static bool focusIsRow(Harness& h) { return focused(h) != nullptr && focused(h)->property("colnavRow").toBool(); }
+  static bool focusInside(Harness& h, const char* name) {
+    QQuickItem* c = h.item(name);
+    return c != nullptr && focused(h) != nullptr && (c == focused(h) || c->isAncestorOf(focused(h)));
+  }
+  static void key(Harness& h, Qt::Key k) { QTest::keyClick(h.window, k); QTest::qWait(30); }
+  // Tab until `pred` holds (at most `max` presses).
+  template <typename F>
+  static bool tabUntil(Harness& h, F pred, int max = 80) {
+    for (int i = 0; i < max; ++i) {
+      if (pred()) return true;
+      key(h, Qt::Key_Tab);
+    }
+    return pred();
+  }
+  // Esc from the column leaves it for the AppNav.
+  static void expectNavFocus(Harness& h) { QTRY_VERIFY(focusInside(h, "appNav")); }
+
   // Settings, scope Server, the given page.
   static void openPage(Harness& h, const char* nav, const char* pageName) {
     h.window->resize(1400, 1800);
@@ -364,7 +392,6 @@ class AdminSettingsUiTest : public QObject {
     QVERIFY(h.click("backupsTableRow_0"));
     QVERIFY(h.clickWhenReady("backupRestore"));
     QTRY_VERIFY(shown(h, "restoreDialog"));
-    QVERIFY(text(h.item("restoreDialog")).isEmpty() || true);
     QCOMPARE(calls(hub, restore), 0);
     QVERIFY(h.click("restoreConfirm"));
     QTRY_VERIFY(h.controller->admin()->confirmNeeded());
@@ -563,6 +590,190 @@ class AdminSettingsUiTest : public QObject {
     openPage(h, "serverSettingsNav_storage", "settingsStorage");
     QTRY_VERIFY(shown(h, "storageNothingToClean"));
     QVERIFY(!shown(h, "storageShotsLabel"));
+  }
+
+  // Keys alone (Tab / arrows / Enter / Esc): Settings (This PC and Server), Emulation, Controllers and an admin page reach the column
+  // rows and the content controls, and Esc steps back: content -> column -> AppNav -> Library.
+  void keysAloneWalkTheMainPages() {
+    FakeHub hub(QStringLiteral("a"));
+    adminHub(hub);
+    QVERIFY(hub.start());
+    Harness h;
+    QVERIFY(h.start());
+    pair(h, hub);
+    h.window->resize(1400, 1000);
+    QTRY_VERIFY(h.controller->admin()->available());
+
+    // Settings: the section column.
+    h.controller->showSettings();
+    QTRY_VERIFY(h.item("section_account") != nullptr);
+    QTRY_VERIFY(h.item("settingsColumnNav") != nullptr);
+    QVERIFY(tabUntil(h, [&] { return focusIsRow(h); }));
+    QVERIFY(focusName(h).startsWith(QStringLiteral("section_")));
+    const QString first = focusName(h);
+    key(h, Qt::Key_Down);
+    QVERIFY(focusIsRow(h));
+    QVERIFY(focusName(h) != first);
+    key(h, Qt::Key_Up);
+    QCOMPARE(focusName(h), first);
+    key(h, Qt::Key_Down);
+    key(h, Qt::Key_Return);   // opens the section: the row is selected
+    QVERIFY(h.item(focusName(h).toLatin1().constData())->property("selected").toBool());
+    key(h, Qt::Key_Right);    // into the content
+    QTRY_VERIFY(focusInside(h, "settingsScroll"));
+    QVERIFY(!focusIsRow(h));
+    key(h, Qt::Key_Escape);   // content -> column
+    QTRY_VERIFY(focusIsRow(h));
+    QVERIFY(h.item(focusName(h).toLatin1().constData())->property("selected").toBool());
+    key(h, Qt::Key_Escape);   // column -> AppNav
+    expectNavFocus(h);
+    QCOMPARE(h.controller->screen(), QStringLiteral("settings"));
+
+    // Settings for Server: the server pages are rows of the same column.
+    QVERIFY(h.clickWhenReady("scopeServer"));
+    QTRY_VERIFY(h.item("serverSettingsNav_network") != nullptr);
+    QVERIFY(tabUntil(h, [&] { return focusIsRow(h); }));
+    QVERIFY(focusName(h).startsWith(QStringLiteral("serverSettingsNav_")));
+    for (int i = 0; i < 7 && focusName(h) != QStringLiteral("serverSettingsNav_network"); ++i) key(h, Qt::Key_Down);
+    QCOMPARE(focusName(h), QStringLiteral("serverSettingsNav_network"));
+    key(h, Qt::Key_Return);
+    QTRY_VERIFY(shown(h, "settingsNetwork"));
+    key(h, Qt::Key_Right);
+    QTRY_VERIFY(!focusIsRow(h) && focusInside(h, "settingsScroll"));
+    key(h, Qt::Key_Escape);
+    QTRY_VERIFY(focusIsRow(h));
+
+    // Emulation.
+    h.controller->showEmulation();
+    QTRY_VERIFY(h.item("defaultsCard") != nullptr);
+    QVERIFY(tabUntil(h, [&] { return focusIsRow(h); }));
+    key(h, Qt::Key_Down);
+    QVERIFY(focusIsRow(h));
+    QVERIFY(focusName(h).startsWith(QStringLiteral("systemCard_")));
+    key(h, Qt::Key_Return);
+    QVERIFY(h.item(focusName(h).toLatin1().constData())->property("selected").toBool());
+    key(h, Qt::Key_Right);
+    QTRY_VERIFY(focusInside(h, "emulationScroll") && !focusIsRow(h));
+    key(h, Qt::Key_Escape);
+    QTRY_VERIFY(focusIsRow(h));
+    key(h, Qt::Key_Escape);
+    expectNavFocus(h);
+
+    // Controllers: the device column, then a binding field takes Enter.
+    h.controller->showControllers();
+    QTRY_VERIFY(h.item("controllersColumnNav") != nullptr);
+    QVERIFY(tabUntil(h, [&] { return focusIsRow(h); }));
+    QVERIFY(focusName(h).startsWith(QStringLiteral("device_")));
+    key(h, Qt::Key_Right);
+    QTRY_VERIFY(!focusIsRow(h));
+    QVERIFY(tabUntil(h, [&] { return focusName(h).startsWith(QStringLiteral("mapField_")); }, 120));
+    QVERIFY(focused(h)->property("capturing").isValid());
+    key(h, Qt::Key_Return);   // starts capture (a built-in profile is duplicated first)
+    key(h, Qt::Key_Escape);   // cancels the capture
+    h.controller->showControllers();
+    QTRY_VERIFY(h.item("controllersColumnNav") != nullptr);
+
+    // An admin page: Esc goes to the AppNav, and from there to the Library.
+    h.controller->showServerPage(QStringLiteral("status"));
+    QTRY_VERIFY(h.item("serverScreen") != nullptr && h.item("serverScreen")->isVisible());
+    QTRY_VERIFY(h.item("appNav") != nullptr);
+    // Tab walks the AppNav first, then reaches a control of the page (Esc there moves to the AppNav).
+    QVERIFY(tabUntil(h, [&] { return focusInside(h, "serverScreen") && !focusInside(h, "appNav"); }, 120));
+    key(h, Qt::Key_Escape);
+    expectNavFocus(h);
+    key(h, Qt::Key_Escape);
+    QTRY_COMPARE(h.controller->screen(), QStringLiteral("library"));
+  }
+
+  // The hint row shows while the last input was a pad, takes no space otherwise, and a key press hides it again.
+  void hintRowFollowsTheLastInput() {
+    FakeHub hub(QStringLiteral("a"));
+    adminHub(hub);
+    QVERIFY(hub.start());
+    Harness h;
+    QVERIFY(h.start());
+    pair(h, hub);
+    h.controller->showSettings();
+    QTRY_VERIFY(h.item("pageHints") != nullptr);
+    QVERIFY(!h.item("pageHints")->isVisible());
+    QCOMPARE(h.item("pageHints")->height(), 0.0);
+    h.controller->controllers()->notePadInput();
+    QTRY_VERIFY(h.item("pageHints")->isVisible());
+    QCOMPARE(h.item("pageHints")->height(), 44.0);
+    key(h, Qt::Key_Shift);
+    QTRY_VERIFY(!h.item("pageHints")->isVisible());
+  }
+
+  // The pad as UI input: the same path the SDL poll uses (ControllersController::feedPadNav). D-pad moves the focus (with repeat), A
+  // opens, B steps back, the gate (a running game) silences it, and every translated input shows the hint row.
+  void padInputNavigatesTheShell() {
+    FakeHub hub(QStringLiteral("a"));
+    adminHub(hub);
+    QVERIFY(hub.start());
+    Harness h;
+    QVERIFY(h.start());
+    pair(h, hub);
+    h.window->resize(1400, 1000);
+    auto* ctl = h.controller->controllers();
+    const auto tok = [](std::initializer_list<const char*> names) {
+      QSet<QString> s;
+      for (const char* n : names) s.insert(padToken(QString::fromLatin1(n)));
+      return s;
+    };
+    qint64 t = 1000;
+    const auto tap = [&](std::initializer_list<const char*> names) {
+      ctl->feedPadNav(tok(names), t += 20);
+      ctl->feedPadNav({}, t += 20);
+      QTest::qWait(30);
+    };
+    h.controller->showSettings();
+    QTRY_VERIFY(h.item("settingsColumnNav") != nullptr);
+    QVERIFY(!h.item("pageHints")->isVisible());
+    QVERIFY(tabUntil(h, [&] { return focusIsRow(h); }));
+    const QString first = focusName(h);
+    tap({"dpdown"});
+    QVERIFY(h.item("pageHints")->isVisible());   // pad input shows the hint row
+    QVERIFY(focusIsRow(h));
+    QVERIFY(focusName(h) != first);
+    tap({"dpup"});
+    QCOMPARE(focusName(h), first);
+    // A stick direction repeats after 400 ms, then every 80 ms.
+    const QString start = focusName(h);
+    ctl->feedPadNav(tok({"lefty+"}), 5000);            // moves one row
+    const QString one = focusName(h);
+    QVERIFY(one != start);
+    ctl->feedPadNav(tok({"lefty+"}), 5300);            // too early
+    QCOMPARE(focusName(h), one);
+    ctl->feedPadNav(tok({"lefty+"}), 5410);            // first repeat
+    QVERIFY(focusName(h) != one);
+    const QString two = focusName(h);
+    ctl->feedPadNav(tok({"lefty+"}), 5440);            // before the 80 ms repeat
+    QCOMPARE(focusName(h), two);
+    ctl->feedPadNav(tok({"lefty+"}), 5500);
+    QVERIFY(focusName(h) != two);
+    ctl->feedPadNav({}, 5520);
+    // A opens the row, D-pad right enters the content, B steps back twice.
+    tap({"a"});
+    QVERIFY(h.item(focusName(h).toLatin1().constData())->property("selected").toBool());
+    tap({"dpright"});
+    QTRY_VERIFY(focusInside(h, "settingsScroll") && !focusIsRow(h));
+    tap({"b"});
+    QTRY_VERIFY(focusIsRow(h));
+    tap({"b"});
+    expectNavFocus(h);
+    // The gate: while a game has the pad nothing is translated.
+    ctl->setPadNavGate([] { return false; });
+    const QString before = focusName(h);
+    tap({"dpdown"});
+    QCOMPARE(focusName(h), before);
+    ctl->setPadNavGate({});
+    // Y, L, R are commands for the page.
+    QStringList got;
+    QObject::connect(ctl, &ControllersController::padCommand, ctl, [&](const QString& c) { got << c; });
+    tap({"y"});
+    tap({"leftshoulder"});
+    tap({"rightshoulder"});
+    QCOMPARE(got, (QStringList{QStringLiteral("search"), QStringLiteral("filterPrev"), QStringLiteral("filterNext")}));
   }
 
   void withoutAdminV1ThePaneExplainsIt() {

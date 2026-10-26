@@ -109,6 +109,20 @@ ApplicationWindow {
         anchors.top: parent.top
         anchors.bottom: mcpBandItem.visible ? mcpBandItem.top : parent.bottom
         currentIndex: ["connection", "pairing", "library", "game", "settings", "emulation", "controllers", "runs", "server", "start"].indexOf(window.player.screen)
+        focus: true
+
+        // Back rule (readable-pass.md, design-system.md "Focus is always visible"): B / Esc go one level back on a main page.
+        // Dialogs and menus close first (they take the key themselves), inside the content of a page with a second column the
+        // key returns to the column (Left does too, when the control under the focus does not use it), from the column or a page
+        // without one it moves to the AppNav, and from the AppNav it goes to the Library. In the game Esc pauses (GameScreen).
+        Keys.onPressed: (event) => {
+            if (!window.navHotkeys) return
+            const back = event.key === Qt.Key_Escape || event.key === Qt.Key_Back
+            const left = event.key === Qt.Key_Left && event.modifiers === Qt.NoModifier
+            if (!back && !left) return
+            if (event.isAutoRepeat) { event.accepted = true; return }
+            if (window.stepBack(left)) event.accepted = true
+        }
 
         ConnectionScreen { player: window.player }
         PairingScreen { player: window.player }
@@ -126,6 +140,45 @@ ApplicationWindow {
         RunsScreen { player: window.player }
         ServerScreen { player: window.player }
         StartScreen { player: window.player }
+    }
+
+    // The page that is shown now (the Settings page lives in a Loader).
+    function currentPage(): Item {
+        const p = stack.children[stack.currentIndex]
+        return p && p.item ? p.item : p
+    }
+    function findByName(item: Item, name: string): Item {
+        if (!item) return null
+        if (item.objectName === name) return item
+        const kids = item.children
+        for (let i = 0; i < kids.length; ++i) {
+            const hit = window.findByName(kids[i], name)
+            if (hit) return hit
+        }
+        return null
+    }
+    // One level back. `onlyContent` (Left): only content -> column. Returns true when something moved.
+    function stepBack(onlyContent: bool): bool {
+        const page = window.currentPage()
+        if (!page) return false
+        if (page.handleBack !== undefined && page.handleBack()) return true
+        if (onlyContent) return false
+        const nav = window.findByName(page, "appNav")
+        if (nav && !nav.hasFocus()) return nav.focusActive()
+        if (nav && window.player.screen !== "library") { window.player.showLibrary(); return true }
+        return false
+    }
+    // A page that opens without a focused control keeps the key handling above.
+    Connections {
+        target: window.player
+        function onScreenChanged() {
+            Qt.callLater(function () {
+                const f = window.activeFocusItem
+                let inside = false
+                for (let p = f; p; p = p.parent) { if (p === stack) { inside = true; break } }
+                if (!inside && window.navHotkeys) stack.forceActiveFocus()
+            })
+        }
     }
 
     // First start, joining and setting up servers (0.18 package 7): the start screen replaces the connection screens for the first

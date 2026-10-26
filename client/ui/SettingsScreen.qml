@@ -40,47 +40,6 @@ Rectangle {
         }
     }
 
-    // Second-column item (board nav): 32 px minimum, 14 px label, 2 px Yamabuki start marker when selected; extra lines go below.
-    component NavRow: Item {
-        id: nr
-        property string label: ""
-        property bool selected: false
-        default property alias sub: subCol.data
-        signal clicked()
-        Layout.fillWidth: true
-        Layout.minimumWidth: 0
-        implicitHeight: Math.max(Theme.row32, nrCol.implicitHeight + 2 * Theme.space05)
-        Rectangle { anchors.fill: parent; color: nrHover.hovered && !nr.selected ? Theme.hover : "transparent" }
-        Rectangle {
-            objectName: "columnItemMarker"
-            visible: nr.selected
-            width: 2
-            height: parent.height
-            color: Theme.accent
-        }
-        ColumnLayout {
-            id: nrCol
-            x: Theme.space15
-            y: Math.max(0, (nr.height - implicitHeight) / 2)
-            width: Math.max(0, nr.width - 2 * Theme.space15)
-            spacing: 0
-            UzLabel {
-                Layout.fillWidth: true
-                text: nr.label
-                elide: Text.ElideRight
-                font.weight: nr.selected ? Font.Medium : Font.Normal
-                color: nr.selected ? Theme.ink : Theme.muted
-            }
-            ColumnLayout {
-                id: subCol
-                Layout.fillWidth: true
-                Layout.minimumWidth: 0
-                spacing: 0
-            }
-        }
-        HoverHandler { id: nrHover; cursorShape: Qt.PointingHandCursor }
-        TapHandler { onTapped: nr.clicked() }
-    }
 
     readonly property var savedHubs: root.player.hubs.filter(function (h) { return h.saved })
     readonly property string activeHubName: {
@@ -121,6 +80,9 @@ Rectangle {
             Qt.callLater(function () { root.jumpTo(section) })
         }
     }
+
+    // B / Esc / Left inside the content: back to the column (the shell moves to the AppNav when this returns false).
+    function handleBack(): bool { return secNav.backFromContent() }
 
     function sectionItem(name: string): Item {
         switch (name) {
@@ -192,8 +154,19 @@ Rectangle {
         }
     }
 
+    UzPageHints {
+        id: pageHints
+        player: root.player
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+    }
+
     RowLayout {
-        anchors.fill: parent
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.bottom: pageHints.top
         spacing: 0
 
         UzAppNav {
@@ -208,13 +181,18 @@ Rectangle {
             Layout.preferredWidth: Theme.sidebar
             Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: Theme.rule }
             Flickable {
+                id: secFlick
                 anchors.fill: parent
                 contentWidth: width
                 contentHeight: secNav.implicitHeight + Theme.space7
                 clip: true
                 boundsBehavior: Flickable.StopAtBounds
-                ColumnLayout {
+                UzColumnNav {
                     id: secNav
+                    objectName: "settingsColumnNav"
+                    content: flick
+                    flickable: secFlick
+                    onContentRequested: secNav.focusFirstIn(flick)
                     x: Theme.space2
                     y: Theme.space5 + Theme.space1
                     width: parent.width - 2 * Theme.space2 - 1
@@ -255,7 +233,7 @@ Rectangle {
                     Repeater {
                         // Count model, delegates by index: a JS array model rebuilt on a scope change loops the layout (Qt 6.4).
                         model: root.scope !== "pc" ? 0 : root.sectionDefs.length
-                        delegate: NavRow {
+                        delegate: UzColumnNavRow {
                             id: sec
                             required property int index
                             readonly property var modelData: root.sectionDefs[sec.index]

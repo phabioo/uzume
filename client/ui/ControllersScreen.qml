@@ -35,65 +35,6 @@ Rectangle {
     readonly property int hotkeyPadMinWidth: hotkeyPadWidth
     color: Theme.ground
 
-    // Second-column item (board nav): 32 px minimum, 14 px label, mono meta at the right, 2 px Yamabuki start marker when selected.
-    component NavRow: Item {
-        id: nr
-        property string label: ""
-        property string meta: ""
-        property string metaName: ""
-        property bool selected: false
-        default property alias sub: subCol.data
-        signal clicked()
-        Layout.fillWidth: true
-        Layout.minimumWidth: 0
-        implicitHeight: Math.max(Theme.row32, nrCol.implicitHeight + 2 * Theme.space05)
-        Rectangle { anchors.fill: parent; color: nrHover.hovered && !nr.selected ? Theme.hover : "transparent" }
-        Rectangle {
-            objectName: "columnItemMarker"
-            visible: nr.selected
-            width: 2
-            height: parent.height
-            color: Theme.accent
-        }
-        ColumnLayout {
-            id: nrCol
-            x: Theme.space15
-            y: Math.max(0, (nr.height - implicitHeight) / 2)
-            width: Math.max(0, nr.width - 2 * Theme.space15)
-            spacing: 0
-            RowLayout {
-                Layout.fillWidth: true
-                Layout.minimumWidth: 0
-                spacing: Theme.space1
-                UzLabel {
-                    Layout.fillWidth: true
-                    text: nr.label
-                    elide: Text.ElideRight
-                    font.weight: nr.selected ? Font.Medium : Font.Normal
-                    color: nr.selected ? Theme.ink : Theme.muted
-                }
-                Text {
-                    objectName: nr.metaName
-                    visible: nr.meta !== ""
-                    text: nr.meta
-                    textFormat: Text.PlainText
-                    font.family: Theme.mono
-                    font.pixelSize: Theme.roles.meta.size
-                    font.letterSpacing: Theme.roles.meta.spacing
-                    font.capitalization: Font.AllUppercase
-                    color: Theme.dim
-                }
-            }
-            ColumnLayout {
-                id: subCol
-                Layout.fillWidth: true
-                Layout.minimumWidth: 0
-                spacing: 0
-            }
-        }
-        HoverHandler { id: nrHover; cursorShape: Qt.PointingHandCursor }
-        TapHandler { onTapped: nr.clicked() }
-    }
 
     // One page tab (same look as UzTabs, with an objectName per tab): ink 500 with the 2 px Yamabuki underline when active.
     component PageTab: Item {
@@ -171,6 +112,9 @@ Rectangle {
         }
     }
 
+    // B / Esc / Left inside the content: back to the column (the shell moves to the AppNav when this returns false).
+    function handleBack(): bool { return devNav.backFromContent() }
+
     onVisibleChanged: if (visible) keyScope.forceActiveFocus()
     Connections {
         target: root.ctl
@@ -199,8 +143,19 @@ Rectangle {
         }
         onActiveFocusChanged: if (!activeFocus) root.ctl.clearTestKeys()
 
+        UzPageHints {
+            id: pageHints
+            player: root.player
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+        }
+
         RowLayout {
-            anchors.fill: parent
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.bottom: pageHints.top
             spacing: 0
 
             UzAppNav {
@@ -215,13 +170,18 @@ Rectangle {
                 Layout.preferredWidth: Theme.sidebar
                 Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: Theme.rule }
                 Flickable {
+                    id: devFlick
                     anchors.fill: parent
                     contentWidth: width
                     contentHeight: devNav.implicitHeight + Theme.space7
                     clip: true
                     boundsBehavior: Flickable.StopAtBounds
-                    ColumnLayout {
+                    UzColumnNav {
                         id: devNav
+                        objectName: "controllersColumnNav"
+                        content: flick
+                        flickable: devFlick
+                        onContentRequested: devNav.focusFirstIn(flick)
                         x: Theme.space2
                         y: Theme.space5 + Theme.space1
                         width: parent.width - 2 * Theme.space2 - 1
@@ -249,7 +209,7 @@ Rectangle {
 
                         Repeater {
                             model: root.ctl.devices
-                            delegate: NavRow {
+                            delegate: UzColumnNavRow {
                                 id: dev
                                 required property var modelData
                                 objectName: "device_" + modelData.key
@@ -519,7 +479,8 @@ Rectangle {
                             Layout.bottomMargin: Theme.space15
                             spacing: Theme.space2
                             UzLabel { Layout.fillWidth: true; Layout.preferredWidth: 1; Layout.minimumWidth: 0; text: qsTr("Gamepad hotkey button"); elide: Text.ElideRight }
-                            Rectangle {
+                            UzCaptureField {
+                                capturing: root.ctl.padHotkeyListening === "modifier"; accessibleName: qsTr("Gamepad modifier")
                                 objectName: "padModifierField"
                                 Layout.fillWidth: true
                                 Layout.preferredWidth: root.hotkeyPadWidth
@@ -542,9 +503,7 @@ Rectangle {
                                     font.pixelSize: Theme.roles.input.size
                                     elide: Text.ElideRight
                                 }
-                                TapHandler {
-                                    onTapped: parent.listening ? root.ctl.cancelPadHotkeyCapture() : root.ctl.beginPadHotkeyCapture("modifier")
-                                }
+                                onActivated: listening ? root.ctl.cancelPadHotkeyCapture() : root.ctl.beginPadHotkeyCapture("modifier")
                             }
                             RowLayout {
                                 Layout.preferredWidth: root.actionWidth
@@ -616,7 +575,9 @@ Rectangle {
                                         // Same structure as the Buttons table: one label directly in the cell.
                                         UzLabel { Layout.fillWidth: true; Layout.preferredWidth: 1; Layout.minimumWidth: 0; text: hrow.modelData.label; elide: Text.ElideRight }
                                     }
-                                    Rectangle {
+                                    UzCaptureField {
+                                        locked: hrow.modelData.fixed
+                                        capturing: hrow.modelData.listening; accessibleName: qsTr("Key for %1").arg(hrow.modelData.label !== undefined ? hrow.modelData.label : hrow.modelData.action)
                                         objectName: "hotkeyField_" + hrow.modelData.action
                                         Layout.fillWidth: true
                                         Layout.preferredWidth: root.hotkeyKeyWidth
@@ -651,12 +612,11 @@ Rectangle {
                                                 onClicked: root.ctl.clearHotkey(hrow.modelData.action)
                                             }
                                         }
-                                        TapHandler {
-                                            enabled: !hrow.modelData.fixed
-                                            onTapped: hrow.modelData.listening ? root.ctl.cancelHotkeyCapture() : root.ctl.beginHotkeyCapture(hrow.modelData.action)
-                                        }
+                                        onActivated: hrow.modelData.listening ? root.ctl.cancelHotkeyCapture() : root.ctl.beginHotkeyCapture(hrow.modelData.action)
                                     }
-                                    Rectangle {
+                                    UzCaptureField {
+                                        locked: hrow.modelData.fixed
+                                        capturing: hrow.modelData.padListening; accessibleName: qsTr("Gamepad button for %1").arg(hrow.modelData.label !== undefined ? hrow.modelData.label : hrow.modelData.action)
                                         objectName: "hotkeyPadField_" + hrow.modelData.action
                                         Layout.fillWidth: true
                                         Layout.preferredWidth: root.hotkeyPadWidth
@@ -691,10 +651,7 @@ Rectangle {
                                                 onClicked: root.ctl.clearPadHotkey(hrow.modelData.action)
                                             }
                                         }
-                                        TapHandler {
-                                            enabled: !hrow.modelData.fixed
-                                            onTapped: hrow.modelData.padListening ? root.ctl.cancelPadHotkeyCapture() : root.ctl.beginPadHotkeyCapture(hrow.modelData.action)
-                                        }
+                                        onActivated: hrow.modelData.padListening ? root.ctl.cancelPadHotkeyCapture() : root.ctl.beginPadHotkeyCapture(hrow.modelData.action)
                                     }
                                     RowLayout {
                                         Layout.preferredWidth: root.actionWidth
@@ -906,7 +863,8 @@ Rectangle {
                                                         }
                                                         UzLabel { Layout.fillWidth: true; Layout.preferredWidth: 1; Layout.minimumWidth: 0; text: prow.modelData.label; elide: Text.ElideRight }
                                                     }
-                                                    Rectangle {
+                                                    UzCaptureField {
+                                                        capturing: prow.modelData.listening; accessibleName: qsTr("Key for %1").arg(prow.modelData.label !== undefined ? prow.modelData.label : prow.modelData.id)
                                                         objectName: "pluginHotkeyField_" + prow.rid
                                                         Layout.fillWidth: true
                                                         Layout.preferredWidth: root.hotkeyKeyWidth
@@ -940,10 +898,8 @@ Rectangle {
                                                                 onClicked: root.plugins.clearHotkey(prow.modelData.pluginId, prow.modelData.id)
                                                             }
                                                         }
-                                                        TapHandler {
-                                                            onTapped: prow.modelData.listening ? root.plugins.cancelHotkeyCapture()
-                                                                                              : root.plugins.beginHotkeyCapture(prow.modelData.pluginId, prow.modelData.id)
-                                                        }
+                                                        onActivated: prow.modelData.listening ? root.plugins.cancelHotkeyCapture()
+                                                            : root.plugins.beginHotkeyCapture(prow.modelData.pluginId, prow.modelData.id)
                                                     }
                                                     UzLabel {
                                                         objectName: "pluginHotkeyPad_" + prow.rid
@@ -1099,8 +1055,9 @@ Rectangle {
                                             text: mrow.modelData.label
                                             elide: Text.ElideRight
                                         }
-                                        Rectangle {
+                                        UzCaptureField {
                                             id: field
+                                            capturing: mrow.modelData.listening; accessibleName: qsTr("Binding for %1").arg(mrow.modelData.label !== undefined ? mrow.modelData.label : mrow.modelData.input)
                                             objectName: "mapField_" + mrow.modelData.input
                                             Layout.fillWidth: true
                                             Layout.preferredWidth: root.tight ? 190 : 240
@@ -1159,11 +1116,9 @@ Rectangle {
                                                     onClicked: root.ctl.clearBinding(mrow.modelData.input)
                                                 }
                                             }
-                                            TapHandler {
                                                 // Built-in profile: duplicate to a user profile first, then capture on the copy.
-                                                onTapped: root.ctl.profileBuiltin ? root.ctl.duplicateAndCapture(mrow.modelData.input)
-                                                          : mrow.modelData.listening ? root.ctl.cancelCapture() : root.ctl.beginCapture(mrow.modelData.input)
-                                            }
+                                            onActivated: root.ctl.profileBuiltin ? root.ctl.duplicateAndCapture(mrow.modelData.input)
+                                                : mrow.modelData.listening ? root.ctl.cancelCapture() : root.ctl.beginCapture(mrow.modelData.input)
                                         }
                                         RowLayout {
                                             objectName: "mapAction_" + mrow.modelData.input

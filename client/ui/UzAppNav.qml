@@ -35,6 +35,36 @@ Rectangle {
     readonly property var online: root.serverMode ? root.player.sessions.sessions.filter(function (s) { return !s.invited }) : []
     color: Theme.ground
     implicitWidth: Theme.sidebarWidth
+    objectName: "appNav"
+
+    // True when the focus is inside the AppNav.
+    function hasFocus(): bool {
+        for (let p = root.Window.activeFocusItem; p; p = p.parent) {
+            if (p === root) return true
+        }
+        return false
+    }
+    // B / Esc on a main page: the active item (else the first one) of the AppNav takes the focus.
+    function focusActive(): bool {
+        let first = null
+        let active = null
+        const walk = function (it) {
+            for (let i = 0; i < it.children.length; ++i) {
+                const c = it.children[i]
+                if (!c.visible) continue
+                if (c.activeFocusOnTab === true && c.enabled !== false) {
+                    if (first === null) first = c
+                    if (active === null && c.active === true) active = c
+                }
+                walk(c)
+            }
+        }
+        walk(root)
+        const target = active || first
+        if (!target) return false
+        target.forceActiveFocus(Qt.BacktabFocusReason)
+        return true
+    }
 
     Rectangle {
         anchors.right: parent.right

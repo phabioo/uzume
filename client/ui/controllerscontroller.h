@@ -8,6 +8,7 @@
 #include <QHash>
 #include <QObject>
 #include <QSet>
+#include <functional>
 #include <QString>
 #include <QTimer>
 #include <QVariantList>
@@ -60,6 +61,7 @@ class ControllersController : public QObject {
   Q_PROPERTY(QString padHotkeyModifier READ padHotkeyModifier NOTIFY hotkeysChanged)
   Q_PROPERTY(bool padHotkeyModifierChanged READ padHotkeyModifierChanged NOTIFY hotkeysChanged)
   Q_PROPERTY(QVariantMap hotkeyHints READ hotkeyHints NOTIFY hotkeyHintsChanged)
+  Q_PROPERTY(bool padActive READ padActive NOTIFY padActiveChanged)  // the gamepad was the last input: pages show the hint row
   // Hold-Select hotkey sheet: holdSheetHeld = the hotkey button of P1 has been held alone for ~400 ms (hidden again on release or
   // when another button is pressed); padSheetRows = the combos the sheet lists, [{action, key, label}], from the current bindings
   // (key = GamepadHint key: "A" "L" "R2" "Start" "↑" ... or "UpDown" for the volume pair).
@@ -179,6 +181,14 @@ class ControllersController : public QObject {
   Q_INVOKABLE void cancelPadHotkeyCapture();
   Q_INVOKABLE void clearPadHotkey(const QString& action);
   Q_INVOKABLE void resetPadHotkeyModifier();
+  bool padActive() const { return padActive_; }
+  // Gamepad as UI input (readable-pass.md "Gamepad everywhere"): D-pad / left stick -> arrow keys (repeat after 400 ms, then 80 ms),
+  // A -> Return, B -> Escape, posted to the focused window; Y -> padCommand("search"), L / R -> "filterPrev" / "filterNext".
+  // `gate` says whether the shell has the input (false while a game runs unpaused); nothing is translated while a capture runs.
+  // feedPadNav() is what the SDL poll calls with the pressed tokens (tests call it directly).
+  void setPadNavGate(std::function<bool()> gate) { padNavGate_ = std::move(gate); }
+  void feedPadNav(const QSet<QString>& tokens, qint64 nowMs);
+  Q_INVOKABLE void notePadInput();       // a gamepad button was used last
   Q_INVOKABLE void noteKeyboardInput();  // the keyboard was used last: hints show keys again
   // "Duplicate to edit": duplicates the built-in profile, selects the copy and begins capture for the input on it.
   Q_INVOKABLE void duplicateAndCapture(const QString& inputId);
@@ -195,6 +205,8 @@ class ControllersController : public QObject {
   void labelSetChanged();
   void hotkeysChanged();
   void hotkeyHintsChanged();
+  void padActiveChanged();
+  void padCommand(const QString& command);   // search | filterPrev | filterNext
   void holdSheetChanged();
   void padHotkeyTriggered(const QString& action);  // P1 gamepad hotkey pressed (combo or lone button)
   void libretroMaskChanged(quint32 mask);  // P1 gamepad, nds system profile
@@ -237,6 +249,14 @@ class ControllersController : public QObject {
   QString hotkeyListening_;
   QString hotkeyNote_;
   QString padHotkeyListening_;
+  bool eventFilter(QObject* watched, QEvent* event) override;
+  void sendPadKey(int key);
+  std::function<bool()> padNavGate_;
+  QSet<QString> padNavPrev_;
+  QString padNavDir_;
+  qint64 padNavNext_ = 0;
+  bool padNavMute_ = false;   // a capture just ended: its button press is not a UI press
+  bool synthesizing_ = false;
   bool padActive_ = false;  // the gamepad was the last input used
   QSet<int> heldKeys_;
   input::PadHoldDetector hold_;
