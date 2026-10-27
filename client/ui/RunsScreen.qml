@@ -895,7 +895,9 @@ Rectangle {
                     Layout.fillWidth: true
                     visible: root.player.admin.available
                     player: root.player
-                    runId: root.runs.openRunId
+                    // Runs already in the list above are not repeated; their admin actions work on the open or selected run.
+                    runId: root.runs.openRunId !== "" ? root.runs.openRunId : (root.selectedRow ? root.selectedRow.runId : "")
+                    listedIds: root.runRows.map(r => r.runId)
                 }
             }
         }

@@ -122,7 +122,10 @@ const char* kSheet = R"({
      "confirm":{"title":"Reset the run?","text":"This clears all routes.","confirm_label":"Reset run"}},
     {"type":"button","id":"btnDanger","label":"Delete","variant":"danger","action":"delete",
      "confirm":{"title":"Delete the run?","text":"This cannot be undone.","danger":true}},
-    {"type":"button","label":"Later","variant":"quiet","action":"later"}]},
+    {"type":"button","label":"Later","variant":"quiet","action":"later"},
+    {"type":"button","id":"btnOff","label":"Off","action":"off","disabled":true},
+    {"type":"button","id":"btnOffConfirm","label":"OffC","action":"offc","disabled":true,
+     "confirm":{"title":"Never","text":"Never shown."}}]},
   {"type":"toggle","id":"tg","label":"Show HUD","checked":false,"action":"tg"},
   {"type":"select","id":"sel","options":[{"value":"a","label":"Alpha"},{"value":"b","label":"Beta"}],"selected":"b","action":"sel"},
   {"type":"segmented","id":"seg","options":[{"value":"x","label":"One"},{"value":"y","label":"Two"}],"selected":"x","action":"seg"},
@@ -366,6 +369,19 @@ class PluginBlocksUiTest : public QObject {
     QTest::keyClick(win_, Qt::Key_Escape);
     QTest::qWait(80);
     QCOMPARE(spy.count(), 2);
+  }
+
+  void disabledButtonSendsNothing() {
+    show(json(kSheet), true);
+    QSignalSpy spy(sheet_, SIGNAL(action(QString, QVariant)));
+    QVERIFY(spy.isValid());
+    clickItem(mustFind("plugin_btnOff"));
+    clickItem(mustFind("plugin_btnOffConfirm"));
+    QTest::qWait(80);
+    QCOMPARE(spy.count(), 0);
+    QVERIFY(find("pluginConfirmOk") == nullptr || !find("pluginConfirmOk")->isVisible());
+    clickItem(mustFind("plugin_btnPlain"));  // an enabled one still works
+    QCOMPARE(spy.count(), 1);
   }
 
   void togglesAndChoices() {

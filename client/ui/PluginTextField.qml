@@ -11,6 +11,7 @@ ColumnLayout {
     property string pluginId: ""
     signal action(string action, var value)
 
+    enabled: node.disabled !== true  // `disabled` (0.22)
     spacing: Theme.space05
     Timer { id: liveTimer; interval: 250; onTriggered: root.action(root.node.action || "", field.text) }
     UzField {

@@ -16,6 +16,10 @@ Item {
     objectName: "runsAdminPanel"
     required property PlayerController player
     property string runId: ""
+    // Ids of the runs the Runs list above already shows: the table below lists only the other runs (archived ones, runs of
+    // other people that list leaves out), so each run appears once; the admin actions of a listed run work on the open
+    // or selected run through `runId`.
+    property var listedIds: []
     readonly property AdminController admin: root.player.admin
     property var items: []            // [{run, archived}]
     property string phase: "idle"     // idle | loading | ready | error
@@ -29,6 +33,7 @@ Item {
     readonly property string status: root.run ? root.run.status : ""
     readonly property bool over: root.status === "finished" || root.status === "abandoned"
     readonly property var invited: root.run ? root.run.participants.filter(p => p.status === "invited") : []
+    readonly property var extraItems: root.items.filter(it => root.listedIds.indexOf(it.run.run_id) < 0)
     implicitHeight: col.implicitHeight
 
     AdminCall { id: api; admin: root.admin }
@@ -179,7 +184,7 @@ Item {
         width: root.width
         spacing: Theme.space2
 
-        UzSectionLabel { Layout.fillWidth: true; text: qsTr("All runs · for admins"); meta: root.phase === "ready" ? String(root.items.length) : "" }
+        UzSectionLabel { Layout.fillWidth: true; text: qsTr("More runs · for admins"); meta: root.phase === "ready" ? String(root.extraItems.length) : "" }
         UzStateBlock {
             objectName: "runsAdminLoading"
             Layout.fillWidth: true
@@ -199,7 +204,7 @@ Item {
         UzTable {
             objectPrefix: "runsAdminTable"
             Layout.fillWidth: true
-            visible: root.phase === "ready"
+            visible: root.phase === "ready" && root.extraItems.length > 0
             emptyText: qsTr("No runs yet.")
             columns: [
                 { key: "name", title: qsTr("Run"), fill: 1.4 },
@@ -207,8 +212,11 @@ Item {
                 { key: "people", title: qsTr("Joined"), width: 80, align: "right", mono: true },
                 { key: "updated", title: qsTr("Changed"), width: 130, align: "right", mono: true }
             ]
-            rows: root.items.map(it => root.rowOf(it))
-            currentIndex: root.selectedIndex
+            rows: root.extraItems.map(it => root.rowOf(it))
+            currentIndex: {
+                for (let i = 0; i < root.extraItems.length; ++i) if (root.extraItems[i].run.run_id === root.selectedId) return i
+                return -1
+            }
             onPicked: (i, row) => { root.selectedId = row.id; root.note = "" }
         }
 

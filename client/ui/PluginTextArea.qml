@@ -14,6 +14,7 @@ ColumnLayout {
     signal action(string action, var value)
 
     readonly property int lineCount: Math.max(1, Math.min(40, node.lines || 6))
+    enabled: node.disabled !== true  // `disabled` (0.22)
     spacing: Theme.space05
 
     function fire() {

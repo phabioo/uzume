@@ -4,7 +4,7 @@ import QtQuick.Layouts
 import Uzume.App
 
 // Content of a plugin tab in the game panel (docs/design/legacy/plugins.md 4e): the plugin's "panel" tree in the active theme under a
-// "DRAWN BY <PLUGIN>" line (play-and-plugins.md, boards 5b-1 / 5b-2). A paused
+// header that already names the plugin (play-and-plugins.md, boards 5b-1 / 5b-2). A paused
 // plugin keeps its last tree, dimmed and without input, under a "Paused" banner with "Restart plugin".
 Item {
     id: root
@@ -77,17 +77,7 @@ Item {
                 width: flick.width - 2 * Theme.space3
                 spacing: Theme.space2
 
-                // Plugin content is marked: Mono "DRAWN BY <PLUGIN>" over a rule.
-                RowLayout {
-                    objectName: "pluginDrawnBy"
-                    Layout.fillWidth: true
-                    spacing: Theme.space15
-                    UzSectionLabel {
-                        Layout.maximumWidth: content.width * 0.7
-                        text: qsTr("Drawn by %1").arg(root.tab.name || root.pluginId)
-                    }
-                    Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Theme.rule2 }
-                }
+                // No "Drawn by" line here: the header above already names the plugin (and its origin).
                 PluginBlock {
                     id: block
                     objectName: "pluginPanelBlock"

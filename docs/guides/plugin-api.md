@@ -437,12 +437,12 @@ A block is a table `{ type = "...", id = "...", children = { ... }, <props> }`. 
 | `stat` | `label`, `value` (required), `action` | no; shows "›" when `action` is set |
 | `list` | `rows` (up to 500, required), `selected` (row id) | no |
 | `table` | `columns` (1..12 labels), `rows` (up to 500) (both required) | no |
-| `button` | `label`, `action` (required), `variant` (`primary`, `secondary`, `quiet`, `danger`), `value`, `confirm` | no |
+| `button` | `label`, `action` (required), `variant` (`primary`, `secondary`, `quiet`, `danger`), `value`, `confirm`, `disabled` | no; `disabled` (boolean, since Uzume 0.22) greys the control out in the app's disabled style, keeps it readable and sends no action. |
 | `toggle` | `action` (required), `label`, `accessible`, `checked`, `value`, `disabled` | no; with `value` the action gets `{ checked = <new boolean>, value = <value> }` instead of the plain boolean (to tell several toggles apart); `disabled = true` greys it out and ignores input; the screen reader name is `label`, else `accessible` (give it to every toggle without a visible label, for example one per list row) |
-| `select` | `options` (1..100, required), `selected`, `action` (required) | no |
+| `select` | `options` (1..100, required), `selected`, `action` (required), `disabled` | no; `disabled` (boolean, since Uzume 0.22) greys the control out in the app's disabled style, keeps it readable and sends no action. |
 | `segmented` | `options` (2..3, required), `selected`, `action` (required) | no |
-| `textfield` | `action` (required), `text`, `placeholder`, `error`, `live` | no; the action fires on Enter; with `live = true` it also fires while typing, debounced to 250 ms |
-| `textarea` | `value` (text, up to 64 KiB), `lines` (visible lines, 1..40, default 4), `mono` (monospace), `placeholder`, `error`, `action` | no; multi-line text. The action fires 300 ms after typing pauses and when the focus leaves. It arrives as `on_action(<action>, text, slot)`; without `action` the name is the block `id`, without both `"change"`. (A `textfield` sends its `action` prop as the name.) |
+| `textfield` | `action` (required), `text`, `placeholder`, `error`, `live`, `disabled` | no; `disabled` (boolean, since Uzume 0.22) greys the control out in the app's disabled style, keeps it readable and sends no action. The action fires on Enter; with `live = true` it also fires while typing, debounced to 250 ms |
+| `textarea` | `value` (text, up to 64 KiB), `lines` (visible lines, 1..40, default 4), `mono` (monospace), `placeholder`, `error`, `action`, `disabled` | no; `disabled` (boolean, since Uzume 0.22) greys the control out in the app's disabled style, keeps it readable and sends no action. Multi-line text. The action fires 300 ms after typing pauses and when the focus leaves. It arrives as `on_action(<action>, text, slot)`; without `action` the name is the block `id`, without both `"change"`. (A `textfield` sends its `action` prop as the name.) |
 | `empty` | `title` (required), `text`, `action_label`, `action`, `tone` | no; `tone = "danger"` is an error state |
 | `location` | `title` (required), `sub`, `status` (`open`, `encounter`, `caught`, `missed`, `none`) | yes, optional |
 | `map` | see [Map block](#map-block) | no |

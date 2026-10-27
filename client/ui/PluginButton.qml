@@ -12,11 +12,13 @@ Item {
     readonly property string variant: node.variant || "secondary"
     signal action(string action, var value)
 
+    enabled: node.disabled !== true  // `disabled` (0.22): greyed out, no action
     implicitHeight: button.implicitHeight
     implicitWidth: button.implicitWidth
     Layout.minimumWidth: implicitWidth
 
     function fire() {
+        if (node.disabled === true) return
         if (node.confirm) {
             dialogLoader.active = true
             dialogLoader.item.open()

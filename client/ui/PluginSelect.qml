@@ -10,6 +10,7 @@ Item {
     property string pluginId: ""
     signal action(string action, var value)
 
+    enabled: node.disabled !== true  // `disabled` (0.22)
     implicitHeight: select.implicitHeight
     implicitWidth: 200
     Layout.minimumWidth: 0
