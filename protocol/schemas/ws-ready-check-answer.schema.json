@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://uzume.invalid/schemas/ws-ready-check-answer.schema.json",
+  "title": "ws-ready-check-answer (app to server)",
+  "type": "object",
+  "required": [
+    "type",
+    "payload"
+  ],
+  "properties": {
+    "type": {
+      "const": "ready_check_answer"
+    },
+    "id": {
+      "type": "string"
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "check_id",
+        "ready"
+      ],
+      "properties": {
+        "check_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ready": {
+          "type": "boolean"
+        }
+      }
+    }
+  },
+  "description": "A member answers an open check; answering again changes the answer while the check is open. Error not_found when the check is not open (any more), forbidden when the sender is not a member of it."
+}

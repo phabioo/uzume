@@ -154,6 +154,7 @@ func (s *Service) armOwnerGrace(sessionID, deviceID string) {
 func (s *Service) Close() {
 	s.stopBackup()
 	s.stopPlay()
+	s.stopTogether()
 	s.sess.mu.Lock() // waits for a running grace callback (they hold it while they work)
 	defer s.sess.mu.Unlock()
 	rt := &s.sess.rt
@@ -439,6 +440,14 @@ func (c *Client) Handle(data []byte) error {
 		c.signal(env)
 	case "presence_update":
 		c.presence(env)
+	case "ready_check_start":
+		c.readyCheckStart(env)
+	case "ready_check_answer":
+		c.readyCheckAnswer(env)
+	case "ready_check_cancel":
+		c.readyCheckCancel(env)
+	case "pause_request":
+		c.pauseRequest(env)
 	default:
 		c.sendError(env.ID, CodeBadRequest, "Unknown message type")
 	}
@@ -526,6 +535,7 @@ func (s *Service) attach(c *Client) {
 			o.sendMsg("presence_update", "", pb.payload(c, o))
 		}
 	}
+	s.togetherCatchUp(c)
 	s.sess.mu.Lock()
 	defer s.sess.mu.Unlock()
 	ctx := context.Background()

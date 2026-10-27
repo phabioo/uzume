@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://uzume.invalid/schemas/ws-ready-check.schema.json",
+  "title": "ws-ready-check (server to app)",
+  "type": "object",
+  "required": [
+    "type",
+    "payload"
+  ],
+  "properties": {
+    "type": {
+      "const": "ready_check"
+    },
+    "id": {
+      "type": "string"
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "check_id",
+        "scope",
+        "id",
+        "by",
+        "status",
+        "expires_at",
+        "members"
+      ],
+      "properties": {
+        "check_id": {
+          "type": "string"
+        },
+        "scope": {
+          "enum": [
+            "run",
+            "session"
+          ],
+          "description": "run: the joined participants of the run; session: the owner and the viewers of the Session."
+        },
+        "id": {
+          "type": "string"
+        },
+        "by": {
+          "type": "string",
+          "description": "User ID of the starter."
+        },
+        "status": {
+          "enum": [
+            "open",
+            "all_ready",
+            "cancelled",
+            "expired"
+          ],
+          "description": "open until every member is ready (all_ready), the starter cancels (cancelled), 30 s pass (expired), the starter leaves or the run or Session ends (cancelled). The last message of a check carries its final status."
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "user_id",
+              "state"
+            ],
+            "properties": {
+              "user_id": {
+                "type": "string"
+              },
+              "state": {
+                "enum": [
+                  "pending",
+                  "ready",
+                  "not_ready"
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "description": "Sent to every connected device of every member on each change (start, answer, member joined or left, end). A member who left gets the final update too. A device that connects while a check is open receives the current state. Members are users, not devices."
+}
