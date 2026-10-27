@@ -116,12 +116,28 @@ func (s *Service) initTools(o Options) {
 	s.tools.kickSync = make(chan struct{}, 1)
 }
 
+// toolDir is <data>/tools/<tool>/<version>, or "" for an unknown tool or a malformed version. The path is built from
+// the catalog's own tool id and a version that matched toolVersionRe, never from raw input.
 func (s *Service) toolDir(toolID, version string) string {
-	return filepath.Join(s.dataDir, "tools", toolID, version)
+	def, ok := findToolDef(toolID)
+	if !ok || !toolVersionRe.MatchString(version) {
+		return ""
+	}
+	return filepath.Join(s.dataDir, "tools", def.ID, version)
 }
 
+// toolFile is the cached platform zip, or "" when toolDir is "" or the platform is not one of toolPlatforms.
 func (s *Service) toolFile(toolID, version, platform string) string {
-	return filepath.Join(s.toolDir(toolID, version), platform+".zip")
+	dir := s.toolDir(toolID, version)
+	if dir == "" {
+		return ""
+	}
+	for _, p := range toolPlatforms {
+		if p == platform {
+			return filepath.Join(dir, p+".zip")
+		}
+	}
+	return ""
 }
 
 // ---- model ----
@@ -522,8 +538,10 @@ func (s *Service) RemoveToolVersion(ctx context.Context, id, version string) (er
 	if _, err := s.db.ExecContext(ctx, `DELETE FROM tool_versions WHERE tool_id = ? AND version = ?`, id, version); err != nil {
 		return internal(err)
 	}
-	os.RemoveAll(s.toolDir(id, version))
-	os.Remove(filepath.Dir(s.toolDir(id, version))) // only succeeds when empty
+	if dir := s.toolDir(id, version); dir != "" {
+		os.RemoveAll(dir)
+		os.Remove(filepath.Dir(dir)) // only succeeds when empty
+	}
 	return nil
 }
 
@@ -592,6 +610,9 @@ func (s *Service) storeToolFile(ctx context.Context, id, version, platform, tmp,
 		return &Error{Code: CodeToolHashMismatch, Message: fmt.Sprintf("%s %s for %s has another SHA-256 than the one pinned at the first download; refused", id, version, platform)}
 	}
 	dst := s.toolFile(id, version, platform)
+	if dst == "" {
+		return ErrNotFound
+	}
 	if err := os.MkdirAll(filepath.Dir(dst), 0o750); err != nil {
 		return internal(err)
 	}
