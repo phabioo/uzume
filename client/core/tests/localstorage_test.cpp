@@ -6,6 +6,7 @@
 #include <QtTest>
 
 #include "localstorage.h"
+#include "statestore.h"
 
 using namespace uzume;
 
@@ -85,6 +86,44 @@ class LocalStorageTest : public QObject {
     empty.roms = RomCache(empty.dataDir + QStringLiteral("/r"));
     empty.cores = CoreCache(empty.dataDir + QStringLiteral("/c"));
     QCOMPARE(LocalStorage::measure(empty).usedBytes(), qint64(0));
+  }
+
+  void saveStatesAreMeasuredSeparatelyAndOrphansOfDeletedGamesFound() {
+    QTemporaryDir dir;
+    const QString data = dir.path();
+    LocalStorageInput in;
+    in.dataDir = data;
+    in.firmwareDir = QDir(data).filePath(QStringLiteral("system/firmware"));
+    in.roms = RomCache(QDir(data).filePath(QStringLiteral("cache/roms")));
+    in.cores = CoreCache(QDir(data).filePath(QStringLiteral("cache/cores")));
+    in.platform = CoreCache::currentPlatform();
+    in.nowMs = 1000 * kDay;
+    writeBytes(data + QStringLiteral("/hubs/h1/users/u1/saves/g1/game.sav"), 400);
+    const QString states = data + QStringLiteral("/hubs/h1/users/u1/states");
+    StateStore store(states);
+    StateRecord a;
+    a.gameId = QStringLiteral("g1");
+    a.n = 1;
+    StateRecord b;
+    b.gameId = QStringLiteral("deleted");
+    b.n = 2;
+    QVERIFY(store.put(a, QByteArray(1000, 'a')));
+    QVERIFY(store.put(b, QByteArray(3000, 'b')));
+    in.statesDir = states;
+    in.libraryGameIds = {QStringLiteral("g1")};
+    in.libraryKnown = true;
+    LocalStorageReport r = LocalStorage::measure(in);
+    QVERIFY(r.statesBytes >= 4000);
+    QCOMPARE(r.savesBytes, qint64(400));  // states are not saves
+    QCOMPARE(r.orphanStatesGames, 1);
+    QVERIFY(r.orphanStatesBytes >= 3000 && r.orphanStatesBytes < r.statesBytes);
+    QVERIFY(r.usedBytes() >= r.savesBytes + r.statesBytes);
+    // library not loaded yet: nothing is offered for clean-up
+    in.libraryKnown = false;
+    r = LocalStorage::measure(in);
+    QCOMPARE(r.orphanStatesGames, 0);
+    QCOMPARE(r.orphanStatesBytes, qint64(0));
+    QVERIFY(r.statesBytes >= 4000);
   }
 
   void gamesNotPlayedForSixtyDaysAreSuggestedButNeverTheRunningOne() {

@@ -6,12 +6,12 @@ import Uzume.App
 // with "Measure again", the storage bar (Downloaded games, Save cache, Save states, Screenshots waiting for upload, Cores and firmware,
 // free space; ink tints, hairline legend with the values) and the clean-up suggestions with sizes. Every suggestion asks first, inline.
 // Saves are never offered. The measurement runs in a worker thread (LocalStorageController); the numbers stay while it runs again.
-// Suggestions: games not played in 60 days (they download again when you play) and unused cores. "Save states of games you removed"
-// is not offered: the app has no local save states yet. A suggestion with nothing to clean is hidden; "Nothing to clean up." shows once.
+// Suggestions: games not played in 60 days (they download again when you play), save states of games you deleted (this PC's copies) and
+// unused cores. A suggestion with nothing to clean is hidden; "Nothing to clean up." shows once.
 // objectNames: storageOverview, storageDataPath, storageMeasure, localStorageBar, localStorageKind_<games|saves|states|screenshots|cores>,
 // localStorageFree, storageCleanupLabel, storageCleanup_<id>, storageCleanupButton_<id>, storageCleanupConfirm_<id>,
 // storageCleanupConfirmText_<id>, storageCleanupCancel_<id>, storageCleanupConfirmButton_<id>, storageCleanupResult, storageNothingToClean
-// (<id> = old_games | unused_cores).
+// (<id> = old_games | deleted_game_states | unused_cores).
 ColumnLayout {
     id: root
     objectName: "storageOverview"
@@ -36,6 +36,12 @@ ColumnLayout {
             text: qsTr("They download again when you play."),
             confirm: qsTr("Remove these games from this PC and free %1? They download again when you play. Saves are not deleted."),
             button: qsTr("Remove games")
+        },
+        deleted_game_states: {
+            label: qsTr("States of games you deleted"),
+            text: qsTr("Save states on this PC for games that are no longer in your library. Saves are never touched."),
+            confirm: qsTr("Remove these save states from this PC and free %1? The saves of your games are not touched."),
+            button: qsTr("Remove states")
         },
         unused_cores: {
             label: qsTr("Unused cores"),
@@ -101,7 +107,7 @@ ColumnLayout {
                 resetMode: "none"
                 label: sug.info.label
                 meta: sug.modelData.text
-                description: (sug.modelData.id === "old_games" ? Theme.plural(sug.modelData.count, qsTr("game"), qsTr("games")) : Theme.plural(sug.modelData.count, qsTr("old version"), qsTr("old versions")))
+                description: ((sug.modelData.id === "old_games" || sug.modelData.id === "deleted_game_states") ? Theme.plural(sug.modelData.count, qsTr("game"), qsTr("games")) : Theme.plural(sug.modelData.count, qsTr("old version"), qsTr("old versions")))
                              + " · " + sug.info.text
                 ctrl: "buttons"
                 buttons: [{ name: "storageCleanupButton_" + sug.modelData.id, text: qsTr("Clean up…"), enabled: root.confirmId !== sug.modelData.id }]

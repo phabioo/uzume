@@ -96,7 +96,10 @@ class ControllerProfilesTest : public QObject {
   void hotkeyDefaultsAndConflicts() {
     QTemporaryDir dir;
     ControllerProfiles p(dir.path());
-    QCOMPARE(hotkeyDefs().size(), 9);
+    QCOMPARE(hotkeyDefs().size(), 12);
+    QCOMPARE(p.hotkey(QStringLiteral("saveState")), int(Qt::Key_F6));
+    QCOMPARE(p.hotkey(QStringLiteral("loadState")), int(Qt::Key_F8));
+    QCOMPARE(p.hotkey(QStringLiteral("rewind")), int(Qt::Key_Backspace));
     QCOMPARE(p.hotkey(QStringLiteral("layout")), int(Qt::Key_F7));
     QCOMPARE(p.padHotkey(QStringLiteral("layout")), QStringLiteral("pad:dpright"));
     // Audio hotkeys (0.19): +, -, M and Select + D-pad up / down / X; no key or button is used twice.
@@ -159,7 +162,10 @@ class ControllerProfilesTest : public QObject {
       ControllerProfiles p(dir.path());
       QCOMPARE(p.padHotkeyModifier(), QStringLiteral("pad:back"));
       QCOMPARE(p.padHotkey(QStringLiteral("speedup")), QStringLiteral("pad:righttrigger"));
-      QCOMPARE(p.padHotkey(QStringLiteral("snapshot")), QStringLiteral("pad:leftshoulder"));
+      QCOMPARE(p.padHotkey(QStringLiteral("snapshot")), QString());  // its default button went to Load state (0.20)
+      QCOMPARE(p.padHotkey(QStringLiteral("saveState")), QStringLiteral("pad:rightshoulder"));
+      QCOMPARE(p.padHotkey(QStringLiteral("loadState")), QStringLiteral("pad:leftshoulder"));
+      QCOMPARE(p.padHotkey(QStringLiteral("rewind")), QStringLiteral("pad:lefttrigger"));
       QCOMPARE(p.padHotkey(QStringLiteral("diagnostics")), QStringLiteral("pad:rightstick"));
       QCOMPARE(p.padHotkey(QStringLiteral("fullscreen")), QStringLiteral("pad:b"));   // Uzume hotkeys have gamepad defaults (3f-4)
       QCOMPARE(p.hotkeysChangedCount(), 0);
@@ -174,13 +180,13 @@ class ControllerProfilesTest : public QObject {
       QVERIFY(!p.setPadHotkey(QStringLiteral("fullscreen"), QStringLiteral("pad:guide")));
       QVERIFY(!p.setPadHotkey(QStringLiteral("fullscreen"), QStringLiteral("key:65")));
       QVERIFY(!p.setPadHotkey(QStringLiteral("nope"), QStringLiteral("pad:a")));
-      QVERIFY(!p.setPadHotkeyModifier(QStringLiteral("pad:leftshoulder")));                          // used by snapshot
+      QVERIFY(!p.setPadHotkeyModifier(QStringLiteral("pad:leftshoulder")));                          // used by Load state
       QVERIFY(p.setPadHotkey(QStringLiteral("fullscreen"), QStringLiteral("solo:pad:paddle1")));
       QCOMPARE(p.padHotkeyAction(QStringLiteral("pad:paddle1")), QStringLiteral("fullscreen"));
-      QVERIFY(p.clearPadHotkey(QStringLiteral("snapshot")));
+      QVERIFY(p.clearPadHotkey(QStringLiteral("loadState")));
       QVERIFY(p.setPadHotkeyModifier(QStringLiteral("pad:start")));
       QCOMPARE(p.hotkeysChangedCount(), 3);
-      QVERIFY(!p.setPadHotkey(QStringLiteral("snapshot"), QStringLiteral("pad:start")));
+      QVERIFY(!p.setPadHotkey(QStringLiteral("loadState"), QStringLiteral("pad:start")));
     }
     {
       // Only non-default entries are written; the keyboard hotkeys are untouched.
@@ -189,16 +195,16 @@ class ControllerProfilesTest : public QObject {
       const QJsonObject o = QJsonDocument::fromJson(f.readAll()).object();
       QVERIFY(!o.contains(QStringLiteral("hotkeys")));
       QCOMPARE(o.value(QStringLiteral("padHotkeys")).toObject().size(), 2);
-      QCOMPARE(o.value(QStringLiteral("padHotkeys")).toObject().value(QStringLiteral("snapshot")).toString(), QStringLiteral("none"));
+      QCOMPARE(o.value(QStringLiteral("padHotkeys")).toObject().value(QStringLiteral("loadState")).toString(), QStringLiteral("none"));
       QCOMPARE(o.value(QStringLiteral("padHotkeyModifier")).toString(), QStringLiteral("pad:start"));
     }
     ControllerProfiles p(dir.path());
     QCOMPARE(p.padHotkeyModifier(), QStringLiteral("pad:start"));
     QCOMPARE(p.padHotkey(QStringLiteral("fullscreen")), QStringLiteral("solo:pad:paddle1"));
-    QCOMPARE(p.padHotkey(QStringLiteral("snapshot")), QString());
+    QCOMPARE(p.padHotkey(QStringLiteral("loadState")), QString());
     QCOMPARE(p.padHotkey(QStringLiteral("speedup")), QStringLiteral("pad:righttrigger"));
-    QVERIFY(p.resetPadHotkey(QStringLiteral("snapshot")));
-    QCOMPARE(p.padHotkey(QStringLiteral("snapshot")), QStringLiteral("pad:leftshoulder"));
+    QVERIFY(p.resetPadHotkey(QStringLiteral("loadState")));
+    QCOMPARE(p.padHotkey(QStringLiteral("loadState")), QStringLiteral("pad:leftshoulder"));
     QVERIFY(p.resetPadHotkeyModifier());
     QVERIFY(p.resetHotkeys());
     QCOMPARE(p.hotkeysChangedCount(), 0);

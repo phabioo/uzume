@@ -53,6 +53,7 @@ constexpr const char* kSessionVisibilityKey = "session_visibility";
 constexpr const char* kBottomWindowKey = "bottom_window";
 constexpr const char* kLibrarySortKey = "library_sort";
 constexpr const char* kLibraryReadyFirstKey = "library_ready_first";
+constexpr const char* kStateLoadAskKey = "state_load_ask";
 constexpr const char* kLibraryViewKey = "library_view";
 constexpr const char* kRomCacheLimitKey = "rom_cache_limit_bytes";
 constexpr const char* kVariantCacheLimitKey = "variant_cache_limit_bytes";
@@ -127,6 +128,7 @@ PlayerSettings::PlayerSettings(const QString& baseDir)
   const QString sort = raw_.value(QLatin1String(kLibrarySortKey)).toString();
   if (isValidLibrarySort(sort)) librarySort_ = sort;
   libraryReadyFirst_ = raw_.value(QLatin1String(kLibraryReadyFirstKey)).toBool(false);
+  stateLoadAsk_ = raw_.value(QLatin1String(kStateLoadAskKey)).toBool(true);
   const QString view = raw_.value(QLatin1String(kLibraryViewKey)).toString();
   if (isValidLibraryView(view)) libraryView_ = view;
   if (const QJsonValue v = raw_.value(QLatin1String(kRomCacheLimitKey)); v.isDouble() && v.toDouble() >= 0) {
@@ -435,6 +437,12 @@ bool PlayerSettings::setLibrarySort(const QString& key) {
 bool PlayerSettings::setLibraryReadyFirst(bool on) {
   libraryReadyFirst_ = on;
   raw_.insert(QLatin1String(kLibraryReadyFirstKey), on);
+  return save();
+}
+
+bool PlayerSettings::setStateLoadAsk(bool on) {
+  stateLoadAsk_ = on;
+  raw_.insert(QLatin1String(kStateLoadAskKey), on);
   return save();
 }
 

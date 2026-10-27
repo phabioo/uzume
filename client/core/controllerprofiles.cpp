@@ -56,7 +56,10 @@ const QList<HotkeyDef>& hotkeyDefs() {
   static const QList<HotkeyDef> defs = {
       {QStringLiteral("fullscreen"), QStringLiteral("Toggle fullscreen"), Qt::Key_F11, QStringLiteral("pad:b")},
       {QStringLiteral("diagnostics"), QStringLiteral("Diagnostics overlay"), Qt::Key_F3, QStringLiteral("pad:rightstick")},
-      {QStringLiteral("snapshot"), QStringLiteral("Save snapshot"), Qt::Key_F5, QStringLiteral("pad:leftshoulder")},
+      {QStringLiteral("snapshot"), QStringLiteral("Save snapshot"), Qt::Key_F5},
+      {QStringLiteral("saveState"), QStringLiteral("Save state"), Qt::Key_F6, QStringLiteral("pad:rightshoulder")},  // Shift+F6 = next slot
+      {QStringLiteral("loadState"), QStringLiteral("Load state"), Qt::Key_F8, QStringLiteral("pad:leftshoulder")},
+      {QStringLiteral("rewind"), QStringLiteral("Rewind (hold)"), Qt::Key_Backspace, QStringLiteral("pad:lefttrigger")},
       {QStringLiteral("speedup"), QStringLiteral("Speed-up"), Qt::Key_Space, QStringLiteral("pad:righttrigger")},
       {QStringLiteral("volumeUp"), QStringLiteral("Volume up"), Qt::Key_Plus, QStringLiteral("pad:dpup")},
       {QStringLiteral("volumeDown"), QStringLiteral("Volume down"), Qt::Key_Minus, QStringLiteral("pad:dpdown")},
@@ -169,7 +172,7 @@ ControllerProfile ControllerProfiles::builtinProfile(const QString& kind) {
   if (kind == QLatin1String("keyboard")) {
     p.id = QString::fromLatin1(kBuiltinKeyboardId);
     p.name = QStringLiteral("Keyboard · Standard");
-    // Same map as the former fixed keyboard mapping: arrows, X=A, Z=B, S=X, A=Y, Q=L, W=R, Enter=Start, Backspace=Select.
+    // Same map as the former fixed keyboard mapping: arrows, X=A, Z=B, S=X, A=Y, Q=L, W=R, Enter=Start, Tab=Select (Backspace is the rewind hotkey since 0.20).
     p.bindings = {
         {QStringLiteral("a"), {keyToken(Qt::Key_X)}},
         {QStringLiteral("b"), {keyToken(Qt::Key_Z)}},
@@ -178,7 +181,7 @@ ControllerProfile ControllerProfiles::builtinProfile(const QString& kind) {
         {QStringLiteral("l"), {keyToken(Qt::Key_Q)}},
         {QStringLiteral("r"), {keyToken(Qt::Key_W)}},
         {QStringLiteral("start"), {keyToken(Qt::Key_Return), keyToken(Qt::Key_Enter)}},
-        {QStringLiteral("select"), {keyToken(Qt::Key_Backspace)}},
+        {QStringLiteral("select"), {keyToken(Qt::Key_Tab)}},
         {QStringLiteral("up"), {keyToken(Qt::Key_Up)}},
         {QStringLiteral("down"), {keyToken(Qt::Key_Down)}},
         {QStringLiteral("left"), {keyToken(Qt::Key_Left)}},

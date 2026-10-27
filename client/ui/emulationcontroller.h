@@ -105,6 +105,8 @@ class EmulationController : public QObject {
   static constexpr const char* kSpeedUpRatioKey = "uzume.speedup_ratio";
   static constexpr const char* kSpeedUpOnStartKey = "uzume.speedup_on_start";
   static constexpr const char* kSpeedUpAudioKey = "uzume.speedup_audio";
+  static constexpr const char* kRunAheadKey = "uzume.run_ahead";            // 0.20: extra frames emulated ahead (0 | 1 | 2)
+  static constexpr const char* kRewindKey = "uzume.rewind_seconds";         // 0.20: rewind length in seconds (0 = off)
 
   EmulationController(const QString& dataDir, const emu::ManifestRegistry* manifests, QObject* parent = nullptr);
 

@@ -75,6 +75,7 @@ class GamepadService : public QObject {
   void libretroMaskChanged(quint32 mask);       // P1 mask (nds system profile) changed
   void captured(const QString& token, int deviceId);
   void hotkeyTriggered(const QString& action);  // gamepad hotkey of P1
+  void hotkeyReleased(const QString& action);   // its button was let go again (hold hotkeys: rewind)
   void polled();                                // end of every poll (the UI navigation reads the pressed tokens)
 
  private:

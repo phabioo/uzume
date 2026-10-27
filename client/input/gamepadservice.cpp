@@ -219,6 +219,9 @@ void GamepadService::poll() {
       hidden = hotkeys_.suppressed();
       for (const QString& a : fired) emit hotkeyTriggered(a);
     }
+    if (!wasCapturing && !capturing_) {
+      for (const QString& a : hotkeys_.released()) emit hotkeyReleased(a);
+    }
   }
   const quint32 inMask = devs_.isEmpty() ? 0u : maskFor(*devs_.first(), hidden);
   const quint32 lr = libretroMaskFor(inputProfile_, inMask);

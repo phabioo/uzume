@@ -5,6 +5,8 @@
 #include <QFileInfo>
 #include <QStorageInfo>
 
+#include "statestore.h"
+
 namespace uzume {
 
 qint64 LocalStorage::folderBytes(const QString& dir, int* files) {
@@ -57,6 +59,12 @@ LocalStorageReport LocalStorage::measure(const LocalStorageInput& in) {
     }
   }
   r.savesBytes += folderBytes(QDir(in.dataDir).filePath(QStringLiteral("c")));
+  r.statesBytes = StateStore::measureAll(in.dataDir);
+  if (in.libraryKnown && !in.statesDir.isEmpty()) {
+    const StateStore::Orphans o = StateStore(in.statesDir).orphans(in.libraryGameIds);
+    r.orphanStatesBytes = o.bytes;
+    r.orphanStatesGames = o.games;
+  }
   r.screenshotsBytes = folderBytes(screenshotsPendingDir(in.dataDir), &r.screenshotsCount);
   r.coresBytes = folderBytes(in.cores.root()) + folderBytes(in.firmwareDir);
   for (const RomCache::Entry& e : in.roms.unusedSince(unusedGamesCutoffMs(in.nowMs), in.protectedHashes)) {

@@ -1336,6 +1336,9 @@ FocusScope {
                     font.pixelSize: Theme.roles.small.size
                 }
 
+                // STATES (0.20): preview, time and core per slot, Save to N / Load N / Delete; the game page shows it read-only
+                StatesSection { player: root.player }
+
                 // HISTORY
                 RowLayout {
                     id: historyHeader

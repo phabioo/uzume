@@ -60,7 +60,7 @@ class PluginHotkeysUiTest : public QObject {
                                        {hotkeyDecl("toggle-hud", "Show or hide HUD widget", "Ctrl+H"), hotkeyDecl("team", "Open team", "Ctrl+D"),
                                         hotkeyDecl("reload", "Reload run", "Ctrl+R")}),
                           hotkeyPlugin("net.test.b", "Item Helper", "unverified",
-                                       {hotkeyDecl("peek", "Peek bag", "Ctrl+H"), hotkeyDecl("fs", "Quick save", "F11"), hotkeyDecl("bag", "Open bag", "F8")})}}};
+                                       {hotkeyDecl("peek", "Peek bag", "Ctrl+H"), hotkeyDecl("fs", "Quick save", "F11"), hotkeyDecl("bag", "Open bag", "F9")})}}};
   }
 
  private slots:
@@ -94,10 +94,10 @@ class PluginHotkeysUiTest : public QObject {
     QCOMPARE(peek.value("note").toString(), QStringLiteral("Already used by SoulLink & Nuzlocke. Unassigned until you choose."));
     QCOMPARE(groups.at(1).toMap().value("rows").toList().at(1).toMap().value("note").toString(),
              QStringLiteral("Already used by Toggle fullscreen. Uzume keys always win."));
-    QVERIFY(groups.at(1).toMap().value("rows").toList().at(2).toMap().value("active").toBool());  // F8
+    QVERIFY(groups.at(1).toMap().value("rows").toList().at(2).toMap().value("active").toBool());  // F9
     QVERIFY(pc()->activeHotkeyCombos().contains(int(Qt::Key_H) | int(Qt::ControlModifier)));
     QVERIFY(!pc()->activeHotkeyCombos().contains(int(Qt::Key_F11)));
-    QCOMPARE(pc()->activeHotkeyCombos().size(), 4);  // Ctrl+H, Ctrl+D, Ctrl+R, F8
+    QCOMPARE(pc()->activeHotkeyCombos().size(), 4);  // Ctrl+H, Ctrl+D, Ctrl+R, F9
 
     // Settings > Hotkeys: Uzume rows, one group per plugin, conflict row in the warning tone.
     h_.controller->showSettingsSection(QStringLiteral("hotkeys"));

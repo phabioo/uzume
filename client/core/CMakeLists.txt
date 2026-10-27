@@ -1,5 +1,5 @@
 # uzume_core: Player core without GUI (core/ + network/). Add sources here and in ../network.
-add_library(uzume_core STATIC version.cpp credentialstore.cpp profilestore.cpp romcache.cpp localstorage.cpp savestore.cpp playersettings.cpp firmwarecache.cpp corecache.cpp dsvsave.cpp sdtree.cpp emulationsettings.cpp controllerprofiles.cpp
+add_library(uzume_core STATIC version.cpp credentialstore.cpp profilestore.cpp romcache.cpp localstorage.cpp savestore.cpp statestore.cpp playersettings.cpp firmwarecache.cpp corecache.cpp dsvsave.cpp sdtree.cpp emulationsettings.cpp controllerprofiles.cpp
   filelog.cpp diagbundle.cpp problemreport.cpp semver.cpp updateindex.cpp updaterollback.cpp updatesig.cpp installroot.cpp updater.cpp localhub.cpp hubsetup.cpp fsutil.cpp localromindex.cpp securitycode.cpp joinlink.cpp localpin.cpp localserverprocess.cpp
   zipextract.cpp toolcache.cpp variantcache.cpp enginerunner.cpp variantbuilder.cpp variantlaunch.cpp)
 target_include_directories(uzume_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
@@ -18,6 +18,7 @@ uzume_add_test(core_profilestore tests/profilestore_test.cpp LIBS uzume_core)
 uzume_add_test(core_envvar tests/envvar_test.cpp LIBS uzume_core)
 uzume_add_test(core_romcache tests/romcache_test.cpp LIBS uzume_core)
 uzume_add_test(core_savestore tests/savestore_test.cpp LIBS uzume_core)
+uzume_add_test(core_statestore tests/statestore_test.cpp LIBS uzume_core)
 uzume_add_test(core_localstorage tests/localstorage_test.cpp LIBS uzume_core)
 uzume_add_test(core_dsvsave tests/dsvsave_test.cpp LIBS uzume_core)
 uzume_add_test(core_sdtree tests/sdtree_test.cpp LIBS uzume_core)

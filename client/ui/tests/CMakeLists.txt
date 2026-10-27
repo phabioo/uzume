@@ -349,3 +349,11 @@ uzume_add_test(ui_plugin_emulation_testcore plugin_emulation_test.cpp LIBS uzume
 target_compile_definitions(test_ui_plugin_emulation_testcore PRIVATE FB_TEST_ROM_PATH="${FB_ROM_DIR}/uzume_test.nds")
 add_dependencies(test_ui_plugin_emulation_testcore uzume_test_rom)
 target_include_directories(test_ui_plugin_emulation_testcore PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../emulation/tests)
+
+# StatesController (save states, Auto and Undo, run rules, server upload/download) against the test core and the fake server.
+uzume_add_test(ui_states_controller_testcore states_controller_test.cpp ${FB_NETTEST_DIR}/fakehub.cpp ${FB_NETTEST_DIR}/fakehub.h
+  LIBS ${FB_UI_TEST_LIBS} TEST_CORE)
+target_compile_definitions(test_ui_states_controller_testcore PRIVATE FB_TEST_ROM_PATH="${FB_ROM_DIR}/uzume_test.nds"
+  FB_TEST_DATA_DIR="${FB_NETTEST_DIR}/testdata")
+add_dependencies(test_ui_states_controller_testcore uzume_test_rom)
+target_include_directories(test_ui_states_controller_testcore PRIVATE ${FB_NETTEST_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/../../emulation/tests)

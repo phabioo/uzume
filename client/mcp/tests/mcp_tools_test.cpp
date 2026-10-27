@@ -123,7 +123,7 @@ class McpToolsTest : public QObject {
                           "plugin_action", "plugin_reload", "plugin_call", "plugin_eval", "plugin_cache_list", "plugin_cache_read", "plugin_image", "game_state",
                           "memory_regions", "memory_read", "memory_search", "romfs_list", "romfs_read", "rom_read", "screenshot", "game_input", "game_pause",
                           "game_resume", "game_frame_step", "game_state_save", "game_state_load", "game_memory_write", "cheats_list", "cheats_apply",
-                          "cheats_clear", "store_get", "store_put", "consent_set"})
+                          "cheats_clear", "store_get", "store_put", "consent_set", "states_list", "states_save", "states_load", "states_delete", "rewind"})
       QVERIFY2(names.contains(QLatin1String(n)), n);
   }
 
@@ -141,6 +141,15 @@ class McpToolsTest : public QObject {
     QCOMPARE(call("game_state_save").content.value(0).text, QStringLiteral("no_game"));
     QCOMPARE(call("game_state_load").content.value(0).text, QStringLiteral("no_game"));
     QCOMPARE(call("game_memory_write", {{"addr", 0}, {"hex", "00"}}).content.value(0).text, QStringLiteral("no_game"));
+    // 0.20 package 4: the app's real save states and rewind, argument checks and no game.
+    for (const char* tool : {"states_save", "states_load", "states_delete"}) QVERIFY2(call(tool, {{"slot", 9}}).isError, tool);
+    for (const char* tool : {"states_save", "states_load"})
+      QVERIFY2(call(tool, {{"slot", 1}}).content.value(0).text.startsWith(QStringLiteral("no_game")), tool);
+    QVERIFY(call("states_delete", {{"slot", 1}}).isError);
+    QVERIFY(call("rewind", {{"seconds", 0}}).isError);
+    QVERIFY(call("rewind").isError);
+    QVERIFY(call("rewind", {{"seconds", 2}}).content.value(0).text.startsWith(QStringLiteral("no_game")));
+    QVERIFY(!call("states_list").isError);
   }
 
   // 0.20 plugin API debug tools: without a game the cheat tools refuse, the plugin store and the consent answers work.

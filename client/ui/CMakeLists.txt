@@ -48,6 +48,7 @@ qt_add_qml_module(uzume_ui
     personalcontroller.h personalcontroller.cpp
     screenshotcontroller.h screenshotcontroller.cpp
     localstoragecontroller.h localstoragecontroller.cpp
+    statescontroller.h statescontroller.cpp
     variantscontroller.h variantscontroller.cpp
     screenshotimageprovider.h screenshotimageprovider.cpp
     connectioncheckcontroller.h connectioncheckcontroller.cpp
@@ -156,6 +157,7 @@ qt_add_qml_module(uzume_ui
     UploadFileDialog.qml
     SaveSummary.qml
     SavesView.qml
+    StatesSection.qml
     SaveRow.qml
     SortControl.qml
     SaveFileDialog.qml
