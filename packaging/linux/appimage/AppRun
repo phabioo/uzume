@@ -1,0 +1,19 @@
+#!/bin/sh
+# AppRun of the Uzume AppImage (build-appimage.sh passes it to linuxdeploy as the custom AppRun).
+HERE="$(dirname "$(readlink -f "$0")")"
+APPDIR="${APPDIR:-$HERE}"
+export APPDIR
+
+# The program directory inside the image is not a place for user data: the AppImage mount is read-only, but the
+# extract-and-run mode (no FUSE) unpacks into a writable temporary folder, where the app would otherwise pick its
+# portable "data" folder and lose everything on exit. Pin the data folder to the XDG data location (the same folder
+# the app uses when its program directory is read-only). A value set by the user wins.
+if [ -z "${UZUME_DATA_DIR:-}" ]; then
+  UZUME_DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/Uzume/Uzume"
+  export UZUME_DATA_DIR
+fi
+
+# Qt 6.4 on Ubuntu 24.04: the image carries the FFmpeg media backend only (no GStreamer).
+export QT_MEDIA_BACKEND="${QT_MEDIA_BACKEND:-ffmpeg}"
+
+exec "$APPDIR/usr/bin/uzume" "$@"

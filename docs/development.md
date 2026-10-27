@@ -19,6 +19,7 @@ make check-hub-race   # server tests under the race detector (CGO_ENABLED=1, nee
 make check-client     # app only (preset via CLIENT_PRESET, default linux-debug)
 make build-hub        # server/dist/uzume-server-linux-{amd64,arm64} and uzume-server-windows-amd64.exe (HUB_VERSION, HUB_CHANNEL, HUB_COMMIT)
 make package-hub-deb HUB_VERSION=...   # server .deb for amd64/arm64 in server/dist/ (after build-hub)
+make package-app-appimage APP_VERSION=...   # app AppImage (x86-64) in client/build/appimage/ (after a linux-release client build and build-hub)
 make generate         # regenerate Go code from OpenAPI (oapi-codegen)
 make notices          # regenerate server/THIRD-PARTY-NOTICES.txt (needed after Go dependency bumps; make check-hub fails when stale)
 make fetch-core       # download melonDS DS from the libretro buildbot (nightly, CRC32-checked) and print the .so path

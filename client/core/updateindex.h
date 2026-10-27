@@ -2,6 +2,7 @@
 // Update index (release feed, spec 0.3 S2): parsing, validation, selection, protocol compatibility.
 // Pure functions without I/O; the signature is checked separately (updatesig.h).
 
+#include <QtGlobal>
 #include <QByteArray>
 #include <QDateTime>
 #include <QJsonObject>
@@ -16,9 +17,28 @@ namespace uzume::update {
 
 inline constexpr const char* kDefaultIndexUrl =
     "https://github.com/phabioo/uzume/releases/download/updates-index/updates-index.json";
-inline constexpr const char* kPlayerPlatform = "windows-x64";  // the only Player update platform
-inline constexpr const char* kKindMsi = "msi";  // the Player installer (ADR 0021)
+inline constexpr const char* kPlatformWindowsX64 = "windows-x64";
+inline constexpr const char* kPlatformLinuxX64 = "linux-x64";
+inline constexpr const char* kKindMsi = "msi";  // the Windows Player installer (ADR 0021)
+inline constexpr const char* kKindAppImage = "appimage";  // the Linux Player AppImage (self-replacing file)
 inline constexpr const char* kKindZip = "zip";
+
+// Which Player artifact a build updates to. Windows: windows-x64 + msi. Linux x86-64: linux-x64 + appimage. Any other
+// host keeps the Windows pair (nothing installable there; the release is only shown).
+enum class PlayerOs { Windows, Linux, Other };
+constexpr PlayerOs hostPlayerOs() {
+#if defined(Q_OS_WIN)
+  return PlayerOs::Windows;
+#elif defined(Q_OS_LINUX) && defined(Q_PROCESSOR_X86_64)
+  return PlayerOs::Linux;
+#else
+  return PlayerOs::Other;
+#endif
+}
+constexpr const char* playerPlatformFor(PlayerOs os) { return os == PlayerOs::Linux ? kPlatformLinuxX64 : kPlatformWindowsX64; }
+constexpr const char* playerKindFor(PlayerOs os) { return os == PlayerOs::Linux ? kKindAppImage : kKindMsi; }
+constexpr const char* playerPlatform() { return playerPlatformFor(hostPlayerOs()); }
+constexpr const char* playerKind() { return playerKindFor(hostPlayerOs()); }
 
 inline constexpr int kMaxNotesBytes = 4000;
 
@@ -94,8 +114,8 @@ struct SelectionInput {
   QString product = QStringLiteral("player");
   Channel channel = Channel::Off;
   QString currentVersion;
-  QString platform = QLatin1String(kPlayerPlatform);
-  QString kind = QLatin1String(kKindMsi);
+  QString platform = QLatin1String(playerPlatform());
+  QString kind = QLatin1String(playerKind());
   std::optional<HubProtocol> hub;
 };
 

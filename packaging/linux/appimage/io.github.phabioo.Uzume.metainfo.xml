@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- @VERSION@ and @DATE@ are filled in by build-appimage.sh. -->
+<component type="desktop-application">
+  <id>io.github.phabioo.Uzume</id>
+  <name>Uzume</name>
+  <summary>Self-hosted retro gaming: library, saves and shared sessions</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <developer_name>Uzume contributors</developer_name>
+  <description>
+    <p>
+      Uzume plays retro games on your PC from a central ROM library on your own Uzume server, keeps your saves
+      versioned, and shares game sessions with friends directly between apps.
+    </p>
+    <p>
+      The app contains no games, BIOS files or firmware, and no emulator cores: cores are downloaded from your
+      Uzume server when needed.
+    </p>
+  </description>
+  <launchable type="desktop-id">uzume.desktop</launchable>
+  <provides>
+    <binary>uzume</binary>
+  </provides>
+  <url type="homepage">https://github.com/phabioo/uzume</url>
+  <url type="bugtracker">https://github.com/phabioo/uzume/issues</url>
+  <categories>
+    <category>Game</category>
+    <category>Emulator</category>
+  </categories>
+  <content_rating type="oars-1.1"/>
+  <supports>
+    <control>gamepad</control>
+    <control>keyboard</control>
+  </supports>
+  <releases>
+    <release version="@VERSION@" date="@DATE@"/>
+  </releases>
+</component>

@@ -1,0 +1,9 @@
+# Pinned AppImage build tools (KEY=VALUE, read by scripts/fetch-appimage-tools.sh). Linux x86-64 only.
+# linuxdeploy (MIT) and linuxdeploy-plugin-qt (MIT) collect the libraries and Qt plugins into the AppDir;
+# appimagetool (MIT) turns the AppDir into the AppImage. All three are AppImages themselves (run with APPIMAGE_EXTRACT_AND_RUN=1).
+LINUXDEPLOY_URL=https://github.com/linuxdeploy/linuxdeploy/releases/download/1-alpha-20250213-2/linuxdeploy-x86_64.AppImage
+LINUXDEPLOY_SHA256=4648f278ab3ef31f819e67c30d50f462640e5365a77637d7e6f2ad9fd0b4522a
+LINUXDEPLOY_QT_URL=https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/1-alpha-20250213-1/linuxdeploy-plugin-qt-x86_64.AppImage
+LINUXDEPLOY_QT_SHA256=15106be885c1c48a021198e7e1e9a48ce9d02a86dd0a1848f00bdbf3c1c92724
+APPIMAGETOOL_URL=https://github.com/AppImage/appimagetool/releases/download/1.9.0/appimagetool-x86_64.AppImage
+APPIMAGETOOL_SHA256=46fdd785094c7f6e545b61afcfb0f3d98d8eab243f644b4b17698c01d06083d1

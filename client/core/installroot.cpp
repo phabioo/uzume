@@ -3,7 +3,13 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QCryptographicHash>
 #include <QUuid>
+
+#ifdef Q_OS_UNIX
+#include <fcntl.h>
+#include <unistd.h>
+#endif
 
 namespace uzume::update {
 
@@ -123,6 +129,125 @@ InstallerCommand msiRelaunchCommand(const QString& launcherCopy, const QString& 
 
 QString perMachinePlayerExe(const QString& programFilesDir) {
   return QDir(programFilesDir).filePath(QStringLiteral("Uzume/App/") + QLatin1String(kPlayerExeName));
+}
+
+// ---- Linux AppImage
+
+QString appImagePath() {
+  const QString p = qEnvironmentVariable("APPIMAGE");
+  if (p.isEmpty()) return {};
+  const QFileInfo fi(p);
+  return fi.isFile() ? fi.absoluteFilePath() : QString();
+}
+
+QString appImageUnsupportedReason(const QString& appImage) {
+  if (appImage.isEmpty() || !QFileInfo(appImage).isFile()) {
+    return QStringLiteral("Automatic installation is only available for the Windows installer and the Linux AppImage.");
+  }
+  if (!directoryWritable(QFileInfo(appImage).absolutePath())) return QStringLiteral("The folder of the AppImage is not writable.");
+  return {};
+}
+
+QStringList appImageRelaunchArguments(const QStringList& args) {
+  static const QStringList oneShot{QStringLiteral("--smoke-test"), QStringLiteral("--setup-local-hub"), QStringLiteral("--mcp")};
+  QStringList out;
+  for (const QString& a : args) {
+    if (oneShot.contains(a) || a.startsWith(QLatin1String("uzume://"))) continue;
+    out << a;
+  }
+  return out;
+}
+
+void appImageConfirmStart(const QString& appImage) {
+  if (!appImage.isEmpty()) QFile::remove(appImageStartMarker(appImage));
+}
+
+bool replaceAppImage(const QString& staged, const QString& appImage, const QString& sha256, qint64 size, QString* error) {
+  const auto fail = [error](const QString& why) {
+    if (error != nullptr) *error = why;
+    return false;
+  };
+#ifdef Q_OS_UNIX
+  const QFileInfo target(appImage);
+  if (!target.isFile()) return fail(QStringLiteral("the AppImage is not a regular file"));
+  const QString dir = target.absolutePath();
+  const QString part = QDir(dir).filePath(QLatin1Char('.') + target.fileName() + QStringLiteral(".part"));
+  QFile::remove(part);
+  const auto failPart = [&](const QString& why) {
+    QFile::remove(part);
+    return fail(why);
+  };
+  {
+    QFile in(staged);
+    QFile out(part);
+    if (!in.open(QIODevice::ReadOnly)) return fail(QStringLiteral("staged update not readable"));
+    if (!out.open(QIODevice::WriteOnly)) return fail(QStringLiteral("update file not writable next to the AppImage"));
+    QCryptographicHash hash(QCryptographicHash::Sha256);
+    qint64 total = 0;
+    while (!in.atEnd()) {
+      const QByteArray chunk = in.read(1 << 20);
+      if (chunk.isEmpty()) break;
+      hash.addData(chunk);
+      total += chunk.size();
+      if (out.write(chunk) != chunk.size()) {
+        out.close();
+        return failPart(QStringLiteral("update file could not be written (disk full?)"));
+      }
+    }
+    if (!out.flush() || ::fsync(out.handle()) != 0) {
+      out.close();
+      return failPart(QStringLiteral("update file could not be flushed to disk"));
+    }
+    out.close();
+    if ((size >= 0 && total != size) ||
+        (!sha256.isEmpty() && QString::fromLatin1(hash.result().toHex()) != sha256.toLower())) {
+      return failPart(QStringLiteral("staged update does not match the signed index"));
+    }
+  }
+  const QFile::Permissions exec = QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner | QFileDevice::ReadGroup |
+                                  QFileDevice::ExeGroup | QFileDevice::ReadOther | QFileDevice::ExeOther;
+  if (!QFile::setPermissions(part, exec)) return failPart(QStringLiteral("update file could not be made executable"));
+  const QString prev = appImagePreviousPath(appImage);
+  QFile::remove(prev);
+  const QByteArray appBytes = QFile::encodeName(appImage);
+  if (::link(appBytes.constData(), QFile::encodeName(prev).constData()) != 0 && !QFile::copy(appImage, prev)) {
+    return failPart(QStringLiteral("the current AppImage could not be kept as .previous"));
+  }
+  if (::rename(QFile::encodeName(part).constData(), appBytes.constData()) != 0) {
+    return failPart(QStringLiteral("the new AppImage could not be put in place"));
+  }
+  const int dfd = ::open(QFile::encodeName(dir).constData(), O_RDONLY | O_DIRECTORY);  // make the rename durable (best effort)
+  if (dfd >= 0) {
+    ::fsync(dfd);
+    ::close(dfd);
+  }
+  return true;
+#else
+  Q_UNUSED(staged) Q_UNUSED(appImage) Q_UNUSED(sha256) Q_UNUSED(size)
+  return fail(QStringLiteral("AppImage updates exist on Linux only"));
+#endif
+}
+
+InstallerCommand appImageRelaunchCommand(const QString& appImage, qint64 oldPid, const QStringList& args) {
+  static const char* kWatcher =
+      "app=$1; prev=$2; marker=$3; oldpid=$4; shift 4\n"
+      "i=0; while kill -0 \"$oldpid\" 2>/dev/null && [ \"$i\" -lt 300 ]; do sleep 0.2; i=$((i+1)); done\n"
+      "unset APPDIR ARGV0 OWD APPIMAGE\n"
+      ": > \"$marker\"\n"
+      "\"$app\" \"$@\" &\n"
+      "pid=$!\n"
+      "wait \"$pid\"; rc=$?\n"
+      "if [ -e \"$marker\" ]; then\n"
+      "  rm -f \"$marker\"\n"
+      "  if [ -f \"$prev\" ] && mv -f \"$prev\" \"$app\"; then exec \"$app\" \"$@\"; fi\n"
+      "fi\n"
+      "exit \"$rc\"\n";
+  InstallerCommand c;
+  c.program = QStringLiteral("/bin/sh");
+  c.args = {QStringLiteral("-c"), QString::fromLatin1(kWatcher), QStringLiteral("uzume-update"), appImage, appImagePreviousPath(appImage),
+            appImageStartMarker(appImage), QString::number(oldPid)};
+  c.args += args;
+  return c;
 }
 
 }  // namespace uzume::update

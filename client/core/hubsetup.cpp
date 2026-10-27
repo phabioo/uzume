@@ -19,10 +19,12 @@ namespace uzume::update {
 
 Q_LOGGING_CATEGORY(lcHubSetup, "uzume.update.hubsetup")
 
+// "Set up a server on this PC" runs the Windows Player MSI; the Linux AppImage has no such path, so this always looks for
+// the windows-x64 MSI (on Linux it is found but never started).
 std::optional<Artifact> findOwnMsi(const Index& index, const QString& version, Release* releaseOut) {
   for (const Release& r : index.releases) {
     if (r.product != QLatin1String("player") || r.semver.toString() != version) continue;
-    if (const auto a = r.artifact(QLatin1String(kPlayerPlatform), QLatin1String(kKindMsi))) {
+    if (const auto a = r.artifact(QLatin1String(kPlatformWindowsX64), QLatin1String(kKindMsi))) {
       if (releaseOut != nullptr) *releaseOut = r;
       return a;
     }

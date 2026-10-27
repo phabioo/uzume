@@ -1,7 +1,10 @@
 # Quiet check targets (details: scripts/check.sh). Prerequisite for check-client:
 # scripts/bootstrap-vcpkg.sh has been run once.
 # HUB_VERSION / HUB_CHANNEL / HUB_COMMIT: ldflags of build-hub; HUB_VERSION is also the .deb version of package-hub-deb.
-.PHONY: check check-hub check-hub-race check-client build-hub package-hub-deb generate notices fetch-core fetch-desmume fetch-deps fetch-sdl3
+# APP_VERSION (required), APP_BUILD_DIR (default client/build/linux-release), APP_SERVER (default server/dist/uzume-server-linux-amd64),
+# APP_OUT (default client/build/appimage): package-app-appimage builds the app AppImage from a finished release build
+# (cmake --preset linux-release, build uzume_app and uzume_cli; make build-hub for the server binary).
+.PHONY: check check-hub check-hub-race check-client build-hub package-hub-deb package-app-appimage generate notices fetch-core fetch-desmume fetch-deps fetch-sdl3
 
 check:
 	@scripts/check.sh all
@@ -21,6 +24,9 @@ build-hub:
 
 package-hub-deb:
 	@scripts/check.sh hub-deb
+
+package-app-appimage:
+	@scripts/check.sh app-appimage
 
 generate:
 	@scripts/check.sh generate

@@ -625,3 +625,21 @@ func TestReleaseNotesValidation(t *testing.T) {
 		t.Fatalf("%+v %v", idx.Releases, errs)
 	}
 }
+
+func TestAppImageArtifactKind(t *testing.T) {
+	ok := rel("player", "stable", "0.24.0", art("linux-x64", KindAppImage, "Uzume-0.24.0-x86_64.AppImage"))
+	if err := ValidateRelease(ok); err != nil {
+		t.Fatalf("player linux-x64 appimage must be accepted: %v", err)
+	}
+	for name, r := range map[string]Release{
+		"hub linux-x64":        rel("hub", "stable", "0.24.0", art("linux-x64", KindAppImage, "a.AppImage")),
+		"hub linux-amd64":      rel("hub", "stable", "0.24.0", art("linux-amd64", KindAppImage, "a.AppImage")),
+		"player windows-x64":   rel("player", "stable", "0.24.0", art("windows-x64", KindAppImage, "a.AppImage")),
+		"player linux-x64 deb": rel("player", "stable", "0.24.0", art("linux-x64", KindDeb, "a.deb")),
+		"player linux-x64 msi": rel("player", "stable", "0.24.0", art("linux-x64", KindMSI, "a.msi")),
+	} {
+		if err := ValidateRelease(r); err == nil {
+			t.Errorf("%s must be rejected", name)
+		}
+	}
+}

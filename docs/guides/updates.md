@@ -29,6 +29,14 @@ How the server and the Windows app update themselves, and how a beta is promoted
 - Apply: the app copies its launcher to a temp folder and starts it with `--apply-msi-update <msi> <scope>`. The copy waits until no app runs, runs `msiexec /i <msi> /qn /norestart` with `MSIINSTALLPERUSER=1 ALLUSERS=2` (per user) or `ALLUSERS=1` (per machine, elevated, plus `INSTALL_HUB=1` when the server is installed), then starts the installed app.
 - The Windows app is a windowless (GUI-subsystem) app; no console opens on start.
 
+## App (Linux AppImage)
+
+- Same check, channels and signed index as the MSI path; the app follows the index artifact `linux-x64` / `appimage` (`Uzume-<version>-x86_64.AppImage`). It updates itself when the `APPIMAGE` variable (set by the AppImage runtime) names an existing file in a writable folder; otherwise the release is only shown ("The folder of the AppImage is not writable." / "Automatic installation is only available for the Windows installer and the Linux AppImage.").
+- Apply: the verified file is copied to `.<name>.part` next to the image (size and SHA-256 checked again, fsync, mode 0755), the running image is kept as `<name>.previous` (hard link), and the part file is renamed over the image. The app then quits the same way as for the MSI (saves are synced first) and a small shell watcher starts the new image with the original arguments (without one-shot flags like `--smoke-test`).
+- Safety: the new image has to confirm its start (about 5 s after launch, or by a clean quit). If it exits before that, the watcher moves `.previous` back and starts the old image; the staged update then counts as attempted and is not retried automatically. `.previous` stays after a good update as a manual way back.
+- "Go back…" works the same way and needs no `msi_downgrade` flag, since an AppImage is a plain file.
+- Data is never stored inside the image: with `APPIMAGE` set the app uses the per-user data folder (`UZUME_DATA_DIR` still wins), not a portable `data` folder.
+
 ## Channels
 
 - Since 0.14 the app segment reads `Off | Stable | Beta`; Off is stored as an explicit choice like Stable or Beta, so it wins over `update_channel_default`, and the app then performs no update checks. Otherwise `stable` or `beta` (hint in the UI: "Pre-release builds from every change on main. May contain bugs."), switchable in the same Settings sections. `beta` also takes stable releases when newer. Never a downgrade.
@@ -53,7 +61,7 @@ After going back, automatic updates are paused. The version you left is listed a
 
 Settings → Updates → EARLIER VERSIONS lists the releases with "Go back…". The dialog says what happens: the app closes, installs the older version and starts again (about 30 s); settings are kept (newer keys are ignored and come back after the update); saves and states are on the server and are not touched; plugins that need a newer app (manifest field `min_player`) are turned off and listed ("X needs 0.16.4 and is turned off until you update."), they turn on again after the update; updates are paused. Never while a game or Session runs: the button is muted and the dialog says so. The installer is downloaded from the index, verified, and run by the same launcher copy as an update. For that the app MSI is authored with `AllowDowngrades` (`packaging/windows/uzume.wxs`): an MSI built without it refuses to install over a newer version, so the index marks the releases built with it (`msi_downgrade`) and only those are offered. Releases from before this change cannot be reached from the list; install them by hand from the release page.
 
-A portable, Linux or development build lists the same releases with a "View release" link only.
+A portable, Linux (outside an updatable AppImage) or development build lists the same releases with a "View release" link only.
 
 ### Server
 
