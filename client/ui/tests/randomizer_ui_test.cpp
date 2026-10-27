@@ -58,6 +58,22 @@ class RandomizerUiTest : public QObject {
   }
   static QString text(QQuickItem* it) { return it ? it->property("text").toString() : QString(); }
   static bool shown(QQuickItem* it) { return it != nullptr && it->isVisible(); }
+  // The mode control is the Segmented when it fits and the Select otherwise (fonts, translations): whichever is visible.
+  static QQuickItem* modeControl(Harness& h) {
+    QQuickItem* seg = h.item("runRandomizerMode");
+    if (shown(seg)) return seg;
+    QQuickItem* sel = h.item("runRandomizerModeSelect");
+    return shown(sel) ? sel : seg;
+  }
+  // Sets the mode the way a user would: a click on the segment, or picking the entry in the Select (as controllers_glyphs_test does).
+  static bool pickMode(Harness& h, const char* value) {
+    if (shown(h.item("runRandomizerMode"))) {
+      const QByteArray seg = QByteArray("runRandomizerMode") + (QByteArray(value) == "each" ? "Each" : "Same");
+      return h.click(seg.constData());
+    }
+    QQuickItem* sel = h.item("runRandomizerModeSelect");
+    return shown(sel) && QMetaObject::invokeMethod(sel, "picked", Q_ARG(QString, QString::fromLatin1(value)));
+  }
   static bool popupOpen(Harness& h, const char* name) {
     QObject* o = h.window->findChild<QObject*>(QString::fromLatin1(name));
     return o != nullptr && o->property("visible").toBool();
@@ -265,10 +281,10 @@ class RandomizerUiTest : public QObject {
     h.item("runNameField")->setProperty("text", QStringLiteral("Ember Shuffle"));
     QTRY_COMPARE_WITH_TIMEOUT(runs->games()->rowCount(), 1, 8000);
     QVERIFY(h.click(("runGame_" + kGameId).toUtf8().constData()));
-    QTRY_VERIFY(shown(h.item("runRandomizerMode")));
-    QCOMPARE(h.item("runRandomizerMode")->property("current").toString(), QStringLiteral("off"));
+    QTRY_VERIFY(shown(modeControl(h)));
+    QCOMPARE(modeControl(h)->property("current").toString(), QStringLiteral("off"));
     QVERIFY(!shown(h.item("runRandomizerPreset")));   // Off hides the preset and Allow own variants
-    QVERIFY(h.click("runRandomizerModeEach"));
+    QVERIFY(pickMode(h, "each"));
     QTRY_VERIFY(shown(h.item("runRandomizerPreset")));
     QVERIFY(shown(h.item("runRandomizerOwn")));
     QCOMPARE(text(h.item("runRandomizerPin")), QStringLiteral("PINS FVX 2.3.1 FOR THIS RUN"));
@@ -314,7 +330,7 @@ class RandomizerUiTest : public QObject {
     QVERIFY(h.click(("runGame_" + kGameId).toUtf8().constData()));
     QTRY_VERIFY(shown(h.item("runRandomizerReason")));
     QCOMPARE(text(h.item("runRandomizerReason")), QStringLiteral("Home offers no randomizer. Admins: Server › Tools."));
-    QVERIFY(!h.item("runRandomizerMode")->isEnabled());
+    QVERIFY(!modeControl(h)->isEnabled());
     QVERIFY(!shown(h.item("runRandomizerPreset")));
     // A run without the randomizer carries no randomizer object.
     h.item("runNameField")->setProperty("text", QStringLiteral("Plain"));
