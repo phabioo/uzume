@@ -9,6 +9,7 @@ ColumnLayout {
     property int number: 1
     property string label: ""
     property string meta: ""
+    property string step: ""          // the step line of the start screens ("Step 2 of 3 · Security check"); replaces the section label
     property string title: ""
     property string text: ""
     property string avatar: ""      // name of a person: shows the avatar
@@ -16,7 +17,21 @@ ColumnLayout {
     spacing: Theme.space2
     Layout.fillWidth: true
 
-    UzSectionLabel { objectName: "startSectionLabel"; Layout.fillWidth: true; keepNumber: true; number: root.number; text: root.label; meta: root.meta }
+    UzSectionLabel { objectName: "startSectionLabel"; visible: root.step === ""; Layout.fillWidth: true; keepNumber: true; number: root.number; text: root.label; meta: root.meta }
+    Text {
+        objectName: "startStepLine"
+        visible: root.step !== ""
+        Layout.fillWidth: true
+        text: root.step
+        textFormat: Text.PlainText
+        elide: Text.ElideRight
+        font.family: Theme.mono
+        font.pixelSize: Theme.roles.meta.size
+        font.weight: Font.Medium
+        font.letterSpacing: Theme.roles.meta.spacing
+        font.capitalization: Font.AllUppercase
+        color: Theme.dim
+    }
     RowLayout {
         Layout.fillWidth: true
         spacing: Theme.space2

@@ -17,6 +17,7 @@ StartPage {
     onBackRequested: ob.cancel()
 
     StartHead {
+        step: root.screenLabel
         number: 1
         label: qsTr("Invite link")
         title: qsTr("Add %1?").arg(root.linkedLabel)

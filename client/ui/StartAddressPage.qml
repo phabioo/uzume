@@ -12,12 +12,16 @@ StartPage {
     readonly property var ob: player.onboarding
     readonly property bool setup: ob.flow === "setup"
     readonly property bool setupCodeError: ob.errorCode === "invalid_setup_code" || ob.errorCode === "setup_code_expired"
-    screenLabel: setup ? qsTr("Set up a server · 2 of 4") : qsTr("Join a server · 1 of 3")
+    screenLabel: setup ? qsTr("Step 2 of 4 · Connect to the device") : qsTr("Step 1 of 3 · Server")
     openLabel: setup ? qsTr("UZUME · SET UP A SERVER") : qsTr("UZUME · JOIN A SERVER")
     initialFocus: setup ? setupAddress.field : joinInput.field
     hints: [{ kbd: "Enter", label: qsTr("Continue") }, { kbd: "Ctrl+V", label: qsTr("Paste a link") },
             { pad: "A", label: qsTr("Choose") }, { pad: "Y", label: qsTr("Keyboard") },
             { kbd: "Esc", pad: "B", label: qsTr("Back") }]
+    helpItems: setup ? [] : [
+        { title: qsTr("An invite link works here"), text: qsTr("Paste it into the field. The link names the server and carries the invite.") },
+        { title: qsTr("Where is the address?"), text: qsTr("The person who runs the server knows it. Admins find it in Server › Settings › Network & sharing.") }
+    ]
     onBackRequested: ob.back()
 
     function submitJoin() { root.ob.submitJoinInput(joinInput.text) }
@@ -25,6 +29,7 @@ StartPage {
 
     // ---- Join
     StartHead {
+        step: root.screenLabel
         visible: !root.setup
         number: 1
         label: qsTr("Join a server")
@@ -101,11 +106,11 @@ StartPage {
         id: joinInput
         visible: !root.setup
         name: "joinInput"
-        label: qsTr("Address or invite code")
-        placeholder: qsTr("server.example.com:8443")
+        label: qsTr("Server address, invite link or invite code")
+        placeholder: qsTr("server.example.com:8443 or an invite link")
         mono: true
         error: !root.setup ? root.ob.errorMessage : ""
-        hint: qsTr("An invite code looks like UZ-8XK2-M4QD; spaces, hyphens or none work. An uzume:// link fills the field.")
+        hint: qsTr("An invite code (UZ-8XK2-M4QD) does not say which server it is for: pick a recent server above, or Uzume asks for the address next.")
         onAccepted: root.submitJoin()
     }
     UzStatusIcon {
@@ -138,6 +143,7 @@ StartPage {
 
     // ---- Set up: address and setup code (step 2)
     StartHead {
+        step: root.screenLabel
         visible: root.setup
         number: 1
         label: qsTr("Set up a server")

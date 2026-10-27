@@ -29,6 +29,7 @@ StartPage {
         Text { anchors.centerIn: parent; text: "!"; font.family: Theme.sans; font.weight: Font.Bold; font.pixelSize: 15; color: Theme.ground }
     }
     StartHead {
+        step: root.spec.label ? root.screenLabel + " · " + root.spec.label : root.screenLabel
         number: 1
         label: root.spec.label || ""
         meta: root.spec.meta || ""

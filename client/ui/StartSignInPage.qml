@@ -9,7 +9,7 @@ StartPage {
     required property PlayerController player
     readonly property var ob: player.onboarding
     signal forgotRequested()
-    screenLabel: qsTr("Join a server · 3 of 3")
+    screenLabel: qsTr("Step 3 of 3 · %1").arg(ob.serverName)
     openLabel: qsTr("UZUME · SIGN IN · %1").arg(ob.serverName)
     initialFocus: form.nameField.field
     hints: [{ kbd: "Tab", label: qsTr("Next") }, { kbd: "Enter", label: qsTr("Sign in") },
@@ -18,6 +18,7 @@ StartPage {
     onBackRequested: ob.back()
 
     StartHead {
+        step: root.screenLabel
         number: 1
         label: root.ob.serverName
         meta: qsTr("3 of 3")

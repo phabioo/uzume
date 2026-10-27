@@ -61,7 +61,7 @@ class ShotsPlayerATest : public QObject {
       Harness h;
       QVERIFY(h.start());
       resize(h, 1280);
-      QCOMPARE(h.item("addButton")->property("text").toString(), QStringLiteral("Connect"));
+      QCOMPARE(h.item("addButton")->property("text").toString(), QStringLiteral("Add server"));
       shot(h, QStringLiteral("3a-3-connect"));
     }
     FakeHub hub(QStringLiteral("a"));

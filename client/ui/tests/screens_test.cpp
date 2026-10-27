@@ -143,7 +143,7 @@ class ScreensTest : public QObject {
       QQuickItem* card = h.item("hubCard_hub-home");
       QQuickTest::qWaitForPolish(h.window);
       QVERIFY2(card->width() >= 400, qPrintable(QStringLiteral("card width %1").arg(card->width())));
-      QVERIFY(card->height() >= 90);
+      QVERIFY2(card->height() >= 56 && card->height() <= 72, qPrintable(QStringLiteral("row height %1").arg(card->height())));  // a 56 px row
       QQuickItem* name = Harness::findVisual(card, QStringLiteral("hubCardName"));
       QVERIFY(name != nullptr && name->isVisible() && name->width() > 40);
       QQuickItem* connect = Harness::findVisual(card, QStringLiteral("hubConnectButton"));
@@ -469,6 +469,100 @@ class ScreensTest : public QObject {
       QVERIFY(name != nullptr && name->width() > 40);
       QQuickItem* connect = Harness::findVisual(card, QStringLiteral("hubConnectButton"));
       QVERIFY(connect != nullptr && connect->width() >= 70);
+    }
+  }
+
+  static int visibleCount(Harness& h, const char* name) {
+    int n = 0;
+    for (QQuickItem* it : h.items(name)) {
+      if (it->isVisible() && it->window() == h.window) ++n;
+    }
+    return n;
+  }
+
+  // Usability pass 6: the saved servers are 56 px rows with one Connect each, Remove sits in the "..." menu, the address field
+  // below is the only other way in ("Add server", no second Connect) and there is no vertical side text.
+  void connectionScreenHasOneConnectPerServer() {
+    Harness h;
+    QVERIFY(h.start());
+    h.controller->onboarding()->setStartScreenEnabled(false);
+    ProfileStore* ps = h.controller->profileStore();
+    QVERIFY(ps->upsertProfile(profile(QStringLiteral("hub-a"), QStringLiteral("Home"), QStringLiteral("https://home.local:8443"))));
+    QVERIFY(ps->upsertProfile(profile(QStringLiteral("hub-b"), QStringLiteral("Office"), QStringLiteral("https://office.local:8443"))));
+    emit h.controller->hubsChanged();
+    QTRY_COMPARE(screenOf(h), QStringLiteral("connection"));
+    QTRY_COMPARE(visibleCount(h, "hubConnectButton"), 2);
+    QCOMPARE(visibleCount(h, "hubMenu"), 2);
+    QCOMPARE(visibleCount(h, "hubRemoveButton"), 0);  // Remove is in the menu, not next to Connect
+    QCOMPARE(h.item("addButton")->property("text").toString(), QStringLiteral("Add server"));
+    QCOMPARE(h.item("addButton")->property("kind").toString(), QStringLiteral("outline"));  // secondary, not primary
+    QVERIFY(h.item("playOnThisPcButton") != nullptr && h.item("playOnThisPcButton")->isVisible());
+    QCOMPARE(h.item("startStepLine")->property("text").toString(), QStringLiteral("Step 1 of 2 · Server"));
+    QCOMPARE(h.item("startTitle")->property("text").toString(), QStringLiteral("Where are your games?"));
+    QVERIFY(h.item("autoConnectToggle")->isVisible());
+    QCOMPARE(h.item("autoConnectToggle")->property("text").toString(), QStringLiteral("Connect automatically when Uzume starts"));
+    QVERIFY(h.item("startHelpColumn") != nullptr && h.item("startHelpColumn")->isVisible());
+    QVERIFY(h.item("openColumnLabel") == nullptr || !h.item("openColumnLabel")->isVisible());
+    QQuickItem* row = h.item("hubCard_hub-a");
+    QVERIFY(row != nullptr);
+    QVERIFY2(row->height() >= 56 && row->height() <= 72, qPrintable(QString::number(row->height())));
+    // Remove through the menu.
+    QVERIFY(h.click("hubMenu"));
+    QTRY_VERIFY(h.item("hubMenu_remove") != nullptr);
+    QVERIFY(h.click("hubMenu_remove"));
+    QTRY_COMPARE(h.controller->hubs().size(), 1);
+  }
+
+  // The first successful connection turns the automatic connection on by default; the next start connects by itself.
+  void autoConnectIsOnAfterTheFirstSuccessfulConnection() {
+    FakeHub hub(QStringLiteral("a"));
+    QVERIFY(hub.start());
+    hub.decision = FakeHub::Decision::Approve;
+    Harness h;
+    QVERIFY(h.start());
+    h.controller->onboarding()->setStartScreenEnabled(false);
+    QVERIFY(!h.controller->autoConnect());
+    h.controller->addHub(hub.address());
+    QTRY_COMPARE_WITH_TIMEOUT(h.controller->connection()->state(), HubConnection::State::NeedsTrustConfirmation, 8000);
+    h.controller->confirmTrust();
+    QTRY_COMPARE_WITH_TIMEOUT(h.controller->connection()->state(), HubConnection::State::NeedsPairing, 8000);
+    QVERIFY(!h.controller->autoConnect());  // not connected yet
+    h.controller->requestPairing();
+    QTRY_COMPARE_WITH_TIMEOUT(h.controller->libraryState(), QStringLiteral("ready"), 8000);
+    QVERIFY(h.controller->autoConnect());
+    QVERIFY(!h.controller->profileStore()->autoConnectIsExplicit());
+    ProfileStore reread(h.dir.path());
+    QVERIFY(reread.autoConnect());
+  }
+
+  // Startup: with a server connected once and no explicit choice the app connects by itself (a failed attempt ends on the
+  // connection screen with the result, one attempt, no loop); an explicit "off" is respected.
+  void startupFollowsTheAutoConnectChoice() {
+    for (const bool explicitOff : {false, true}) {
+      Harness h;
+      {
+        ProfileStore ps(h.dir.path());
+        QVERIFY(ps.upsertProfile(profile(QStringLiteral("hub-a"), QStringLiteral("Home"), QStringLiteral("http://127.0.0.1:1"))));
+        QVERIFY(ps.setLastHubId(QStringLiteral("hub-a")));
+        QVERIFY(ps.markConnectedOnce());
+        if (explicitOff) QVERIFY(ps.setAutoConnect(false));
+      }
+      QVERIFY(h.start());
+      h.controller->onboarding()->setStartScreenEnabled(false);
+      QCOMPARE(h.controller->autoConnect(), !explicitOff);
+      h.controller->startup();
+      if (explicitOff) {
+        QTest::qWait(300);
+        QCOMPARE(h.controller->connection()->state(), HubConnection::State::Disconnected);
+        QCOMPARE(screenOf(h), QStringLiteral("connection"));
+      } else {
+        QTRY_COMPARE_WITH_TIMEOUT(h.controller->connection()->state(), HubConnection::State::Unreachable, 8000);
+        QCOMPARE(screenOf(h), QStringLiteral("connection"));  // the screen with the error, not a retry loop
+        QTest::qWait(400);
+        QCOMPARE(h.controller->connection()->state(), HubConnection::State::Unreachable);
+        QCOMPARE(h.controller->hubs().at(0).toMap().value(QStringLiteral("status")).toString(), QStringLiteral("unreachable"));
+      }
+      uitest::warningCount() = 0;
     }
   }
 

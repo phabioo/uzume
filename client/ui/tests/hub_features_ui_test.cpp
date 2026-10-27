@@ -502,12 +502,13 @@ class HubFeaturesUiTest : public QObject {
     QVERIFY(!h.item(nm("hubSwitch_", idB).constData())->isVisible());
     QVERIFY(h.item(nm("hubSwitch_", idA).constData())->isVisible());
 
-    // Auto-connect toggle uses the same setting as the connection screen.
-    QVERIFY(!h.controller->autoConnect());
-    QVERIFY(h.click("settingsAutoConnectToggle"));
+    // Auto-connect toggle uses the same setting as the connection screen. A server was connected, so it is on by default.
     QVERIFY(h.controller->autoConnect());
     QVERIFY(h.click("settingsAutoConnectToggle"));
     QVERIFY(!h.controller->autoConnect());
+    QVERIFY(h.click("settingsAutoConnectToggle"));
+    QVERIFY(h.controller->autoConnect());
+    QVERIFY(h.controller->profileStore()->autoConnectIsExplicit());
 
     // Switch to A: B disconnects, A connects, back on the Settings page after reconnect is not required.
     QVERIFY(h.click(nm("hubSwitch_", idA).constData()));

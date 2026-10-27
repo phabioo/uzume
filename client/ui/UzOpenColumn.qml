@@ -14,6 +14,7 @@ Item {
     Item {   // vertical-rl: the text reads top to bottom
         id: vertical
         objectName: "openColumnLabel"
+        visible: root.label !== ""
         anchors.right: parent.right
         anchors.top: parent.top
         width: txt.implicitHeight

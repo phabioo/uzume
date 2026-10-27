@@ -4,7 +4,7 @@ Covers canvas pages "0 All sheets" (index only) and "1 Frame and first start": t
 
 Conventions that hold for every screen in this file:
 
-- Full-window first-start screens have **no sidebar** until a library exists; the top bar is 84 px high with the Lockup at 32 / 28 and a Mono screen label on the right; a 152 px open column with the vertical Mono label `UZUME · ...` is on the right.
+- Full-window first-start screens have **no sidebar** until a library exists; since the usability pass they sit in a centred 880 px grid: Lockup on top, one Mono step line ("STEP 1 OF 2 · SERVER", the only numbering), content left and a 260 px help column right (footer "Uzume <version>"); no vertical side label.
 - Gamepad screens end with a hint row of `GamepadHint` (A Choose, B Back, Y Keyboard, X Show password); keyboard screens use `Kbd` (Tab, Enter, Esc, Ctrl+V). The hint row follows the last input device.
 - Passwords are at least 12 characters. Sign-in lockout is per person per PC: 5 tries, then 5 minutes.
 - Codes: security code `K7Q4-9WMP-2HXD` (groups of four, hyphens), invite code `UZ-8XK2-M4QD` (prefix `UZ-`; the field accepts spaces, hyphens or none), setup code `7H4K-2Q` (6 letters and numbers). Hosts are placeholders: `server.example.com:8443`, `192.0.2.10` and `192.0.2.20` (documentation range).
@@ -154,8 +154,8 @@ Six states, each with copy and actions:
 
 Boards: [`S8b1`](../source/uzume/S8b1.dc.html) · [`S8b1Kinari`](../source/uzume/S8b1Kinari.dc.html). Built in: 0.18 package 7 (app start and accounts).
 
-- JOIN A SERVER · 1 OF 3. Title "Where do you want to go?" Field "Address or invite code" (`server.example.com:8443`), primary Continue. Help: an invite code looks like `UZ-8XK2-M4QD`; spaces, hyphens or none work; an `uzume://` link fills the field.
-- Notes: recent servers appear above the field as 44 px rows (name, Mono address, last used); an address without a port gets `:8443`; a typed invite code skips to the invite step (8b-3) because the code names the server.
+- JOIN A SERVER · 1 OF 3. Title "Where do you want to go?" Field "Server address, invite link or invite code" (`server.example.com:8443 or an invite link`), primary Continue. Help: an invite code looks like `UZ-8XK2-M4QD`; spaces, hyphens or none work; an `uzume://` link fills the field.
+- Notes: recent servers appear above the field as 44 px rows (name, Mono address, last used); an address without a port gets `:8443`; a bare invite code does not name its server: the app keeps it and asks for the address (or uses a selected recent server); an invite link goes straight to the invite step (8b-3).
 - Hints: A Choose, Y Keyboard, B Back.
 
 ### 8b-2 Join · security code

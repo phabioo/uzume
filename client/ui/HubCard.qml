@@ -1,7 +1,9 @@
 import QtQuick
 import QtQuick.Layouts
 
-// Card for a saved (or currently attempted) hub in 3a.
+// Row for a saved (or currently attempted) server in 3a (start and connect screens, usability pass 6): a 56 px status line with
+// hairlines (name and address, "last used", one primary Connect, a "⋯" menu with Remove). States that need more room (errors,
+// a changed certificate) open below the line.
 Rectangle {
     id: card
     required property var hub
@@ -19,43 +21,76 @@ Rectangle {
     readonly property string status: hub.status
     readonly property string tone: hub.tone
 
-    implicitHeight: body.implicitHeight + 32
-    radius: Theme.radiusNone
-    color: Theme.surface
-    border.width: hub.isLast && status === "idle" ? 1.5 : 1
-    border.color: hub.isLast && status === "idle" ? Theme.accent : (status === "certChanged" ? Theme.danger : Theme.rule)
-    Behavior on border.color { ColorAnimation { duration: Theme.durFast } }
+    readonly property bool plain: status === "idle" || status === "connecting"
+    implicitHeight: body.implicitHeight + (plain ? 0 : 14)
+    color: "transparent"
+    Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: card.status === "certChanged" ? Theme.danger : Theme.rule2 }
 
     ColumnLayout {
         id: body
         anchors.fill: parent
-        anchors.margins: 16
-        anchors.leftMargin: 18
-        anchors.rightMargin: 18
+        anchors.bottomMargin: card.plain ? 0 : 14
         spacing: 10
 
         RowLayout {
             Layout.fillWidth: true
-            spacing: 10
-            UzLabel {
-                objectName: "hubCardName"
+            Layout.preferredHeight: 56
+            spacing: Theme.space15
+            StatusDot {
+                objectName: "hubStatusDot"
+                tone: card.status === "idle" ? "ok" : card.tone
+                Accessible.role: Accessible.StaticText
+                Accessible.name: card.status === "idle" ? qsTr("Reachable") : card.hub.statusText
+            }
+            ColumnLayout {
                 Layout.fillWidth: true
-                text: card.hub.name
-                font.pixelSize: Theme.roles.headerTitle.size
-                font.weight: Font.DemiBold
-                elide: Text.ElideRight
+                Layout.minimumWidth: 0
+                spacing: 2
+                UzLabel {
+                    objectName: "hubCardName"
+                    Layout.fillWidth: true
+                    text: card.hub.name
+                    font.pixelSize: Theme.roles.itemTitle.size
+                    font.weight: Font.Medium
+                    elide: Text.ElideRight
+                }
+                UzMono {
+                    objectName: "hubCardAddress"
+                    Layout.fillWidth: true
+                    text: card.hub.addressText || card.hub.detail
+                    elide: Text.ElideRight
+                }
             }
             UzTag {
                 objectName: "hubStatusPill"
-                tone: card.status === "idle" ? "ok" : card.tone
-                text: card.status === "idle" ? qsTr("Reachable") : card.hub.statusText
+                visible: !card.plain
+                tone: card.tone
+                text: card.hub.statusText
             }
-        }
-
-        UzMono {
-            Layout.fillWidth: true
-            text: card.hub.detail
-            elide: Text.ElideRight
+            UzMono {
+                objectName: "hubLastUsed"
+                visible: card.plain && card.hub.saved && (card.hub.lastConnectedText || "") !== ""
+                text: qsTr("Last used %1").arg(card.hub.lastConnectedText || "").toUpperCase()
+                elide: Text.ElideRight
+                Layout.maximumWidth: 180
+            }
+            UzButton {
+                objectName: "hubConnectButton"
+                visible: card.status === "idle" || card.status === "connecting"
+                kind: "primary"
+                busy: card.status === "connecting"
+                busyOnClick: true
+                enabled: card.status === "idle"
+                text: card.status === "connecting" ? qsTr("Connecting…") : qsTr("Connect")
+                onClicked: card.connectRequested(card.hub.hubId)
+            }
+            MoreMenu {
+                objectName: "hubMenu"
+                visible: card.status !== "connecting"
+                tooltip: qsTr("More actions for %1").arg(card.hub.name)
+                items: [{ name: "remove", label: card.hub.saved ? qsTr("Remove") : qsTr("Discard"), danger: true }]
+                onActivated: name => { if (name === "remove") card.removeRequested(card.hub.hubId) }
+            }
         }
 
         // Notice on error/warning (certificate changed, hub/player too old, not reachable)
@@ -177,30 +212,20 @@ Rectangle {
             }
         }
 
-        // The action buttons wrap onto further lines when a wide font leaves them too little room; Remove stays on the right.
+        // The action buttons wrap onto further lines when a wide font leaves them too little room.
         // Anchors (not a Flow inside a RowLayout): a Flow reports an implicit width that depends on its own width, and as a
         // layout item it collapsed to a few pixels, which squeezed the whole saved-Hub card (R-P2).
         Item {
             id: actions
             Layout.fillWidth: true
             Layout.minimumWidth: 0
-            implicitHeight: Math.max(actionFlow.implicitHeight, removeButton.implicitHeight)
+            visible: !card.plain
+            implicitHeight: actionFlow.implicitHeight
             Flow {
                 id: actionFlow
                 anchors.left: parent.left
-                anchors.right: removeButton.left
-                anchors.rightMargin: 10
+                anchors.right: parent.right
                 spacing: 10
-                UzButton {
-                    objectName: "hubConnectButton"
-                    visible: card.status === "idle" || card.status === "connecting"
-                    kind: "primary"
-                    busy: card.status === "connecting"
-                    busyOnClick: true
-                    enabled: card.status === "idle"
-                    text: card.status === "connecting" ? qsTr("Connecting…") : qsTr("Connect")
-                    onClicked: card.connectRequested(card.hub.hubId)
-                }
                 UzButton {
                     visible: card.status === "unreachable" || card.status === "userDisabled"
                     busyOnClick: true
@@ -219,16 +244,6 @@ Rectangle {
                     text: qsTr("Cancel")
                     onClicked: card.cancelCertificateRequested()
                 }
-            }
-            UzButton {
-                id: removeButton
-                objectName: "hubRemoveButton"
-                anchors.right: parent.right
-                anchors.top: parent.top
-                visible: card.status !== "connecting"
-                kind: "link"
-                text: card.hub.saved ? qsTr("Remove") : qsTr("Discard")
-                onClicked: card.removeRequested(card.hub.hubId)
             }
         }
     }

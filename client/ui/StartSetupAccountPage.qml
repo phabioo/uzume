@@ -9,7 +9,7 @@ StartPage {
     required property PlayerController player
     readonly property var ob: player.onboarding
     property string localError: ""
-    screenLabel: qsTr("Set up a server · 4 of 4")
+    screenLabel: qsTr("Step 4 of 4 · Your account")
     openLabel: qsTr("UZUME · SET UP A SERVER")
     initialFocus: nameInput.field
     hints: [{ kbd: "Tab", label: qsTr("Next") }, { kbd: "Enter", label: qsTr("Create server") },
@@ -27,6 +27,7 @@ StartPage {
     }
 
     StartHead {
+        step: root.screenLabel
         number: 1
         label: qsTr("Set up %1").arg(root.ob.serverName)
         meta: qsTr("Step 4 of 4")

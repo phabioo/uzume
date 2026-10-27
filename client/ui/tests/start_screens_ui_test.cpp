@@ -63,11 +63,14 @@ class StartScreensUiTest : public QObject {
     QVERIFY(h.start());
     QCOMPARE(h.controller->screen(), QStringLiteral("start"));
     QVERIFY(h.controller->onboarding()->startScreenEnabled());
-    for (const char* n : {"startPlay", "startJoin", "startSetup", "startPasteHint", "startLockup", "startScreenLabel", "startHintRow", "openColumnLabel"}) {
+    for (const char* n : {"startPlay", "startJoin", "startSetup", "startPasteHint", "startLockup", "startStepLine", "startHintRow"}) {
       SHOWN(n);
     }
     QCOMPARE(textOf(h, "startTitle"), QStringLiteral("Welcome to Uzume"));
-    QCOMPARE(textOf(h, "startScreenLabel"), QStringLiteral("First start"));
+    QCOMPARE(textOf(h, "startStepLine"), QStringLiteral("First start"));
+    // No vertical side text, no top-right label and no version block: one step line in the content column.
+    QVERIFY(!shown(h, "openColumnLabel"));
+    QVERIFY(!shown(h, "startScreenLabel"));
     QVERIFY(h.item("navLibrary") == nullptr || !h.item("navLibrary")->isVisible());  // no sidebar
     uitest::saveShot(h.window, QStringLiteral("8a-1-first-start"));
     QTest::keyClick(h.window, Qt::Key_Escape);
@@ -88,7 +91,7 @@ class StartScreensUiTest : public QObject {
     CLICK("startPlay");
     PHASE("play");
     SHOWN("playFolderField");
-    QCOMPARE(textOf(h, "startScreenLabel"), QStringLiteral("Play on this PC · 1 of 1"));
+    QCOMPARE(textOf(h, "startStepLine"), QStringLiteral("Play on this PC"));
     QVERIFY(!h.item("playStart")->isEnabled());  // nothing picked yet
     uitest::saveShot(h.window, QStringLiteral("8a-3-play-empty"));
 
@@ -158,7 +161,7 @@ class StartScreensUiTest : public QObject {
     PHASE("address");
     SHOWN("joinInput");
     QVERIFY(!h.item("joinContinue")->isEnabled());  // empty
-    QCOMPARE(textOf(h, "startScreenLabel"), QStringLiteral("Join a server · 1 of 3"));
+    QCOMPARE(textOf(h, "startStepLine"), QStringLiteral("Step 1 of 3 · Server"));
     uitest::saveShot(h.window, QStringLiteral("8b-1-join-address"));
 
     // invalid input stays on the page with the controller's copy under the field
@@ -200,6 +203,20 @@ class StartScreensUiTest : public QObject {
     SHOWN("signInInvite");
     SHOWN("signInApproval");
     uitest::saveShot(h.window, QStringLiteral("8b-4-sign-in"));
+    // One numbering system, shown once: the step line (the server's name after the step), no eyebrow, no side text.
+    QCOMPARE(textOf(h, "startStepLine"), QStringLiteral("Step 3 of 3 · Home server"));
+    QVERIFY(!shown(h, "startSectionLabel"));
+    QVERIFY(!shown(h, "openColumnLabel"));
+    QVERIFY(!shown(h, "startScreenLabel"));
+    // Tab goes Name -> Password (not to "Show") -> Sign in.
+    h.item("signInName")->forceActiveFocus();
+    QVERIFY(h.item("signInName")->hasActiveFocus());
+    QTest::keyClick(h.window, Qt::Key_Tab);
+    QTRY_VERIFY2(h.item("signInPassword")->hasActiveFocus(), "Tab from Name must reach the Password field");
+    QVERIFY(!h.item("signInPasswordReveal")->hasActiveFocus());
+    QTest::keyClick(h.window, Qt::Key_Tab);
+    QTRY_VERIFY(!h.item("signInPassword")->hasActiveFocus());
+    QVERIFY(!h.item("signInPasswordReveal")->hasActiveFocus());
 
     setText(h, "signInName", QStringLiteral("anna"));
     setText(h, "signInPassword", QStringLiteral("wrong password!!"));
@@ -211,6 +228,24 @@ class StartScreensUiTest : public QObject {
     CLICK("signInSubmit");
     QTRY_VERIFY_WITH_TIMEOUT(h.controller->screen() != QStringLiteral("start"), 8000);
     QTRY_VERIFY_WITH_TIMEOUT(h.controller->connection()->state() == HubConnection::State::Connected, 8000);
+  }
+
+  // The first join step is truthful about invites: a link names the server, a bare code does not and asks for the address next.
+  void joinStepWordsInvitesTruthfully() {
+    Harness h;
+    QVERIFY(h.start());
+    CLICK("startJoin");
+    PHASE("address");
+    SHOWN("joinInput");
+    QVERIFY(!textOf(h, "joinInputHint").contains(QStringLiteral("fills the field")));
+    QVERIFY(textOf(h, "joinInputHint").contains(QStringLiteral("does not say which server")));
+    SHOWN("startHelpColumn");
+    setText(h, "joinInput", QStringLiteral("UZ-8XK2-M4QD"));
+    CLICK("joinContinue");
+    SHOWN("joinInputError");
+    QCOMPARE(h.controller->onboarding()->errorCode(), QStringLiteral("need_address"));
+    QCOMPARE(h.controller->onboarding()->phase(), QStringLiteral("address"));  // no connection was tried
+    QCOMPARE(h.controller->onboarding()->inviteCode(), QStringLiteral("UZ-8XK2-M4QD"));  // the code is kept
   }
 
   // 8b-5c: too many tries, with the wait as m:ss.
@@ -337,7 +372,7 @@ class StartScreensUiTest : public QObject {
     CLICK("startSetup");
     SHOWN("setupOnThisPc");
     SHOWN("setupOnDevice");
-    QCOMPARE(textOf(h, "startScreenLabel"), QStringLiteral("Set up a server · 1–3 of 4"));
+    QCOMPARE(textOf(h, "startStepLine"), QStringLiteral("Step 1 of 4 · Where it runs"));
     QCOMPARE(h.item("setupOnThisPc")->isEnabled(), h.controller->localHub()->available());
     uitest::saveShot(h.window, QStringLiteral("8a-4-setup-where"));
     // Back returns to the first screen
@@ -348,7 +383,7 @@ class StartScreensUiTest : public QObject {
     PHASE("address");
     SHOWN("setupAddress");
     SHOWN("setupCode");
-    QCOMPARE(textOf(h, "startScreenLabel"), QStringLiteral("Set up a server · 2 of 4"));
+    QCOMPARE(textOf(h, "startStepLine"), QStringLiteral("Step 2 of 4 · Connect to the device"));
     uitest::saveShot(h.window, QStringLiteral("8a-4-setup-address"));
 
     setText(h, "setupAddress", hub.address());
@@ -360,7 +395,7 @@ class StartScreensUiTest : public QObject {
     setText(h, "setupCode", QStringLiteral("7H4K-2Q"));
     CLICK("setupConnect");
     PHASE("security");
-    QCOMPARE(textOf(h, "startScreenLabel"), QStringLiteral("Set up a server · 3 of 4"));
+    QCOMPARE(textOf(h, "startStepLine"), QStringLiteral("Step 3 of 4 · Security check"));
     uitest::saveShot(h.window, QStringLiteral("8a-4-setup-security"));
     CLICK("securityMatches");
     PHASE("setup_account");

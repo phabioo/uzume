@@ -1117,6 +1117,10 @@ void PlayerController::onConnectionState(HubConnection::State s) {
     pairingFlow_ = false;
   }
   if (s == S::Connected) {
+    // The first successful connection turns the automatic connection on by default (an explicit choice stays).
+    const bool autoBefore = profiles_->autoConnect();
+    profiles_->markConnectedOnce();
+    if (profiles_->autoConnect() != autoBefore) emit autoConnectChanged();
     if (!resumePage_.isEmpty()) {
       page_ = resumePage_;  // reconnect after "Edit Hub": back where the user was
       resumePage_.clear();
