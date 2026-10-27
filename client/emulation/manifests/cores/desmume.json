@@ -48,5 +48,7 @@
   ],
   "always_shown_core_options": [
     "desmume_internal_resolution"
-  ]
+  ],
+  "states": {"supported": true, "run_ahead": false},
+  "cheats": {"formats": ["ar_ds"]}
 }

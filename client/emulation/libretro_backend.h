@@ -51,6 +51,16 @@ class LibretroBackend final : public EmulatorBackend {
   void setVideoWanted(bool wanted) override { m_videoWanted.store(wanted); }
   bool runFrame() override;
   void reset() override;
+  // Save states and cheats (optional symbols; a missing one means no support). Serialization quirks the core declared
+  // (RETRO_SERIALIZATION_QUIRK_*): MUST_INITIALIZE blocks serializing before the first frame ran.
+  bool supportsStates() const override;
+  qint64 serializeSize() override;
+  bool serialize(QByteArray* out) override;
+  bool unserialize(const QByteArray& state) override;
+  quint64 serializationQuirks() const { return m_serQuirks; }
+  bool supportsCheats() const override;
+  void cheatReset() override;
+  void cheatSet(unsigned index, bool enabled, const QString& code) override;
   // Battery save (RETRO_MEMORY_SAVE_RAM) <-> <save dir>/<game basename>.sav: loaded after the game loads,
   // written when changed (about every 3 s while running, on pause and before unloading), atomically.
   bool flushSave() override;
@@ -143,6 +153,9 @@ class LibretroBackend final : public EmulatorBackend {
   bool m_supportsNoGame = false;  // core declared SET_SUPPORT_NO_GAME(true)
   bool m_gameLoaded = false;
   bool m_shutdownRequested = false;
+  quint64 m_serQuirks = 0;      // RETRO_ENVIRONMENT_SET_SERIALIZATION_QUIRKS
+  int m_stateContext = 0;       // RETRO_SAVESTATE_CONTEXT_* answered to GET_SAVESTATE_CONTEXT (NORMAL: states go to disk/server)
+  bool m_ranFrame = false;      // retro_run was called since the game loaded
 
   QByteArray m_systemDir;
   QByteArray m_saveDir;

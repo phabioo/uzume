@@ -73,6 +73,56 @@ class ManifestTest : public QObject {
     QCOMPARE(reg.find(QStringLiteral("3ds"))->identity, QStringLiteral("3ds_ncsd"));
   }
 
+  void builtinStatesAndCheatBlocks() {
+    ManifestRegistry reg;
+    QString err;
+    QVERIFY2(reg.loadBuiltin(&err), qPrintable(err));
+    for (const char* id : {"melondsds", "desmume", "azahar", "mgba", "gambatte"}) {
+      const CoreProfile* p = reg.profile(QString::fromLatin1(id));
+      QVERIFY(p);
+      QVERIFY2(p->statesSupported, id);
+      for (const QString& f : p->cheatFormats) QVERIFY2(CoreProfile::knownCheatFormats().contains(f), id);
+    }
+    QVERIFY(reg.profile(QStringLiteral("mgba"))->statesRunAhead);
+    QVERIFY(reg.profile(QStringLiteral("gambatte"))->statesRunAhead);
+    QVERIFY(!reg.profile(QStringLiteral("azahar"))->statesRunAhead);
+    QCOMPARE(reg.profile(QStringLiteral("azahar"))->cheatFormats, QStringList{QStringLiteral("gateway")});
+    QCOMPARE(reg.profile(QStringLiteral("desmume"))->cheatFormats, QStringList{QStringLiteral("ar_ds")});
+    const CoreProfile* mg = reg.profile(QStringLiteral("mgba"));
+    QVERIFY(mg->cheatFormats.contains(QStringLiteral("ar_gba")));  // union
+    QCOMPARE(mg->cheatFormatsFor(QStringLiteral("gba")), (QStringList{"gsa", "cb", "ar_gba"}));
+    QCOMPARE(mg->cheatFormatsFor(QStringLiteral("gb")), (QStringList{"gsa", "game_genie"}));
+    QCOMPARE(mg->cheatFormatsFor(QStringLiteral("gbc")), (QStringList{"gsa", "game_genie"}));
+    QVERIFY(mg->cheatFormatsFor(QStringLiteral("nds")).isEmpty());
+    QCOMPARE(reg.profile(QStringLiteral("gambatte"))->cheatFormatsFor(QStringLiteral("gb")), (QStringList{"game_genie", "gsa"}));
+    QCOMPARE(reg.profile(QStringLiteral("melondsds"))->cheatFormats, QStringList{QStringLiteral("ar_ds")});
+
+    // Parsing: defaults, unknown format, run_ahead without supported.
+    auto parse = [](const char* extra, QString* e = nullptr) {
+      const QByteArray json = QByteArray(R"({"core_id":"x","library_basename":"x_libretro","system_ids":["gb","gba"],)") + extra + "}";
+      return ManifestRegistry::parseProfile(json, e);
+    };
+    auto none = parse(R"("order":1)");  // no cheats block = no cheats
+    QVERIFY(none);
+    QVERIFY(!none->statesSupported && !none->statesRunAhead && none->cheatFormats.isEmpty() && !none->supportsCheats());
+    auto ok = parse(R"("states":{"supported":true},"cheats":{"formats":["raw","gsa","raw"]})");
+    QVERIFY(ok);
+    QVERIFY(ok->statesSupported && !ok->statesRunAhead);
+    QCOMPARE(ok->cheatFormats, (QStringList{"raw", "gsa"}));
+    auto perSys = parse(R"("cheats":{"formats":{"gb":["gsa"],"gba":["cb","gsa"]}})");
+    QVERIFY(perSys);
+    QCOMPARE(perSys->cheatFormats, (QStringList{"gsa", "cb"}));
+    QCOMPARE(perSys->cheatFormatsFor(QStringLiteral("gba")), (QStringList{"cb", "gsa"}));
+    QVERIFY(perSys->cheatFormatsFor(QStringLiteral("gbc")).isEmpty());
+    QCOMPARE(ok->cheatFormatsFor(QStringLiteral("anything")), (QStringList{"raw", "gsa"}));
+    QString perr;
+    QVERIFY(!parse(R"("cheats":{"formats":{"nds":["gsa"]}})", &perr));
+    QVERIFY(!parse(R"("cheats":{"formats":{"gb":["nope"]}})", &perr));
+    QVERIFY(!parse(R"("cheats":{"formats":["nope"]})", &perr));
+    QVERIFY(perr.contains(QStringLiteral("unknown format")));
+    QVERIFY(!parse(R"("states":{"run_ahead":true})", &perr));
+  }
+
   void builtinMgbaAndGambatte() {
     ManifestRegistry reg;
     QString err;

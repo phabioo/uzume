@@ -134,6 +134,25 @@ struct CoreProfile {
   QString sysfileNative = QStringLiteral("native");
   QString sysfileBuiltin = QStringLiteral("builtin");
   QMap<QString, QString> fileOptions;  // firmware file id -> core option that receives the file name
+  // Save states (0.20): "states": {"supported": bool, "run_ahead": bool}. `statesSupported` = the Uzume app offers save states for
+  // this core; `statesRunAhead` = serialize is fast enough for run-ahead (measured, see the 0.20 spike notes).
+  bool statesSupported = false;
+  bool statesRunAhead = false;
+  // Cheats (0.20): "cheats": {"formats": [...]} with ids from knownCheatFormats(). No block = no cheats, even if the core
+  // exports retro_cheat_set.
+  // "formats" is a list (same for every system of the core) or an object keyed by system id. `cheatFormats` is always the union;
+  // `cheatFormatsBySystem` is only filled for the object form.
+  QStringList cheatFormats;
+  QMap<QString, QStringList> cheatFormatsBySystem;
+  // Formats usable for `systemId`: the per-system entry (empty for a system not listed), or the plain list.
+  QStringList cheatFormatsFor(const QString& systemId) const {
+    return cheatFormatsBySystem.isEmpty() ? cheatFormats : cheatFormatsBySystem.value(systemId);
+  }
+  bool supportsCheats() const { return !cheatFormats.isEmpty(); }
+  static QStringList knownCheatFormats() {
+    return {QStringLiteral("raw"), QStringLiteral("gsa"), QStringLiteral("cb"), QStringLiteral("ar_ds"),
+            QStringLiteral("ar_gba"), QStringLiteral("game_genie"), QStringLiteral("gateway")};
+  }
 
   bool matches(const QString& id) const { return id == coreId || aliases.contains(id); }
 };

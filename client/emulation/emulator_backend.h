@@ -131,6 +131,20 @@ class EmulatorBackend {
   // the GUI thread may create, such as an offscreen surface for hardware rendering).
   virtual void prepareForStart() {}
 
+  // Save states (retro_serialize*; emulation thread, game loaded). supportsStates() is false when the core lacks the
+  // symbols. serializeSize() is 0 when serializing is not possible right now (no game, a core that needs a frame first).
+  // serialize()/unserialize() are exact: a state loaded into the same core build and game continues deterministically.
+  virtual bool supportsStates() const { return false; }
+  virtual qint64 serializeSize() { return 0; }
+  virtual bool serialize(QByteArray* out) { Q_UNUSED(out); return false; }
+  virtual bool unserialize(const QByteArray& state) { Q_UNUSED(state); return false; }
+
+  // Cheats (retro_cheat_reset / retro_cheat_set; emulation thread). A core without the symbols has no cheats. `code`
+  // is passed to the core unchanged; the format is the core's own (see the cheat formats of the core profile).
+  virtual bool supportsCheats() const { return false; }
+  virtual void cheatReset() {}
+  virtual void cheatSet(unsigned index, bool enabled, const QString& code) { Q_UNUSED(index); Q_UNUSED(enabled); Q_UNUSED(code); }
+
   // Last video frame (XRGB8888). Implicitly shared, cheap to copy.
   virtual QImage videoFrame() const = 0;
   virtual quint64 frameCount() const = 0;

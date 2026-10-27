@@ -40,5 +40,7 @@
   ],
   "always_shown_core_options": [
     "gambatte_gb_colorization"
-  ]
+  ],
+  "states": {"supported": true, "run_ahead": true},
+  "cheats": {"formats": ["game_genie", "gsa"]}
 }

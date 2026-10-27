@@ -16,6 +16,9 @@ void installTools(McpToolRegistry& registry, ui::PlayerController& player);
 void installAppTools(McpToolRegistry& registry, ui::PlayerController& player);
 void installPluginTools(McpToolRegistry& registry, ui::PlayerController& player);
 void installGameTools(McpToolRegistry& registry, ui::PlayerController& player);
+// game_state_save, game_state_load, game_memory_write (tools_emulation.cpp): raw save states kept in memory (no server) and memory
+// writes, both through the emulation command queue between two frames. Unlike the read-only game tools they change the game.
+void installEmulationTools(McpToolRegistry& registry, ui::PlayerController& player);
 // reports_list, report_get, report_file: read-only problem reports on the connected server (tools_reports.cpp).
 void installReportTools(McpToolRegistry& registry, ui::PlayerController& player);
 // ui_tree, ui_click, ui_type, ui_key, ui_scroll, navigate, game_start, game_stop, app_screenshot (tools_ui.cpp).

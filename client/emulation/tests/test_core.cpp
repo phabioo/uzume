@@ -9,6 +9,9 @@
 //   - 800 (or rate/fps) stereo audio frames per retro_run;
 //   - SAVE_RAM (not in the desmume flavor, which manages its save itself);
 //   - joypad via one RETRO_DEVICE_ID_JOYPAD_MASK word (GET_INPUT_BITMASKS) or per button, both ports, plus the pointer;
+//   - save states (real retro_serialize*: frame counter, phase, input, heap/linear/late RAM, SRAM) and cheats (format "raw":
+//     lines "AAAAAAAA VV" separated by '+' or newline, device addresses in the heap/linear/late regions, written every
+//     frame while enabled; enabled count at heap kCheatCountOff). retro_reset and retro_unserialize drop the cheat list;
 //   - core options (V2 with categories; V1/V0 via FB_TEST_CORE_OPTIONS), GET_VARIABLE, GET_VARIABLE_UPDATE, display hiding;
 //   - GET_SYSTEM_DIRECTORY / GET_SAVE_DIRECTORY, GET_FASTFORWARDING, SET_SUPPORT_NO_GAME (options registered in
 //     retro_load_game, also with NULL), fps/sample rate in the AV info.
@@ -453,6 +456,27 @@ alignas(16) uint8_t g_linearMem[tc::mem::kRegionSize];
 alignas(16) uint8_t g_lateMem[tc::mem::kLateSize];
 retro_memory_descriptor g_memDescs[3];
 
+struct CheatWrite {
+  uint64_t addr;
+  uint8_t value;
+};
+struct Cheat {
+  unsigned index = 0;
+  bool enabled = false;
+  std::vector<CheatWrite> writes;
+};
+std::vector<Cheat> g_cheats;
+
+uint8_t* ramPtr(uint64_t addr) {
+  struct Region { uint64_t start; uint8_t* mem; uint64_t size; };
+  const Region regions[] = {{tc::mem::kHeapAddr, g_heapMem, sizeof g_heapMem},
+                            {tc::mem::kLinearAddr, g_linearMem, sizeof g_linearMem},
+                            {tc::mem::kLateAddr, g_lateMem, sizeof g_lateMem}};
+  for (const Region& r : regions)
+    if (addr >= r.start && addr < r.start + r.size) return r.mem + (addr - r.start);
+  return nullptr;
+}
+
 void putU32(uint8_t* p, uint32_t v) {
   for (int i = 0; i < 4; ++i) p[i] = static_cast<uint8_t>(v >> (8 * i));
 }
@@ -620,6 +644,16 @@ FB_EXPORT void retro_run() {
   if (g_env && g_env(RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE, &updated) && updated) ++g_varUpdates;
   ++g_frames;
   putU32(g_heapMem + tc::mem::kFrameOff, static_cast<uint32_t>(g_frames));
+  {
+    uint32_t active = 0;
+    for (const Cheat& c : g_cheats) {
+      if (!c.enabled) continue;
+      ++active;
+      for (const CheatWrite& w : c.writes)
+        if (uint8_t* p = ramPtr(w.addr)) *p = w.value;
+    }
+    putU32(g_heapMem + tc::mem::kCheatCountOff, active);
+  }
   if (const int lateFrame = envInt("FB_TEST_CORE_LATE_MAP_FRAME", tc::mem::kLateMapFrame); lateFrame > 0 && g_frames == lateFrame)
     registerLateMemoryMap();
   pollInput();
@@ -639,18 +673,87 @@ FB_EXPORT void retro_run() {
   writeDataRow();
   if (g_video) g_video(g_fb.data(), tc::kWidth, tc::kHeight, static_cast<size_t>(tc::kWidth) * 4);
 }
-FB_EXPORT void retro_reset() { ++g_resets; }
+FB_EXPORT void retro_reset() { ++g_resets; g_cheats.clear(); }
 FB_EXPORT void* retro_get_memory_data(unsigned t) {
   return (t == RETRO_MEMORY_SAVE_RAM && g_gameLoaded && g_frames >= g_sramDelay && !g_sram.empty()) ? g_sram.data() : nullptr;
 }
 FB_EXPORT size_t retro_get_memory_size(unsigned t) {
   return (t == RETRO_MEMORY_SAVE_RAM && g_gameLoaded && g_frames >= g_sramDelay) ? g_sram.size() : 0;
 }
-FB_EXPORT bool retro_serialize(void*, size_t) { return false; }
-FB_EXPORT bool retro_unserialize(const void*, size_t) { return false; }
-FB_EXPORT size_t retro_serialize_size() { return 0; }
-FB_EXPORT void retro_cheat_reset() {}
-FB_EXPORT void retro_cheat_set(unsigned, bool, const char*) {}
+namespace {
+// Save states: a flat little-endian blob with everything that makes the next frames deterministic. Layout:
+//   "UTC1" | i32 frames | f64 phase | u16 masks[2] | u32 sramSize | heap | linear | late | sram
+// The cheat list is deliberately NOT part of a state (like most real cores); retro_unserialize drops the core's cheat list
+// (and so does retro_reset), the way cores that rebuild their cheat engine do, so the frontend must re-apply it.
+constexpr size_t kStateHeader = 4 + 4 + 8 + 4 + 4;
+constexpr char kStateMagic[4] = {'U', 'T', 'C', '1'};
+size_t stateSize() { return kStateHeader + sizeof g_heapMem + sizeof g_linearMem + sizeof g_lateMem + g_sram.size(); }
+}  // namespace
+
+FB_EXPORT size_t retro_serialize_size() { return g_gameLoaded ? stateSize() : 0; }
+FB_EXPORT bool retro_serialize(void* data, size_t size) {
+  if (!g_gameLoaded || size < stateSize()) return false;
+  auto* p = static_cast<uint8_t*>(data);
+  auto put = [&p](const void* src, size_t n) { std::memcpy(p, src, n); p += n; };
+  const int32_t frames = g_frames;
+  const uint32_t sramSize = static_cast<uint32_t>(g_sram.size());
+  put(kStateMagic, 4);
+  put(&frames, 4);
+  put(&g_phase, 8);
+  put(g_masks, sizeof g_masks);
+  put(&sramSize, 4);
+  put(g_heapMem, sizeof g_heapMem);
+  put(g_linearMem, sizeof g_linearMem);
+  put(g_lateMem, sizeof g_lateMem);
+  if (!g_sram.empty()) put(g_sram.data(), g_sram.size());
+  return true;
+}
+FB_EXPORT bool retro_unserialize(const void* data, size_t size) {
+  if (!g_gameLoaded || size < kStateHeader || std::memcmp(data, kStateMagic, 4) != 0) return false;
+  const auto* p = static_cast<const uint8_t*>(data) + 4;
+  int32_t frames = 0;
+  uint32_t sramSize = 0;
+  double phase = 0.0;
+  uint16_t masks[2];
+  std::memcpy(&frames, p, 4); p += 4;
+  std::memcpy(&phase, p, 8); p += 8;
+  std::memcpy(masks, p, sizeof masks); p += sizeof masks;
+  std::memcpy(&sramSize, p, 4); p += 4;
+  if (sramSize != g_sram.size() || size < stateSize()) return false;
+  g_frames = frames;
+  g_phase = phase;
+  std::memcpy(g_masks, masks, sizeof masks);
+  std::memcpy(g_heapMem, p, sizeof g_heapMem); p += sizeof g_heapMem;
+  std::memcpy(g_linearMem, p, sizeof g_linearMem); p += sizeof g_linearMem;
+  std::memcpy(g_lateMem, p, sizeof g_lateMem); p += sizeof g_lateMem;
+  if (!g_sram.empty()) std::memcpy(g_sram.data(), p, g_sram.size());
+  g_cheats.clear();
+  return true;
+}
+
+// Cheats, format "raw": lines "AAAAAAAA VV" (hex device address inside the heap/linear/late regions, hex byte value),
+// separated by '+' or newline. While enabled, every retro_run writes the bytes. Count of enabled entries: heap kCheatCountOff.
+FB_EXPORT void retro_cheat_reset() { g_cheats.clear(); }
+FB_EXPORT void retro_cheat_set(unsigned index, bool enabled, const char* code) {
+  Cheat c;
+  c.index = index;
+  c.enabled = enabled;
+  std::string text = code ? code : "";
+  for (char& ch : text)
+    if (ch == '+') ch = '\n';
+  size_t pos = 0;
+  while (pos <= text.size()) {
+    size_t end = text.find('\n', pos);
+    if (end == std::string::npos) end = text.size();
+    const std::string line = text.substr(pos, end - pos);
+    pos = end + 1;
+    unsigned long addr = 0, val = 0;
+    if (std::sscanf(line.c_str(), " %lx %lx", &addr, &val) == 2 && val <= 0xFF) c.writes.push_back({static_cast<uint64_t>(addr), static_cast<uint8_t>(val)});
+  }
+  for (Cheat& existing : g_cheats)
+    if (existing.index == index) { existing = c; return; }
+  g_cheats.push_back(c);
+}
 FB_EXPORT bool retro_load_game_special(unsigned, const retro_game_info*, size_t) { return false; }
 FB_EXPORT unsigned retro_get_region() { return RETRO_REGION_NTSC; }
 FB_EXPORT void retro_set_controller_port_device(unsigned, unsigned) {}

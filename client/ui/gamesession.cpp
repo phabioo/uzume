@@ -208,6 +208,10 @@ bool GameSession::runOnEmuThread(std::function<void(emu::EmulatorBackend&)> fn, 
   return runner_ && runner_->runOnEmuThread(std::move(fn), timeoutMs);
 }
 
+quint64 GameSession::submitEmuCommand(emu::EmulationRunner::Command cmd, std::function<void(const emu::EmulationRunner::CommandResult&)> onDone) {
+  return runner_ ? runner_->submit(std::move(cmd), std::move(onDone)) : 0;
+}
+
 qint64 GameSession::stepFrames(int frames) {
   return runner_ && state_ == Paused ? runner_->stepFrames(frames) : -1;
 }

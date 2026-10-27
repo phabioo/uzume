@@ -1,5 +1,6 @@
 // Game tools of the debug MCP server: state, memory, RomFS and ROM reads, screenshots, input, pause, resume, frame step.
-// Memory is read on the emulation thread between frames; nothing here writes memory or saves (ADR 0032 D4).
+// Memory is read on the emulation thread between frames; nothing here writes memory or saves. The tools that change the
+// game (state save/load, memory write, since 0.20) are in tools_emulation.cpp (ADR 0032 D4, amendment 2026-10-27).
 #include <QFile>
 #include <QJsonDocument>
 #include <QPointer>

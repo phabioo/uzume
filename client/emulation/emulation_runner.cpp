@@ -17,7 +17,9 @@
 #include <chrono>
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <deque>
+#include <future>
 #include <memory>
 
 namespace uzume::emu {
@@ -62,6 +64,15 @@ class EmulationRunner::Worker : public QThread {
     emit m_owner->frameReady(be.videoFrame(), be.frameCount(), 0);
     return static_cast<qint64>(be.frameCount());
   }
+  // Any thread: queue a command (never blocks on the emulation thread's work: the mutex is not held while commands run).
+  // false: the thread is not running.
+  bool submitCommand(quint64 id, Command cmd, std::function<void(const CommandResult&)> onDone, std::shared_ptr<std::atomic<bool>> cancelled) {
+    QMutexLocker l(&m_mutex);
+    if (!isRunning() || m_stop || m_exited) return false;
+    m_cmds.push_back({id, std::move(cmd), std::move(onDone), std::move(cancelled)});
+    m_cond.wakeAll();
+    return true;
+  }
   // GUI thread: queue `fn` for the emulation thread and wait until it ran.
   bool runTask(std::function<void(EmulatorBackend&)> fn, int timeoutMs) {
     auto task = std::make_shared<Task>();
@@ -98,6 +109,12 @@ class EmulationRunner::Worker : public QThread {
     }
     if (!ok) {
       be.unloadCore();
+      {
+        QMutexLocker l(&m_mutex);
+        m_exited = true;
+        m_doneCond.wakeAll();
+      }
+      failPendingCommands();
       emit m_owner->startFailed(err);
       return;
     }
@@ -135,12 +152,19 @@ class EmulationRunner::Worker : public QThread {
         while (m_paused && !m_stop) {
           if (!wasPaused) { wasPaused = true; be.flushSave(); m_owner->setState(State::Paused); }
           drainTasks(be);
-          m_cond.wait(&m_mutex);
+          drainCommands(be);
+          if (!m_stop && m_cmds.empty() && m_tasks.empty()) m_cond.wait(&m_mutex);  // both may have grown while a command ran unlocked
         }
         drainTasks(be);
         if (m_stop) break;
         if (wasPaused) { wasPaused = false; next = std::chrono::steady_clock::now(); m_owner->setState(State::Running); }
-        if (m_reset) { m_reset = false; be.reset(); }
+        if (m_reset) {
+          m_reset = false;
+          be.reset();
+          reapplyCheats(be);  // a core may drop its cheat engine state on reset
+        }
+        drainCommands(be);
+        if (m_stop) break;
       }
       const bool fast = m_owner->m_fastForward.load();
       if (fast != wasFast) {  // resynchronize the clock like after a pause
@@ -213,7 +237,7 @@ class EmulationRunner::Worker : public QThread {
       const auto maxBehind = fast ? (std::max<std::chrono::steady_clock::duration>)(5 * step, std::chrono::milliseconds(100)) : 2 * step;
       if (next < now - maxBehind) next = now;
       QMutexLocker l(&m_mutex);
-      while (!m_stop && !m_paused && !m_reset && m_tasks.empty()) {
+      while (!m_stop && !m_paused && !m_reset && m_tasks.empty() && m_cmds.empty()) {
         const auto wait = std::chrono::duration_cast<std::chrono::milliseconds>(next - std::chrono::steady_clock::now());
         if (wait.count() <= 0) break;
         unsigned long ms = static_cast<unsigned long>(wait.count());
@@ -227,6 +251,7 @@ class EmulationRunner::Worker : public QThread {
       m_exited = true;  // waiting callers give up
       m_doneCond.wakeAll();
     }
+    failPendingCommands();
     {
       QMutexLocker rl(&m_owner->m_regionsMutex);
       m_owner->m_regions.clear();
@@ -236,6 +261,116 @@ class EmulationRunner::Worker : public QThread {
   }
 
  private:
+  struct QueuedCommand {
+    quint64 id;
+    Command cmd;
+    std::function<void(const CommandResult&)> onDone;
+    std::shared_ptr<std::atomic<bool>> cancelled;
+  };
+  void finish(QueuedCommand& q, CommandResult r) {
+    r.requestId = q.id;
+    r.kind = q.cmd.kind;
+    if (q.onDone) q.onDone(r);
+    emit m_owner->commandFinished(r);
+  }
+  // Emulation thread, m_mutex held on entry and on return; the mutex is released while a command runs.
+  void drainCommands(EmulatorBackend& be) {
+    while (!m_cmds.empty()) {
+      QueuedCommand q = std::move(m_cmds.front());
+      m_cmds.pop_front();
+      m_mutex.unlock();
+      CommandResult r;
+      if (q.cancelled && q.cancelled->load()) {
+        r.error = QStringLiteral("timeout");  // the caller gave up before it started
+      } else {
+        r = runCommand(be, q.cmd);
+      }
+      finish(q, std::move(r));
+      m_mutex.lock();
+    }
+  }
+  // Results for everything still queued once no frame will run any more.
+  void failPendingCommands() {
+    std::deque<QueuedCommand> rest;
+    {
+      QMutexLocker l(&m_mutex);
+      rest.swap(m_cmds);
+    }
+    for (QueuedCommand& q : rest) {
+      CommandResult r;
+      r.error = QStringLiteral("stopped");
+      finish(q, std::move(r));
+    }
+  }
+  // Emulation thread: resets the core's cheats and sends the list again. Only enabled entries are sent, with consecutive
+  // indices: mGBA and DeSmuME ignore the `enabled` flag of retro_cheat_set and would apply a disabled code. Returns the
+  // number of entries sent.
+  int sendCheats(EmulatorBackend& be, const QList<CheatEntry>& list) {
+    be.cheatReset();
+    unsigned index = 0;
+    for (const CheatEntry& c : list) {
+      if (!c.enabled || c.code.trimmed().isEmpty()) continue;
+      be.cheatSet(index++, true, c.code);
+    }
+    return static_cast<int>(index);
+  }
+  void reapplyCheats(EmulatorBackend& be) {
+    if (!be.supportsCheats() || !be.isGameLoaded()) return;
+    const QList<CheatEntry> list = m_owner->activeCheats();
+    if (!list.isEmpty()) sendCheats(be, list);
+  }
+  CommandResult runCommand(EmulatorBackend& be, const Command& cmd) {
+    CommandResult r;
+    if (!be.isGameLoaded()) { r.error = QStringLiteral("no_game"); return r; }
+    switch (cmd.kind) {
+      case Command::Kind::SaveState:
+        if (!be.supportsStates()) { r.error = QStringLiteral("unsupported"); return r; }
+        r.frame = be.frameCount();
+        r.preview = be.videoFrame();
+        if (!be.serialize(&r.state)) { r.error = QStringLiteral("failed"); r.preview = QImage(); return r; }
+        r.ok = true;
+        return r;
+      case Command::Kind::LoadState:
+        if (!be.supportsStates()) { r.error = QStringLiteral("unsupported"); return r; }
+        if (cmd.data.isEmpty()) { r.error = QStringLiteral("invalid"); return r; }
+        if (!be.unserialize(cmd.data)) { r.error = QStringLiteral("failed"); return r; }
+        r.frame = be.frameCount();
+        reapplyCheats(be);  // the core's cheat list is not part of a state
+        r.ok = true;
+        return r;
+      case Command::Kind::SetCheats:
+        if (!be.supportsCheats()) { r.error = QStringLiteral("unsupported"); return r; }
+        r.applied = sendCheats(be, cmd.cheats);
+        {
+          QMutexLocker cl(&m_owner->m_cheatsMutex);
+          m_owner->m_activeCheats = cmd.cheats;
+        }
+        r.ok = true;
+        return r;
+      case Command::Kind::WriteMemory: {
+        const MemoryMap* mm = be.memoryMap();
+        if (cmd.data.isEmpty() || cmd.data.size() > kMaxMemoryWriteBytes) { r.error = QStringLiteral("invalid"); return r; }
+        if (!mm) { r.error = QStringLiteral("unmapped"); return r; }
+        // First pass: the whole range must be mapped, so a failed write changes nothing.
+        const uint64_t total = static_cast<uint64_t>(cmd.data.size());
+        for (uint64_t done = 0; done < total;) {
+          const MemoryMap::Span sp = mm->resolve(cmd.address + done);
+          if (!sp.ptr || sp.len == 0) { r.error = QStringLiteral("unmapped"); return r; }
+          done += (std::min)(sp.len, total - done);
+        }
+        for (uint64_t done = 0; done < total;) {
+          const MemoryMap::Span sp = mm->resolve(cmd.address + done);
+          const uint64_t n = (std::min)(sp.len, total - done);
+          std::memcpy(sp.ptr, cmd.data.constData() + done, static_cast<size_t>(n));
+          done += n;
+        }
+        r.ok = true;
+        return r;
+      }
+    }
+    return r;
+  }
+  std::deque<QueuedCommand> m_cmds;
   struct Task {
     std::function<void(EmulatorBackend&)> fn;
     bool done = false;
@@ -271,6 +406,7 @@ EmulationRunner::EmulationRunner(std::unique_ptr<EmulatorBackend> backend, QObje
   qRegisterMetaType<uzume::emu::AvInfo>();
   qRegisterMetaType<uzume::emu::CoreInfo>();
   qRegisterMetaType<uzume::emu::EmulationRunner::State>();
+  qRegisterMetaType<uzume::emu::EmulationRunner::CommandResult>();
   // Called on the emulation thread; the signal reaches the GUI thread queued.
   m_backend->setSaveProblemNotifier([this](const QString& message) { emit saveProblem(message); });
 }
@@ -293,6 +429,10 @@ void EmulationRunner::start(const StartRequest& request) {
     return;
   }
   m_timing.reset();
+  {
+    QMutexLocker l(&m_cheatsMutex);
+    m_activeCheats.clear();
+  }
   m_fastForward.store(false);
   m_ratio.store(normalizeSpeedUpRatio(request.speedUpRatio));
   m_speedUpAudio.store(request.speedUpAudio);
@@ -319,6 +459,39 @@ qint64 EmulationRunner::stepFrames(int frames, int timeoutMs) {
   const bool ran = runOnEmuThread([&](EmulatorBackend& be) { result = m_worker->stepOnEmuThread(be, frames); }, timeoutMs);
   return ran ? result : -1;
 }
+quint64 EmulationRunner::submit(Command cmd, std::function<void(const CommandResult&)> onDone) {
+  if (!m_worker) return 0;
+  const quint64 id = m_nextRequestId.fetch_add(1);
+  return m_worker->submitCommand(id, std::move(cmd), std::move(onDone), nullptr) ? id : 0;
+}
+
+EmulationRunner::CommandResult EmulationRunner::execute(Command cmd, int timeoutMs) {
+  CommandResult stopped;
+  stopped.kind = cmd.kind;
+  stopped.error = QStringLiteral("stopped");
+  if (!m_worker) return stopped;
+  auto promise = std::make_shared<std::promise<CommandResult>>();
+  std::future<CommandResult> future = promise->get_future();
+  auto cancelled = std::make_shared<std::atomic<bool>>(false);
+  const quint64 id = m_nextRequestId.fetch_add(1);
+  if (!m_worker->submitCommand(id, std::move(cmd), [promise](const CommandResult& r) { promise->set_value(r); }, cancelled)) return stopped;
+  if (future.wait_for(std::chrono::milliseconds(timeoutMs)) != std::future_status::ready) {
+    cancelled->store(true);  // does nothing once it has started
+    if (future.wait_for(std::chrono::milliseconds(50)) != std::future_status::ready) {
+      CommandResult r;
+      r.requestId = id;
+      r.error = QStringLiteral("timeout");
+      return r;
+    }
+  }
+  return future.get();
+}
+
+QList<EmulationRunner::CheatEntry> EmulationRunner::activeCheats() const {
+  QMutexLocker l(&m_cheatsMutex);
+  return m_activeCheats;
+}
+
 bool EmulationRunner::flushSaveNow() {
   bool written = false;
   const bool ran = runOnEmuThread([&](EmulatorBackend& be) { written = be.flushSave(); });

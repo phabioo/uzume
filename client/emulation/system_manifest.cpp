@@ -211,6 +211,32 @@ std::optional<CoreProfile> ManifestRegistry::parseProfile(const QByteArray& json
   p.sysfileBuiltin = fw.value(QLatin1String("sysfile_builtin")).toString(p.sysfileBuiltin);
   const QJsonObject fo = fw.value(QLatin1String("file_options")).toObject();
   for (auto it = fo.begin(); it != fo.end(); ++it) p.fileOptions.insert(it.key(), it.value().toString());
+  const QJsonObject states = o.value(QLatin1String("states")).toObject();
+  p.statesSupported = states.value(QLatin1String("supported")).toBool(false);
+  p.statesRunAhead = states.value(QLatin1String("run_ahead")).toBool(false);
+  if (p.statesRunAhead && !p.statesSupported) return fail(QStringLiteral("states: run_ahead needs supported"));
+  const QJsonValue fv = o.value(QLatin1String("cheats")).toObject().value(QLatin1String("formats"));
+  auto addFormats = [&](const QStringList& list, QStringList* into) -> bool {
+    for (const QString& f : list) {
+      if (!CoreProfile::knownCheatFormats().contains(f)) return false;
+      if (!into->contains(f)) into->append(f);
+    }
+    return true;
+  };
+  if (fv.isObject()) {
+    const QJsonObject fo2 = fv.toObject();
+    for (auto it = fo2.begin(); it != fo2.end(); ++it) {
+      if (!p.systemIds.contains(it.key())) return fail(QStringLiteral("cheats: unknown system: ") + it.key());
+      QStringList per;
+      if (!addFormats(stringList(it.value()), &per)) return fail(QStringLiteral("cheats: unknown format for ") + it.key());
+      if (per.isEmpty()) continue;
+      p.cheatFormatsBySystem.insert(it.key(), per);
+      addFormats(per, &p.cheatFormats);
+    }
+  } else {
+    for (const QString& f : stringList(fv))
+      if (!addFormats({f}, &p.cheatFormats)) return fail(QStringLiteral("cheats: unknown format: ") + f);
+  }
   return p;
 }
 
