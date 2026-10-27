@@ -228,6 +228,8 @@ class PluginsController : public QObject {
   // Installs the missing required plugins the Hub offers first, then the plugin itself ("Install both").
   Q_INVOKABLE void installHubPluginWithDependencies(const QString& id, const QString& version);
   Q_INVOKABLE void linkDevFolder(const QString& pathOrUrl);
+  // Open fb.ui.pick_file requests as [{pluginId, requestId}], oldest first (debug MCP: file_dialog_pick).
+  Q_INVOKABLE QVariantList pendingPicks() const;
   Q_INVOKABLE void uninstall(const QString& id);
   Q_INVOKABLE void setPluginEnabled(const QString& id, bool enabled);
   Q_INVOKABLE void dismissMessage();
@@ -314,6 +316,8 @@ class PluginsController : public QObject {
   void closeRequested(const QString& pluginId, const QString& slot);
   // fb.ui.pick_file of a running plugin: show a file dialog (title, filters like "*.cht", max_bytes) and answer with completePick().
   void pickFileRequested(const QString& pluginId, const QString& requestId, const QString& title, const QStringList& filters, double maxBytes);
+  // The request was answered (a file, or cancel): dialogs that are still open for it close (also when the MCP tool answered it).
+  void pickCompleted(const QString& pluginId, const QString& requestId);
   void consentRequestChanged();
   void cheatsOnChanged();
 
@@ -362,6 +366,7 @@ class PluginsController : public QObject {
   std::shared_ptr<plugins::PluginStore> store_;
   std::unique_ptr<plugins::PluginStoreSync> storeSync_;
   QString storeKey_;
+  QList<QPair<QString, QString>> pendingPicks_;  // (plugin id, request id) asked and not answered yet, oldest first
   QHash<QString, qint64> pickLimits_;  // "<plugin>/<request id>" -> max_bytes
   QString dataDir_;
   HubConnection* conn_ = nullptr;

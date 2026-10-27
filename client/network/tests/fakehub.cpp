@@ -1737,6 +1737,8 @@ QJsonObject FakeHub::makeRun(const QString& name, const QStringList& userIds, co
                         {QStringLiteral("status_by"), creator},
                         {QStringLiteral("save_slot"), QStringLiteral("run-") + QString(id).remove(QLatin1Char('-')).left(8)},  // runs_v2
                         {QStringLiteral("settings"), QJsonObject()},
+                        {QStringLiteral("rules"), QJsonObject{{QStringLiteral("states"), false}, {QStringLiteral("rewind"), false}, {QStringLiteral("cheats"), QStringLiteral("off")},
+                                                              {QStringLiteral("memory_write"), QStringLiteral("off")}}},  // run_rules_v1
                         {QStringLiteral("plugins"), plugins},
                         {QStringLiteral("participants"), parts},
                         {QStringLiteral("last_seq"), 0}};
@@ -1797,6 +1799,7 @@ void FakeHub::handleRuns(QSslSocket* sock, const FakeRequest& req) {
       }
       QJsonObject run = makeRun(body.value(QStringLiteral("name")).toString(), users, runsMe, plugins);
       run.insert(QStringLiteral("settings"), body.value(QStringLiteral("settings")).toObject());
+      if (body.value(QStringLiteral("rules")).isObject()) run.insert(QStringLiteral("rules"), body.value(QStringLiteral("rules")));
       QJsonArray ps = run.value(QStringLiteral("participants")).toArray();
       QJsonObject me = ps.at(0).toObject();
       me.insert(QStringLiteral("game_id"), body.value(QStringLiteral("game_id")).toString());
@@ -1887,6 +1890,26 @@ void FakeHub::handleRuns(QSslSocket* sock, const FakeRequest& req) {
     runs.insert(runId, run);
     addRunEvent(runId, QStringLiteral("run.status"), to);
     pushRun(runId);
+    respond(sock, 200, json(runs.value(runId)));
+  } else if (sub == QLatin1String("rules") && req.method == "PUT") {
+    // run_rules_v1: the whole object, creator or admin; a change writes rules.changed {before, after, by_user_id, by_user_name}.
+    lastRunBody = body;
+    runRulesPuts.append(body);
+    if (runRulesForbidden || run.value(QStringLiteral("created_by")).toString() != runsMe) {
+      respondError(sock, 403, QStringLiteral("forbidden"));
+      return;
+    }
+    const QJsonObject before = run.value(QStringLiteral("rules")).toObject();
+    if (before != body) {
+      run.insert(QStringLiteral("rules"), body);
+      runs.insert(runId, run);
+      addRunEvent(runId, QStringLiteral("rules.changed"), QString(), QString(), {}, {}, false);
+      QJsonObject& stored = runEvents[runId].last();
+      stored.insert(QStringLiteral("payload"), QJsonObject{{QStringLiteral("before"), before}, {QStringLiteral("after"), body},
+                                                           {QStringLiteral("by_user_id"), runsMe}, {QStringLiteral("by_user_name"), runsMeName}});
+      sendWs(QStringLiteral("run_event"), {{QStringLiteral("run_id"), runId}, {QStringLiteral("event"), stored}});
+      pushRun(runId);
+    }
     respond(sock, 200, json(runs.value(runId)));
   } else if (sub == QLatin1String("state") && req.method == "PUT" && parts.size() == 3) {
     const QString pluginId = parts.value(2);

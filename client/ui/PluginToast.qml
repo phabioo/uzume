@@ -3,7 +3,7 @@ import QtQuick.Layouts
 import Uzume.App
 
 // One plugin notice, in the look of Toast (design-system.md "Toast": `surface` plane, 1 px `rule` frame, no shadow, StatusIcon,
-// message, accent text actions, close mark) and naming the plugin in a Mono source line. Tone info / important = done icon,
+// message, accent text actions, close mark) and naming the plugin in a Mono source line. Tone info = info icon, important = done icon,
 // warning = warning icon; the "⋯" (mute menu) is missing on host notices.
 Item {
     id: root
@@ -37,7 +37,7 @@ Item {
             spacing: Theme.space15
             UzStatusIcon {
                 Layout.alignment: Qt.AlignTop
-                kind: root.warn ? "warning" : "done"
+                kind: root.warn ? "warning" : (root.toast.tone === "info" ? "info" : "done")
             }
             ColumnLayout {
                 id: toastCol

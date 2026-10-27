@@ -193,6 +193,7 @@ class PlayerController : public QObject {
   Q_PROPERTY(int attentionCount READ attentionCount NOTIFY attentionChanged)
   Q_PROPERTY(int coreProblemCount READ coreProblemCount NOTIFY attentionChanged)
   Q_PROPERTY(bool serverUpdatePending READ serverUpdatePending NOTIFY attentionChanged)
+  Q_PROPERTY(bool cheatDbSupported READ cheatDbSupported NOTIFY hubChanged)  // the server advertises cheat_db_v1
   Q_PROPERTY(bool isAdmin READ isAdmin NOTIFY hubChanged)  // handshake `user.role` is "admin"; false for older servers
   Q_PROPERTY(QString userName READ userName NOTIFY hubChanged)  // Hub user (handshake `user`); empty for older Hubs
   Q_PROPERTY(QString playerVersion READ playerVersion CONSTANT)
@@ -281,6 +282,7 @@ class PlayerController : public QObject {
   QString deviceName() const;
   QString userName() const;
   bool isAdmin() const;
+  bool cheatDbSupported() const;
   QString hubVersion() const;
   QString versionRelation() const;
   bool setupAssistantOpen() const { return setupAssistantOpen_; }

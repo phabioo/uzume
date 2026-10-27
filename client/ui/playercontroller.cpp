@@ -1119,6 +1119,7 @@ void PlayerController::refreshEmulationPage() {
 QString PlayerController::logFile() const { return QDir::toNativeSeparators(filelog::path()); }
 
 QString PlayerController::userName() const { return conn_->userDisplayName(); }
+bool PlayerController::cheatDbSupported() const { return conn_->hubHasFeature(QStringLiteral("cheat_db_v1")); }
 bool PlayerController::isAdmin() const { return conn_->userRole() == QLatin1String("admin"); }
 QString PlayerController::hubVersion() const { return conn_->hubInfo().hubVersion; }
 QString PlayerController::versionRelation() const {
@@ -1741,7 +1742,7 @@ void PlayerController::showServerPage(const QString& page) {
 
 void PlayerController::setServerSettingsPage(const QString& page) {
   static const QStringList pages{QStringLiteral("general"), QStringLiteral("network"), QStringLiteral("signin"), QStringLiteral("updates"),
-                                 QStringLiteral("backups"), QStringLiteral("storage"), QStringLiteral("diagnostics")};
+                                 QStringLiteral("cheatdb"), QStringLiteral("backups"), QStringLiteral("storage"), QStringLiteral("diagnostics")};
   const QString next = pages.contains(page) ? page : QStringLiteral("general");
   if (next == serverSettingsPage_) return;
   serverSettingsPage_ = next;

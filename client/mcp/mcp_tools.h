@@ -31,6 +31,8 @@ void installUiTools(McpToolRegistry& registry, ui::PlayerController& player);
 // tools_list, tool_prepare, variants_list, variant_presets, variant_build, variant_status, variant_cancel, variant_delete, variant_files,
 // variant_start, run_variant_build, plugin_install_file, plugin_set_enabled (tools_variants.cpp, Uzume 0.21).
 void installVariantTools(McpToolRegistry& registry, ui::PlayerController& player);
+// runs_list, run_set_rules, run_events, developer_mode, plugin_link, file_dialog_pick (tools_runs.cpp, Uzume 0.20 package 6).
+void installRunTools(McpToolRegistry& registry, ui::PlayerController& player);
 
 // server_sign_in (tools_together.cpp): add a server and sign in with a password; self-signed certificates only with a matching
 // trust_fingerprint. The two helpers are the pure parts (tests).

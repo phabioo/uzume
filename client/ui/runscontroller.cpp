@@ -1,6 +1,7 @@
 #include "runscontroller.h"
 #include "timeformat.h"
 #include "librarymodel.h"
+#include "runrules.h"
 
 #include <QCoreApplication>
 #include <QDateTime>
@@ -39,8 +40,10 @@ RunsController::RunsController(RunClient* client, PluginsController* plugins, Hu
     : QObject(parent), client_(client), plugins_(plugins), library_(library), conn_(connection) {
   connect(client, &RunClient::runsChanged, this, &RunsController::scheduleRebuild);
   connect(client, &RunClient::runChanged, this, &RunsController::scheduleRebuild);
-  connect(client, &RunClient::eventAdded, this, [this](const QString& id) {
-    if (id == openRunId_) rebuildEvents();
+  connect(client, &RunClient::eventAdded, this, [this](const QString& id, const RunEvent& e) {
+    if (id != openRunId_) return;
+    rebuildEvents();
+    if (e.type == QLatin1String("rules.changed")) scheduleRebuild();  // "set by" in the run header
   });
   connect(client, &RunClient::writeFailed, this, [this](const QString&, const QString& kind, const QString&, const QString& msg) {
     setMessage(tr("A run %1 could not be sent: %2").arg(kind == QLatin1String("event") ? tr("event") : kind, msg), true);
@@ -194,6 +197,11 @@ QString RunsController::hubEventText(const RunEvent& e) const {
   if (e.type == QLatin1String("run.declined")) return tr("%1 declined the invite").arg(who);
   if (e.type == QLatin1String("run.left")) return tr("%1 left the run").arg(who);
   if (e.type == QLatin1String("run.invited")) return invitedText(who, static_cast<int>(e.payload.value(QStringLiteral("invited")).toArray().size()));
+  if (e.type == QLatin1String("rules.changed")) {
+    QString by = e.payload.value(QStringLiteral("by_user_name")).toString();
+    if (by.isEmpty()) by = who;
+    return runrules::changeEventText(by, e.payload);
+  }
   if (e.type == QLatin1String("run.status")) {
     const QString to = e.payload.value(QStringLiteral("status")).toString();
     QString by = e.payload.value(QStringLiteral("by_user_name")).toString();
@@ -332,6 +340,11 @@ void RunsController::rebuildDetail() {
          {QStringLiteral("canLeave"), joined && !creator && !over},
          {QStringLiteral("canInvite"), joined && !over && run->participants.size() < kRunMaxParticipants},
          {QStringLiteral("over"), over},
+         {QStringLiteral("rules"), runrules::toMap(run->rules)},
+         {QStringLiteral("rulesLine"), runrules::summaryLine(run->rules)},
+         {QStringLiteral("rulesSetBy"), rulesSetBy(*run)},
+         {QStringLiteral("rulesAvailable"), client_->supportsRules()},
+         {QStringLiteral("canEditRules"), client_->supportsRules() && !over && (creator || conn_->userRole() == QLatin1String("admin"))},
          {QStringLiteral("note"), note},
          {QStringLiteral("randomized"), run->randomizerMode() != QLatin1String("off")},
          {QStringLiteral("randomizer"), randomizerOf(run->runId)}};
@@ -1023,7 +1036,56 @@ void RunsController::rebuildStartUsers() {
   startUsers_.setRows(rows);
 }
 
+QVariantMap RunsController::startCoreRules() const { return runrules::toMap(startCore_); }
+
+void RunsController::setStartCoreRule(const QString& key, const QVariant& value) {
+  if (!runrules::setRule(startCore_, key, value)) return;
+  emit startStateChanged();
+}
+
+void RunsController::clearRulesError() {
+  if (rulesError_.isEmpty()) return;
+  rulesError_.clear();
+  emit rulesStateChanged();
+}
+
+QString RunsController::rulesDraftWarning(const QVariantMap& draft) const {
+  const auto run = openRunId_.isEmpty() ? std::nullopt : client_->run(openRunId_);
+  if (!run) return {};
+  return runrules::draftWarning(run->rules, runrules::fromMap(draft));
+}
+
+// "Lena" / "Lena · today 21:30": who set the rules last (the newest rules.changed event), else the creator who set them at the start.
+QString RunsController::rulesSetBy(const RunInfo& run) const {
+  const QList<RunEvent> all = client_->events(run.runId, 0, 500);
+  for (auto it = all.crbegin(); it != all.crend(); ++it) {
+    if (it->type != QLatin1String("rules.changed")) continue;
+    QString by = it->payload.value(QStringLiteral("by_user_name")).toString();
+    if (by.isEmpty()) by = it->userName;
+    if (!by.isEmpty()) return tr("%1 · %2").arg(by, timeText(it->createdAt));
+  }
+  return userName(run, run.createdBy);
+}
+
+void RunsController::saveRunRules(const QString& runId, const QVariantMap& rules) {
+  if (rulesBusy_) return;
+  rulesBusy_ = true;
+  rulesError_.clear();
+  emit rulesStateChanged();
+  const QString id = runId.toLower();
+  client_->setRules(id, runrules::fromMap(rules), [this, id](const RunResult& r) {
+    rulesBusy_ = false;
+    rulesError_ = r.ok ? QString() : (r.errorCode == QLatin1String("forbidden") ? tr("Only the person who started the run or an admin can change its rules.") : errorText(r, tr("Changing the rules")));
+    emit rulesStateChanged();
+    if (r.ok) {
+      scheduleRebuild();
+      emit rulesSaved(id);
+    }
+  });
+}
+
 void RunsController::beginStart() {
+  startCore_ = RunRules();
   startError_.clear();
   startBusy_ = false;
   startPluginIds_.clear();
@@ -1121,7 +1183,7 @@ void RunsController::startRun(const QString& name, const QString& gameId, const 
   startBusy_ = true;
   startError_.clear();
   emit startStateChanged();
-  client_->createRun(trimmed, pins, gameId, QStringList(startUserIds_.begin(), startUserIds_.end()), settings, [this](const RunResult& r) {
+  client_->createRun(trimmed, pins, gameId, QStringList(startUserIds_.begin(), startUserIds_.end()), settings, startCore_, [this](const RunResult& r) {
     startBusy_ = false;
     if (!r.ok || !r.run) {
       startError_ = errorText(r, tr("Starting the run"));

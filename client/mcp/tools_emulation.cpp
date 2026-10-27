@@ -252,7 +252,8 @@ void installEmulationTools(McpToolRegistry& registry, ui::PlayerController& play
     t.name = QStringLiteral("store_get");
     t.description = QStringLiteral(
         "Reads a key of a plugin's own data (fb.store) from the local copy of the connected user: {found, value, revision, "
-        "conflicts: [{value, revision, source}]}. Does not need the plugin to run.");
+        "conflicts: [{value, revision, source}]}. Does not need the plugin to run; error \"plugin_not_found\" for a plugin that is neither "
+        "installed nor has data.");
     t.inputSchema = schema({{QStringLiteral("plugin_id"), typeStr(QStringLiteral("Plugin id, e.g. \"uzume.cheats\"."))},
                             {QStringLiteral("key"), typeStr(QStringLiteral("Key ([a-z0-9_.-], 1 to 64 characters)."))}},
                            {QStringLiteral("plugin_id"), QStringLiteral("key")});
@@ -261,6 +262,8 @@ void installEmulationTools(McpToolRegistry& registry, ui::PlayerController& play
       const QString id = a.value(QStringLiteral("plugin_id")).toString(), key = a.value(QStringLiteral("key")).toString();
       if (!store) return reply(ToolResult::error(QStringLiteral("no_store")));
       if (!plugins::PluginStore::validPluginId(id) || !plugins::PluginStore::validKey(key)) return reply(ToolResult::error(QStringLiteral("invalid")));
+      // A plugin the app has never heard of (not installed, no data kept) is an error, not an empty key.
+      if (!pc->plugins()->manager()->info(id) && !store->knownPlugins().contains(id)) return reply(ToolResult::error(QStringLiteral("plugin_not_found")));
       const auto e = store->get(id, key);
       QJsonArray conflicts;
       for (const auto& c : store->conflicts(id, key))

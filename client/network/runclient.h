@@ -51,6 +51,7 @@ class RunClient : public QObject {
 
   bool supported() const;  // connected and the Hub advertises runs_v1
   bool supportsPluginless() const;  // runs_v2: the Hub accepts runs with no plugin
+  bool supportsRules() const;       // run_rules_v1: `rules` on create and PUT /runs/{id}/rules
   QString myUserId() const;
 
   QList<RunInfo> runs() const;  // newest update first
@@ -64,6 +65,11 @@ class RunClient : public QObject {
   // --- REST (callbacks run on the UI thread, after the Run was applied) ---
   void createRun(const QString& name, const QList<RunPluginRef>& plugins, const QString& gameId, const QStringList& inviteUserIds,
                  const QJsonObject& settings, RunCallback cb, const QJsonObject& randomizer = QJsonObject());
+  // Same with the core rules of the new run (sent only when the Hub advertises run_rules_v1; an older one starts with the defaults).
+  void createRun(const QString& name, const QList<RunPluginRef>& plugins, const QString& gameId, const QStringList& inviteUserIds,
+                 const QJsonObject& settings, const RunRules& rules, RunCallback cb, const QJsonObject& randomizer = QJsonObject());
+  // PUT /runs/{id}/rules: replaces the whole rules object (creator or admin; 403 forbidden otherwise).
+  void setRules(const QString& runId, const RunRules& rules, RunCallback cb);
   // variant: {kind: run|own, variant_id?} of a randomized run (variants_v1); empty = the Hub's default (the run variant).
   void joinRun(const QString& runId, const QString& gameId, RunCallback cb, const QJsonObject& variant = QJsonObject());
   void declineRun(const QString& runId, RunCallback cb);
@@ -151,6 +157,8 @@ class RunClient : public QObject {
     std::map<QString, Board> boards;
   };
 
+  void createRunBody(const QString& name, const QList<RunPluginRef>& plugins, const QString& gameId, const QStringList& inviteUserIds,
+                     const QJsonObject& settings, const RunRules* rules, RunCallback cb, const QJsonObject& randomizer);
   quint64 applySerial_ = 0;
   RunData* data(const QString& runId);
   const RunData* data(const QString& runId) const;

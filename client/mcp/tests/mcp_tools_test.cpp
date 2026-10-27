@@ -123,7 +123,8 @@ class McpToolsTest : public QObject {
                           "plugin_action", "plugin_reload", "plugin_call", "plugin_eval", "plugin_cache_list", "plugin_cache_read", "plugin_image", "game_state",
                           "memory_regions", "memory_read", "memory_search", "romfs_list", "romfs_read", "rom_read", "screenshot", "game_input", "game_pause",
                           "game_resume", "game_frame_step", "game_state_save", "game_state_load", "game_memory_write", "cheats_list", "cheats_apply",
-                          "cheats_clear", "store_get", "store_put", "consent_set", "server_sign_in", "states_list", "states_save", "states_load", "states_delete", "rewind"})
+                          "cheats_clear", "store_get", "store_put", "consent_set", "server_sign_in", "states_list", "states_save", "states_load",
+                          "states_delete", "rewind", "runs_list", "run_set_rules", "run_events", "plugin_link", "developer_mode", "file_dialog_pick"})
       QVERIFY2(names.contains(QLatin1String(n)), n);
   }
 
@@ -163,7 +164,8 @@ class McpToolsTest : public QObject {
     QCOMPARE(c.value("consent").toString(), QStringLiteral("allowed"));
     QCOMPARE(jsonOf(call("consent_set", {{"kind", "memory_write"}, {"forget", true}, {"game", "g-mcp-test"}})).toObject().value("consent").toString(), QStringLiteral("ask"));
 
-    QVERIFY(!jsonOf(call("store_get", {{"plugin_id", "uzume.cheats"}, {"key", "lists"}})).toObject().value("found").toBool());
+    // An unknown plugin id is an error; a plugin that already has data is known, so put first.
+    QCOMPARE(call("store_get", {{"plugin_id", "uzume.cheats"}, {"key", "lists"}}).content.value(0).text, QStringLiteral("plugin_not_found"));
     QVERIFY(call("store_get", {{"plugin_id", "Bad Id"}, {"key", "lists"}}).isError);
     const QJsonObject put = jsonOf(call("store_put", {{"plugin_id", "uzume.cheats"}, {"key", "lists"}, {"value", QJsonObject{{"a", 1}}}})).toObject();
     QCOMPARE(put.value("result").toString(), QStringLiteral("ok"));
@@ -174,6 +176,19 @@ class McpToolsTest : public QObject {
     const QJsonObject stale = jsonOf(call("store_put", {{"plugin_id", "uzume.cheats"}, {"key", "lists"}, {"value", 2}, {"base_revision", 0}})).toObject();
     QCOMPARE(stale.value("result").toString(), QStringLiteral("conflict"));
     QCOMPARE(jsonOf(call("store_get", {{"plugin_id", "uzume.cheats"}, {"key", "lists"}})).toObject().value("conflicts").toArray().size(), 1);
+  }
+
+  // 0.20 package 6 run and plugin helper tools without a server and without a game.
+  void runAndPluginHelperTools() {
+    QCOMPARE(call("runs_list").content.value(0).text, QStringLiteral("not_supported"));
+    QVERIFY(call("run_set_rules", {{"run_id", "r1"}, {"cheats", "logged"}}).isError);
+    QVERIFY(call("run_events", {{"run_id", "r1"}}).isError);
+    QCOMPARE(call("developer_mode").content.value(0).text.contains("developer_mode"), true);
+    QCOMPARE(jsonOf(call("developer_mode", {{"enabled", true}})).toObject().value("developer_mode").toBool(), true);
+    QCOMPARE(call("plugin_link", {{"path", dir.filePath("nope")}}).content.value(0).text, QStringLiteral("path not found"));
+    QCOMPARE(call("file_dialog_pick", {{"path", ""}}).content.value(0).text, QStringLiteral("no_pick_request"));
+    QCOMPARE(jsonOf(call("developer_mode", {{"enabled", false}})).toObject().value("developer_mode").toBool(), false);
+    QCOMPARE(call("plugin_link", {{"path", dir.path()}}).content.value(0).text, QStringLiteral("developer_mode_off"));
   }
 
   void serverSignInValidatesArguments() {

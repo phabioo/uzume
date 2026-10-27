@@ -25,15 +25,18 @@ ColumnLayout {
     // its own without the column).
     property string forcePage: ""
     readonly property string page: root.forcePage !== "" ? root.forcePage : root.player.serverSettingsPage
-    readonly property var pages: [
+    readonly property var allPages: [
         { id: "general", name: qsTr("General") },
         { id: "network", name: qsTr("Network & sharing") },
         { id: "signin", name: qsTr("Sign-in") },
         { id: "updates", name: qsTr("Updates") },
+        { id: "cheatdb", name: qsTr("Cheat database") },
         { id: "backups", name: qsTr("Backups") },
         { id: "storage", name: qsTr("Storage") },
         { id: "diagnostics", name: qsTr("Diagnostics") }
     ]
+    // The Cheat database page needs a server with cheat_db_v1.
+    readonly property var pages: root.allPages.filter(p => p.id !== "cheatdb" || root.player.cheatDbSupported)
     readonly property string pageName: {
         for (const p of root.pages) if (p.id === root.page) return p.name
         return ""
@@ -45,6 +48,7 @@ ColumnLayout {
     property var settings: ({})               // AdminSettings
     property var accounts: ({})               // AdminAccountSettings
     property var backupStatus: ({})           // AdminBackupStatus
+    property var cheatDbOn: undefined         // value of the nav item "Cheat database" (ON), read with the pane
     readonly property bool ready: root.phase === "ready" && root.settings.hub_name !== undefined
     readonly property var network: root.settings.network ?? ({})
     readonly property var updates: root.settings.updates ?? ({})
@@ -149,6 +153,8 @@ ColumnLayout {
         })
         root.loadAccounts()
         root.loadBackupStatus()
+        if (root.player.cheatDbSupported)
+            root.call("GET", "/admin/cheat-db", undefined, function (ok, data) { if (ok && data && data.enabled !== undefined) root.cheatDbOn = data.enabled === true })
     }
     function loadAccounts() {
         root.call("GET", "/admin/accounts/settings", undefined, function (ok, data) { if (ok && data) root.accounts = data })
@@ -359,6 +365,7 @@ ColumnLayout {
         case "network": return root.isOn(root.netValue("network_sharing")) ? qsTr("Internet") : ""
         case "signin": return root.accounts.require_passwords === true ? qsTr("Password") : ""
         case "updates": return root.updates.current_version ?? ""
+        case "cheatdb": return root.cheatDbOn === true ? qsTr("ON") : ""
         case "backups": {
             const b = root.backupStatus.settings
             return b && b.mode !== "off" && root.backupStatus.folder_set ? b.time : ""
@@ -464,6 +471,7 @@ ColumnLayout {
                 case "network": return networkPage
                 case "signin": return signInPage
                 case "updates": return updatesPage
+                case "cheatdb": return cheatDbPage
                 case "backups": return backupsPage
                 case "storage": return storagePage
                 case "diagnostics": return diagnosticsPage
@@ -488,6 +496,7 @@ ColumnLayout {
     Component { id: networkPage; ServerSettingsNetwork { pane: root } }
     Component { id: signInPage; ServerSettingsSignIn { pane: root } }
     Component { id: updatesPage; ServerSettingsUpdates { pane: root } }
+    Component { id: cheatDbPage; ServerSettingsCheatDb { pane: root } }
     Component { id: backupsPage; ServerSettingsBackups { pane: root } }
     Component { id: storagePage; ServerSettingsStorage { pane: root } }
     Component { id: diagnosticsPage; ServerSettingsDiagnostics { pane: root } }

@@ -45,6 +45,7 @@ qt_add_qml_module(uzume_ui
     pluginemulation.h pluginemulation.cpp
     keyedrowsmodel.h keyedrowsmodel.cpp
     runscontroller.h runscontroller.cpp
+    runrules.h runrules.cpp
     personalcontroller.h personalcontroller.cpp
     screenshotcontroller.h screenshotcontroller.cpp
     localstoragecontroller.h localstoragecontroller.cpp
@@ -184,6 +185,11 @@ qt_add_qml_module(uzume_ui
     RunRandomizerSection.qml
     ConnectionCheckDialog.qml
     RunStartDialog.qml
+    RunRulesDialog.qml
+    DialogsProbe.qml
+    DialogsGate.qml
+    PluginPickPathDialog.qml
+    RunRulesFields.qml
     PluginConsole.qml
     PluginFocusable.qml
     PluginImage.qml
@@ -298,6 +304,8 @@ qt_add_qml_module(uzume_ui
     ServerSettingsPane.qml
     ServerGamesPage.qml
     ServerSettingsGames.qml
+    ServerSettingsCheatDb.qml
+    CheatDbBlock.qml
     ServerSettingsGeneral.qml
     ServerSettingsPage.qml
     ServerSettingsNetwork.qml

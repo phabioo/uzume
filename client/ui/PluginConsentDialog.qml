@@ -58,16 +58,36 @@ Popup {
             font.letterSpacing: Theme.roles.dialogTitle.spacing
             color: Theme.ink
         }
+        // Numbered points 01 / 02 / 03 (design 11d): Mono number, then the sentence.
         Repeater {
             model: root.request.items || []
-            delegate: Text {
-                textFormat: Text.PlainText
+            delegate: RowLayout {
+                id: point
+                required property int index
+                required property var modelData
+                objectName: "pluginConsentPoint_" + point.index
                 Layout.fillWidth: true
-                text: "· " + modelData
-                wrapMode: Text.WordWrap
-                font.family: Theme.sans
-                font.pixelSize: Theme.roles.body.size
-                color: Theme.ink2
+                spacing: Theme.space15
+                Text {
+                    Layout.alignment: Qt.AlignTop
+                    Layout.preferredWidth: 22
+                    text: (point.index + 1 < 10 ? "0" : "") + (point.index + 1)
+                    textFormat: Text.PlainText
+                    font.family: Theme.mono
+                    font.pixelSize: Theme.roles.meta.size
+                    font.weight: Font.Medium
+                    topPadding: 2
+                    color: Theme.muted
+                }
+                Text {
+                    textFormat: Text.PlainText
+                    Layout.fillWidth: true
+                    text: point.modelData
+                    wrapMode: Text.WordWrap
+                    font.family: Theme.sans
+                    font.pixelSize: Theme.roles.body.size
+                    color: Theme.ink2
+                }
             }
         }
         Text {
