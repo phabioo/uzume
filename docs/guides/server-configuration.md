@@ -34,6 +34,7 @@ uzume-server setup-admin -username <name>     # password as a single line from s
 uzume-server renew-cert [-data-dir <dir>]     # renew the self-generated certificate now (refused with own cert/key; changes the security code)
 uzume-server import-cores <dir>               # import libretro buildbot core zips offline
 uzume-server import-plugins <dir>             # offer every *.fbplugin file of a folder to Players (offline, see "Plugins")
+uzume-server import-tools <zip>...            # add randomizer engine release zips to the tools catalog (offline, see "Tools")
 uzume-server import-data --from DIR [-data-dir DEST]  # copy the data folder of a stopped server (the app's "On this PC" server) into DEST (see "Windows")
 uzume-server sharing stop|start               # Windows, administrator: stop (disable) or start the server service (see "Windows")
 uzume-server diagnostics <out.zip>            # write the diagnostics bundle without a running server (see "Diagnostics bundle")
@@ -123,6 +124,7 @@ A flag wins over the environment variable. Under systemd the variables live in `
 | `-core-trust-key` | `UZUME_SERVER_CORE_TRUST_KEYS` | none | Extra trusted Ed25519 public key (base64) for the updates index only (cores are not signed); flag repeatable, env comma-separated |
 | `-update-index-url` | `UZUME_SERVER_UPDATE_INDEX_URL` | Uzume's `updates-index` release | Signed updates index (https, or `file://` for tests) |
 | `-plugin-index-url` | `UZUME_PLUGIN_INDEX_URL` | Uzume's `plugin-index` release | Signed plugin index `plugin-index.json` (+ `.sig` next to it), https or `file://`; `none` (or empty) turns the index off for offline servers, the Plugins page then has no catalog. Checked at start, every 24 h and with "Check now"; a failure is shown on the page and never stops the server. Trusted keys are the same as for the updates index (`-core-trust-key`) |
+| `-tools-source-url` | `UZUME_TOOLS_SOURCE_URL` | GitHub releases API of the randomizer engine (`https://api.github.com/repos/upr-fvx/universal-pokemon-randomizer-fvx/releases`) | Release list of the tools catalog, https only; `none` turns the source off for offline servers (then use `import-tools`). Read at start, every 24 h and with "Check now" (Server › Tools); a failure is shown there and never stops the server (see "Tools") |
 | `-update-request-dir` | `UZUME_SERVER_UPDATE_REQUEST_DIR` | `/run/uzume` | Directory of the update request file read by the root helper |
 
 `0` for a `-save-keep-*` rule means unlimited for that rule. Invalid combinations (for example `-turn` without `-public-host`, a `-public-host` that is not `host[:port]` (scheme, path, spaces, port outside 1 to 65535, IPv6 without brackets), a non-`stun:` ICE URL, a non-IPv4 `-turn-relay-ip`) stop the start with an error.
@@ -304,6 +306,16 @@ Plugins (0.11, [ADR 0023](../adr/0023-plugins.md)) are `.fbplugin` files (zip wi
 - Official catalog: the page lists the signed official plugin index (default, `-plugin-index-url`; `none` disables it) with Install / Update. Install downloads the file, checks size and SHA-256 against the signed index and the embedded signature against the trusted keys, and stores it as `official` (source `index`).
 - Offline: `uzume-server import-plugins <dir>` offers every `*.fbplugin` file directly in `<dir>` (source `import`; running the command is the confirmation of the permissions; unsigned files become `unverified`). Run it as the service user with the service's `-data-dir`.
 - Publishing (see [plugin-publishing.md](plugin-publishing.md)): `uzume-sign plugin-sign -in x.fbplugin -out signed.fbplugin` (seed from `UZUME_SIGNING_KEY`), `uzume-sign plugin-add -index plugin-index.json -plugin signed.fbplugin -url https://.../signed.fbplugin` (refuses unsigned plugins), then `uzume-sign sign -index plugin-index.json` writes `plugin-index.json.sig`.
+
+## Tools
+
+Tools (0.21, [ADR 0031](../adr/0031-game-variants-and-randomizer.md) D3) are programs the server offers to apps the way it offers cores; the only tool is the randomizer engine (id `randomizer`, UPR FVX, GPL-3.0, source link in the entry). The server never runs a tool: apps download the zip for their platform from the server (`GET /api/v1/tools`, handshake feature `tools_v1`) and run it themselves.
+
+- Source: the GitHub releases list of `-tools-source-url`. Check now (Server › Tools, `POST /admin/tools/randomizer/sync`) and a check every 24 h record the stable releases (no drafts or prereleases) with their zips per platform (`windows-x64`, `linux-x64`, `linux-arm64`; names `UPR_FVX-v1_6_2-Windows.zip`, `-Linux_x86.zip`, `-Linux_ARM.zip`) and the newest version as an update hint. Nothing is downloaded by a check.
+- Install downloads every platform zip of a version (https only, at most 400 MB each), checks that it holds `UPR-FVX.jar` and `java/bin/java` or `java/bin/java.exe` (at the zip root or below one top folder; the folder is reported as `root`), pins the SHA-256 at the first download and stores the zip under `<data-dir>/tools/<tool>/<version>/<platform>.zip`. A later download with another hash is refused (409 `tool_hash_mismatch`). Backups do not contain the folder; after a restore, Install fetches the files again against the pinned hashes.
+- Offered: the admin decides. A newly installed tool is not offered (default off); apps see only offered tools and only cached versions, and the package download answers 404 otherwise. Un-offering keeps the copies apps already have.
+- Remove a version: refused (409 `tool_in_use`, with `used_by` counts) while a variant that is not deleted or a run that is not finished or abandoned pins it; there is no force.
+- Offline: `uzume-server import-tools <zip>...` takes the release zips as downloaded (version and platform come from the file name, content checked like a download, SHA-256 pinned, origin `import`; one line per file; the offered switch is not touched). Run it as the service user with the service's `-data-dir`.
 
 ## Windows
 

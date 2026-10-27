@@ -1,9 +1,9 @@
 openapi: 3.0.3
 info:
   title: Uzume server API
-  version: 1.39.0
+  version: 1.40.0
   description: |
-    HTTPS/JSON API of the Uzume server (phase 1; phase 3 adds save sync under `saves`, advertised by the handshake feature `saves_v1`; phase 4 adds Session sharing under `sessions` and the WSS endpoint, advertised by the handshake feature `sessions_v1`; phase 5 adds invite redemption under `users` (`users_v1`), user ROM uploads (`uploads_v1`, only advertised when the caller may upload) and the systems registry with firmware download under `systems` (`firmware_v1`); 0.2 adds core packages served by the server under `cores` (`cores_v1`); 0.4 adds relay credentials for Sessions over the internet (`turn_v1`, `turn_servers` in `hello_ack` and the join response), save comfort (`saves_v2`: restore, manual snapshots, history labels, the `save_updated` WSS message) and the signed core index for app-side verification (`cores_index_v1`, `/api/v1/cores/index`, removed again in 0.8); 0.7 adds deleting manual snapshots (`saves_v3`) and the optional `user` in the handshake response; 0.8 adds uploading a save file from outside the sync flow (`saves_v4`, `POST /games/{game_id}/saves/{slot}/upload`); 0.8 also adds several cores per system from the libretro buildbot (`cores_v2`: `default_core_id` and `cores` in `SystemInfo`, core ids `^[a-z0-9][a-z0-9_-]{0,63}$`) and removes `cores_index_v1` and its endpoints `/api/v1/cores/index{,.sig}`); 0.9 adds the local setup endpoints under `local` for an app on the same PC as the server (`local_setup_v1`, loopback callers only); 0.10 adds the WSS message `ice_update` (`ice_update_v1`) so connected apps receive changed `ice_servers`/`turn_servers`, a default STUN list, and optional Cloudflare TURN next to the embedded TURN server; 0.10.x also adds renaming and deleting save slots and the upload lock during a Session (`saves_v5`); 0.15.x also adds deleting any history version and the main slot (`saves_v6`); 0.11 adds the plugin list and download under `plugins` (`plugins_v1`); 0.11 also adds runs under `runs` (`runs_v1`: run objects with per-participant, per-plugin state, an append-only event log and boards, the WSS messages `run_updated`, `run_state` and `run_event`, and the optional `runs` list in `hello` for catch-up); 0.12 adds local ROMs (`local_roms_v1`: games that exist only on app devices, `POST /games/register`, `DELETE /games/{game_id}/registration`, resumable uploads under `uploads`, `stored`/`on_hub`/`roms` and `game_version` in the game objects, visibility of local-only games); 0.17 adds problem reports (`reports_v1`: `POST /reports` from any paired device, the admin list, files, zip archive, seen mark and delete under `/admin/reports`); 0.18 adds the admin API under `/admin/...` (`admin_v1`: users and invites, pairing requests and devices, systems, cores and firmware, plugins and the plugin index; only advertised to admins); 0.18 also adds server accounts (`accounts_v1`: sign in with user name and password under `auth`, the own account, password, "Confirm it's you" and devices under `account`, an admin password reset and the password policy under `admin`; dangerous admin steps answer 403 `confirmation_required` until the caller confirmed); 0.18 also adds a zip export of all saves of a user for the admin to download before removing the person (`exportAdminUserSaves`, read-only, no confirmation); 0.18 also adds the setup code (`setup_code_v1`: `POST /setup` trades the setup code that a server without an admin prints at start and on `uzume-server setup-code` for the first admin and a paired device, `setup_required` in the server info); 0.20 adds save states (`states_v1`: stored per user, game, save slot and state number under `/games/{game_id}/states`, with a per-user quota) and core run rules (`run_rules_v1`: `rules` on the run, `PUT /runs/{run_id}/rules`, the run event `rules.changed`, app-written core run events without a plugin, and the optional `cheats_used` marker on save uploads and history versions). `protocol_version` is an integer (starting at 1),
+    HTTPS/JSON API of the Uzume server (phase 1; phase 3 adds save sync under `saves`, advertised by the handshake feature `saves_v1`; phase 4 adds Session sharing under `sessions` and the WSS endpoint, advertised by the handshake feature `sessions_v1`; phase 5 adds invite redemption under `users` (`users_v1`), user ROM uploads (`uploads_v1`, only advertised when the caller may upload) and the systems registry with firmware download under `systems` (`firmware_v1`); 0.2 adds core packages served by the server under `cores` (`cores_v1`); 0.4 adds relay credentials for Sessions over the internet (`turn_v1`, `turn_servers` in `hello_ack` and the join response), save comfort (`saves_v2`: restore, manual snapshots, history labels, the `save_updated` WSS message) and the signed core index for app-side verification (`cores_index_v1`, `/api/v1/cores/index`, removed again in 0.8); 0.7 adds deleting manual snapshots (`saves_v3`) and the optional `user` in the handshake response; 0.8 adds uploading a save file from outside the sync flow (`saves_v4`, `POST /games/{game_id}/saves/{slot}/upload`); 0.8 also adds several cores per system from the libretro buildbot (`cores_v2`: `default_core_id` and `cores` in `SystemInfo`, core ids `^[a-z0-9][a-z0-9_-]{0,63}$`) and removes `cores_index_v1` and its endpoints `/api/v1/cores/index{,.sig}`); 0.9 adds the local setup endpoints under `local` for an app on the same PC as the server (`local_setup_v1`, loopback callers only); 0.10 adds the WSS message `ice_update` (`ice_update_v1`) so connected apps receive changed `ice_servers`/`turn_servers`, a default STUN list, and optional Cloudflare TURN next to the embedded TURN server; 0.10.x also adds renaming and deleting save slots and the upload lock during a Session (`saves_v5`); 0.15.x also adds deleting any history version and the main slot (`saves_v6`); 0.11 adds the plugin list and download under `plugins` (`plugins_v1`); 0.11 also adds runs under `runs` (`runs_v1`: run objects with per-participant, per-plugin state, an append-only event log and boards, the WSS messages `run_updated`, `run_state` and `run_event`, and the optional `runs` list in `hello` for catch-up); 0.12 adds local ROMs (`local_roms_v1`: games that exist only on app devices, `POST /games/register`, `DELETE /games/{game_id}/registration`, resumable uploads under `uploads`, `stored`/`on_hub`/`roms` and `game_version` in the game objects, visibility of local-only games); 0.17 adds problem reports (`reports_v1`: `POST /reports` from any paired device, the admin list, files, zip archive, seen mark and delete under `/admin/reports`); 0.18 adds the admin API under `/admin/...` (`admin_v1`: users and invites, pairing requests and devices, systems, cores and firmware, plugins and the plugin index; only advertised to admins); 0.18 also adds server accounts (`accounts_v1`: sign in with user name and password under `auth`, the own account, password, "Confirm it's you" and devices under `account`, an admin password reset and the password policy under `admin`; dangerous admin steps answer 403 `confirmation_required` until the caller confirmed); 0.18 also adds a zip export of all saves of a user for the admin to download before removing the person (`exportAdminUserSaves`, read-only, no confirmation); 0.18 also adds the setup code (`setup_code_v1`: `POST /setup` trades the setup code that a server without an admin prints at start and on `uzume-server setup-code` for the first admin and a paired device, `setup_required` in the server info); 0.20 adds save states (`states_v1`: stored per user, game, save slot and state number under `/games/{game_id}/states`, with a per-user quota) and core run rules (`run_rules_v1`: `rules` on the run, `PUT /runs/{run_id}/rules`, the run event `rules.changed`, app-written core run events without a plugin, and the optional `cheats_used` marker on save uploads and history versions); 0.21 adds the tools catalog (`tools_v1`: `GET /tools`, tool zips with ETag under `/tools/{tool_id}/packages/{version}/{platform}`, the admin endpoints under `/admin/tools`), game variants (`variants_v1`: recipes under `/variants` and `/games/{game_id}/variants`) and runs with a randomizer recipe (`randomizer` in the run object and in `POST /runs`, `variant` in `POST /runs/{run_id}/join`, `GET /runs/{run_id}/variant`, `POST /runs/{run_id}/variant-state`, `variant_kind` and `variant_state` per participant). `protocol_version` is an integer (starting at 1),
     separate from the hub/player product version. All paths carry the `/api/v1` prefix explicitly;
     only the info endpoint lives under `/.well-known/uzume`.
     Compatibility: the app's protocol_version < the server's min_protocol_version -> player_too_old;
@@ -24,6 +24,8 @@ tags:
   - name: systems
   - name: cores
   - name: plugins
+  - name: tools
+  - name: variants
   - name: saves
   - name: sessions
   - name: runs
@@ -1456,6 +1458,182 @@ paths:
             ETag: { schema: { type: string } }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/tools:
+    get:
+      operationId: listTools
+      tags: [tools]
+      summary: Tools this server offers to apps (`tools_v1`, any trusted device)
+      description: |
+        Tools the admin offers (the randomizer engine). Only offered tools are listed, and of those only versions and
+        platforms that are in the server cache. `version` is the newest cached version, `versions` lists all cached
+        versions newest first (a run pins one, so old versions stay while they are used). `used_by` counts what pins a version
+        on this server. Apps download tools only from their server and verify `sha256`.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Offered tools
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ToolList' }
+              examples:
+                default:
+                  value:
+                    tools:
+                      - id: randomizer
+                        name: Randomizer engine
+                        offered: true
+                        version: 1.6.2
+                        license: GPL-3.0
+                        source_url: https://github.com/upr-fvx/universal-pokemon-randomizer-fvx
+                        versions:
+                          - version: 1.6.2
+                            used_by: { variants: 2, runs: 0 }
+                            platforms:
+                              - { platform: windows-x64, size: 190000000, sha256: '4444444444444444444444444444444444444444444444444444444444444444', cached: true, root: '' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/v1/tools/{tool_id}/packages/{version}/{platform}:
+    parameters:
+      - $ref: '#/components/parameters/ToolId'
+      - $ref: '#/components/parameters/ToolVersion'
+      - $ref: '#/components/parameters/ToolPlatform'
+    get:
+      operationId: getToolPackage
+      tags: [tools]
+      summary: Download the zip of a tool version for a platform (`tools_v1`, any trusted device)
+      description: 404 when the tool is not offered or the zip is not in the server cache.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: If-None-Match
+          in: header
+          required: false
+          schema: { type: string }
+          example: '"4444444444444444444444444444444444444444444444444444444444444444"'
+      responses:
+        '200':
+          description: The zip file (`ETag` = `"<sha256>"` as listed)
+          headers:
+            ETag: { schema: { type: string }, description: 'Strong ETag = content SHA-256' }
+            Content-Length: { schema: { type: integer, format: int64 } }
+          content:
+            application/zip:
+              schema: { type: string, format: binary }
+        '304':
+          description: Not modified (`If-None-Match` matches the ETag)
+          headers:
+            ETag: { schema: { type: string } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/variants:
+    get:
+      operationId: listVariants
+      tags: [variants]
+      summary: The caller's own variants of all games (`variants_v1`)
+      description: Only the caller's variants. Variants that were deleted with their saves kept (recipe kept) only with `include_deleted=1`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IncludeDeleted'
+      responses:
+        '200':
+          description: Variants, newest first
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VariantList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/v1/variants/{variant_id}:
+    parameters:
+      - $ref: '#/components/parameters/VariantId'
+    patch:
+      operationId: renameVariant
+      tags: [variants]
+      summary: Rename an own variant (`variants_v1`)
+      description: The slot and the recipe stay. 409 `name_taken` when the caller has an active variant of the game with that name.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VariantRenameRequest' }
+      responses:
+        '200':
+          description: The variant
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Variant' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/VariantConflict' }
+    delete:
+      operationId: deleteVariant
+      tags: [variants]
+      summary: Delete an own variant (`variants_v1`)
+      description: |
+        `saves=keep` (default) marks the variant deleted and keeps the recipe and the save slot ("Build it again"); a deleted
+        variant no longer pins its tool version. `saves=delete` deletes the caller's save slot of the variant with the same rules as
+        deleting a slot (409 `session_running` while a Session of the game runs, 409 `conflict` while a save conflict of the slot is open;
+        nothing is deleted then) and removes the recipe for good.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: saves
+          in: query
+          required: false
+          schema: { type: string, enum: [keep, delete], default: keep }
+      responses:
+        '204': { description: Deleted }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/VariantConflict' }
+  /api/v1/games/{game_id}/variants:
+    parameters:
+      - $ref: '#/components/parameters/GameId'
+    get:
+      operationId: listGameVariants
+      tags: [variants]
+      summary: The caller's own variants of one game (`variants_v1`)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IncludeDeleted'
+      responses:
+        '200':
+          description: Variants, newest first
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VariantList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      operationId: createVariant
+      tags: [variants]
+      summary: Store a variant recipe for a game (`variants_v1`)
+      description: |
+        The server stores the recipe only; the app builds the variant. `tool_version` must be in the catalog (it may be a version
+        that is not offered, so old recipes stay valid). Name 1 to 48 characters, unique per person and game among active variants
+        (409 `name_taken`); `settings` 1 to 4096 printable ASCII characters; `seed` a non-negative 63-bit integer.
+        `base_sha256` pins the base dump (Gen 1 to 5), `title_id` the 3DS title, `update_version` the 3DS update.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VariantCreateRequest' }
+      responses:
+        '201':
+          description: The variant
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Variant' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/VariantConflict' }
   /api/v1/saves:
     get:
       operationId: listSaves
@@ -2350,6 +2528,57 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/RunConflict' }
         '413': { $ref: '#/components/responses/TooLarge' }
+  /api/v1/runs/{run_id}/variant:
+    parameters:
+      - $ref: '#/components/parameters/RunId'
+    get:
+      operationId: getRunVariant
+      tags: [runs]
+      summary: The recipe the caller builds their variant of a randomizer run from (`variants_v1`)
+      description: |
+        Only for joined participants (404 for others, 403 for invited, declined or left callers). 409 when the run has no
+        randomizer. `seed` is the run seed for mode `same` and a seed derived from the run seed and the caller's user id for mode
+        `each`: the first 8 bytes of SHA-256(decimal(run_seed) + ":" + user_id), read big-endian, top bit cleared. The run seed
+        itself is never delivered. A participant who joined with an own variant (`variant_kind` `own`) gets the recipe of that variant.
+        `slot` is the run's save slot.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The recipe
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RunVariant' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/RunConflict' }
+  /api/v1/runs/{run_id}/variant-state:
+    parameters:
+      - $ref: '#/components/parameters/RunId'
+    post:
+      operationId: setRunVariantState
+      tags: [runs]
+      summary: Report how far the caller's variant of a randomizer run is (`variants_v1`)
+      description: Only for the caller themself (a joined participant). Pushes `run_updated`. 409 when the run has no randomizer or is over.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RunVariantStateRequest' }
+      responses:
+        '200':
+          description: The run
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Run' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/RunConflict' }
   /api/v1/runs/{run_id}/invite:
     parameters:
       - $ref: '#/components/parameters/RunId'
@@ -4234,6 +4463,116 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/admin/tools:
+    get:
+      operationId: listAdminTools
+      tags: [admin]
+      summary: The tools catalog with every version, also the ones apps do not see (admin, `tools_v1`)
+      description: |
+        Every tool with all known versions (newest first) and platforms, whether they are cached, what pins a version (`used_by`),
+        the newest release the source listed (`latest_version`, an update hint when it is newer than the newest cached version)
+        and the state of the source. A tool is offered to apps only when `offered` is true; the default is false.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The tools
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminTools' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/admin/tools/{tool_id}:
+    parameters:
+      - $ref: '#/components/parameters/ToolId'
+    put:
+      operationId: updateAdminTool
+      tags: [admin]
+      summary: Offer a tool to apps or stop offering it (admin)
+      description: Apps keep their copy. Runs and variants that pin a version keep working for people who have it.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdminToolUpdate' }
+      responses:
+        '200':
+          description: The tool
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminTool' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/admin/tools/{tool_id}/sync:
+    parameters:
+      - $ref: '#/components/parameters/ToolId'
+    post:
+      operationId: syncAdminTool
+      tags: [admin]
+      summary: Read the release list of the tool's source now (admin)
+      description: Records the versions and platforms of the source (nothing is downloaded). A failed check is not an HTTP error; its reason is in `source.last_error`. 400 when no source is configured (`-tools-source-url none`).
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The tool
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminTool' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/admin/tools/{tool_id}/versions/{version}:
+    parameters:
+      - $ref: '#/components/parameters/ToolId'
+      - $ref: '#/components/parameters/ToolVersion'
+    delete:
+      operationId: removeAdminToolVersion
+      tags: [admin]
+      summary: Remove a tool version with its cached files (admin)
+      description: Apps keep their copy. 409 `tool_in_use` with `used_by` while a variant that is not deleted or a run that is not finished or abandoned pins the version; there is no force.
+      security:
+        - bearerAuth: []
+      responses:
+        '204': { description: Removed }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: A variant or a run still uses the version (`tool_in_use`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ToolInUseError' }
+  /api/v1/admin/tools/{tool_id}/versions/{version}/install:
+    parameters:
+      - $ref: '#/components/parameters/ToolId'
+      - $ref: '#/components/parameters/ToolVersion'
+    post:
+      operationId: installAdminToolVersion
+      tags: [admin]
+      summary: Download a tool version for every platform (admin)
+      description: |
+        Downloads each platform zip that is not cached yet (https only, at most 400 MB each), checks that it holds the engine
+        and pins the SHA-256 at the first download. A later download with another hash is refused (409 `tool_hash_mismatch`).
+        Installing does not offer the tool to apps. 404 for a version the source did not list; 500 with the reason when a download fails.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The tool
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminTool' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/AdminConflict' }
   /api/v1/admin/plugins:
     get:
       operationId: listAdminPlugins
@@ -5465,6 +5804,36 @@ components:
       required: true
       schema: { $ref: '#/components/schemas/CorePlatform' }
       example: linux-x64
+    ToolId:
+      name: tool_id
+      in: path
+      required: true
+      schema: { type: string, pattern: '^[a-z0-9][a-z0-9_-]{0,63}$' }
+      example: randomizer
+    ToolVersion:
+      name: version
+      in: path
+      required: true
+      schema: { type: string, pattern: '^[0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,4}$' }
+      example: 1.6.2
+    ToolPlatform:
+      name: platform
+      in: path
+      required: true
+      schema: { $ref: '#/components/schemas/ToolPlatformName' }
+      example: linux-x64
+    VariantId:
+      name: variant_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+      example: 7d1c2b3a-9e8f-4a6b-8c7d-0e1f2a3b4c5d
+    IncludeDeleted:
+      name: include_deleted
+      in: query
+      required: false
+      description: '`1` also lists variants that were deleted with their saves kept (the recipe is kept for "Build it again").'
+      schema: { type: integer, enum: [0, 1], default: 0 }
     GameId:
       name: game_id
       in: path
@@ -5728,6 +6097,13 @@ components:
           schema: { $ref: '#/components/schemas/Error' }
           examples:
             run_not_active: { value: { error: { code: run_not_active, message: The run is not active (paused, finished or abandoned) } } }
+    VariantConflict:
+      description: 'Conflict: `name_taken`, or `session_running` / `conflict` when deleting the save slot is refused'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            name_taken: { value: { error: { code: name_taken, message: You already have a variant with this name for this game } } }
     TooLarge:
       description: |
         A JSON object is larger than its limit (settings 16 KiB, state 64 KiB, event payload 4 KiB, board 64 KiB), or
@@ -5750,7 +6126,7 @@ components:
     ErrorCode:
       type: string
       description: "`save_not_snapshot` is no longer returned since `saves_v6` (any history version can be deleted)."
-      enum: [bad_request, unauthorized, forbidden, not_found, conflict, rate_limited, internal, device_revoked, invalid_credentials, pairing_pending, pairing_denied, pairing_expired, player_too_old, hub_too_old, core_missing, core_version_mismatch, capability_missing, save_conflict, save_conflict_stale, save_not_snapshot, save_slot_exists, save_slot_protected, session_running, payload_too_large, session_not_found, session_forbidden, session_full, session_ended, invite_invalid, display_name_taken, user_disabled, uploads_disabled, core_package_not_found, core_file_not_available, import_dir_unreadable, child_mode, run_not_active, state_conflict, too_large, state_quota_exceeded, confirmation_required, password_required, password_not_set, invalid_setup_code, setup_code_expired, already_set_up, invalid_image]
+      enum: [bad_request, unauthorized, forbidden, not_found, conflict, rate_limited, internal, device_revoked, invalid_credentials, pairing_pending, pairing_denied, pairing_expired, player_too_old, hub_too_old, core_missing, core_version_mismatch, capability_missing, save_conflict, save_conflict_stale, save_not_snapshot, save_slot_exists, save_slot_protected, session_running, payload_too_large, session_not_found, session_forbidden, session_full, session_ended, invite_invalid, display_name_taken, user_disabled, uploads_disabled, core_package_not_found, core_file_not_available, import_dir_unreadable, child_mode, run_not_active, state_conflict, too_large, state_quota_exceeded, confirmation_required, password_required, password_not_set, invalid_setup_code, setup_code_expired, already_set_up, invalid_image, tool_in_use, tool_hash_mismatch, name_taken, own_variant_mismatch, own_variants_off]
     Error:
       type: object
       required: [error]
@@ -6350,9 +6726,9 @@ components:
           items: { $ref: '#/components/schemas/HandshakeProblem' }
         features:
           type: array
-          description: Optional server feature flags (additive, protocol_version unchanged). `saves_v1` = save sync API, `sessions_v1` = Sessions API and WSS endpoint, `users_v1` = invite redemption (`POST /invites/redeem`) and user management, `uploads_v1` = the calling user may upload ROMs (`POST /games`; advertised per caller), `firmware_v1` = systems registry and firmware download, `cores_v1` = signed core packages served by the server (`/api/v1/cores/...`, `core_package_version` in `SystemInfo`), `turn_v1` = at least one relay provider is on (the embedded TURN server and/or Cloudflare TURN; `turn_servers` in `hello_ack`, `ice_update` and the join response), `saves_v2` = save restore, manual snapshots, history labels and the `save_updated` WSS message, `saves_v3` = deleting manual snapshots (`DELETE /games/{game_id}/saves/{slot}/history/{version}`), `saves_v4` = uploading a save file into a slot (`POST /games/{game_id}/saves/{slot}/upload`), `saves_v5` = renaming a slot (`POST /games/{game_id}/saves/{slot}/rename`), deleting a slot (`DELETE /games/{game_id}/saves/{slot}`), `save_updated` reasons `renamed` and `deleted`, and 409 `session_running` on `saves_v4` uploads while a Session of the game runs, `saves_v6` = deleting any history version (before it only manual snapshots) and the main slot `default` (before it only other slots; renaming `default` stays refused), `cores_v2` = several cores per system (`default_core_id` and `cores` in `SystemInfo`; core ids follow `^[a-z0-9][a-z0-9_-]{0,63}$`), `ice_update_v1` = the server pushes the WSS message `ice_update` whenever its effective ICE configuration changes, `plugins_v1` = plugin list and download (`GET /plugins`, `GET /plugins/{plugin_id}/{version}/file`), `runs_v1` = runs, `runs_v2` = runs without plugins (`plugins` may be empty) and the run field `save_slot`, `local_roms_v1` = local-only games and resumable uploads (`POST /games/register`, `DELETE /games/{game_id}/registration`, `/uploads`; `stored`, `on_hub`, `roms`, `game_version`; `GET /roms/{sha256}` serves stored files only), `reports_v1` = problem reports (`POST /reports`; the admin endpoints under `/admin/reports`), `accounts_v1` = server accounts (`POST /auth/sign-in`, `/account` with password, confirmation and own devices, `/admin/users/{user_id}/password-reset`, `/admin/accounts/settings`; the error codes `confirmation_required`, `password_required` and `password_not_set`), `admin_v1` = the admin API under `/admin/...` (advertised only to admin users). `cores_index_v1` (signed core index) existed in 0.4 to 0.7 and was removed in 0.8.
+          description: Optional server feature flags (additive, protocol_version unchanged). `saves_v1` = save sync API, `sessions_v1` = Sessions API and WSS endpoint, `users_v1` = invite redemption (`POST /invites/redeem`) and user management, `uploads_v1` = the calling user may upload ROMs (`POST /games`; advertised per caller), `firmware_v1` = systems registry and firmware download, `cores_v1` = signed core packages served by the server (`/api/v1/cores/...`, `core_package_version` in `SystemInfo`), `turn_v1` = at least one relay provider is on (the embedded TURN server and/or Cloudflare TURN; `turn_servers` in `hello_ack`, `ice_update` and the join response), `saves_v2` = save restore, manual snapshots, history labels and the `save_updated` WSS message, `saves_v3` = deleting manual snapshots (`DELETE /games/{game_id}/saves/{slot}/history/{version}`), `saves_v4` = uploading a save file into a slot (`POST /games/{game_id}/saves/{slot}/upload`), `saves_v5` = renaming a slot (`POST /games/{game_id}/saves/{slot}/rename`), deleting a slot (`DELETE /games/{game_id}/saves/{slot}`), `save_updated` reasons `renamed` and `deleted`, and 409 `session_running` on `saves_v4` uploads while a Session of the game runs, `saves_v6` = deleting any history version (before it only manual snapshots) and the main slot `default` (before it only other slots; renaming `default` stays refused), `cores_v2` = several cores per system (`default_core_id` and `cores` in `SystemInfo`; core ids follow `^[a-z0-9][a-z0-9_-]{0,63}$`), `ice_update_v1` = the server pushes the WSS message `ice_update` whenever its effective ICE configuration changes, `plugins_v1` = plugin list and download (`GET /plugins`, `GET /plugins/{plugin_id}/{version}/file`), `runs_v1` = runs, `runs_v2` = runs without plugins (`plugins` may be empty) and the run field `save_slot`, `local_roms_v1` = local-only games and resumable uploads (`POST /games/register`, `DELETE /games/{game_id}/registration`, `/uploads`; `stored`, `on_hub`, `roms`, `game_version`; `GET /roms/{sha256}` serves stored files only), `reports_v1` = problem reports (`POST /reports`; the admin endpoints under `/admin/reports`), `accounts_v1` = server accounts (`POST /auth/sign-in`, `/account` with password, confirmation and own devices, `/admin/users/{user_id}/password-reset`, `/admin/accounts/settings`; the error codes `confirmation_required`, `password_required` and `password_not_set`), `admin_v1` = the admin API under `/admin/...` (advertised only to admin users), `tools_v1` = the tools catalog (`GET /tools`, `GET /tools/{tool_id}/packages/{version}/{platform}`, `/admin/tools`), `variants_v1` = game variants and runs with a randomizer recipe (`/variants`, `/games/{game_id}/variants`, `randomizer` in the run object and in `POST /runs`, `variant` in `POST /runs/{run_id}/join`, `GET /runs/{run_id}/variant`, `POST /runs/{run_id}/variant-state`, `variant_kind` and `variant_state` per participant). `cores_index_v1` (signed core index) existed in 0.4 to 0.7 and was removed in 0.8.
           items: { type: string }
-          example: [saves_v1, sessions_v1, users_v1, uploads_v1, firmware_v1, cores_v1, turn_v1, saves_v2, saves_v3, saves_v4, saves_v5, saves_v6, cores_v2, local_setup_v1, ice_update_v1, plugins_v1, runs_v1, runs_v2, local_roms_v1, reports_v1, accounts_v1]
+          example: [saves_v1, sessions_v1, users_v1, uploads_v1, firmware_v1, cores_v1, turn_v1, saves_v2, saves_v3, saves_v4, saves_v5, saves_v6, cores_v2, local_setup_v1, ice_update_v1, plugins_v1, runs_v1, runs_v2, local_roms_v1, reports_v1, accounts_v1, tools_v1, variants_v1]
         user:
           $ref: '#/components/schemas/HandshakeUser'
     HandshakeUser:
@@ -6809,6 +7185,8 @@ components:
           additionalProperties: { $ref: '#/components/schemas/RunPluginState' }
         play_seconds: { type: integer, format: int64, minimum: 0, description: 'This person''s play time in this run (plays whose presence named the run). Sent by `listRuns`, `getRun` and the admin run reads, not by pushes.' }
         last_played_at: { type: string, format: date-time, description: End of their latest play in this run; absent when they never played it (or in pushes) }
+        variant_kind: { type: string, enum: [run, own], nullable: true, description: 'Feature `variants_v1`. The variant this person plays in a randomizer run: the run variant or an own one. null in other runs and before the first join.' }
+        variant_state: { type: string, enum: [not_built, building, ready], nullable: true, description: 'Feature `variants_v1`. How far this person''s variant is; set by the person themself (`setRunVariantState`). null in other runs.' }
     RunPluginState:
       type: object
       required: [state, state_rev, updated_at]
@@ -6818,7 +7196,7 @@ components:
         updated_at: { type: string, format: date-time }
     Run:
       type: object
-      required: [run_id, name, status, created_by, created_at, updated_at, status_by, settings, save_slot, rules, plugins, participants, last_seq]
+      required: [run_id, name, status, created_by, created_at, updated_at, status_by, settings, save_slot, rules, plugins, participants, last_seq, randomizer]
       properties:
         run_id: { type: string, format: uuid }
         name: { type: string, minLength: 1, maxLength: 64 }
@@ -6842,7 +7220,56 @@ components:
           maxItems: 8
           items: { $ref: '#/components/schemas/RunParticipant' }
         last_seq: { type: integer, format: int64, minimum: 0 }
+        randomizer: { $ref: '#/components/schemas/RunRandomizer' }
         play_seconds: { type: integer, format: int64, minimum: 0, description: 'Total play time of all people in this run. Sent by `listRuns`, `getRun` and the admin run reads, not by pushes.' }
+    RunRandomizer:
+      type: object
+      description: |
+        Feature `variants_v1`. The public part of a run's randomizer recipe, fixed when the run is created. Never holds the
+        settings or the seed (`getRunVariant` gives a participant what they need). Always present; `mode` is `off` for ordinary runs.
+      required: [mode, allow_own]
+      properties:
+        mode: { type: string, enum: [off, each, same], description: '`each` = every person gets their own world, `same` = one world for everyone' }
+        preset_id: { type: string, maxLength: 64 }
+        tool_id: { type: string }
+        tool_version: { type: string }
+        allow_own: { type: boolean, description: Whether people may join with an own variant of the same game and engine version }
+        base_sha256: { type: string, pattern: '^[0-9a-f]{64}$', description: 'SHA-256 of the base dump (Gen 1 to 5); absent for 3DS' }
+        title_id: { type: string, description: 3DS title id; absent for other systems }
+    RunRandomizerRequest:
+      type: object
+      description: The randomizer recipe of a new run. Mode `off` (or no object) means an ordinary run.
+      required: [mode]
+      properties:
+        mode: { type: string, enum: [off, each, same] }
+        preset_id: { type: string, maxLength: 64 }
+        settings: { type: string, minLength: 1, maxLength: 4096, description: 'Settings string, printable ASCII; required unless mode is off' }
+        tool_id: { type: string, description: 'Default `randomizer`' }
+        tool_version: { type: string, description: Must be an offered version of the tool (cached on the server) }
+        allow_own: { type: boolean, default: false }
+    RunVariant:
+      type: object
+      required: [settings, seed, tool_id, tool_version, slot]
+      properties:
+        settings: { type: string, description: Settings string }
+        seed: { type: integer, format: int64, minimum: 0, description: 'The run seed (mode `same`) or the seed derived for the caller (mode `each`)' }
+        tool_id: { type: string }
+        tool_version: { type: string }
+        base_sha256: { type: string, description: 'Base dump pin (Gen 1 to 5); absent for 3DS' }
+        title_id: { type: string, description: 3DS title id; absent for other systems }
+        slot: { type: string, description: The run's save slot (`run-` plus 8 hex characters) }
+        variant_kind: { type: string, enum: [run, own], description: 'Whose recipe this is: the run''s or the caller''s own variant' }
+    RunVariantStateRequest:
+      type: object
+      required: [state]
+      properties:
+        state: { type: string, enum: [not_built, building, ready] }
+    RunJoinVariant:
+      type: object
+      required: [kind]
+      properties:
+        kind: { type: string, enum: [run, own] }
+        variant_id: { type: string, format: uuid, description: 'Required for `own`: an own variant of the same game with the run''s tool version' }
     RunList:
       type: object
       required: [runs]
@@ -6867,6 +7294,7 @@ components:
           maxItems: 7
           items: { type: string, minLength: 1, maxLength: 64 }
         settings: { $ref: '#/components/schemas/RunJsonObject' }
+        randomizer: { $ref: '#/components/schemas/RunRandomizerRequest' }
         rules:
           allOf:
             - $ref: '#/components/schemas/RunRules'
@@ -6876,6 +7304,10 @@ components:
       required: [game_id]
       properties:
         game_id: { type: string, format: uuid }
+        variant:
+          allOf:
+            - $ref: '#/components/schemas/RunJoinVariant'
+          description: 'Feature `variants_v1`. Which variant to play in a randomizer run; default `{kind: run}`. 400 in a run without randomizer; `own` needs `allow_own` (409 `own_variants_off`) and a matching variant (409 `own_variant_mismatch`).'
     RunInviteRequest:
       type: object
       required: [user_ids]
@@ -7503,6 +7935,154 @@ components:
         last_check: { type: string, format: date-time }
         last_error: { type: string }
         catalog: { type: array, items: { $ref: '#/components/schemas/AdminPluginCatalogEntry' } }
+    ToolPlatformName:
+      type: string
+      enum: [windows-x64, linux-x64, linux-arm64]
+    ToolUsage:
+      type: object
+      required: [variants, runs]
+      properties:
+        variants: { type: integer, minimum: 0, description: Variants (not deleted) that pin the version }
+        runs: { type: integer, minimum: 0, description: Runs that are not finished or abandoned and pin the version }
+    ToolPlatformEntry:
+      type: object
+      required: [platform, size, sha256, cached]
+      properties:
+        platform: { $ref: '#/components/schemas/ToolPlatformName' }
+        size: { type: integer, format: int64, minimum: 0 }
+        sha256: { type: string, description: 'SHA-256 of the zip, pinned at the first download or import; empty while the platform was never downloaded' }
+        cached: { type: boolean, description: The zip is in the server cache }
+        root: { type: string, description: 'Folder inside the zip that holds `UPR-FVX.jar` and `java/` (with a trailing slash), empty when they are at the zip root' }
+        origin: { type: string, enum: [github, import], description: Admin reads only }
+        url: { type: string, description: Download URL of the release; admin reads only }
+    ToolVersionEntry:
+      type: object
+      required: [version, platforms, used_by]
+      properties:
+        version: { type: string, example: 1.6.2 }
+        platforms:
+          type: array
+          items: { $ref: '#/components/schemas/ToolPlatformEntry' }
+        used_by: { $ref: '#/components/schemas/ToolUsage' }
+    Tool:
+      type: object
+      required: [id, name, offered, version, versions, license, source_url]
+      properties:
+        id: { type: string, example: randomizer }
+        name: { type: string, example: Randomizer engine }
+        offered: { type: boolean }
+        version: { type: string, description: 'Newest cached version; empty when none' }
+        versions:
+          type: array
+          items: { $ref: '#/components/schemas/ToolVersionEntry' }
+        license: { type: string, example: GPL-3.0 }
+        source_url: { type: string, description: Where the source code lives }
+    ToolList:
+      type: object
+      required: [tools]
+      properties:
+        tools:
+          type: array
+          items: { $ref: '#/components/schemas/Tool' }
+    AdminToolVersion:
+      allOf:
+        - $ref: '#/components/schemas/ToolVersionEntry'
+        - type: object
+          required: [installed, complete]
+          properties:
+            installed: { type: boolean, description: At least one platform is cached }
+            complete: { type: boolean, description: Every known platform is cached }
+    AdminToolSource:
+      type: object
+      required: [state]
+      properties:
+        url: { type: string, description: The configured release list; absent when the source is off }
+        state: { type: string, enum: [off, never, ok, error], description: '`off` = `-tools-source-url none`, `never` = not asked yet, `error` = the last check failed' }
+        last_check: { type: string, format: date-time }
+        last_success: { type: string, format: date-time }
+        last_error: { type: string }
+    AdminTool:
+      type: object
+      required: [id, name, license, source_url, offered, versions, source]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        license: { type: string }
+        source_url: { type: string }
+        offered: { type: boolean }
+        latest_version: { type: string, description: The newest release the source listed; absent before the first successful check }
+        update_available: { type: boolean, description: '`latest_version` is newer than the newest cached version' }
+        versions:
+          type: array
+          items: { $ref: '#/components/schemas/AdminToolVersion' }
+        source: { $ref: '#/components/schemas/AdminToolSource' }
+    AdminTools:
+      type: object
+      required: [tools]
+      properties:
+        tools:
+          type: array
+          items: { $ref: '#/components/schemas/AdminTool' }
+    AdminToolUpdate:
+      type: object
+      required: [offered]
+      properties:
+        offered: { type: boolean }
+    ToolInUseError:
+      type: object
+      required: [error, used_by]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string, enum: [tool_in_use] }
+            message: { type: string }
+        used_by: { $ref: '#/components/schemas/ToolUsage' }
+    Variant:
+      type: object
+      required: [id, game_id, name, slot, tool_id, tool_version, settings, seed, spoiler_log, run_id, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        game_id: { type: string, format: uuid }
+        name: { type: string, minLength: 1, maxLength: 48 }
+        slot: { type: string, pattern: '^var-[0-9a-f]{8}$', description: The save slot of the variant }
+        tool_id: { type: string }
+        tool_version: { type: string }
+        settings: { type: string, minLength: 1, maxLength: 4096 }
+        seed: { type: integer, format: int64, minimum: 0 }
+        base_sha256: { type: string, description: Pinned base dump (Gen 1 to 5); absent when not given }
+        title_id: { type: string, description: 3DS title id; absent when not given }
+        update_version: { type: string, description: 3DS update the variant is built for; absent when not given }
+        spoiler_log: { type: boolean }
+        run_id: { type: string, format: uuid, nullable: true, description: Reserved; null }
+        created_at: { type: string, format: date-time }
+        deleted_at: { type: string, format: date-time, description: 'Set when the variant was deleted with its saves kept (`include_deleted=1` lists it)' }
+    VariantList:
+      type: object
+      required: [variants]
+      properties:
+        variants:
+          type: array
+          items: { $ref: '#/components/schemas/Variant' }
+    VariantCreateRequest:
+      type: object
+      required: [name, tool_id, tool_version, settings, seed]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 48 }
+        tool_id: { type: string, example: randomizer }
+        tool_version: { type: string, example: 1.6.2 }
+        settings: { type: string, minLength: 1, maxLength: 4096, description: Printable ASCII }
+        seed: { type: integer, format: int64, minimum: 0 }
+        base_sha256: { type: string, pattern: '^[0-9a-f]{64}$' }
+        title_id: { type: string, pattern: '^[0-9A-Fa-f]{16}$' }
+        update_version: { type: string, maxLength: 32 }
+        spoiler_log: { type: boolean, default: false }
+    VariantRenameRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 48 }
     AdminPlugins:
       type: object
       required: [plugins, index]
