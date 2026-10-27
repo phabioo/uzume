@@ -2,7 +2,7 @@
 
 At a glance: How to install and use the Uzume app: connect and pair, play, share and watch Sessions, run a server on this PC, collect logs and report problems. Administration of the server is in the app (sidebar item "Server", admins only; server settings under Server › Settings). What it does: [features.md](../features.md).
 
-Contents: [Install](#install), [Play on this PC and share](#play-on-this-pc-and-share), [Set up a server on this PC](#set-up-a-server-on-this-pc), [Connect and pair](#connect-and-pair), [Play](#play), [Plugins (developer mode)](#plugins-developer-mode), [Collect logs](#collect-logs), [Connection check](#connection-check), [Claude debugging (MCP)](#claude-debugging-mcp), [Report a problem](#report-a-problem), [Data directory](#data-directory), [Command line and environment](#command-line-and-environment), [Multiview](#multiview).
+Contents: [Install](#install), [Play on this PC and share](#play-on-this-pc-and-share), [Set up a server on this PC](#set-up-a-server-on-this-pc), [Connect and pair](#connect-and-pair), [Play](#play), [Randomize a game](#randomize-a-game), [Plugins (developer mode)](#plugins-developer-mode), [Collect logs](#collect-logs), [Connection check](#connection-check), [Claude debugging (MCP)](#claude-debugging-mcp), [Report a problem](#report-a-problem), [Data directory](#data-directory), [Command line and environment](#command-line-and-environment), [Multiview](#multiview).
 
 Uzume (`client/`, the app) connects to a server, keeps your library and saves in sync, runs games locally and shares or watches Sessions. Feature overview: [features.md](../features.md). Internals: [app-internals.md](../reference/app-internals.md).
 
@@ -62,6 +62,20 @@ After a server certificate change (renewal) the server card shows the stored and
 - Gamepad outside the game: D-pad or left stick moves, A chooses, B goes back one level, Y focuses search (Library, Emulation), L / R switch the Library status filter. The hint row at the bottom shows these while a gamepad was the last input. Esc does the same as B on the keyboard.
 
 Saves sync automatically; see [saves.md](saves.md). Sharing and watching: [sessions-over-the-internet.md](sessions-over-the-internet.md).
+
+## Randomize a game
+
+Since 0.21 ([ADR 0031](../adr/0031-game-variants-and-randomizer.md), behaviour: [features.md](../features.md#game-variants-and-the-randomizer)). You play a randomized copy of a game in its own save slot; Main and the original game stay untouched. Needs the plugin Randomizer (enabled; official, or a local copy with Developer mode on) and a server that offers the randomizer engine.
+
+1. **Server side (admin, once):** Server › Tools shows the engine (UPR FVX, GPL-3.0). "Get the engine" downloads a release for all platforms, "Offer to apps" turns it on for the apps; without a source use `uzume-server import-tools` ([server guide](server-configuration.md#tools)). Nothing is offered until an admin turns it on.
+2. **Randomize:** open the game page and choose Randomize… next to Play (it is off with a reason for games the plugin does not support, and missing without the plugin). Pick a preset or "Custom" and paste a settings string, optionally set a seed (off: a random one) and "Keep a spoiler log", and name the variant (up to 60 characters, unique per game). The dialog shows the slot the variant will play in.
+3. **First time on this PC:** if the engine is not on this PC, "Download and build" fetches it from your server (size and SHA-256 are checked; it is a Java runtime with the engine, up to 400 MB, downloaded once into `<data>/cache/tools/`). If the server offers no engine or is offline, the dialog says so and, for admins, links to Server › Tools.
+4. **Build:** reading the game file, randomizing, writing; small games (GB, GBC, GBA) build in the background with the button reading "Building…", larger ones show a progress dialog with "Run in background" and Cancel (cancelling keeps nothing; quitting while building asks first and the build starts over next time). A 3DS game runs the engine with a 4 GB Java heap (the build checks that about three quarters of it is free) and takes up to 15 minutes at most; other games get 1 GB and 3 minutes. If your game file is a different dump than the recipe pins, the variant shows what it expected and "Build anyway".
+5. **Play and manage:** the game page has a Variants section with each variant's preset, slot and status (Play, Rebuild, Rename…, Copy seed and settings, Open spoiler log…, Delete…). Deleting asks whether to keep the saves (default; the recipe stays so you can build it again) or delete the slot too. The slot picker lists Main and the variants; a library row shows how many variants a game has. The spoiler log opens only after a confirm and is never shown in game or to others.
+6. **Runs:** in New run choose the Randomizer section ("Each person gets their own" or "Same world for everyone", preset or custom string, "Allow own variants"). Everyone joining builds their own copy on their own PC before the first start ("Building your variant"); with "Allow own variants" you may instead bring one of your variants of the same game that uses the run's engine version. The run's spoiler log opens from Saves only after the run ends, and only your own.
+7. **Storage:** Settings › Folders & storage › Variants shows the built copies in `<data>/cache/variants/` (default limit 8 GB, least recently played go first), "Free space" and "Remove variants not played for 30/60/90 days". Only the copies on this PC go; recipes and saves stay on the server, and a variant rebuilds from its recipe the next time you play it.
+
+3DS variants are a LayeredFS folder that the app places in the Azahar folder of the variant's slot; 3DS game updates are not handled yet (open).
 
 ## Plugins (developer mode)
 
@@ -182,7 +196,7 @@ While it uploads, the dialog shows progress and "Cancel" (back to editing, the t
 
 ## Data directory
 
-The ROM cache, `profiles.json`, `device.json`, `hubs/<id>/users/<user_id>/saves/<game_id>/`, `system/` and settings are stored portable by default in `<directory of the executable>/data` (plugins in `plugins/`), provided a real write test succeeds there. Otherwise the app falls back to AppData (`QStandardPaths::AppDataLocation`) and logs a note, for example when installed under Program Files. On the first portable start existing AppData data is copied once (nothing is moved, deleted or overwritten; `device_id` is preserved; the ROM cache is re-downloaded). Credentials stay in the OS credential store. `--data-dir <path>` or `UZUME_DATA_DIR` take precedence ([ADR 0004](../adr/0004-player-portable-data.md)).
+The ROM cache, `profiles.json`, `device.json`, `hubs/<id>/users/<user_id>/saves/<game_id>/`, `system/` and settings are stored portable by default in `<directory of the executable>/data` (plugins in `plugins/`, the randomizer engine in `cache/tools/`, built variants in `cache/variants/`), provided a real write test succeeds there. Otherwise the app falls back to AppData (`QStandardPaths::AppDataLocation`) and logs a note, for example when installed under Program Files. On the first portable start existing AppData data is copied once (nothing is moved, deleted or overwritten; `device_id` is preserved; the ROM cache is re-downloaded). Credentials stay in the OS credential store. `--data-dir <path>` or `UZUME_DATA_DIR` take precedence ([ADR 0004](../adr/0004-player-portable-data.md)).
 
 ## Command line and environment
 
