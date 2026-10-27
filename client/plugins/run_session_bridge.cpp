@@ -102,6 +102,11 @@ void RunSessionBridge::rebuild() {
                              {QStringLiteral("color"), p.color < 0 ? QJsonValue(QJsonValue::Null) : QJsonValue(p.color)},
                              {QStringLiteral("status"), p.status},
                              {QStringLiteral("game_id"), nullable(p.gameId)}});
+    if (!p.variantKind.isEmpty()) {
+      QJsonObject last = parts.last().toObject();
+      last.insert(QStringLiteral("variant_kind"), p.variantKind);
+      parts.replace(parts.size() - 1, last);
+    }
     QJsonObject byPlugin;
     for (const RunPluginRef& ref : run->plugins) {
       QJsonObject st = p.stateOf(ref.pluginId).state;
@@ -121,6 +126,15 @@ void RunSessionBridge::rebuild() {
   current_ = {{QStringLiteral("id"), run->runId},     {QStringLiteral("name"), run->name}, {QStringLiteral("status"), run->status},
               {QStringLiteral("me"), me_},            {QStringLiteral("settings"), run->settings}, {QStringLiteral("plugins"), plugins},
               {QStringLiteral("participants"), parts}};
+  // Public facts of the randomizer only (allow-list): never seed, settings or base_sha256.
+  if (run->randomizerMode() != QLatin1String("off")) {
+    const QJsonObject& r = run->randomizer;
+    current_.insert(QStringLiteral("randomizer"),
+                    QJsonObject{{QStringLiteral("mode"), run->randomizerMode()},
+                                {QStringLiteral("preset_id"), r.value(QLatin1String("preset_id")).toString()},
+                                {QStringLiteral("tool_version"), r.value(QLatin1String("tool_version")).toString()},
+                                {QStringLiteral("allow_own"), r.value(QLatin1String("allow_own")).toBool()}});
+  }
 }
 
 void RunSessionBridge::note(const QString& kind, const QJsonObject& data) {
