@@ -50,7 +50,8 @@ GameStarter::GameStarter(const Deps& d, QObject* parent)
       handshake_(d.handshake),
       conflict_(d.conflict),
       probeCoreVersions_(d.probeCoreVersions),
-      romSource_(d.romSource) {}
+      romSource_(d.romSource),
+      variantLaunch_(d.variantLaunch) {}
 
 void GameStarter::startSelected(bool share) {
   shareOnStart_ = false;
@@ -163,6 +164,23 @@ void GameStarter::continueStartAfterCore(const GameEntry& gameRef, const emu::Sy
 void GameStarter::beginRomPhase(const GameEntry& game) {
   launchGame_ = game;  // identifies the game for the ROM handler even when the selection changes meanwhile
   pendingSha_ = game.romSha256;
+  activeVariant_ = variantLaunch_ ? variantLaunch_(game) : VariantLaunch{};
+  if (activeVariant_.active) {
+    if (!activeVariant_.error.isEmpty() || (!activeVariant_.isMod && activeVariant_.romPath.isEmpty())) {
+      pendingSha_.clear();
+      phase_ = PlayPhase::None;
+      shareOnStart_ = false;
+      startError_ = activeVariant_.error.isEmpty() ? tr("The variant is not built on this device. The game was not started.") : activeVariant_.error;
+      emit selectedGameChanged();
+      return;
+    }
+    if (!activeVariant_.isMod) {
+      // Gen 1 to 5: the built variant ROM is the game file; Main's ROM is not needed.
+      pendingSha_.clear();
+      launch(game, activeVariant_.romPath);
+      return;
+    }
+  }
   const RomSourceChoice src = romSource_ ? romSource_(game) : RomSourceChoice{game.onHub ? RomSource::Download : RomSource::Missing, {}};
   if (src.source == RomSource::Local) {
     // Start directly from the library folder: no copy into the ROM cache.
@@ -321,6 +339,25 @@ void GameStarter::onSaveReady(const QString& gameId, const QString& saveDir, con
         SaveStore::migrateCoreSubfolder(saveDir, shortDir, man->saveShortDirSubfolder);
       }
       cfg.saveDir = shortDir;
+    }
+  }
+  // 3DS variants: the LayeredFS folder lives in the Azahar user folder of this slot only; every other start removes a
+  // variant mod from its slot, so Main never sees one (ADR 0031 D2).
+  if (man->saveSource == QLatin1String("core_tree") && !man->saveShortDirSubfolder.isEmpty()) {
+    const QString azaharDir = QDir(cfg.saveDir).filePath(man->saveShortDirSubfolder);
+    QString modError;
+    bool ok = true;
+    if (activeVariant_.active && activeVariant_.isMod) {
+      ok = variantlaunch::placeMod(azaharDir, activeVariant_.titleId, activeVariant_.modDir, activeVariant_.marker, &modError);
+    } else if (variantlaunch::isValidTitleId(activeVariant_.titleId)) {
+      ok = variantlaunch::ensureNoMod(azaharDir, activeVariant_.titleId, &modError);
+    }
+    if (!ok) {
+      phase_ = PlayPhase::None;
+      shareOnStart_ = false;
+      startError_ = tr("The variant could not be prepared (%1). The game was not started.").arg(modError);
+      emit selectedGameChanged();
+      return;
     }
   }
 #ifdef Q_OS_WIN

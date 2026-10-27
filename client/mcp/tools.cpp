@@ -9,6 +9,7 @@ void installTools(McpToolRegistry& registry, ui::PlayerController& player) {
   installEmulationTools(registry, player);
   installReportTools(registry, player);
   installUiTools(registry, player);
+  installVariantTools(registry, player);
 }
 
 }  // namespace uzume::mcp

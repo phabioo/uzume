@@ -23,3 +23,10 @@ uzume_add_test(mcp_reports mcp_reports_test.cpp ${FB_NETTEST_DIR}/fakehub.cpp ${
   LIBS uzume_mcp_tools uzume_ui uzume_uiplugin uzume_core uzume_emulation Qt6::Quick Qt6::QuickControls2 Qt6::QuickTest)
 target_include_directories(test_mcp_reports PRIVATE ${FB_NETTEST_DIR} ${FB_UITEST_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(test_mcp_reports PRIVATE FB_TEST_DATA_DIR="${FB_NETTEST_DIR}/testdata")
+
+# Variant tools (0.21) against FakeHub's tools/variants routes and the test engine.
+uzume_add_test(mcp_variants mcp_variants_test.cpp ${FB_NETTEST_DIR}/fakehub.cpp ${FB_NETTEST_DIR}/fakehub.h
+  LIBS uzume_mcp_tools uzume_ui uzume_uiplugin uzume_core uzume_emulation Qt6::Quick Qt6::QuickControls2 Qt6::QuickTest)
+target_include_directories(test_mcp_variants PRIVATE ${FB_NETTEST_DIR} ${FB_UITEST_DIR} ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/../../testutil)
+target_compile_definitions(test_mcp_variants PRIVATE FB_TEST_DATA_DIR="${FB_NETTEST_DIR}/testdata" FB_TEST_ENGINE_PATH="$<TARGET_FILE:uzume_test_engine>")
+add_dependencies(test_mcp_variants uzume_test_engine)

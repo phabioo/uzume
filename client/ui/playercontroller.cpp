@@ -314,7 +314,8 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
                          library_.get(), emulation_.get(), catalog_.get(), model_, session_, selectedId_, phase_, launchGame_,
                          launchRom_, saveReady_, saveNoteStart_, startError_, pendingSha_, fwOptions_, shareOnStart_, fwProblems_,
                          coreProblems_, coreList_, handshake_, conflict_, options.probeCoreVersions,
-                         [this](const GameEntry& g) { return romSourceOf(g); }};
+                         [this](const GameEntry& g) { return romSourceOf(g); },
+                         [this](const GameEntry& g) { return variantLaunchFor(g); }};
     starter_ = std::make_unique<GameStarter>(sd);
     connect(starter_.get(), &GameStarter::selectedGameChanged, this, &PlayerController::selectedGameChanged);
     connect(starter_.get(), &GameStarter::saveConflictChanged, this, &PlayerController::saveConflictChanged);
@@ -396,6 +397,67 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
   sessions_->setPlayerSettings(settings_.get());  // diagnostics overlay states live in settings/player.json (0.6 D5)
   runClient_ = std::make_unique<RunClient>(conn_.get(), sessions_->socket(), profiles_->baseDir());
   runs_ = std::make_unique<RunsController>(runClient_.get(), plugins_.get(), library_.get(), conn_.get());
+  {
+    toolCache_ = std::make_unique<ToolCache>(profiles_->toolCacheDir());
+    variantCache_ = std::make_unique<VariantCache>(profiles_->variantCacheDir());
+    toolsClient_ = std::make_unique<ToolsClient>(conn_.get(), toolCache_.get());
+    variantsClient_ = std::make_unique<VariantsClient>(conn_.get());
+    auto bridge = std::make_shared<VariantsPluginBridge>();
+    VariantsController::Deps vd;
+    vd.conn = conn_.get();
+    vd.library = library_.get();
+    vd.settings = settings_.get();
+    vd.tools = toolsClient_.get();
+    vd.toolCache = toolCache_.get();
+    vd.client = variantsClient_.get();
+    vd.cache = variantCache_.get();
+    vd.downloader = downloader_.get();
+    vd.romSource = [this](const GameEntry& g) { return romSourceOf(g); };
+    vd.runSlot = [this](const QString& runId) { return runs_->saveSlotFor(runId); };
+    vd.runStatus = [this](const QString& runId) {
+      const auto r = runClient_->run(runId);
+      return r ? r->status : QString();
+    };
+    vd.runRandomizerMode = [this](const QString& runId) {
+      const auto r = runClient_->run(runId);
+      return r ? r->randomizerMode() : QString();
+    };
+    vd.runVariantKind = [this](const QString& runId) {
+      const auto r = runClient_->run(runId);
+      if (!r) return QString();
+      for (const RunParticipant& p : r->participants) {
+        if (p.userId == conn_->hubUserId()) return p.variantKind;
+      }
+      return QString();
+    };
+    vd.protectedVariantIds = [this]() {
+      QSet<QString> ids;
+      if (variantStart_.pending() && (gameActive_ || phase_ != PlayPhase::None)) ids.insert(variantStart_.variantId);
+      if (runStart_.pending() && (gameActive_ || phase_ != PlayPhase::None)) {
+        const QString id = variants_ ? variants_->runVariantId(runStart_.runId) : QString();
+        if (!id.isEmpty()) ids.insert(id);
+      }
+      return ids;
+    };
+    vd.postPluginEvent = [this](const QString& pluginId, const QString& event, const QVariantMap& value) {
+      if (plugins_ && plugins_->host()) plugins_->host()->postHostEvent(event, value, pluginId);
+    };
+    vd.titleIdOf = [this](const GameEntry& g) { return titleIdOf(g); };
+    variants_ = std::make_unique<VariantsController>(vd, bridge);
+    plugins_->setVariantsProvider(bridge);
+    connect(variants_.get(), &VariantsController::launchRequested, this, &PlayerController::startVariantGame);
+    connect(variants_.get(), &VariantsController::runVariantReady, this, [this](const QString& runId) {
+      // A run start waited for its variant: the game of the run starts now.
+      if (pendingRunPlay_.runId == runId) {
+        const QString game = std::exchange(pendingRunPlay_.gameId, {});
+        pendingRunPlay_ = {};
+        startRunGame(runId, game);
+      }
+    });
+    connect(variants_.get(), &VariantsController::runVariantFailed, this, [this](const QString& runId, const QString&) {
+      if (pendingRunPlay_.runId == runId) pendingRunPlay_ = {};
+    });
+  }
   personal_ = std::make_unique<PersonalController>(conn_.get(), &model_);
   screenshots_ = std::make_unique<ScreenshotController>(conn_.get(), profiles_.get());
   screenshots_->setGameSource(
@@ -2270,7 +2332,7 @@ void PlayerController::onRomStatus(const QString& sha, const RomStatus& st) {
 }
 
 void PlayerController::playSelected() {
-  if (runStart_.pending() && !gameActive_ && phase_ == PlayPhase::None) finishRunStart();  // a run start that never got going
+  if (startPending() && !gameActive_ && phase_ == PlayPhase::None) finishRunStart();  // a run start that never got going
   if (background_) {
     if (selectedId_ == backgroundId_) {
       resumeGame();
@@ -2405,7 +2467,7 @@ void PlayerController::confirmQuitAndStart() {
 }
 
 void PlayerController::playAndShareSelected() {
-  if (runStart_.pending() && !gameActive_ && phase_ == PlayPhase::None) finishRunStart();
+  if (startPending() && !gameActive_ && phase_ == PlayPhase::None) finishRunStart();
   if (background_) {
     if (selectedId_ == backgroundId_) {
       resumeGame();
@@ -2489,6 +2551,12 @@ void PlayerController::startRunGame(const QString& runId, const QString& gameId)
     return;  // a game is running or starting: the Runs screen is not reachable then, nothing to do
   }
   finishRunStart();
+  // A run with a randomizer builds the person's run variant first; the game of the run starts when it is ready (0.21).
+  if (variants_ && variants_->runUsesVariant(runId) && !variants_->runVariantBuilt(runId)) {
+    pendingRunPlay_ = {runId, gameId};
+    variants_->ensureRunVariant(runId, gameId);
+    return;
+  }
   runStart_ = {runId, gameId, saves_->slotFor(gameId)};
   // The run keeps its own saves: the run's save slot (run-<first 8 hex of the run id>), never the game's default slot.
   if (!saves_->setSlot(gameId, runs_->saveSlotFor(runId))) {
@@ -2501,9 +2569,66 @@ void PlayerController::startRunGame(const QString& runId, const QString& gameId)
 }
 
 void PlayerController::finishRunStart() {
+  if (variantStart_.pending()) {
+    const VariantStart vs = std::exchange(variantStart_, {});
+    if (!saves_->isRunning(vs.gameId)) saves_->setSlot(vs.gameId, vs.previousSlot);
+  }
   if (!runStart_.pending()) return;
   const RunStart rs = std::exchange(runStart_, {});
   if (!saves_->isRunning(rs.gameId)) saves_->setSlot(rs.gameId, rs.previousSlot);
+}
+
+void PlayerController::startVariantGame(const QString& variantId) {
+  if (background_ || gameActive_ || session_.isActive() || phase_ != PlayPhase::None) {
+    return;
+  }
+  const VariantLaunch vl = variants_->launchInfo(variantId);
+  if (!vl.active || !vl.error.isEmpty() || vl.slot.isEmpty()) {
+    startError_ = tr("The variant is not built on this device.");
+    emit selectedGameChanged();
+    return;
+  }
+  finishRunStart();
+  variantStart_ = {variantId, vl.gameId, saves_->slotFor(vl.gameId)};
+  // A variant plays in its own save slot (var-<8 hex>); Main is never touched.
+  if (!saves_->setSlot(vl.gameId, vl.slot)) {
+    variantStart_ = {};
+    return;
+  }
+  variants_->touch(variantId);
+  selectGame(vl.gameId);
+  cancelBackgroundUpdateForSelected();
+  starter_->startSelected(false);
+}
+
+QString PlayerController::titleIdOf(const GameEntry& game) {
+  if (game.system != QLatin1String("3ds")) return {};
+  const emu::SystemManifest* man = catalog_ ? catalog_->manifestFor(game) : nullptr;
+  const RomStatus st = romStatusOf(game);
+  QString code;
+  if (man != nullptr && !st.localPath.isEmpty() && QFileInfo::exists(st.localPath)) {
+    code = emu::readGameIdentity(st.localPath, man->identity).code;
+  }
+  if (!variantlaunch::isValidTitleId(code)) code = game.gameCode.toUpper();
+  return variantlaunch::isValidTitleId(code) ? code : QString();
+}
+
+VariantLaunch PlayerController::variantLaunchFor(const GameEntry& game) {
+  VariantLaunch vl;
+  QString variantId;
+  if (variantStart_.pending() && variantStart_.gameId == game.id) {
+    variantId = variantStart_.variantId;
+  } else if (runStart_.pending() && runStart_.gameId == game.id && variants_ && variants_->runUsesVariant(runStart_.runId)) {
+    variantId = variants_->runVariantId(runStart_.runId);
+  }
+  if (!variantId.isEmpty() && variants_) {
+    vl = variants_->launchInfo(variantId);
+    vl.active = true;
+    if (vl.titleId.isEmpty()) vl.titleId = titleIdOf(game);
+    return vl;
+  }
+  if (game.system == QLatin1String("3ds")) vl.titleId = titleIdOf(game);
+  return vl;
 }
 
 }  // namespace uzume::ui

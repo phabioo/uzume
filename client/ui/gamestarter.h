@@ -29,6 +29,7 @@
 #include "romsource.h"
 #include "savesync.h"
 #include "system_manifest.h"
+#include "variantlaunch.h"
 #include "corecatalog.h"
 
 namespace uzume::ui {
@@ -66,6 +67,9 @@ class GameStarter : public QObject {
     QVariantMap& conflict;
     bool probeCoreVersions;
     std::function<RomSourceChoice(const GameEntry&)> romSource;  // library folder / cache / download / missing
+    // Variant start (0.21): active = start exactly this variant (its ROM / mod folder); inactive = a normal start, titleId is
+    // still filled for 3DS so that no stale mod stays in the slot. Empty function = no variants.
+    std::function<VariantLaunch(const GameEntry&)> variantLaunch;
   };
 
   explicit GameStarter(const Deps& d, QObject* parent = nullptr);
@@ -123,6 +127,8 @@ class GameStarter : public QObject {
   QVariantMap& conflict_;
   bool probeCoreVersions_;
   std::function<RomSourceChoice(const GameEntry&)> romSource_;
+  std::function<VariantLaunch(const GameEntry&)> variantLaunch_;
+  VariantLaunch activeVariant_;  // set in beginRomPhase, read in onSaveReady
 };
 
 }  // namespace uzume::ui

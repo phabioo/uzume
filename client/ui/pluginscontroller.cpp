@@ -288,6 +288,19 @@ void PluginsController::installFromPath(const QString& pathOrUrl) {
   refreshPlugins();
 }
 
+plugins::InstallResult PluginsController::installFromPathResult(const QString& pathOrUrl) {
+  const QString path = localPath(pathOrUrl);
+  plugins::InstallResult r;
+  if (path.isEmpty()) {
+    r.error = QStringLiteral("path required");
+    return r;
+  }
+  r = manager_->installFromPath(path);
+  reportInstall(r, QFileInfo(path).isDir());
+  refreshPlugins();
+  return r;
+}
+
 const HubPluginInfo* PluginsController::newestOffer(const QString& id) const {
   const HubPluginInfo* best = nullptr;
   if (hubClient_ == nullptr) return nullptr;
@@ -539,9 +552,22 @@ void PluginsController::refreshPlugins() {
     else summary_ += QStringLiteral(" · ") + (on > 0 ? tr("%1 on").arg(on) : tr("none on"));
   }
   updateImageSources();
+  if (variants_ != nullptr) {
+    // What a plugin registered through fb.variants stays only while the plugin is on and without problems.
+    QSet<QString> active;
+    for (const plugins::PluginInfo& p : list)
+      if (p.enabled && p.problems.isEmpty() && p.manifest.hasPermission(QStringLiteral("variants.build"))) active.insert(p.manifest.id);
+    variants_->registry()->keepOnly(active);
+  }
   emit pluginsChanged();
   rebuildHotkeys();
   updateShell();  // a toggle, install or Developer mode change can add or remove shell plugins
+}
+
+void PluginsController::setVariantsProvider(std::shared_ptr<plugins::VariantsProvider> provider) {
+  variants_ = std::move(provider);
+  shellSignature_.clear();  // the shell plugins start again with fb.variants
+  updateShell();
 }
 
 // ---------------------------------------------------------------- game lifecycle
@@ -589,6 +615,9 @@ void PluginsController::gameStarted(const QString& system, const QString& romPat
   ctx.romPath = romPath;
   ctx.language = language_;
   ctx.run = run.bridge;
+  ctx.gameId = launchGameId_;
+  ctx.modDir = launchModDir_;
+  ctx.variants = variants_;
   const plugins::GameResolution res = run.bridge ? manager_->resolveForRun(run.pins) : manager_->resolveForGame(system, ctx.code);
   for (auto it = res.problems.begin(); it != res.problems.end(); ++it)
     qCInfo(lcPlugins) << "plugin" << it.key() << "not started:" << it.value().join(QStringLiteral("; "));
@@ -710,6 +739,7 @@ void PluginsController::updateShell() {
   }
   plugins::GameContext ctx;
   ctx.shell = true;
+  ctx.variants = variants_;
   ctx.language = resolveLanguage();
   if (!rvOrder.isEmpty()) ctx.run = runViewBridge_;
   shellRunning_ = true;

@@ -311,6 +311,10 @@ class FakeHub : public QTcpServer {
   qint64 screenshotMaxBytes = 16ll * 1024 * 1024;
   bool handleScreenshots(QSslSocket* sock, const FakeRequest& req);
 
+  // Test-defined routes (tools catalog, variants): called for every authenticated request before the built-in routes; return true
+  // after filling status/body/contentType to answer, false to fall through.
+  std::function<bool(const FakeRequest& req, int& status, QByteArray& body, QByteArray& contentType)> customRoute;
+
   // Observation
   QList<FakeRequest> requests;
   int count(const QString& pathPrefix) const;

@@ -5,6 +5,7 @@
 #include <memory>
 
 #include "lua_sandbox.h"
+#include "plugin_variants.h"
 #include "plugin_video.h"
 #include "run_bridge.h"
 
@@ -23,6 +24,10 @@ struct GameContext {
   bool shell = false;  // shell context: no game runs; fb.game is an empty table, memory/rom reads return nil
   std::shared_ptr<RunBridge> run;  // the game was started in a run: fb.run exists (permission run.state); null = no fb.run
   std::shared_ptr<VideoProvider> video;  // frame source of the running game (fb.video, video.capture); null = fb.video.screens() is nil, captures fail with "unsupported"
+  // New fields go at the end (the tests aggregate-initialise the leading ones).
+  QString gameId;    // library id of the game (fb.variants.list); empty in the shell context
+  QString modDir;    // 3DS variant: LayeredFS mod folder laid over the RomFS of romPath by fb.rom.romfs / romfs_list; empty otherwise
+  std::shared_ptr<VariantsProvider> variants;  // fb.variants (permission variants.build); null = fb.variants.register / build fail with "variants are not available"
 };
 
 struct HostLimits {

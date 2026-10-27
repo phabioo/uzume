@@ -32,6 +32,8 @@ struct RunParticipant {
   int color = -1;  // 0..7 in join order, -1 until the first join
   qint64 playSeconds = 0;  // Uzume 0.19: the person's play time in this run (0 on an older server)
   QString lastPlayedAt;    // RFC 3339, "" = never or unknown
+  QString variantKind;     // Uzume 0.21 (variants_v1): "run" | "own" | "" (no randomizer)
+  QString variantState;    // "not_built" | "building" | "ready" | ""
   QMap<QString, RunPluginState> states;  // by plugin id; a missing plugin means state {} at revision 0
   RunPluginState stateOf(const QString& pluginId) const { return states.value(pluginId); }
 };
@@ -46,6 +48,10 @@ struct RunInfo {
   QString statusBy;
   QString saveSlot;  // Hub field save_slot ("run-" + 8 hex); runSaveSlot(runId) when the Hub does not send it
   QJsonObject settings;
+  // Uzume 0.21 (variants_v1): {mode: off|each|same, preset_id, tool_version, allow_own, base_sha256}; never seed or settings. Empty on an
+  // older server or a run without the randomizer.
+  QJsonObject randomizer;
+  QString randomizerMode() const { return randomizer.value(QStringLiteral("mode")).toString(QStringLiteral("off")); }
   QList<RunPluginRef> plugins;
   QList<RunParticipant> participants;
   qint64 lastSeq = 0;

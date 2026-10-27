@@ -47,6 +47,7 @@ qt_add_qml_module(uzume_ui
     personalcontroller.h personalcontroller.cpp
     screenshotcontroller.h screenshotcontroller.cpp
     localstoragecontroller.h localstoragecontroller.cpp
+    variantscontroller.h variantscontroller.cpp
     screenshotimageprovider.h screenshotimageprovider.cpp
     connectioncheckcontroller.h connectioncheckcontroller.cpp
     onboardingcontroller.h onboardingcontroller.cpp
