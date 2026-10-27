@@ -42,9 +42,26 @@
           "type": "string",
           "format": "uuid",
           "description": "App to server only, and only with state in_game: the run being played. The server counts play time per run when the user joined that run with this game, otherwise it ignores it. Never broadcast."
+        },
+        "display_name": {
+          "type": "string",
+          "description": "Server to apps: display name of the user (together_v1)."
+        },
+        "game_title": {
+          "type": "string",
+          "description": "Server to apps, only with state in_game: title of the game; omitted when unknown or when the receiving user may not see the game."
+        },
+        "system": {
+          "type": "string",
+          "description": "Server to apps, only with game_title: system id of the game."
+        },
+        "session_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "App to server: optional and ignored (the server derives the Session of the device). Server to apps: the active Session shared by this device, only for receivers the Session ACL allows (private: owner's devices; invite_only: invited users; hub_users: everyone); omitted otherwise."
         }
       }
     }
   },
-  "description": "App to server: {state: online|in_game, game_id?, run_id?}. Server to apps: additionally user_id and device_id (always set), state may be offline; run_id is never sent to other apps."
+  "description": "App to server: {state: online|in_game, game_id?, run_id?, session_id?}. Server to apps: additionally user_id and device_id (always set), display_name, state may be offline; with state in_game also game_title and system (when the receiver may see the game); session_id only for receivers the Session ACL allows (together_v1); run_id is never sent to other apps."
 }

@@ -254,6 +254,7 @@ type Client struct {
 	svc      *Service
 	userID   string
 	deviceID string
+	name     string // display name of the user at connect time (presence)
 
 	out  chan []byte
 	done chan struct{}
@@ -301,7 +302,7 @@ func (s *Service) AcquirePreHello(deviceID string) (release func(), ok bool) {
 
 // NewClient creates the connection state for an authenticated device. It is not visible to others until hello.
 func (s *Service) NewClient(p Principal) *Client {
-	return &Client{svc: s, userID: p.User.ID, deviceID: p.Device.ID, out: make(chan []byte, outBuffer), done: make(chan struct{}), state: "online"}
+	return &Client{svc: s, userID: p.User.ID, deviceID: p.Device.ID, name: p.User.DisplayName, out: make(chan []byte, outBuffer), done: make(chan struct{}), state: "online"}
 }
 
 // SetRequestHost records the Host header of the WSS upgrade (used for TURN URLs in hello_ack).
@@ -512,10 +513,11 @@ func (s *Service) attach(c *Client) {
 		s.playDeviceReplaced(old)
 		old.closeWith(CloseCodePolicy, "replaced by a newer connection")
 	}
+	pb := s.newPresenceBuilder()
 	for _, o := range s.clients() {
 		if o != c {
-			c.sendMsg("presence_update", "", o.presencePayload("")) // snapshot: who is where
-			o.sendMsg("presence_update", "", c.presencePayload(""))
+			c.sendMsg("presence_update", "", pb.payload(o, c)) // snapshot: who is where
+			o.sendMsg("presence_update", "", pb.payload(c, o))
 		}
 	}
 	s.sess.mu.Lock()
@@ -532,17 +534,83 @@ func (s *Service) attach(c *Client) {
 	}
 }
 
-func (c *Client) presencePayload(state string) map[string]string {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if state == "" {
-		state = c.state
+// presenceBuilder builds the per-receiver presence_update payloads of one broadcast. It caches the sender's
+// active Session and the game lookups per receiving user. The caller may hold sess.mu (the lookups only read).
+type presenceBuilder struct {
+	s     *Service
+	sess  map[string]*sessionData // sender device -> its active Session (nil = none)
+	games map[string]*Game        // receiver user + "\x00" + game id -> game (nil = unknown or not visible)
+}
+
+func (s *Service) newPresenceBuilder() *presenceBuilder {
+	return &presenceBuilder{s: s, sess: map[string]*sessionData{}, games: map[string]*Game{}}
+}
+
+func (b *presenceBuilder) session(deviceID string) *sessionData {
+	if d, ok := b.sess[deviceID]; ok {
+		return d
 	}
+	var d *sessionData
+	ctx := context.Background()
+	var id string
+	if err := b.s.db.QueryRowContext(ctx, `SELECT id FROM sessions WHERE ended_at IS NULL AND owner_device_id = ?
+		ORDER BY created_at DESC, id LIMIT 1`, deviceID).Scan(&id); err == nil {
+		if sd, err := b.s.loadSession(ctx, id); err == nil && !sd.ended {
+			d = sd
+		}
+	}
+	b.sess[deviceID] = d
+	return d
+}
+
+func (b *presenceBuilder) game(userID, gameID string) *Game {
+	k := userID + "\x00" + gameID
+	if g, ok := b.games[k]; ok {
+		return g
+	}
+	var out *Game
+	if g, err := b.s.GetGameFor(context.Background(), userID, gameID); err == nil {
+		out = &g
+	}
+	b.games[k] = out
+	return out
+}
+
+// payload is the presence_update of sender c as receiver r may see it: display_name, game_title and system when
+// r may see the game (library visibility), session_id only when the Session ACL allows r.
+func (b *presenceBuilder) payload(c, r *Client) map[string]string {
+	c.mu.Lock()
+	state, gameID := c.state, c.gameID
+	c.mu.Unlock()
 	p := map[string]string{"user_id": c.userID, "device_id": c.deviceID, "state": state}
-	if state == "in_game" && c.gameID != "" {
-		p["game_id"] = c.gameID
+	if c.name != "" {
+		p["display_name"] = c.name
+	}
+	if state == "in_game" && gameID != "" {
+		p["game_id"] = gameID
+		if g := b.game(r.userID, gameID); g != nil {
+			p["game_title"], p["system"] = g.Title, g.System
+		}
+	}
+	if d := b.session(c.deviceID); d != nil && d.allows(r.userID, r.deviceID) {
+		p["session_id"] = d.id
 	}
 	return p
+}
+
+// resendPresence re-sends the presence of the owner device of a Session to the selected receivers so that
+// session_id appears or disappears. The caller may hold sess.mu.
+func (s *Service) resendPresence(ownerDeviceID string, only func(*Client) bool) {
+	c := s.clientOf(ownerDeviceID)
+	if c == nil {
+		return
+	}
+	pb := s.newPresenceBuilder()
+	for _, o := range s.clients() {
+		if o != c && only(o) {
+			o.sendDroppable(encode("presence_update", "", pb.payload(c, o)))
+		}
+	}
 }
 
 func (c *Client) presence(env envelope) {
@@ -550,6 +618,9 @@ func (c *Client) presence(env envelope) {
 		State  string `json:"state"`
 		GameID string `json:"game_id"`
 		RunID  string `json:"run_id"`
+		// SessionID is accepted for forward compatibility and ignored: the server derives the Session of the
+		// device from the session table.
+		SessionID string `json:"session_id"`
 	}
 	if err := json.Unmarshal(env.Payload, &p); err != nil || (p.State != "online" && p.State != "in_game") {
 		c.sendError(env.ID, CodeBadRequest, "state must be online or in_game")
@@ -571,10 +642,10 @@ func (c *Client) presence(env envelope) {
 	c.state, c.gameID = p.State, p.GameID
 	c.mu.Unlock()
 	c.svc.playPresence(c, p.State, p.GameID, p.RunID) // run_id is for play time only, never broadcast
-	msg := encode("presence_update", "", c.presencePayload(""))
+	pb := c.svc.newPresenceBuilder()
 	for _, o := range c.svc.clients() {
 		if o != c {
-			o.sendDroppable(msg)
+			o.sendDroppable(encode("presence_update", "", pb.payload(c, o)))
 		}
 	}
 }
@@ -651,7 +722,7 @@ func (c *Client) Disconnect() {
 	ctx := context.Background()
 	s.sess.mu.Lock()
 	defer s.sess.mu.Unlock()
-	msg := encode("presence_update", "", map[string]string{"user_id": c.userID, "device_id": c.deviceID, "state": "offline"})
+	msg := encode("presence_update", "", map[string]string{"user_id": c.userID, "device_id": c.deviceID, "state": "offline", "display_name": c.name})
 	for _, o := range s.clients() {
 		o.sendRaw(msg)
 	}
@@ -663,11 +734,15 @@ func (c *Client) Disconnect() {
 	}
 }
 
+// FeatureTogetherV1 is announced in hello_ack: presence_update carries display_name, game_title, system and the
+// ACL-filtered session_id (0.23 online status; ready check, pause and chat follow under the same flag).
+const FeatureTogetherV1 = "together_v1"
+
 // helloAckFeatures is the short feature list of hello_ack: the WSS-relevant flags only. The authoritative list
 // is the one of the handshake response (BaseFeatures plus the per-request flags); turn_v1 is added here
 // exactly when turn_servers is sent.
 func helloAckFeatures(turn bool) []string {
-	f := []string{FeatureSavesV1, FeatureSavesV2, FeatureSessionsV1, FeatureICEUpdateV1, FeatureRunsV1, FeatureRunsV2, FeatureLocalROMsV1}
+	f := []string{FeatureSavesV1, FeatureSavesV2, FeatureSessionsV1, FeatureICEUpdateV1, FeatureRunsV1, FeatureRunsV2, FeatureLocalROMsV1, FeatureTogetherV1}
 	if turn {
 		f = append(f, FeatureTURNV1)
 	}
