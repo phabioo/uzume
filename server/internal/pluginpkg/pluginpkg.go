@@ -445,7 +445,8 @@ func ParseManifest(raw []byte) (Manifest, error) {
 			return m, invalid("manifest field 'assets' must be an array of strings")
 		}
 		for _, a := range l {
-			if SafeName(a) != nil {
+			// A folder is declared with a trailing slash ("i18n/", "icons/"), like the app accepts it.
+			if SafeName(strings.TrimSuffix(a, "/")) != nil {
 				return m, invalid("invalid asset path %q", a)
 			}
 		}
