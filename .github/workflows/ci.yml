@@ -583,21 +583,25 @@ jobs:
           mkdir -p "$out"
           # 1) Release info (as the Windows job): version and channel of this build.
           "$img" --version-json | tee "$dist/player-release-info-linux.json"
-          jq -e --arg v "$UZUME_VERSION" --arg c "$UZUME_CHANNEL" '.product == "player" and .version == $v and .channel == $c' "$dist/player-release-info-linux.json" >/dev/null
+          jq -e --arg v "$UZUME_VERSION" --arg c "$UZUME_CHANNEL" '.product == "player" and .version == $v and .channel == $c' "$dist/player-release-info-linux.json" >/dev/null \
+            || { echo "::error::--version-json does not report product player, version $UZUME_VERSION, channel $UZUME_CHANNEL"; exit 1; }
           # 2) Static: unpack, no "not found" library for any executable or library; no cores; the bundled server runs.
           work="$RUNNER_TEMP/appimage-unpacked"
           rm -rf "$work"; mkdir -p "$work"
-          (cd "$work" && "$img" --appimage-extract >/dev/null)
+          # Unset the extract-and-run switch here, or the runtime may start the app instead of unpacking it.
+          (cd "$work" && env -u APPIMAGE_EXTRACT_AND_RUN "$img" --appimage-extract >/dev/null) || { echo "::error::--appimage-extract failed"; exit 1; }
+          [ -d "$work/squashfs-root/usr" ] || { echo "::error::--appimage-extract produced no squashfs-root/usr"; exit 1; }
           root="$work/squashfs-root"
           notfound="$(find "$root/usr" -type f -print0 | while IFS= read -r -d '' f; do
-            case "$(file -b "$f")" in ELF*) LD_LIBRARY_PATH="$root/usr/lib" ldd "$f" 2>/dev/null | grep 'not found' | sed "s|^|${f#"$root"/}: |" ;; esac
+            case "$(file -b "$f")" in ELF*) LD_LIBRARY_PATH="$root/usr/lib" ldd "$f" 2>/dev/null | grep 'not found' | sed "s|^|${f#"$root"/}: |" || true ;; esac
           done | sort -u)"
           if [ -n "$notfound" ]; then echo "$notfound"; echo "::error::unresolved libraries in the AppImage"; exit 1; fi
           if [ -n "$(find "$root" \( -name '*_libretro.*' -o -type d -iname cores \) -print)" ]; then echo "::error::emulator core in the AppImage"; exit 1; fi
-          for f in LICENSE THIRD-PARTY-NOTICE.txt THIRD-PARTY-NOTICES-server.txt; do test -s "$root/usr/share/doc/uzume/$f"; done
-          test -n "$(ls "$root"/usr/share/doc/uzume/licenses)"
+          for f in LICENSE THIRD-PARTY-NOTICE.txt THIRD-PARTY-NOTICES-server.txt; do test -s "$root/usr/share/doc/uzume/$f" || { echo "::error::missing or empty usr/share/doc/uzume/$f in the AppImage"; exit 1; }; done
+          [ -n "$(ls "$root"/usr/share/doc/uzume/licenses 2>/dev/null)" ] || { echo "::error::usr/share/doc/uzume/licenses is missing or empty"; exit 1; }
           "$root/usr/bin/uzume-server" version --json | tee "$work/server-info.json"
-          jq -e --arg v "$UZUME_VERSION" '.version == $v' "$work/server-info.json" >/dev/null
+          jq -e --arg v "$UZUME_VERSION" '.version == $v' "$work/server-info.json" >/dev/null \
+            || { echo "::error::bundled uzume-server version is not $UZUME_VERSION"; exit 1; }
           # 3) Dynamic, through the image as users start it: --smoke-test loads the QML UI offscreen (QML modules,
           # imageformats, platform plugin); the loader fails before main() when a library is missing.
           export HOME="$RUNNER_TEMP/appimage-home"; rm -rf "$HOME"; mkdir -p "$HOME"
