@@ -4,6 +4,9 @@
 #include "frame_pacer.h"
 
 #include <QDeadlineTimer>
+#include <QHash>
+#include <QLoggingCategory>
+#include <QMutex>
 #include <QThread>
 
 #ifdef Q_OS_WIN
@@ -23,6 +26,17 @@
 #include <memory>
 
 namespace uzume::emu {
+
+namespace {
+Q_LOGGING_CATEGORY(lcRunner, "uzume.runner")
+QMutex g_vkFailMutex;
+QHash<QString, QString> g_vkFailures;  // core path -> reason of the failed Vulkan start (process-wide)
+}  // namespace
+
+void EmulationRunner::resetVulkanFailuresForTest() {
+  QMutexLocker l(&g_vkFailMutex);
+  g_vkFailures.clear();
+}
 
 std::atomic<int> EmulationRunner::sleepQuantumMsForTest{0};
 
@@ -101,12 +115,50 @@ class EmulationRunner::Worker : public QThread {
     // Directories before loadCore (cores already read them in retro_set_environment).
     be.setSystemDirectory(m_req.systemDir);
     be.setSaveDirectory(m_req.saveDir);
-    be.setPreferredRenderer(m_req.preferredRenderer);
-    bool ok = be.loadCore(m_req.corePath, &err);
+    QString renderer = m_req.preferredRenderer;
+    QMap<QString, QString> options = m_req.coreOptions;
+    const bool canRetry = !m_req.openglFallbackOptions.isEmpty();
+    const auto useOpenGl = [&](const QString& reason) {
+      renderer = QStringLiteral("opengl");
+      for (auto it = m_req.openglFallbackOptions.cbegin(); it != m_req.openglFallbackOptions.cend(); ++it) options.insert(it.key(), it.value());
+      be.setVulkanFallbackNote(reason);
+    };
+    const auto attempt = [&]() {
+      be.setPreferredRenderer(renderer);
+      bool loaded = be.loadCore(m_req.corePath, &err);
+      if (loaded) {
+        for (auto it = options.cbegin(); it != options.cend(); ++it) be.setCoreOption(it.key(), it.value());
+        be.setRequireHwRender(m_req.requireHwRender);
+        loaded = be.loadGame(m_req.gamePath, &err);
+      }
+      return loaded;
+    };
+    bool straightToOpenGl = false;
+    if (canRetry) {  // Vulkan already failed for this core in this app run: do not load twice
+      QMutexLocker l(&g_vkFailMutex);
+      const auto it = g_vkFailures.constFind(m_req.corePath);
+      if (it != g_vkFailures.constEnd()) {
+        straightToOpenGl = true;
+        useOpenGl(it.value());
+      }
+    }
+    bool ok = attempt();
+    if (!ok && canRetry && !straightToOpenGl && be.vulkanAttemptFailed()) {
+      const QString reason = be.vulkanFailureReason();
+      qCInfo(lcRunner).noquote() << "Vulkan could not start (" << reason << "); starting again with OpenGL";
+      {
+        QMutexLocker l(&g_vkFailMutex);
+        g_vkFailures.insert(m_req.corePath, reason);
+      }
+      be.unloadCore();
+      useOpenGl(reason);
+      err.clear();
+      ok = attempt();
+    }
     if (ok) {
-      for (auto it = m_req.coreOptions.cbegin(); it != m_req.coreOptions.cend(); ++it) be.setCoreOption(it.key(), it.value());
-      be.setRequireHwRender(m_req.requireHwRender);
-      ok = be.loadGame(m_req.gamePath, &err);
+      const RenderInfo ri = be.renderInfo();
+      if (!ri.vulkanFallback.isEmpty() && ri.hwActive && !ri.vulkan)
+        qCInfo(lcRunner).noquote() << "Vulkan could not start for this game; it runs with OpenGL (" << ri.vulkanFallback << ")";
     }
     if (!ok) {
       be.unloadCore();

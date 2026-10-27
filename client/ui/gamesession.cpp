@@ -184,6 +184,7 @@ void GameSession::launch(const LaunchConfig& config, bool restart) {
   req.coreOptions = config.coreOptions;
   req.requireHwRender = config.requireHwRender;
   req.preferredRenderer = config.preferredRenderer;
+  if (config.preferredRenderer.trimmed().toLower() == QLatin1String("vulkan")) req.openglFallbackOptions = config.openglFallbackOptions;
   req.speedUpRatio = config.speedUpRatio;
   req.speedUpOnStart = config.speedUpOnStart;
   req.speedUpAudio = config.speedUpAudio;
@@ -581,6 +582,7 @@ EmulationDiagnostics GameSession::diagnostics() const {
   d.api = ri.api;
   d.gpu = ri.gpu;
   d.fallbackReason = ri.fallbackReason;
+  d.vulkanFallback = ri.vulkanFallback;
   d.frameSize = runner_->sourceFrameSize();
   if (d.frameSize.isEmpty()) d.frameSize = frame_.size();
   if (readbackOn_ && !frame_.isNull() && frame_.size() != d.frameSize) d.readbackSize = frame_.size();  // only while a readback runs

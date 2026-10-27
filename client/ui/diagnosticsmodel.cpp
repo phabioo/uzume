@@ -124,6 +124,10 @@ QVariantMap DiagnosticsModel::emulationMap(const EmulationDiagnostics& d) {
   QString rendererSub;
   if (hw) {
     rendererSub = d.gpu;
+    if (!d.vulkanFallback.isEmpty()) {
+      rendererSub = rendererSub.isEmpty() ? tr("Vulkan requested · not used (%1)").arg(d.vulkanFallback)
+                                          : tr("%1 · Vulkan requested, not used (%2)").arg(rendererSub, d.vulkanFallback);
+    }
   } else if (fallback) {
     rendererSub = tr("requested: OpenGL");
   } else {

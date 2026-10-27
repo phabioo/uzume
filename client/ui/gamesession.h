@@ -36,6 +36,7 @@ struct EmulationDiagnostics {
   bool hwActive = false;         // ... and it runs on it
   QString api;                   // "OpenGL 4.6 Core" while hwActive
   QString gpu;                   // "Example GPU · Driver 1.2.3" while hwActive
+  QString vulkanFallback;        // Vulkan was requested but OpenGL runs: why (e.g. "Vulkan 1.3 needed, 1.1 available")
   QString fallbackReason;        // hardware requested but software runs: why (emu::kFallback*)
   QSize frameSize;               // size of the frame the core renders (all screens), before any readback downscale
   QSize readbackSize;            // size actually read back from the GPU when smaller than frameSize (else empty); empty while no readback runs
@@ -93,6 +94,7 @@ class GameSession : public QObject {
     QString saveDir;
     QMap<QString, QString> coreOptions;
     bool requireHwRender = false;  // core profile: no start without hardware rendering
+    QMap<QString, QString> openglFallbackOptions;  // core options for the OpenGL retry when Vulkan cannot start (empty = no retry)
     QString preferredRenderer;     // uzume.renderer resolved game > system > global: "opengl" | "vulkan" (ADR 0034)
     emu::DisplayProfile display;
     // Speed-up settings (uzume.speedup_*), resolved game > system > global by the caller.

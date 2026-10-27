@@ -66,5 +66,5 @@ One Renderer row (OpenGL | Vulkan, tag "Next start") in Settings › Emulation f
 
 ### Amendment (2026-10-27)
 
-- A core that requires a Vulkan API version above the loader's fails the game start; there is no fallback to OpenGL.
+- A core that needs a Vulkan API version above what the system offers, or whose Vulkan context cannot be created, no longer fails the game start. `SET_HW_RENDER` is refused when the requested version is above the highest usable one (log line, `GET_PREFERRED_HW_RENDER` then answers OpenGL Core); if the start still fails because of Vulkan, `EmulationRunner` starts the core once more with the renderer "opengl" and the profile's OpenGL option (Azahar: `citra_graphics_api=OpenGL`). The failure is remembered per core for the rest of the app run, so the next start goes straight to OpenGL. The diagnostics overlay shows "Vulkan requested, not used (Vulkan 1.3 needed, 1.1 available)"; there is no toast.
 - The Renderer row in Settings › Emulation needed no MCP extension: `navigate`, `ui_click`, `ui_tree` and `app_screenshot` suffice.

@@ -25,9 +25,27 @@ namespace uzume::emu {
 
 namespace {
 std::atomic<bool> g_forceUnavailable{false};
+std::atomic<bool> g_forceCreateFail{false};
+std::atomic<unsigned> g_highestApi{0};        // from the last successful probe()
+std::atomic<unsigned> g_highestApiForTest{0};  // 0 = off
 }
 
 void VkRenderContext::setUnavailableForTest(bool unavailable) { g_forceUnavailable.store(unavailable); }
+
+void VkRenderContext::setCreateFailsForTest(bool fails) { g_forceCreateFail.store(fails); }
+void VkRenderContext::setHighestApiForTest(unsigned packedVersion) { g_highestApiForTest.store(packedVersion); }
+unsigned VkRenderContext::highestUsableApi() {
+  const unsigned forced = g_highestApiForTest.load();
+  return forced ? forced : g_highestApi.load();
+}
+unsigned VkRenderContext::normalizeApiVersion(unsigned versionMajor) {
+  constexpr unsigned kVulkan10 = 1u << 22;
+  if (versionMajor >= kVulkan10) return versionMajor;
+  return std::max(1u, versionMajor) << 22;
+}
+bool VkRenderContext::apiSatisfied(unsigned versionMajor, unsigned highest) {
+  return highest == 0 || normalizeApiVersion(versionMajor) <= highest;
+}
 
 QString VkRenderContext::describeApi(unsigned apiVersion) {
   return QStringLiteral("Vulkan %1.%2").arg((apiVersion >> 22) & 0x7f).arg((apiVersion >> 12) & 0x3ff);
@@ -158,6 +176,8 @@ struct VkRenderContext::Impl {
   retro_hw_render_context_negotiation_interface_vulkan neg{};
   bool hasNeg = false;
   uint32_t requiredApi = VK_API_VERSION_1_0;
+  uint32_t loaderApiSeen = VK_API_VERSION_1_0;  // instance version the loader reports (createInstance)
+  uint32_t highestSeen = 0;                     // pickDevice: max over devices of min(loader, device apiVersion)
 
   // ---- context
   VkInstance instance = VK_NULL_HANDLE;
@@ -248,6 +268,7 @@ struct VkRenderContext::Impl {
   bool createInstance(QString* error) {
     uint32_t loaderApi = VK_API_VERSION_1_0;
     if (vkEnumerateInstanceVersion) vkEnumerateInstanceVersion(&loaderApi);
+    loaderApiSeen = loaderApi;
     VkApplicationInfo app{};
     app.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     app.pApplicationName = "Uzume";
@@ -310,6 +331,7 @@ struct VkRenderContext::Impl {
     for (VkPhysicalDevice d : devs) {
       VkPhysicalDeviceProperties p{};
       vkGetPhysicalDeviceProperties(d, &p);
+      highestSeen = std::max(highestSeen, std::min<uint32_t>(p.apiVersion, loaderApiSeen));
       if (p.apiVersion < requiredApi) continue;
       uint32_t qn = 0;
       vkGetPhysicalDeviceQueueFamilyProperties(d, &qn, nullptr);
@@ -720,6 +742,7 @@ bool VkRenderContext::probe(QString* why) {
   Impl p;
   QString err;
   const bool ok = p.loadLoader(&err) && p.createInstance(&err) && p.pickDevice(&err);
+  g_highestApi.store(ok ? p.highestSeen : 0);
   if (!ok && why) *why = err;
   return ok;  // ~Impl destroys the temporary instance
 }
@@ -744,12 +767,15 @@ void VkRenderContext::setNegotiationInterface(const void* iface) {
 }
 
 void VkRenderContext::setRequiredApiVersion(unsigned versionMajor) {
-  d->requiredApi = versionMajor >= (1u << 22) ? versionMajor : VK_MAKE_API_VERSION(0, std::max(1u, versionMajor), 0, 0);
-  if (d->requiredApi < VK_API_VERSION_1_0) d->requiredApi = VK_API_VERSION_1_0;
+  d->requiredApi = std::max<uint32_t>(normalizeApiVersion(versionMajor), VK_API_VERSION_1_0);
 }
 
 bool VkRenderContext::create(QString* error) {
   if (d->created) return true;
+  if (g_forceCreateFail.load()) {
+    if (error) *error = QStringLiteral("the Vulkan device could not be created");
+    return false;
+  }
   if (!d->createAll(error)) {
     d->destroy();
     return false;

@@ -377,6 +377,7 @@ void GameStarter::onSaveReady(const QString& gameId, const QString& saveDir, con
   const QString renderer = emulation_->settings()->renderer(man->systemId, launchGame_.id);  // ADR 0034
   cfg.coreOptions = emu::launchCoreOptions(*man, emulation_->launchOverrides(man->systemId, launchGame_.id), fwOptions_, renderer);
   cfg.preferredRenderer = renderer;
+  cfg.openglFallbackOptions = emu::openglFallbackOptions(*man, renderer);
   cfg.display = man->display;
   cfg.requireHwRender = man->requiresHwRender;
   {
