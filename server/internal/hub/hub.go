@@ -154,6 +154,7 @@ type Service struct {
 	play   playState
 	tg     togetherState
 	chat   chatState
+	voice  voiceState
 
 	child       bool       // running as the app's child process (Options.Child)
 	localMu     sync.Mutex // local setup defaults
@@ -194,6 +195,7 @@ func Open(ctx context.Context, db *sql.DB, o Options) (*Service, error) {
 	s.saveKeep = saveRetention{recent: o.SaveKeepRecent, daily: o.SaveKeepDaily, weekly: o.SaveKeepWeekly}
 	s.sess.init(o)
 	s.tg.init(o)
+	s.voice.init()
 	s.chat.max = o.RunChatMax
 	s.initPlay(o)
 	s.cores.init(o)

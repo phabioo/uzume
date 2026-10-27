@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://uzume.invalid/schemas/ws-voice-signal.schema.json",
+  "title": "ws-voice-signal (app to server)",
+  "type": "object",
+  "required": [
+    "type",
+    "payload"
+  ],
+  "properties": {
+    "type": {
+      "const": "voice_signal"
+    },
+    "id": {
+      "type": "string"
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "scope",
+        "id",
+        "kind"
+      ],
+      "anyOf": [
+        {
+          "required": [
+            "to_device_id"
+          ]
+        },
+        {
+          "required": [
+            "from_device_id"
+          ]
+        }
+      ],
+      "properties": {
+        "scope": {
+          "enum": [
+            "run",
+            "session"
+          ],
+          "description": "run: the joined participants of the run; session: the owner and the viewers of the Session."
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "to_device_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "A device in the same voice room."
+        },
+        "from_device_id": {
+          "type": "string",
+          "description": "Server to app only: the sending device."
+        },
+        "kind": {
+          "enum": [
+            "offer",
+            "answer",
+            "candidate"
+          ]
+        }
+      }
+    }
+  },
+  "description": "WebRTC signaling between two devices of the same voice room, like signal for Sessions. Further fields (sdp, candidate, mid, ...) are passed on verbatim and never parsed; the server removes to_device_id and adds from_device_id. The sender must be in the room and the target must be a connected device in it, else error forbidden (not_found when the target is not connected). The app uses the ICE servers it already has from hello_ack and ice_update; no extra TURN data is sent for voice. Server to app: the same message with from_device_id instead of to_device_id. Needs together_v1."
+}

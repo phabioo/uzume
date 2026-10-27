@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://uzume.invalid/schemas/ws-voice-leave.schema.json",
+  "title": "ws-voice-leave (app to server)",
+  "type": "object",
+  "required": [
+    "type",
+    "payload"
+  ],
+  "properties": {
+    "type": {
+      "const": "voice_leave"
+    },
+    "id": {
+      "type": "string"
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "scope",
+        "id"
+      ],
+      "properties": {
+        "scope": {
+          "enum": [
+            "run",
+            "session"
+          ],
+          "description": "run: the joined participants of the run; session: the owner and the viewers of the Session."
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  },
+  "description": "The device leaves the voice room. Leaving a room the device is not in is ignored. The remaining devices (and the leaver) get voice_room. A disconnect leaves the room as well. Needs together_v1."
+}
