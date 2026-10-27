@@ -46,6 +46,7 @@ LocalStorageReport LocalStorage::measure(const LocalStorageInput& in) {
   }
   r.gamesBytes = in.roms.totalSize();
   r.gamesCount = static_cast<int>(in.roms.entries().size());
+  r.variantsBytes = folderBytes(in.variantsDir);
   // Save cache: every server's local save folders.
   const QDir hubs(QDir(in.dataDir).filePath(QStringLiteral("hubs")));
   for (const QString& hub : hubs.entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {

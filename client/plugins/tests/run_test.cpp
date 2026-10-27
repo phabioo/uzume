@@ -142,6 +142,7 @@ class RunApiTest : public QObject {
       assert(#c.plugins == 2 and c.plugins[1].id == "net.test.plugin" and c.plugins[1].version == "1.0.0")
       assert(#c.participants == 2 and c.participants[1].user_id == "u_test_1" and c.participants[1].status == "joined")
       assert(c.participants[1].color == 0 and c.participants[2].color == nil)
+      assert(c.randomizer == nil and c.participants[1].variant_kind == nil)
       assert(next(fb.run.state()) == nil)
       assert(fb.run.state("nobody") == nil)
       assert(next(fb.run.state("u_test_1", "net.test.second")) == nil)
@@ -153,6 +154,40 @@ class RunApiTest : public QObject {
     )LUA");
     QCOMPARE(con().status, PluginStatus::Running);
     QVERIFY2(hasLog(con(), "read ok"), con().error.toUtf8().constData());
+  }
+
+  void currentShowsOnlyPublicRandomizerFacts() {
+    connectHub();
+    QJsonObject r = hub_->runs.value(runId_);
+    r.insert("randomizer", QJsonObject{{"mode", "each"},
+                                       {"preset_id", "classic"},
+                                       {"tool_version", "1.6.2"},
+                                       {"allow_own", true},
+                                       {"base_sha256", QString(64, QLatin1Char('c'))},
+                                       {"seed", "12345"},
+                                       {"settings", "SECRETSETTINGS"}});
+    QJsonArray ps = r.value("participants").toArray();
+    QJsonObject p0 = ps.at(0).toObject();
+    p0.insert("variant_kind", "run");
+    ps.replace(0, p0);
+    r.insert("participants", ps);
+    hub_->runs.insert(runId_, r);
+    hub_->pushRun(runId_);
+    QTRY_VERIFY_WITH_TIMEOUT(client_->run(runId_)->randomizerMode() == QLatin1String("each"), 8000);
+    startPlugin(R"LUA(
+      local c = fb.run.current()
+      local z = c.randomizer
+      assert(z.mode == "each" and z.preset_id == "classic" and z.tool_version == "1.6.2" and z.allow_own == true)
+      assert(z.preset_label == nil)
+      local n = 0
+      for k in pairs(z) do n = n + 1 end
+      assert(n == 4, n)
+      assert(z.seed == nil and z.settings == nil and z.base_sha256 == nil)
+      assert(c.participants[1].variant_kind == "run" and c.participants[2].variant_kind == nil)
+      fb.log.info("rand ok")
+    )LUA");
+    QCOMPARE(con().status, PluginStatus::Running);
+    QVERIFY2(hasLog(con(), "rand ok"), con().error.toUtf8().constData());
   }
 
   void writesReachTheHub() {

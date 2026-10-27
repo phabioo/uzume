@@ -60,7 +60,7 @@ QString permissionError(const QString& p) {
                                               QStringLiteral("cheats"),
                                               QStringLiteral("store"),
                                               // 0.21 Randomizer (ADR 0031 D5): build a game variant from a recipe; official plugins only
-                                              // (PluginManager reports "permission variants.build needs a signed official plugin")
+                                              // (PluginManager reports "permission variants.build needs a signed official plugin or Developer mode")
                                               QStringLiteral("variants.build")};
   if (supported.count(p)) return {};
   if (p == QLatin1String("tool.exec"))

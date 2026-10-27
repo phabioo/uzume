@@ -118,6 +118,7 @@ class AdminController : public QObject {
   void statusChanged();
   void countsChanged();
   void confirmationAnswered(int id, bool ok, const QString& code);
+  void toolsChanged();  // an admin call changed the tools catalog (offer, install, remove, sync): apps read GET /tools again
   // data: parsed JSON object / array (QVariantMap / QVariantList), invalid when the answer has no JSON body.
   void replied(int id, bool ok, int status, const QVariant& data, const QString& code, const QString& message);
   void downloadFinished(int id, bool ok, const QString& filePath, const QString& message);

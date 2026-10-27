@@ -75,7 +75,7 @@ QVariantMap LocalStorageController::toMap(const LocalStorageReport& r) {
     return QVariantMap{{QStringLiteral("id"), QLatin1String(id)}, {QStringLiteral("bytes"), static_cast<double>(bytes)},
                        {QStringLiteral("text"), formatBytes(bytes)}, {QStringLiteral("fraction"), frac(bytes)}};
   };
-  QVariantList kinds{kind("games", r.gamesBytes), kind("saves", r.savesBytes), kind("states", r.statesBytes),
+  QVariantList kinds{kind("games", r.gamesBytes), kind("variants", r.variantsBytes), kind("saves", r.savesBytes), kind("states", r.statesBytes),
                      kind("screenshots", r.screenshotsBytes), kind("cores", r.coresBytes)};
   QVariantList cleanup;
   const auto suggestion = [&](const char* id, qint64 bytes, int count) {

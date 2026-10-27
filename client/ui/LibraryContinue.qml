@@ -13,9 +13,11 @@ ColumnLayout {
     readonly property var shown: entries.slice(0, 3)
     // The same path as the Play button of the detail pane: select the game, then play it.
     signal startRequested(string gameId)
-    function start(gameId) {
+    // A variant that was played last resumes through its own slot (10g-1): "<game> · <variant>".
+    function start(gameId, variantId) {
         root.player.selectGame(gameId)
-        root.player.playSelected()
+        if (variantId !== undefined && variantId !== "") root.player.variants.play(variantId)
+        else root.player.playSelected()
         root.startRequested(gameId)
     }
 
@@ -49,10 +51,10 @@ ColumnLayout {
                 activeFocusOnTab: true
                 Accessible.role: Accessible.Button
                 Accessible.name: card.modelData.title
-                Accessible.onPressAction: root.start(card.modelData.gameId)
+                Accessible.onPressAction: root.start(card.modelData.gameId, card.modelData.variantId)
                 Keys.onPressed: (event) => {
                     if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
-                        root.start(card.modelData.gameId)
+                        root.start(card.modelData.gameId, card.modelData.variantId)
                         event.accepted = true
                     }
                 }
@@ -95,7 +97,7 @@ ColumnLayout {
                         UzLabel {
                             objectName: index === 0 ? "continueMeta" : ""
                             Layout.fillWidth: true
-                            text: card.modelData.system + " · " + card.modelData.dateText
+                            text: (card.modelData.variantName ? card.modelData.meta : card.modelData.system) + " · " + card.modelData.dateText
                             font.family: Theme.mono
                             font.pixelSize: Theme.roles.meta11.size
                             font.capitalization: Font.AllUppercase
@@ -107,11 +109,11 @@ ColumnLayout {
                         objectName: index === 0 ? "continueButton" : ""
                         kind: "link"
                         text: qsTr("Play")
-                        onClicked: root.start(card.modelData.gameId)
+                        onClicked: root.start(card.modelData.gameId, card.modelData.variantId)
                     }
                 }
                 HoverHandler { id: hover; cursorShape: Qt.PointingHandCursor }
-                TapHandler { onTapped: root.start(card.modelData.gameId) }
+                TapHandler { onTapped: root.start(card.modelData.gameId, card.modelData.variantId) }
             }
         }
     }

@@ -56,7 +56,7 @@ const char* kRegister = R"LUA(
       { id = "classic", label = "Classic", hint = "Plain shuffle", settings = { ["427"] = "427old", ["428"] = "428new" } },
       { id = "chaos", label = "Chaos", settings = { ["428"] = "428chaos" } },
     },
-    games = { { system = "nds", codes = { "IPKE", "ipkd" } }, { system = "3ds" } },
+    games = { { system = "nds", codes = { "IPKE", "ipkd", "POKEMON YEL*" } }, { system = "3ds" } },
   }
 )LUA";
 
@@ -114,6 +114,9 @@ class VariantsPluginTest : public QObject {
     QVERIFY(m_prov->reg->supported(QStringLiteral("nds"), QStringLiteral("IPKE")));
     QVERIFY(m_prov->reg->supported(QStringLiteral("nds"), QStringLiteral("IPKD")));  // codes compare ignoring case
     QVERIFY(!m_prov->reg->supported(QStringLiteral("nds"), QStringLiteral("XXXX")));
+    QVERIFY(!m_prov->reg->supported(QStringLiteral("nds"), QStringLiteral("IPK")));
+    QVERIFY(m_prov->reg->supported(QStringLiteral("nds"), QStringLiteral("Pokemon Yellow")));  // codes are globs like manifest games
+    QVERIFY(!m_prov->reg->supported(QStringLiteral("nds"), QStringLiteral("POKEMON RED")));
     QVERIFY(m_prov->reg->supported(QStringLiteral("3ds"), QStringLiteral("00040000000FB000")));  // no codes = the whole system
     QVERIFY(!m_prov->reg->supported(QStringLiteral("gba"), QStringLiteral("IPKE")));
     QCOMPARE(m_prov->reg->presetsFor(QStringLiteral("nds"), QStringLiteral("IPKE")).size(), 2);
@@ -208,10 +211,14 @@ class VariantsPluginTest : public QObject {
     official.permissions = {"variants.build"};
     official.sign = true;
     QVERIFY(m.installFromFile(writeFile(src.filePath("o.fbplugin"), makeFbPlugin(official))).ok);
-    m.setDeveloperMode(true);  // even with Developer mode: an installed unsigned copy is no developer link
-    const QString msg = "permission variants.build needs a signed official plugin";
+    m.setDeveloperMode(false);
+    const QString msg = "permission variants.build needs a signed official plugin or Developer mode";
     QVERIFY(m.info("net.test.unsigned")->problems.contains(msg));
     QVERIFY(!m.setEnabled("net.test.unsigned", true));
+    m.setDeveloperMode(true);  // an installed unsigned (local) copy may use it in Developer mode
+    QVERIFY(m.info("net.test.unsigned")->problems.isEmpty());
+    m.setDeveloperMode(false);
+    QVERIFY(m.info("net.test.unsigned")->problems.contains(msg));
     QVERIFY(m.info("net.test.official")->problems.isEmpty());
     QVERIFY(m.setEnabled("net.test.official", true));
     // The shell context starts the official one (it registers presets while no game runs), never the unsigned one.
@@ -227,7 +234,7 @@ class VariantsPluginTest : public QObject {
     ps.id = "net.test.linked";
     ps.permissions = {"variants.build"};
     QVERIFY(m.linkDevFolder(writePlugin(src.path(), ps)).ok);
-    QVERIFY(m.info("net.test.linked")->problems.contains("permission variants.build needs a signed official plugin"));
+    QVERIFY(m.info("net.test.linked")->problems.contains("permission variants.build needs a signed official plugin or Developer mode"));
     m.setDeveloperMode(true);
     QVERIFY(m.info("net.test.linked")->problems.isEmpty());
     QVERIFY(m.setEnabled("net.test.linked", true));

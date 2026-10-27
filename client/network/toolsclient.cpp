@@ -111,7 +111,10 @@ QString ToolsClient::offeredVersion(const QString& toolId, ToolPlatformInfo* pla
 void ToolsClient::refresh() {
   if (!available()) return;
   QNetworkReply* reply = conn_->authorizedGet(QStringLiteral("/tools"));
-  if (!reply) return;
+  if (!reply) {
+    emit refreshFailed(QStringLiteral("not connected"));
+    return;
+  }
   connect(reply, &QNetworkReply::finished, this, [this, reply]() {
     const HttpResult r = HubHttp::resultOf(reply);
     reply->deleteLater();

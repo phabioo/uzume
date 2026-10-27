@@ -167,6 +167,59 @@ class McpVariantsTest : public QObject {
     QVERIFY(deleted.first().contains(QStringLiteral("saves=delete")));
   }
 
+  // The app read GET /tools on connect only: tool_prepare reads it again, answers promptly while nothing is offered and prepares once the
+  // admin turned the engine on.
+  void toolPrepareRefreshesTheCatalog() {
+    QTemporaryDir tmp;
+    QByteArray zip;
+    testutil::writeEngineZip(tmp.path(), QStringLiteral(FB_TEST_ENGINE_PATH), QStringLiteral("UPR_FVX-v1_6_2-Test"), false, &zip);
+    bool offered = false;
+    int catalogReads = 0;
+    FakeHub hub(QStringLiteral("a"));
+    hub.features = {QStringLiteral("saves_v1"), QStringLiteral("tools_v1"), QStringLiteral("variants_v1")};
+    hub.customRoute = [&](const FakeRequest& req, int&, QByteArray& body, QByteArray& ct) {
+      const QString plat = CoreCache::currentPlatform();
+      if (req.method == "GET" && req.path == QLatin1String("/api/v1/tools")) {
+        ++catalogReads;
+        QJsonObject p{{QStringLiteral("platform"), plat}, {QStringLiteral("size"), zip.size()}, {QStringLiteral("sha256"), testutil::sha256Hex(zip)}, {QStringLiteral("cached"), true}, {QStringLiteral("root"), QStringLiteral("UPR_FVX-v1_6_2-Test/")}};
+        QJsonObject v{{QStringLiteral("version"), QStringLiteral("1.6.2")}, {QStringLiteral("platforms"), QJsonArray{p}}};
+        QJsonObject t{{QStringLiteral("id"), QStringLiteral("randomizer")}, {QStringLiteral("name"), QStringLiteral("Randomizer engine")}, {QStringLiteral("offered"), offered},
+                      {QStringLiteral("version"), offered ? QStringLiteral("1.6.2") : QString()}, {QStringLiteral("license"), QStringLiteral("GPL-3.0")}, {QStringLiteral("versions"), QJsonArray{v}}};
+        body = QJsonDocument(QJsonObject{{QStringLiteral("tools"), QJsonArray{t}}}).toJson(QJsonDocument::Compact);
+        return true;
+      }
+      if (req.method == "GET" && req.path == QLatin1String("/api/v1/tools/randomizer/packages/1.6.2/") + plat) {
+        body = zip;
+        ct = "application/zip";
+        return true;
+      }
+      return false;
+    };
+    QVERIFY(hub.start());
+    Harness h;
+    QVERIFY(h.start());
+    pair(h, hub);
+    QTRY_COMPARE_WITH_TIMEOUT(h.controller->variants()->engine().value(QStringLiteral("state")).toString(), QStringLiteral("not_offered"), 8000);
+    McpToolRegistry reg;
+    installTools(reg, *h.controller);
+
+    // Nothing offered: an error result right after one more read of the catalog, not the long timeout.
+    const int before = catalogReads;
+    QElapsedTimer clock;
+    clock.start();
+    const ToolResult none = call(reg, QStringLiteral("tool_prepare"));
+    QVERIFY(none.isError);
+    QVERIFY2(clock.elapsed() < 10000, qPrintable(QString::number(clock.elapsed())));
+    QVERIFY(catalogReads > before);
+    QCOMPARE(json(none).value(QStringLiteral("state")).toString(), QStringLiteral("not_offered"));
+
+    // The admin turns "Offer to apps" on: the next prepare sees it without a reconnect.
+    offered = true;
+    const ToolResult ok = call(reg, QStringLiteral("tool_prepare"));
+    QVERIFY2(!ok.isError, qPrintable(text(ok)));
+    QCOMPARE(json(ok).value(QStringLiteral("state")).toString(), QStringLiteral("ready"));
+  }
+
   void toolsAndPluginHelpersReportErrors() {
     FakeHub hub(QStringLiteral("a"));
     hub.features = {QStringLiteral("saves_v1")};
