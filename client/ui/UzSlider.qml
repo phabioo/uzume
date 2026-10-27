@@ -13,6 +13,7 @@ Slider {
     property string offLabel: "OFF"
     property bool muted: false
     property alias lead: leadBox.data
+    property bool upDownSteps: true      // false: Up / Down are left to the parent (a popover moves to the next slider)
     readonly property string shown: muted ? offLabel : (valueText !== "" ? valueText : Math.round(value * 1000) / 1000 + unit)
     readonly property real big: Math.max(stepSize, (to - from) / 10)
 
@@ -30,8 +31,10 @@ Slider {
     Keys.onPressed: (event) => {
         if (!control.enabled) return
         switch (event.key) {
-        case Qt.Key_Right: case Qt.Key_Up: nudge(event.modifiers & Qt.ShiftModifier ? big : stepSize); break
-        case Qt.Key_Left: case Qt.Key_Down: nudge(-(event.modifiers & Qt.ShiftModifier ? big : stepSize)); break
+        case Qt.Key_Up: if (!control.upDownSteps) return; nudge(event.modifiers & Qt.ShiftModifier ? big : stepSize); break
+        case Qt.Key_Right: nudge(event.modifiers & Qt.ShiftModifier ? big : stepSize); break
+        case Qt.Key_Down: if (!control.upDownSteps) return; nudge(-(event.modifiers & Qt.ShiftModifier ? big : stepSize)); break
+        case Qt.Key_Left: nudge(-(event.modifiers & Qt.ShiftModifier ? big : stepSize)); break
         case Qt.Key_PageUp: nudge(big); break
         case Qt.Key_PageDown: nudge(-big); break
         case Qt.Key_Home: control.value = from; control.moved(); break

@@ -207,6 +207,16 @@ class PlayerSettings {
   bool setAudioShowVolume(bool on);
   QString audioOutputDevice() const { return audioOutputDevice_; }
   bool setAudioOutputDevice(const QString& id);  // empty = system default
+  // Audio stage 2 (0.23): channel gains of the Sound popover (Voice, Plugin sounds; 0..100 %, default 100), "Mix all tiles" in the
+  // Multiview (default off) and the gain of each watched person's tile by user id (0..100 %, default 100).
+  int audioVoiceGain() const { return audioVoiceGain_; }
+  bool setAudioVoiceGain(int percent);
+  int audioPluginGain() const { return audioPluginGain_; }
+  bool setAudioPluginGain(int percent);
+  bool audioMixAll() const { return audioMixAll_; }
+  bool setAudioMixAll(bool on);
+  int audioTileGain(const QString& userId) const;
+  bool setAudioTileGain(const QString& userId, int percent);
 
   // Claude debugging (ADR 0032, Settings > Diagnostics): the local MCP server of the app. Off by default; the port is
   // 1024..65535 (default 47615). The token is not a setting: it lives in the credential store.
@@ -266,6 +276,10 @@ class PlayerSettings {
   int audioVolumeStep_ = 5;
   bool audioShowVolume_ = true;
   QString audioOutputDevice_;
+  int audioVoiceGain_ = 100;
+  int audioPluginGain_ = 100;
+  bool audioMixAll_ = false;
+  QHash<QString, int> audioTileGains_;
   bool mcpEnabled_ = false;
   int mcpPort_ = kDefaultMcpPort;
 };

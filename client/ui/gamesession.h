@@ -118,6 +118,7 @@ class GameSession : public QObject {
   qint64 frameLateNs() const { return frameLateNs_; }
   const emu::DisplayProfile& displayProfile() const { return display_; }
   const AudioOutput& audio() const { return audio_; }
+  AudioOutput& audioOutput() { return audio_; }  // PlayerController plugs the shared AudioMixer in (0.23)
   int screenCount() const { return static_cast<int>(display_.screens.size()); }
   QStringList screenLayouts() const;
 

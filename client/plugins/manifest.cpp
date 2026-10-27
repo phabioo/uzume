@@ -61,7 +61,9 @@ QString permissionError(const QString& p) {
                                               QStringLiteral("store"),
                                               // 0.21 Randomizer (ADR 0031 D5): build a game variant from a recipe; official plugins only
                                               // (PluginManager reports "permission variants.build needs a signed official plugin or Developer mode")
-                                              QStringLiteral("variants.build")};
+                                              QStringLiteral("variants.build"),
+                                              // 0.23 plugin sounds (ADR 0033 D6): fb.sound.play / stop_all
+                                              QStringLiteral("sound")};
   if (supported.count(p)) return {};
   if (p == QLatin1String("tool.exec"))
     return QStringLiteral("permission %1 is not available yet").arg(p);

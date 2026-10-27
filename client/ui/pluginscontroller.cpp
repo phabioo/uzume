@@ -68,6 +68,7 @@ QString permissionLabel(const QString& p) {
   if (p == QLatin1String("memory.write")) return PluginsController::tr("Change game memory");
   if (p == QLatin1String("cheats")) return PluginsController::tr("Turn cheats on and off");
   if (p == QLatin1String("store")) return PluginsController::tr("Keep its data with your account");
+  if (p == QLatin1String("sound")) return PluginsController::tr("Play sounds");
   return p;
 }
 
@@ -732,6 +733,7 @@ void PluginsController::gameStarted(const QString& system, const QString& romPat
   ctx.variants = variants_;
   ensureStore();
   ctx.store = store_;
+  ctx.sound = sound_;
   ctx.emulation = emulation_;
   gameCtx_ = ctx;
   gameSystem_ = ctx.system;
@@ -929,6 +931,7 @@ void PluginsController::updateShell() {
   ctx.variants = variants_;
   ensureStore();
   ctx.store = store_;
+  ctx.sound = sound_;
   ctx.language = resolveLanguage();
   if (!rvOrder.isEmpty()) ctx.run = runViewBridge_;
   shellRunning_ = true;

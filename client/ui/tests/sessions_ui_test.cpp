@@ -919,6 +919,43 @@ class SessionsUiTest : public QObject {
     QCOMPARE(ctl->audioFedFrames(QStringLiteral("s2")), qint64(0));
     QCOMPARE(ctl->audioFedFrames(QStringLiteral("s4")), qint64(0));
 
+    // Mixer popover (0.23 audio stage 2): a slider per watched person and "Mix all tiles" (off = the one audible tile as above)
+    {
+      AudioMixer* mx = ctl->audioMixer();
+      if (visibleItem(h, "mixerButton") != nullptr) QVERIFY(h.click("mixerButton"));
+      else QVERIFY(clickMore(h, "mixer"));  // a narrow header (wide fonts) moves it into "⋯"
+      QTRY_VERIFY(visibleItem(h, "mixerSlider_s1") != nullptr);
+      for (const char* sid : {"mixerSlider_s2", "mixerSlider_s3", "mixerSlider_s4"}) QVERIFY(visibleItem(h, sid) != nullptr);
+      QVERIFY(visibleItem(h, "mixAllToggle") != nullptr);
+      QVERIFY(!ctl->mixAllTiles() && !mx->mixAll());
+      QCOMPARE(ctl->audibleSurfaces(), QStringList{QStringLiteral("s3")});
+      QCOMPARE(visibleItem(h, "surfaceTile_s3")->property("audible").toBool(), true);
+      QCOMPARE(visibleItem(h, "surfaceTile_s1")->property("audible").toBool(), false);
+      uitest::saveShot(h.window, QStringLiteral("p6-mixer-popover"));
+
+      QVERIFY(h.click("mixAllToggle"));
+      QTRY_VERIFY(ctl->mixAllTiles());
+      QVERIFY(mx->mixAll());
+      QCOMPARE(ctl->audibleSurfaces().size(), 4);
+      QTRY_COMPARE(visibleItem(h, "surfaceTile_s1")->property("audible").toBool(), true);
+      QTRY_VERIFY(ctl->audioFedFrames(QStringLiteral("s2")) > 0);  // every routed tile is fed now
+
+      QQuickItem* sl = visibleItem(h, "mixerSlider_s2");
+      sl->setProperty("value", 40);
+      QMetaObject::invokeMethod(sl, "moved");
+      QTRY_COMPARE(mx->personGain(AudioMixer::Tiles, QStringLiteral("u_x")), 0.4);
+      QCOMPARE(ctl->mixerTiles().at(0).toMap().value(QStringLiteral("gain")).toInt(), 40);
+      QCOMPARE(h.controller->playerSettings()->audioTileGain(QStringLiteral("u_x")), 40);
+      QVERIFY(h.controller->playerSettings()->audioMixAll());
+
+      QVERIFY(h.click("mixAllToggle"));
+      QTRY_VERIFY(!ctl->mixAllTiles());
+      QCOMPARE(ctl->audibleSurfaces(), QStringList{QStringLiteral("s3")});
+      QTest::keyClick(h.window, Qt::Key_Escape);
+      QTRY_VERIFY(visibleItem(h, "mixerSlider_s1") == nullptr);
+      ctl->setTileGain(QStringLiteral("s1"), 100);
+    }
+
     // Remove the focused surface (leaves via the Hub): focus moves to the first remaining surface
     QVERIFY(selectAndClick(h, ctl, QStringLiteral("s3"), "removeButton_"));  // "Remove from multiview" (panel; PiP windows have their own ×)
     QTRY_COMPARE(ctl->surfaceCount(), 3);

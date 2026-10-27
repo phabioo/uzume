@@ -10,6 +10,7 @@
 #include "lua_sandbox.h"
 #include "plugin_variants.h"
 #include "plugin_emulation.h"
+#include "plugin_sound.h"
 #include "plugin_store.h"
 #include "plugin_video.h"
 #include "run_bridge.h"
@@ -34,6 +35,7 @@ struct GameContext {
   // New fields go at the end (the tests aggregate-initialise the leading ones).
   QString gameId;    // library id of the game (fb.variants.list); empty in the shell context
   QString modDir;    // 3DS variant: LayeredFS mod folder laid over the RomFS of romPath by fb.rom.romfs / romfs_list; empty otherwise
+  std::shared_ptr<SoundSink> sound;  // fb.sound (permission sound); null = fb.sound.play returns nil, "unavailable"
   std::shared_ptr<VariantsProvider> variants;  // fb.variants (permission variants.build); null = fb.variants.register / build fail with "variants are not available"
 };
 

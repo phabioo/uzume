@@ -19,6 +19,8 @@ qt_add_qml_module(uzume_ui
     controllerscontroller.h controllerscontroller.cpp
     controllersglyphs.h controllersglyphs.cpp
     audiooutput.h audiooutput.cpp
+    audiomixer.h audiomixer.cpp
+    pluginsoundbus.h pluginsoundbus.cpp
     gamesession.h gamesession.cpp
     gpuencodebridge.h gpuencodebridge.cpp
     gpudisplaybridge.h gpudisplaybridge.cpp
