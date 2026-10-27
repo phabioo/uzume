@@ -104,6 +104,14 @@ There is no web admin: the server serves only the REST API (`/api/v1`, admin und
   - What's new after an update and a setup assistant. Appearance (Dark / Light / System) is in Settings › This PC.
 - App identity: the Uzume logo is the window/taskbar icon, the Windows executable icon and the installer icon; the sidebar user block shows the server user name above the device name.
 
+## Discord Rich Presence
+
+- Optional, off by default: Settings › This PC › My account › "Show what I play on Discord" (local app setting `discord_presence` in `settings.json`; it is not synced and not tied to a server).
+- The app talks to the local Discord client over its IPC (`discord-ipc-0` to `-9`: unix socket under `$XDG_RUNTIME_DIR`, `$TMPDIR`, `$TMP`, `$TEMP` or `/tmp`, named pipe on Windows; Qt `QLocalSocket`, no SDK). Public application ID `1564614458993545296`.
+- Shown while a game runs: game title, system name (plus "· Session" while the game is shared, or the run name in a run) and the start time. Never the server address, other people, ROM paths or anything else private.
+- Updates on game start, game end, Session and run change, at most one every 15 s (the latest state wins); the activity is cleared at once when the game ends or the switch is turned off.
+- If Discord is not running nothing happens: the app retries every 30 s while a game runs, never blocks the UI and logs one info line (`uzume.discord`) per state change. MCP `status` shows `discord` (enabled, connected, last details and state).
+
 ## Plugins and runs
 
 - Plugin runtime ([guide](guides/plugin-api.md), [ADR 0023](adr/0023-plugins.md)): sandboxed Lua 5.4 plugins read game memory by virtual address (memory maps from the core, snapshots after the emulated frame) and use native helpers for game-file formats. Install from the server, from a folder, or link a folder with live reload (developer mode); Settings › Plugins and an in-game Plugin console. Developer console (Developer mode): log with level filters and counts, permissions, reload with state kept in `fb.store`/`fb.run`, reload on file change, a read-only memory viewer, "Load unpacked..."; a plugin pauses after 3 errors within 10 s ([guide](guides/plugin-api.md#developer-mode)).

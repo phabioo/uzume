@@ -63,6 +63,7 @@
 #include "admincontroller.h"
 #include "reportcontroller.h"
 #include "mcpcontroller.h"
+#include "discordpresence.h"
 
 namespace uzume::ui {
 
@@ -108,6 +109,7 @@ class PlayerController : public QObject {
   // Text size "100" | "125" | "tv" and Reduce motion (effective value; follows the system until the user changes it).
   Q_PROPERTY(QString textSize READ textSize WRITE setTextSize NOTIFY textSizeChanged)
   Q_PROPERTY(bool reduceMotion READ reduceMotion WRITE setReduceMotion NOTIFY reduceMotionChanged)
+  Q_PROPERTY(bool discordPresence READ discordPresence WRITE setDiscordPresence NOTIFY discordPresenceChanged)  // Discord Rich Presence, off by default
   // ROM cache (Settings): limitBytes (0 = unlimited), limitText, usedBytes, usedText, clearableBytes, clearableText, files,
   // limitOptions [{value (bytes), label}].
   Q_PROPERTY(QVariantMap romCache READ romCache NOTIFY romCacheChanged)
@@ -302,6 +304,9 @@ class PlayerController : public QObject {
   QString textSize() const;
   void setTextSize(const QString& size);
   bool reduceMotion() const;
+  bool discordPresence() const;
+  void setDiscordPresence(bool on);
+  const DiscordPresence* discord() const { return discord_.get(); }
   void setReduceMotion(bool on);
   bool eventFilter(QObject* watched, QEvent* event) override;  // Qt < 6.5: palette changes drive the System appearance
   QVariantMap romCache() const;
@@ -501,6 +506,7 @@ class PlayerController : public QObject {
   void appearanceChanged();
   void textSizeChanged();
   void reduceMotionChanged();
+  void discordPresenceChanged();
   void romCacheChanged();
   void uploadChanged();
   void libraryFoldersChanged();
@@ -549,6 +555,7 @@ class PlayerController : public QObject {
   std::unique_ptr<RomDownloader> downloader_;
   std::unique_ptr<SaveSync> saves_;
   std::unique_ptr<PlayerSettings> settings_;
+  std::unique_ptr<DiscordPresence> discord_;  // Rich Presence; fed by updateDiscord()
   std::unique_ptr<FirmwareCache> fwCache_;
   std::unique_ptr<HubSystems> systems_;
   std::unique_ptr<FirmwareProvisioner> provisioner_;
@@ -690,6 +697,7 @@ class PlayerController : public QObject {
   QString backgroundId_;
   QString backgroundTitle_;
   qint64 gamePausedMs_ = 0;      // epoch ms when the game went to the background (3c-5 detail column: "paused 22:31")
+  void updateDiscord();  // game / Session / run changed: the activity for Discord (nothing private)
   qint64 gameStartedMs_ = 0;     // epoch ms of the start of the running game ("12 min" in the Now running strip)
   bool quitting_ = false;
   bool linkSeenUp_ = false;   // the Sessions socket was open since the last handshake
