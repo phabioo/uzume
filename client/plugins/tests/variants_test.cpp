@@ -56,7 +56,7 @@ const char* kRegister = R"LUA(
       { id = "classic", label = "Classic", hint = "Plain shuffle", settings = { ["427"] = "427old", ["428"] = "428new" } },
       { id = "chaos", label = "Chaos", settings = { ["428"] = "428chaos" } },
     },
-    games = { { system = "nds", codes = { "IPKE", "ipkd" } }, { system = "3ds" } },
+    games = { { system = "nds", codes = { "IPKE", "ipkd", "POKEMON YEL*" } }, { system = "3ds" } },
   }
 )LUA";
 
@@ -114,6 +114,9 @@ class VariantsPluginTest : public QObject {
     QVERIFY(m_prov->reg->supported(QStringLiteral("nds"), QStringLiteral("IPKE")));
     QVERIFY(m_prov->reg->supported(QStringLiteral("nds"), QStringLiteral("IPKD")));  // codes compare ignoring case
     QVERIFY(!m_prov->reg->supported(QStringLiteral("nds"), QStringLiteral("XXXX")));
+    QVERIFY(!m_prov->reg->supported(QStringLiteral("nds"), QStringLiteral("IPK")));
+    QVERIFY(m_prov->reg->supported(QStringLiteral("nds"), QStringLiteral("Pokemon Yellow")));  // codes are globs like manifest games
+    QVERIFY(!m_prov->reg->supported(QStringLiteral("nds"), QStringLiteral("POKEMON RED")));
     QVERIFY(m_prov->reg->supported(QStringLiteral("3ds"), QStringLiteral("00040000000FB000")));  // no codes = the whole system
     QVERIFY(!m_prov->reg->supported(QStringLiteral("gba"), QStringLiteral("IPKE")));
     QCOMPARE(m_prov->reg->presetsFor(QStringLiteral("nds"), QStringLiteral("IPKE")).size(), 2);

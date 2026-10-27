@@ -160,7 +160,7 @@ ColumnLayout {
         Layout.minimumWidth: 0
         spacing: 0
         readonly property bool wide: width >= 700
-        // Head: absolute columns that match the rows (right edge 8, actions 148, status 112, slot 128, preset 110, gap 12; a layout lost
+        // Head: absolute columns that match the rows (right edge 8, actions 148, status 112, slot 176, preset 110, gap 12; a layout lost
         // the positions of the wide-only labels when they appeared after the first pass).
         Item {
             id: head
@@ -168,7 +168,7 @@ ColumnLayout {
             Layout.minimumWidth: 0
             implicitHeight: headName.implicitHeight
             readonly property real statusX: width - Theme.space1 - 148 - Theme.space15 - 112
-            readonly property real slotX: statusX - Theme.space15 - 128
+            readonly property real slotX: statusX - Theme.space15 - 176
             readonly property real presetX: slotX - Theme.space15 - 110
             component HeadLabel: UzMono {
                 color: Theme.dim
@@ -180,7 +180,7 @@ ColumnLayout {
             }
             HeadLabel { id: headName; x: Theme.space15; width: Math.max(0, (table.wide ? head.presetX : head.statusX) - Theme.space15 - Theme.space15); text: qsTr("Variant") }
             HeadLabel { visible: table.wide; x: head.presetX; width: 110; text: qsTr("Preset") }
-            HeadLabel { visible: table.wide; x: head.slotX; width: 128; text: qsTr("Slot") }
+            HeadLabel { visible: table.wide; x: head.slotX; width: 176; text: qsTr("Slot") }
             HeadLabel { x: head.statusX; width: 112; text: qsTr("Status") }
         }
         Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; Layout.topMargin: Theme.space05; color: Theme.rule }
@@ -251,8 +251,8 @@ ColumnLayout {
                     UzMono {
                         objectName: "variantSlot_" + row.index
                         visible: table.wide
-                        Layout.preferredWidth: 128
-                        Layout.maximumWidth: 128
+                        Layout.preferredWidth: 176
+                        Layout.maximumWidth: 176
                         Layout.minimumWidth: 0
                         elide: Text.ElideRight
                         font.pixelSize: Theme.roles.meta11.size

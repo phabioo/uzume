@@ -3,7 +3,7 @@ import QtQuick.Controls.Basic
 import Uzume.App
 
 // Window-wide notices of the variants (design 10c-2, 10c-3e, 10c-3f): the "<name> is ready" toast with Play (on any page, bottom left
-// like the other toasts), a short error toast when a background build failed, and the confirm that asks before the window closes while a
+// of the content area like the other toasts), a short error toast when a background build failed, and the confirm that asks before the window closes while a
 // variant is building ("Quit and stop building <name>?", focus on Keep Uzume open). Main.qml calls allowClose() from onClosing.
 // objectNames: variantToast, variantToastPlay (the action), variantQuitDialog, variantQuitConfirm, variantQuitKeep.
 Item {
@@ -27,7 +27,8 @@ Item {
         property string message: ""
         property bool isError: false
         visible: message !== ""
-        x: Theme.space3
+        x: Theme.sidebar + Theme.space3   // inside the content area, like the other toasts, not over the sidebar's user block
+        width: Math.min(implicitWidth, parent.width - Theme.sidebar - 2 * Theme.space3)
         y: parent.height - height - Theme.space3 - (linkWaiting ? 56 : 0)
         readonly property bool linkWaiting: root.player.onboarding.linkWaiting
         kind: isError ? "error" : "done"

@@ -479,6 +479,8 @@ AdminPage {
             objectName: "toolOfferRow"
             Layout.fillWidth: true
             Layout.minimumWidth: 0
+            Layout.rightMargin: parent.width >= Theme.settingsNarrowBelow ? -Theme.settingsResetWidth : 0   // the toggle ends where the table ends (reset slot stays empty)
+            separatorInset: parent.width >= Theme.settingsNarrowBelow ? Theme.settingsResetWidth : 0
             resetMode: "none"
             idKey: "offer"
             label: qsTr("Offer to apps")

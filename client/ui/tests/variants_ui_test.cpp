@@ -255,6 +255,7 @@ class VariantsUiTest : public QObject {
     QVERIFY(shown(h, "storageVariantsFree"));
     QVERIFY(shown(h, "storageVariantsAgeSelect"));
     QVERIFY(!textOf(h, "storageVariantSize_0").isEmpty());
+    QCOMPARE(textOf(h, "storageVariantPlayed_0"), QStringLiteral("Not played yet"));   // the build time is not "last played"
     QTRY_VERIFY(h.item("localStorageKind_variants") != nullptr);
     uitest::saveShot(h.window, QStringLiteral("variants-storage"));
 
@@ -272,6 +273,8 @@ class VariantsUiTest : public QObject {
     QTRY_VERIFY_WITH_TIMEOUT(!s.deleted.isEmpty(), 5000);
     QVERIFY2(s.deleted.first().contains(QStringLiteral("saves=keep")), qPrintable(s.deleted.first()));
     QTRY_VERIFY(!shown(h, "variantRow_0"));
+    // A variant deleted with Keep saves has no files here: Storage does not list it.
+    QTRY_VERIFY_WITH_TIMEOUT(h.controller->variants()->storage().isEmpty(), 5000);
   }
 
   // Cancel asks first (10c-3b): Keep building carries on, Stop building stops and keeps nothing.

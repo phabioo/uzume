@@ -1,6 +1,7 @@
 #include "plugin_variants.h"
 
 #include <QMutexLocker>
+#include "manifest.h"
 
 namespace uzume::plugins {
 
@@ -79,7 +80,7 @@ bool matches(const VariantRegistration& r, const QString& system, const QString&
     if (g.system != system) continue;
     if (g.codes.isEmpty()) return true;
     for (const QString& c : g.codes)
-      if (c.compare(code, Qt::CaseInsensitive) == 0) return true;
+      if (globMatch(c, code)) return true;
   }
   return false;
 }

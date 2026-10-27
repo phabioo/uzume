@@ -477,7 +477,7 @@ QVariantMap VariantsController::gameFile(const QString& gameId) const {
   const auto game = deps_.library ? deps_.library->gameById(gameId) : std::nullopt;
   if (!game) return {{QStringLiteral("onPc"), false}, {QStringLiteral("sizeText"), QString()}};
   const RomSourceChoice src = deps_.romSource ? deps_.romSource(*game) : RomSourceChoice{};
-  return {{QStringLiteral("onPc"), src.source == RomSource::Local},
+  return {{QStringLiteral("onPc"), src.source == RomSource::Local || src.source == RomSource::Cache},
           {QStringLiteral("sizeText"), game->romSize > 0 ? formatBytesText(game->romSize) : QString()}};
 }
 
@@ -492,7 +492,12 @@ QString VariantsController::defaultName(const QString& gameId) const {
     if (m.hasMatch()) highest = std::max(highest, m.captured(1).toInt());
   }
   int n = std::max(highest, count) + 1;
-  while (nameTaken(gameId, QStringLiteral("Randomizer #%1").arg(n))) ++n;
+  // Also skip names of local recipes (a variant deleted with "Keep saves" keeps its recipe and name).
+  QSet<QString> local;
+  if (deps_.cache)
+    for (const QFileInfo& d : QDir(deps_.cache->root()).entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot))
+      if (const auto r = deps_.cache->recipe(d.fileName()); r && r->gameId == gameId) local.insert(r->name.trimmed().toLower());
+  while (nameTaken(gameId, QStringLiteral("Randomizer #%1").arg(n)) || local.contains(QStringLiteral("randomizer #%1").arg(n))) ++n;
   return QStringLiteral("Randomizer #%1").arg(n);
 }
 
@@ -609,6 +614,10 @@ QVariantList VariantsController::storage() const {
     qint64 played = 0;
   };
   QList<Row> rows;
+  QSet<QString> activeIds;  // the server lists only variants that are not deleted
+  for (const QList<VariantInfo>& list : byGame_)
+    for (const VariantInfo& v : list)
+      if (v.deletedAt.isEmpty()) activeIds.insert(v.id);
   const QDate today = QDate::currentDate();
   const QFileInfoList dirs = QDir(deps_.cache->root()).entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
   for (const QFileInfo& d : dirs) {
@@ -616,10 +625,13 @@ QVariantList VariantsController::storage() const {
     if (!r) continue;
     const bool run = d.fileName().startsWith(QLatin1String("run-"));
     const bool removed = !built.contains(r->variantId);
+    // A variant deleted with "Keep saves" keeps its recipe only on the server: no files here, so it is not listed.
+    // Known only once the server list of that game was read; before that the row stays.
+    if (removed && !run && loadedOk_.value(r->gameId) && !activeIds.contains(r->variantId)) continue;
     const auto e = built.value(r->variantId);
     const auto game = deps_.library ? deps_.library->gameById(r->gameId) : std::nullopt;
     QString played;
-    if (removed || e.lastPlayedMs <= 0) {
+    if (removed || !e.played || e.lastPlayedMs <= 0) {
       played = QString();
     } else {
       const QDate day = QDateTime::fromMSecsSinceEpoch(e.lastPlayedMs).date();
@@ -627,7 +639,7 @@ QVariantList VariantsController::storage() const {
       else if (day == today.addDays(-1)) played = tr("Played yesterday");
       else played = tr("Played %1 %2").arg(day.day()).arg(QLocale::c().monthName(day.month(), QLocale::ShortFormat));
     }
-    if (played.isEmpty() && !removed) played = tr("Never played");
+    if (played.isEmpty() && !removed) played = tr("Not played yet");
     const QString title = game ? game->title : QString();
     QVariantMap m{{QStringLiteral("id"), r->variantId}, {QStringLiteral("name"), r->name},
                   {QStringLiteral("subtitle"), run ? (title.isEmpty() ? tr("Run variant") : tr("%1 · run variant").arg(title)) : title},

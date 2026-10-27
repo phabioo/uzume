@@ -176,6 +176,7 @@ void VariantCache::touch(const QString& id, qint64 nowMs) const {
   const QString p = d + QLatin1Char('/') + QLatin1String(kBuilt);
   QJsonObject o = readJson(p);
   o.insert(QStringLiteral("last_played_ms"), static_cast<double>(nowOr(nowMs)));
+  o.insert(QStringLiteral("played"), true);
   writeJson(p, o);
 }
 
@@ -191,6 +192,7 @@ QList<VariantCache::Entry> VariantCache::entries() const {
     e.bytes = folderBytes(di.absoluteFilePath());
     e.builtMs = static_cast<qint64>(b.value(QStringLiteral("built_ms")).toDouble());
     e.lastPlayedMs = static_cast<qint64>(b.value(QStringLiteral("last_played_ms")).toDouble(static_cast<double>(e.builtMs)));
+    e.played = b.value(QStringLiteral("played")).toBool(e.lastPlayedMs != e.builtMs);
     out.append(e);
   }
   std::sort(out.begin(), out.end(), [](const Entry& a, const Entry& b) { return a.lastPlayedMs != b.lastPlayedMs ? a.lastPlayedMs < b.lastPlayedMs : a.id < b.id; });
