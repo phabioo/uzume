@@ -884,6 +884,27 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
   wireChat();
 }
 
+// Scope of the running game or the open run board. `chat`: a run that is starting or paused counts too (the Hub allows chat in any run that
+// is not over); the ready check and the shared pause keep to active runs.
+TogetherController::Scope PlayerController::currentScope(bool chat) const {
+  TogetherController::ScopeInputs in;
+  const auto usable = [this, chat](const QString& runId, bool needJoined) -> bool {
+    const auto run = runClient_->run(runId);
+    if (!run || (chat ? run->isOver() : run->status != QLatin1String("active"))) return false;
+    const RunParticipant* me = run->participant(conn_->hubUserId());
+    return !needJoined || (me && me->status == QLatin1String("joined"));
+  };
+  // The board of a run I have joined (Runs screen): the same ready check, without a game
+  if (screen() == QLatin1String("runs") && !runs_->openRunId().isEmpty() && usable(runs_->openRunId(), true)) in.boardRunId = runs_->openRunId();
+  in.gameActive = session_.isActive();
+  const QString runId = sessions_->localRunId();
+  if (!runId.isEmpty() && in.gameActive && usable(runId, chat ? true : false)) in.gameRunId = runId;
+  in.ownSessionId = sessions_->ownSessionId();
+  in.watched = sessions_->shownSessionIds();
+  in.focus = sessions_->audioFocus();
+  return TogetherController::pickScope(in);
+}
+
 QString PlayerController::hubUserName(const QString& userId) const {
   if (userId == conn_->hubUserId()) return conn_->userDisplayName();
   for (const OnlineRoster::Person& p : sessions_->roster()->people()) {
@@ -903,6 +924,16 @@ QString PlayerController::hubUserName(const QString& userId) const {
 void PlayerController::wireChat() {
   chatApi_ = std::make_unique<ChatApi>(conn_.get());
   chat_ = std::make_unique<ChatController>(together_.get(), sessions_->socket());
+  chat_->setScopeProvider([this]() { return currentScope(true); });
+  const auto refreshChat = [this]() { chat_->refresh(); };
+  connect(sessions_.get(), &SessionController::shareChanged, chat_.get(), refreshChat);
+  connect(sessions_.get(), &SessionController::gameChanged, chat_.get(), refreshChat);
+  connect(sessions_.get(), &SessionController::watchChanged, chat_.get(), refreshChat);
+  connect(sessions_.get(), &SessionController::surfacesChanged, chat_.get(), refreshChat);
+  connect(runClient_.get(), &RunClient::runsChanged, chat_.get(), refreshChat);
+  connect(runs_.get(), &RunsController::detailChanged, chat_.get(), refreshChat);
+  connect(this, &PlayerController::screenChanged, chat_.get(), refreshChat);
+  connect(&session_, &GameSession::stateChanged, chat_.get(), refreshChat);
   chat_->setSelf([this]() { return conn_->hubUserId(); }, [this]() { return conn_->userDisplayName(); });
   chat_->setNameResolver([this](const QString& userId) {
     const QString n = hubUserName(userId);
@@ -957,8 +988,9 @@ void PlayerController::wireChat() {
     }
   });
   // A message that names me while its chat is not on screen: the bell, always as a toast (the one chat entry; plain messages stay quiet).
-  connect(chat_.get(), &ChatController::mentioned, notifications_.get(), [this](const QString&, const QString&, const QString& from, const QString& text) {
-    notifications_->notify(QStringLiteral("chat"), tr("%1: %2").arg(from, ChatController::renderEmotes(text)), {}, {}, true);
+  connect(chat_.get(), &ChatController::mentioned, notifications_.get(), [this](const QString& kind, const QString& id, const QString& from, const QString& text) {
+    notifications_->notify(QStringLiteral("chat"), tr("%1: %2").arg(from, ChatController::renderEmotes(text)), tr("OPEN CHAT"),
+                           QStringLiteral("chat:") + kind + QLatin1Char(':') + id, true);
   });
 }
 
@@ -994,24 +1026,7 @@ void PlayerController::wireTogether() {
   together_ = std::make_unique<TogetherController>(sessions_->socket());
   together_->setSelf([this]() { return conn_->hubUserId(); });
   together_->setNameResolver([this](const QString& userId) { return hubUserName(userId); });
-  together_->setScopeProvider([this]() -> TogetherController::Scope {
-    TogetherController::ScopeInputs in;
-    const auto activeJoined = [this](const QString& runId, bool needJoined) -> bool {
-      const auto run = runClient_->run(runId);
-      if (!run || run->status != QLatin1String("active")) return false;
-      const RunParticipant* me = run->participant(conn_->hubUserId());
-      return !needJoined || (me && me->status == QLatin1String("joined"));
-    };
-    // The board of an active run I have joined (Runs screen): the same ready check, without a game
-    if (screen() == QLatin1String("runs") && !runs_->openRunId().isEmpty() && activeJoined(runs_->openRunId(), true)) in.boardRunId = runs_->openRunId();
-    in.gameActive = session_.isActive();
-    const QString runId = sessions_->localRunId();
-    if (!runId.isEmpty() && in.gameActive && activeJoined(runId, false)) in.gameRunId = runId;
-    in.ownSessionId = sessions_->ownSessionId();
-    in.watched = sessions_->shownSessionIds();
-    in.focus = sessions_->audioFocus();
-    return TogetherController::pickScope(in);
-  });
+  together_->setScopeProvider([this]() { return currentScope(false); });
   together_->setGameHooks({[this]() { return session_.isPaused(); }, [this]() { session_.pause(); }, [this]() { session_.resume(); }});
   connect(together_.get(), &TogetherController::pauseChanged, this, [this]() { sessions_->setHostPauseBy(together_->hostPauseName()); });
   const auto refresh = [this]() { together_->refresh(); };
@@ -1154,6 +1169,15 @@ void PlayerController::runNotificationAction(const QString& kind, const QString&
   } else if (what == QLatin1String("run")) {
     showRuns();
     if (page_ == QLatin1String("runs")) runs_->openRun(arg);
+  } else if (what == QLatin1String("chat")) {
+    // In the game (or watching): the panel opens on the Chat tab; else the board of the run
+    if (gameActive_ || screen() == QLatin1String("game")) {
+      if (gameActive_ && background_) resumeGame();
+      emit openChatRequested();
+    } else if (arg.startsWith(QLatin1String("run:"))) {
+      showRuns();
+      if (page_ == QLatin1String("runs")) runs_->openRun(arg.mid(4));
+    }
   } else if (what == QLatin1String("settings")) {
     showSettingsSection(arg);
   } else if (what == QLatin1String("attention")) {

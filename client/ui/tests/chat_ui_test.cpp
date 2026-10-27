@@ -61,6 +61,7 @@ class ChatUiTest : public QObject {
     hub.sendWs(QStringLiteral("presence_update"), presence("u_lena", "Lena"));
     QTRY_COMPARE(h.controller->onlinePeople().size(), 1);
     h.controller->together()->setScopeProvider([]() { return TogetherController::Scope{QStringLiteral("session"), QStringLiteral("s1"), true}; });
+    h.controller->chat()->setScopeProvider([]() { return TogetherController::Scope{QStringLiteral("session"), QStringLiteral("s1"), true}; });
     h.controller->together()->refresh();
   }
 
@@ -89,6 +90,7 @@ class ChatUiTest : public QObject {
     QVERIFY(shown(h.item("peopleReadyCheck")) && shown(h.item("peopleInvite")));
     QVERIFY(!h.item("peopleReadyCheck")->isEnabled());  // no scope
     h.controller->together()->setScopeProvider([]() { return TogetherController::Scope{QStringLiteral("session"), QStringLiteral("s1"), true}; });
+    h.controller->chat()->setScopeProvider([]() { return TogetherController::Scope{QStringLiteral("session"), QStringLiteral("s1"), true}; });
     h.controller->together()->refresh();
     QTRY_VERIFY(h.item("peopleReadyCheck")->isEnabled());
     QVERIFY(h.click("peopleReadyCheck"));
@@ -188,6 +190,7 @@ class ChatUiTest : public QObject {
     QVERIFY(n->toasts().first().toMap().value("text").toString().contains(QStringLiteral("Lena: @%1 gym next?").arg(myName)));
     QCOMPARE(n->entries().first().toMap().value("kind").toString(), QStringLiteral("chat"));
     QVERIFY(n->entries().first().toMap().value("mention").toBool());
+    QCOMPARE(n->entries().first().toMap().value("actionLabel").toString(), QStringLiteral("OPEN CHAT"));
     QTRY_COMPARE(text(h.item("tabBadge")), QStringLiteral("2"));
     QVERIFY(h.click("panelTab_chat"));
     QTRY_COMPARE(chat->unread(), 0);
@@ -198,6 +201,11 @@ class ChatUiTest : public QObject {
     bool bold = false;
     for (QQuickItem* t : h.items("chatText")) bold = bold || text(t).contains(QStringLiteral("<b>@%1</b>").arg(myName));
     QVERIFY(bold);
+    // OPEN CHAT: the panel shows the Chat tab (here from the Session tab)
+    QVERIFY(h.click("panelTab_game"));
+    QTRY_VERIFY(!chat->panelVisible());
+    QVERIFY(n->act(0));
+    QTRY_VERIFY(chat->panelVisible());
     // The mention while the Chat tab is open does not toast
     n->reset();
     push(5, QStringLiteral("@%1 now").arg(myName), {me});
@@ -219,6 +227,7 @@ class ChatUiTest : public QObject {
     hub.chatLog.insert(QStringLiteral("run:") + runId, QJsonArray{chatJson(1, "u_lena", "ready when you are", now)});
     hub.sendWs(QStringLiteral("presence_update"), presence("u_lena", "Lena"));
     h.controller->together()->setScopeProvider([runId]() { return TogetherController::Scope{QStringLiteral("run"), runId, true}; });
+    h.controller->chat()->setScopeProvider([runId]() { return TogetherController::Scope{QStringLiteral("run"), runId, true}; });
     h.controller->together()->refresh();
     h.controller->chat()->setRunEvents([](const QString&) {
       return QList<ChatController::EventLine>{{QDateTime::currentMSecsSinceEpoch(), 1, QStringLiteral("Lena joined")}};

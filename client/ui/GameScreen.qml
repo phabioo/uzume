@@ -223,6 +223,10 @@ Rectangle {
             }
         }
     }
+    Connections {
+        target: root.player
+        function onOpenChatRequested() { if (root.panelCollapsed) root.panelCollapsed = false; panel.openTab("chat") }
+    }
     // Resumed: the keys go back to the game
     Connections {
         target: root.session

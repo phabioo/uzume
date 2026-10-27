@@ -522,6 +522,7 @@ class PlayerController : public QObject {
   void attentionChanged();
   void onlineChanged();
   void gameRunChanged();
+  void openChatRequested();  // the mention toast's OPEN CHAT: the game panel shows the Chat tab
   void hubLinkChanged();
   void libraryStateChanged();
   void selectedGameChanged();
@@ -631,6 +632,7 @@ class PlayerController : public QObject {
   void wireNotifications();
   void wireTogether();
   void wireChat();
+  TogetherController::Scope currentScope(bool chat) const;
   QString chatHubId_;  // the server and person the chat belongs to
   QString hubUserName(const QString& userId) const;  // display name of a person I know from the roster, my runs or my own Session; "" = unknown
   std::unique_ptr<ToolCache> toolCache_;

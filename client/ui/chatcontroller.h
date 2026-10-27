@@ -63,6 +63,8 @@ class ChatController : public QObject {
     selfFn_ = std::move(userId);
     selfNameFn_ = std::move(displayName);
   }
+  // The scope of the chat; default: the TogetherController's. The PlayerController lets a run that is still starting count.
+  void setScopeProvider(std::function<TogetherController::Scope()> f) { scopeFn_ = std::move(f); }
   void setNameResolver(std::function<QString(const QString&)> f) { nameFn_ = std::move(f); }
   // Run name for the header, and the people of a scope ([{userId, name, role, me, color, connection, tone}], shown by the People tab).
   void setScopeInfo(std::function<QString(const QString&, const QString&)> title, std::function<QVariantList(const QString&, const QString&)> people) {
@@ -157,6 +159,7 @@ class ChatController : public QObject {
 
   TogetherController* together_;
   HubSocket* socket_;
+  std::function<TogetherController::Scope()> scopeFn_;
   std::function<QString()> selfFn_, selfNameFn_;
   std::function<QString(const QString&)> nameFn_;
   std::function<QString(const QString&, const QString&)> titleFn_;

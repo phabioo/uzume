@@ -446,7 +446,8 @@ Rectangle {
                         UzFocusRing { visible: tabItem.activeFocus }
                         TapHandler { onTapped: root.openTab(tabItem.entry.id) }
                         HoverHandler { id: tabHover; cursorShape: Qt.PointingHandCursor }
-                        ToolTip.visible: tabHover.hovered
+                        // Only plugin tabs (origin marker) explain themselves; the labels of the built-in tabs are read in full
+                        ToolTip.visible: tabHover.hovered && tabItem.entry.kind === "plugin"
                         ToolTip.delay: 400
                         ToolTip.text: tabItem.entry.name + (tabItem.marker !== "" ? " · " + tabItem.marker : "")
                     }

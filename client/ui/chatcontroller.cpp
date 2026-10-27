@@ -50,7 +50,7 @@ QString ChatController::nameOf(const QString& userId) const {
   return n.isEmpty() ? tr("Someone") : n;
 }
 
-bool ChatController::available() const { return together_ && together_->available(); }
+bool ChatController::available() const { return together_ && !kind_.isEmpty() && together_->featureAvailable(); }
 
 ChatController::Chat& ChatController::chatFor(const QString& kind, const QString& id) {
   const QString key = keyOf(kind, id);
@@ -82,8 +82,9 @@ const ChatController::Chat* ChatController::current() const {
 }
 
 void ChatController::refresh() {
-  const QString kind = together_ ? together_->scopeKind() : QString();
-  const QString id = together_ ? together_->scopeId() : QString();
+  const TogetherController::Scope sc = scopeFn_ ? scopeFn_() : TogetherController::Scope{together_ ? together_->scopeKind() : QString(), together_ ? together_->scopeId() : QString(), false};
+  const QString kind = sc.kind;
+  const QString id = sc.id;
   const bool moved = kind != kind_ || id != id_;
   kind_ = kind;
   id_ = id;
@@ -96,8 +97,6 @@ void ChatController::refresh() {
     emit scopeChanged();
     emit unreadChanged();
     emit rowsChanged();
-  } else {
-    emit scopeChanged();  // `available` also follows the Hub's features
   }
 }
 
@@ -112,8 +111,9 @@ void ChatController::reset() {
 }
 
 void ChatController::onSocketState(HubSocket::State s) {
-  if (s != HubSocket::State::Open) return;
   refresh();
+  emit scopeChanged();  // `available` also follows the Hub's features
+  if (s != HubSocket::State::Open) return;
   // Messages may have been missed while the link was down: fetch what follows the last one I know, for every scope I hold.
   for (auto it = chats_.begin(); it != chats_.end(); ++it) {
     if (it->loaded && !it->loading && available()) load(it->kind, it->id, false);

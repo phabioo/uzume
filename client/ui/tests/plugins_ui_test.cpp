@@ -313,7 +313,7 @@ class PluginsUiTest : public QObject {
     }
     // The console tab exists while plugins run (preview); Ctrl+Shift+D opens it.
     pc->setPreviewConsole(consoleData(false, true));
-    QTRY_VERIFY(h.item("panelTab_console") != nullptr && h.item("panelTab_console")->isVisible());
+    QTRY_VERIFY((h.item("panelTab_console") != nullptr && h.item("panelTab_console")->isVisible()) || h.item("panelTabOverflow")->isVisible());   // may wait in "More"
     QVERIFY(h.item("pluginConsole") == nullptr || !h.item("pluginConsole")->isVisible());
     QTest::keyClick(h.window, Qt::Key_D, Qt::ControlModifier | Qt::ShiftModifier);
     QTRY_VERIFY(h.item("pluginConsole") != nullptr && h.item("pluginConsole")->isVisible());
