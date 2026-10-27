@@ -24,6 +24,8 @@ var supportedPermissions = map[string]bool{
 	"memory.write": true,
 	"cheats":       true,
 	"store":        true,
+	// 0.21 Randomizer (ADR 0031 D5); the app allows it only for signed official plugins or in Developer mode
+	"variants.build": true,
 }
 
 func permissionError(p string) error {
