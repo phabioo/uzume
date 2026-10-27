@@ -6,8 +6,12 @@ import Uzume.App
 // person, archived ones included (GET /admin/runs), and for the selected run its people and the actions the state allows:
 // Pause / Resume, Finish run... (asks), Archive / Unarchive, Send invitations again, Start now / Start without the people who have
 // not joined (asks, names them), per invited person Send again / Remove invitation (asks), Export event log (JSON file).
-// The answer of each action is the run itself; the list and the Runs screen are read again. `runId` (the run open in the Runs
-// screen) selects that run. Shown for admins only (`player.admin.available`, set by the caller).
+// The answer of each action is the run itself; the list and the Runs screen are read again. Shown for admins only
+// (`player.admin.available`, set by the caller).
+// Two uses: `withTable` (default) is the "More runs" section under the Runs list, shown only when there are runs the list above
+// leaves out, with the actions of the run picked in its table. Without `withTable` the panel is the admin part of ONE run of the
+// main list (`runId`): it sits in that run's own detail area (selected run in the list, open run view) and shows the actions the
+// state allows, plus the invited people when someone is still invited; no heading, no table.
 // objectNames: runsAdminPanel, runsAdminTable (prefix), runsAdminDetails, runsAdminPause, runsAdminResume, runsAdminFinish,
 // runsAdminArchive, runsAdminUnarchive, runsAdminResend, runsAdminStart, runsAdminStartWithout, runsAdminExport,
 // runsAdminPersonResend_<id>, runsAdminPersonRemove_<id>, runsAdminNote, runsAdminEmpty.
@@ -16,6 +20,7 @@ Item {
     objectName: "runsAdminPanel"
     required property PlayerController player
     property string runId: ""
+    property bool withTable: true
     // Ids of the runs the Runs list above already shows: the table below lists only the other runs (archived ones, runs of
     // other people that list leaves out), so each run appears once; the admin actions of a listed run work on the open
     // or selected run through `runId`.
@@ -33,6 +38,7 @@ Item {
     readonly property string status: root.run ? root.run.status : ""
     readonly property bool over: root.status === "finished" || root.status === "abandoned"
     readonly property var invited: root.run ? root.run.participants.filter(p => p.status === "invited") : []
+    readonly property bool hasExtra: root.withTable && root.phase === "ready" && root.extraItems.length > 0
     readonly property var extraItems: root.items.filter(it => root.listedIds.indexOf(it.run.run_id) < 0)
     implicitHeight: col.implicitHeight
 
@@ -80,13 +86,19 @@ Item {
             if (!ok || !data || data.runs === undefined) { root.phase = "error"; return }
             root.items = data.runs
             root.phase = "ready"
-            if (root.runId !== "" && root.indexOf(root.runId) >= 0) root.selectedId = root.runId
+            if (!root.withTable) root.selectedId = root.runId !== "" && root.indexOf(root.runId) >= 0 ? root.runId : ""
             else if (root.indexOf(root.selectedId) < 0) root.selectedId = ""
         })
     }
     onVisibleChanged: if (visible) root.load()
     Component.onCompleted: root.load()
-    onRunIdChanged: if (root.runId !== "" && root.indexOf(root.runId) >= 0) root.selectedId = root.runId; else if (root.runId !== "") root.load()
+    onRunIdChanged: {
+        if (root.withTable) return
+        if (root.runId !== "" && root.indexOf(root.runId) >= 0) root.selectedId = root.runId
+        else if (root.runId !== "") root.load()
+        else root.selectedId = ""
+        root.note = ""
+    }
 
     // The answer of every action is the run: it replaces the row; the Runs screen reads its own list again.
     function adopt(detail: var) {
@@ -184,18 +196,18 @@ Item {
         width: root.width
         spacing: Theme.space2
 
-        UzSectionLabel { Layout.fillWidth: true; text: qsTr("More runs · for admins"); meta: root.phase === "ready" ? String(root.extraItems.length) : "" }
-        UzStateBlock {
-            objectName: "runsAdminLoading"
+        // No extra runs: no heading, no table (the runs of the list above are not repeated here).
+        UzSectionLabel {
+            objectName: "runsAdminHeading"
             Layout.fillWidth: true
-            visible: root.phase === "loading"
-            kind: "loading"
-            title: qsTr("Reading the runs")
+            visible: root.hasExtra || (root.withTable && root.phase === "error")
+            text: qsTr("More runs · for admins")
+            meta: root.hasExtra ? String(root.extraItems.length) : ""
         }
         UzStateBlock {
             objectName: "runsAdminError"
             Layout.fillWidth: true
-            visible: root.phase === "error"
+            visible: root.withTable && root.phase === "error"
             kind: "error"
             title: qsTr("Could not read the runs")
             action: qsTr("Try again")
@@ -204,7 +216,7 @@ Item {
         UzTable {
             objectPrefix: "runsAdminTable"
             Layout.fillWidth: true
-            visible: root.phase === "ready" && root.extraItems.length > 0
+            visible: root.hasExtra
             emptyText: qsTr("No runs yet.")
             columns: [
                 { key: "name", title: qsTr("Run"), fill: 1.4 },
@@ -223,9 +235,13 @@ Item {
         ColumnLayout {
             objectName: "runsAdminDetails"
             Layout.fillWidth: true
-            visible: root.phase === "ready" && root.run !== null
+            visible: root.phase === "ready" && root.run !== null && (root.withTable ? root.hasExtra : true)
             spacing: Theme.space2
-            UzSectionLabel { Layout.fillWidth: true; text: root.run ? root.run.name : ""; meta: root.run ? root.statusText(root.status) : "" }
+            UzSectionLabel {
+                Layout.fillWidth: true
+                text: root.withTable ? (root.run ? root.run.name : "") : qsTr("Admin actions")
+                meta: root.run ? root.statusText(root.status) : ""
+            }
             UzStatusIcon {
                 objectName: "runsAdminNote"
                 Layout.fillWidth: true
@@ -251,6 +267,7 @@ Item {
             UzTable {
                 objectPrefix: "runsAdminPeople"
                 Layout.fillWidth: true
+                visible: root.withTable || root.invited.length > 0
                 selectable: false
                 emptyText: qsTr("Nobody is in this run.")
                 columns: [

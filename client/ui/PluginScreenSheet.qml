@@ -7,7 +7,9 @@ import Uzume.App
 // below the GameHeader (play area and side panel; in fullscreen the play area). In the active theme (the game view is dark). The game keeps running
 // underneath. Top bar: "← Back to game", plugin icon, screen title and plugin name, key hint Esc; below it the plugin's
 // "screen" tree (max 1100 wide, or 560 with `width = "dialog"` on its root column; centered, scrolling vertically). Esc and Back emit closeRequested().
-Rectangle {
+// The sheet is a focus scope: opening it moves the focus to "Back to game" and Tab / Shift+Tab walk through its own controls (Back,
+// the tabs and buttons of the screen); the host keeps what the sheet covers out of the tab chain while it is open.
+FocusScope {
     id: root
     objectName: "pluginScreenSheet"
     required property PlayerController player
@@ -27,13 +29,13 @@ Rectangle {
     property var tree: ({})
     signal closeRequested()
 
-    color: Theme.ground
     visible: open
-    focus: open
     clip: true
 
     function refresh() { root.tree = root.pluginId !== "" ? root.player.plugins.slotTree(root.pluginId, "screen") : ({}) }
-    onPluginIdChanged: { refresh(); if (pluginId !== "") forceActiveFocus() }
+    // The focus goes to "Back to game" (first stop of the sheet); Esc still reaches the sheet's key handler from there.
+    function takeFocus() { backButton.forceActiveFocus() }
+    onPluginIdChanged: { refresh(); if (pluginId !== "") Qt.callLater(root.takeFocus) }
     Component.onCompleted: refresh()
     Connections {
         target: root.player.plugins
@@ -46,6 +48,8 @@ Rectangle {
     }
 
     Keys.onEscapePressed: (e) => { e.accepted = true; if (!e.isAutoRepeat) root.closeRequested() }
+
+    Rectangle { anchors.fill: parent; color: Theme.ground }
 
     // The sheet is opaque to the play area below
     MouseArea { anchors.fill: parent; acceptedButtons: Qt.AllButtons; onWheel: (w) => w.accepted = true }
@@ -65,6 +69,7 @@ Rectangle {
                 anchors.rightMargin: Theme.space2
                 spacing: Theme.space15
                 UzButton {
+                    id: backButton
                     objectName: "pluginScreenBack"
                     kind: "ghost"
                     size: "sm"

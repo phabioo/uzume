@@ -79,7 +79,7 @@ Rectangle {
         }
     }
     function focusLocal() {
-        if (root.screenSheetPlugin !== "") { sheet.forceActiveFocus(); return }
+        if (root.screenSheetPlugin !== "") { sheet.takeFocus(); return }
         if (quickMenu.shown) { quickMenu.restoreFocus(); return }
         var v = root.tab === "session" ? view : root.multiLocal
         if (v) v.forceActiveFocus()
@@ -419,6 +419,9 @@ Rectangle {
     // Stage and panel
     Item {
         id: body
+        // While the plugin screen covers the stage and the panel, nothing under it takes the focus: the hidden GameView would eat
+        // Tab (it passes keys to the game) and the panel controls would be reached blind.
+        enabled: root.screenSheetPlugin === ""
         anchors.top: header.bottom
         anchors.left: parent.left
         anchors.right: parent.right

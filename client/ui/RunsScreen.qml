@@ -519,6 +519,16 @@ Rectangle {
                             text: qsTr("Open run")
                             onClicked: root.runs.openRun(root.selectedRow.runId)
                         }
+                        // Admins: Start now / Finish run / Export event log... for this run, with the other run actions.
+                        RunsAdminPanel {
+                            objectName: "runSelectedAdmin"
+                            Layout.fillWidth: true
+                            Layout.topMargin: Theme.space1
+                            visible: root.player.admin.available && root.selectedRow !== null
+                            withTable: false
+                            player: root.player
+                            runId: root.selectedRow ? root.selectedRow.runId : ""
+                        }
                     }
 
                     UzLabel {
@@ -665,6 +675,16 @@ Rectangle {
                                 onClicked: rulesDialog.openFor(detailCol.d.runId, detailCol.d.rules)
                             }
                         }
+                    }
+
+                    // Admins: the admin actions of this run next to the run's own actions.
+                    RunsAdminPanel {
+                        objectName: "runDetailAdmin"
+                        Layout.fillWidth: true
+                        visible: root.player.admin.available && root.inDetail
+                        withTable: false
+                        player: root.player
+                        runId: root.runs.openRunId
                     }
 
                     // Tabs: Board, Log, then one tab per run plugin (named after its screen), the plugin tab last.
@@ -890,13 +910,13 @@ Rectangle {
                     }
                 }
 
-                // Admins: every run of every person with the actions the state allows (package 8, RunsAdminPanel).
+                // Admins: the runs of other people that the list above leaves out, with the actions the state allows (package 8,
+                // RunsAdminPanel). Hidden while there are none; the admin actions of a run of the list sit in that run's own
+                // detail (selected run, open run), not here.
                 RunsAdminPanel {
                     Layout.fillWidth: true
-                    visible: root.player.admin.available
+                    visible: root.player.admin.available && !root.inDetail
                     player: root.player
-                    // Runs already in the list above are not repeated; their admin actions work on the open or selected run.
-                    runId: root.runs.openRunId !== "" ? root.runs.openRunId : (root.selectedRow ? root.selectedRow.runId : "")
                     listedIds: root.runRows.map(r => r.runId)
                 }
             }

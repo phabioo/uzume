@@ -609,6 +609,66 @@ class PluginBlocksUiTest : public QObject {
     QCOMPARE(textOf(mustFind("pluginMapLoading")->childItems().value(0)), QStringLiteral("Map not read yet"));
     shot(QStringLiteral("plugin-map-loading-dark"));
   }
+  // Regression (live check 0.22): Start in the Splits screen replaced the whole tree (button flags, stat values, table rows
+  // or table -> empty) and the app died in QQuickGridLayoutBase::rearrange. The next state's tree is applied as fb.ui.set
+  // does, without waiting for the polish in between.
+  // Regression (live check 0.22, SIGSEGV when pressing Start in the Splits screen). Qt 6.4's QQuickGridLayoutBase::rearrange does
+  // not refresh its item list before it runs from QQuickLayout::geometryChange. A layout child that a Repeater destroyed after the
+  // layout was invalidated but before its polish is still in that list, and the next size change reads the freed item in
+  // QGridLayoutItem::stretchFactor. The plugin blocks are nested layouts sized by `anchors.fill` of a Loader, so their parent
+  // layout's rearrange resizes them synchronously, before they are polished. The test applies a new tree (new table rows,
+  // fewer or more children), lets the deferred deletes run and changes the width, with no polish in between.
+  void treeUpdatesNeverLeaveFreedItemsInALayout() {
+    auto tbl = [](int rows, int cols) {
+      QVariantList cells;
+      for (int i = 0; i < rows; ++i) {
+        QVariantList row;
+        for (int c = 0; c < cols; ++c) row << QStringLiteral("r%1c%2").arg(i).arg(c);
+        cells << QVariantMap{{"cells", row}};
+      }
+      QVariantList heads;
+      for (int c = 0; c < cols; ++c) heads << QStringLiteral("H%1").arg(c);
+      return QVariant(QVariantMap{{"type", "table"}, {"id", "t"}, {"columns", heads}, {"rows", cells}});
+    };
+    auto lst = [](int rows) {
+      QVariantList r;
+      for (int i = 0; i < rows; ++i) r << QVariantMap{{"id", QString::number(i)}, {"title", QStringLiteral("Row %1").arg(i)}, {"meta", "m"}};
+      return QVariant(QVariantMap{{"type", "list"}, {"id", "l"}, {"rows", r}});
+    };
+    auto btn = [](int i, bool off) {
+      QVariantMap b{{"type", "button"}, {"label", QStringLiteral("B%1").arg(i)}, {"action", "a"}};
+      if (off) b["disabled"] = true;
+      return QVariant(b);
+    };
+    auto grid = [&](int n, int flip) {
+      QVariantList kids;
+      for (int i = 0; i < n; ++i) kids << btn(i, (i + flip) % 2 == 0);
+      return QVariant(QVariantMap{{"type", "grid"}, {"gap", 8}, {"columns", 3}, {"children", kids}});
+    };
+    auto tree = [&](int step) {
+      const int rows = 1 + (step * 3) % 6;
+      QVariantList kids{grid(2 + step % 4, step), tbl(rows, 3 + step % 3), lst(step % 5), tbl(step % 2 ? 0 : 2, 6)};
+      return QVariant(QVariantMap{{"type", "column"}, {"gap", 16}, {"children", kids}});
+    };
+    show(tree(0), true);
+    for (int step = 1; step <= 60; ++step) {
+      page_->setProperty("tree", tree(step));
+      QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);   // the freed delegates, before any polish
+      page_->setWidth(page_->width() + ((step % 2) ? 9 : -9));
+      if (step % 10 == 0) settle();
+    }
+    settle();
+    QVERIFY(find("plugin_t") != nullptr);
+    // The pool keeps surplus rows hidden, not alive and visible: only the current rows show.
+    page_->setProperty("tree", QVariantMap{{"type", "column"}, {"children", QVariantList{tbl(2, 3)}}});
+    settle();
+    int shown = 0;
+    for (int i = 0; i < 10; ++i) {
+      QQuickItem* r = find(QStringLiteral("pluginTableRow_%1").arg(i).toLatin1().constData());
+      if (r != nullptr && r->isVisible()) ++shown;
+    }
+    QCOMPARE(shown, 2);
+  }
 };
 
 UITEST_MAIN(PluginBlocksUiTest)

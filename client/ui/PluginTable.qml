@@ -8,6 +8,7 @@ ColumnLayout {
     property bool dark: true
     property string pluginId: ""
     readonly property var columns: node.columns || []
+    readonly property var rowList: node.rows || []
     signal action(string action, var value)
 
     spacing: 0
@@ -17,11 +18,13 @@ ColumnLayout {
         Layout.rightMargin: Theme.space15
         Layout.bottomMargin: Theme.space1
         spacing: Theme.space1
-        Repeater {
-            model: root.columns
+        PluginPool {
+            count: root.columns.length
             delegate: Text {
                 textFormat: Text.PlainText
-                required property var modelData
+                required property int index
+                readonly property var modelData: root.columns[index]
+                visible: index < root.columns.length
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
                 Layout.minimumWidth: 0
@@ -35,12 +38,13 @@ ColumnLayout {
             }
         }
     }
-    Repeater {
-        model: root.node.rows || []
+    PluginPool {
+        count: root.rowList.length
         delegate: PluginFocusable {
             id: row
-            required property var modelData
             required property int index
+            readonly property var modelData: root.rowList[index] || ({})
+            visible: index < root.rowList.length   // pooled (PluginPool)
             objectName: "pluginTableRow_" + index
             dark: root.dark
             actionable: !!modelData.action
@@ -65,12 +69,13 @@ ColumnLayout {
                 anchors.leftMargin: Theme.space15
                 anchors.rightMargin: Theme.space15
                 spacing: Theme.space1
-                Repeater {
-                    model: row.modelData.cells || []
+                PluginPool {
+                    count: (row.modelData.cells || []).length
                     delegate: Text {
                         textFormat: Text.PlainText
-                        required property var modelData
                         required property int index
+                        readonly property var modelData: (row.modelData.cells || [])[index]
+                        visible: index < (row.modelData.cells || []).length
                         Layout.fillWidth: true
                         Layout.preferredWidth: 1
                         Layout.minimumWidth: 0
