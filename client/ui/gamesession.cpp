@@ -173,6 +173,7 @@ void GameSession::launch(const LaunchConfig& config, bool restart) {
   req.saveDir = config.saveDir;
   req.coreOptions = config.coreOptions;
   req.requireHwRender = config.requireHwRender;
+  req.preferredRenderer = config.preferredRenderer;
   req.speedUpRatio = config.speedUpRatio;
   req.speedUpOnStart = config.speedUpOnStart;
   req.speedUpAudio = config.speedUpAudio;
@@ -462,7 +463,11 @@ void GameSession::setGpuEncodeTarget(std::shared_ptr<emu::GpuEncodeTarget> targe
   }
 }
 
-bool GameSession::hardwareRendered() const { return runner_ && isActive() && runner_->renderInfo().hwActive; }
+bool GameSession::hardwareRendered() const {
+  if (!runner_ || !isActive()) return false;
+  const emu::RenderInfo ri = runner_->renderInfo();
+  return ri.hwActive && !ri.vulkan;  // the GPU targets (encode, display) need the GL context; Vulkan frames are read back (ADR 0034)
+}
 
 void GameSession::updateReadbackLimit() {
   QSize views;  // empty = nobody reported a size: unlimited

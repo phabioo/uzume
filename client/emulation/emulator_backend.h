@@ -45,11 +45,13 @@ struct RenderInfo {
   QString api;               // active hardware API, e.g. "OpenGL 4.6 Core"; empty for software
   QString gpu;               // "<renderer> · Driver <version>"; empty for software
   QString fallbackReason;    // set when hardware was requested but software runs, see kFallback* below
+  bool vulkan = false;       // hwActive runs on Vulkan (readback only: no GL texture targets, ADR 0034)
 };
 inline constexpr char kFallbackDisabled[] = "disabled by UZUME_DISABLE_HW_RENDER";
 inline constexpr char kFallbackNoContext[] = "no OpenGL 3.3 context";
 inline constexpr char kFallbackNoFramebuffer[] = "framebuffer creation failed";
 inline constexpr char kFallbackUnsupported[] = "core asked for an unsupported context";
+inline constexpr char kFallbackNoVulkan[] = "no Vulkan device";
 
 // Values correspond to RETRO_DEVICE_ID_JOYPAD_*; bitmask = 1u << value.
 enum class JoypadButton : unsigned {
@@ -97,6 +99,10 @@ class EmulatorBackend {
   // The core only works with hardware rendering (OpenGL Core >= 3.3, e.g. Azahar): loadGame() then fails with a clear
   // error instead of letting the core run in an unusable software mode. Call BEFORE loadGame.
   virtual void setRequireHwRender(bool required) { Q_UNUSED(required); }
+  // Renderer the user prefers for hardware-rendered cores: "opengl" (default) or "vulkan" (ADR 0034). It decides what
+  // GET_PREFERRED_HW_RENDER answers; a core that asks for a specific API is served that API when it is available.
+  // UZUME_RENDERER overrides it. Call BEFORE loadCore. Default: ignored.
+  virtual void setPreferredRenderer(const QString& renderer) { Q_UNUSED(renderer); }
 
   virtual bool loadGame(const QString& path, QString* error = nullptr) = 0;
   virtual void unloadGame() = 0;

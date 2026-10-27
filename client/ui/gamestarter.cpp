@@ -374,7 +374,9 @@ void GameStarter::onSaveReady(const QString& gameId, const QString& saveDir, con
 #endif
   // Manifest defaults < user overrides (game > system/core > global) < firmware mode of the Hub (builtin | native +
   // files) < manifest-locked options (screen layout, OSD off; the render mode is a user choice, default software): Uzume stays in control of those.
-  cfg.coreOptions = emu::launchCoreOptions(*man, emulation_->launchOverrides(man->systemId, launchGame_.id), fwOptions_);
+  const QString renderer = emulation_->settings()->renderer(man->systemId, launchGame_.id);  // ADR 0034
+  cfg.coreOptions = emu::launchCoreOptions(*man, emulation_->launchOverrides(man->systemId, launchGame_.id), fwOptions_, renderer);
+  cfg.preferredRenderer = renderer;
   cfg.display = man->display;
   cfg.requireHwRender = man->requiresHwRender;
   {

@@ -23,3 +23,6 @@ libopus-dev
 qt6-websockets-dev
 libssl-dev
 pkg-config
+# Vulkan hardware rendering tests (ADR 0034): headers for the build (the loader is opened at runtime), lavapipe as the CPU device
+libvulkan-dev
+mesa-vulkan-drivers

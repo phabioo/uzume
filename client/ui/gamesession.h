@@ -93,6 +93,7 @@ class GameSession : public QObject {
     QString saveDir;
     QMap<QString, QString> coreOptions;
     bool requireHwRender = false;  // core profile: no start without hardware rendering
+    QString preferredRenderer;     // uzume.renderer resolved game > system > global: "opengl" | "vulkan" (ADR 0034)
     emu::DisplayProfile display;
     // Speed-up settings (uzume.speedup_*), resolved game > system > global by the caller.
     double speedUpRatio = emu::EmulationRunner::kDefaultSpeedUpRatio;

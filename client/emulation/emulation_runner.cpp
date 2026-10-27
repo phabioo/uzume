@@ -101,6 +101,7 @@ class EmulationRunner::Worker : public QThread {
     // Directories before loadCore (cores already read them in retro_set_environment).
     be.setSystemDirectory(m_req.systemDir);
     be.setSaveDirectory(m_req.saveDir);
+    be.setPreferredRenderer(m_req.preferredRenderer);
     bool ok = be.loadCore(m_req.corePath, &err);
     if (ok) {
       for (auto it = m_req.coreOptions.cbegin(); it != m_req.coreOptions.cend(); ++it) be.setCoreOption(it.key(), it.value());
