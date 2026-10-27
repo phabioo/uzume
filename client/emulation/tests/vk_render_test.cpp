@@ -6,6 +6,9 @@
 #include <QTemporaryDir>
 #include <QtTest>
 
+#include <atomic>
+
+#include "emulation_runner.h"
 #include "hw_render.h"
 #include "libretro_backend.h"
 #include "third_party/libretro/libretro.h"
@@ -28,6 +31,13 @@ struct EnvGuard {  // sets an environment variable for the lifetime of the guard
     else qunsetenv(name.constData());
   }
 };
+
+std::atomic<int> g_retries{0};  // "starting again with OpenGL" lines of the runner
+QtMessageHandler g_prevHandler = nullptr;
+void countingHandler(QtMsgType t, const QMessageLogContext& c, const QString& m) {
+  if (m.contains(QLatin1String("starting again with OpenGL"))) ++g_retries;
+  if (g_prevHandler) g_prevHandler(t, c, m);
+}
 
 int coreState(int what) {  // the test core's own counters (the library is already loaded in this process)
   QLibrary lib(QStringLiteral(FB_TEST_CORE_PATH));
@@ -74,8 +84,146 @@ class VkRenderTest : public QObject {
     QVERIFY(QDir().mkpath(m_dirs.filePath(QStringLiteral("system"))));
     QVERIFY(QDir().mkpath(m_dirs.filePath(QStringLiteral("save"))));
     VkRenderContext::setUnavailableForTest(false);
+    g_prevHandler = qInstallMessageHandler(countingHandler);
   }
-  void cleanup() { VkRenderContext::setUnavailableForTest(false); }
+  void cleanup() {
+    VkRenderContext::setUnavailableForTest(false);
+    VkRenderContext::setHighestApiForTest(0);
+    VkRenderContext::setCreateFailsForTest(false);
+    EmulationRunner::resetVulkanFailuresForTest();
+  }
+
+  void apiVersionHelpers() {
+    const unsigned v10 = 1u << 22, v11 = v10 | (1u << 12), v13 = v10 | (3u << 12);
+    QCOMPARE(VkRenderContext::normalizeApiVersion(0), v10);
+    QCOMPARE(VkRenderContext::normalizeApiVersion(1), v10);
+    QCOMPARE(VkRenderContext::normalizeApiVersion(2), 2u << 22);
+    QCOMPARE(VkRenderContext::normalizeApiVersion(v13), v13);
+    QVERIFY(VkRenderContext::apiSatisfied(v11, v13));
+    QVERIFY(VkRenderContext::apiSatisfied(v13, v13));
+    QVERIFY(!VkRenderContext::apiSatisfied(v13, v11));
+    QVERIFY(!VkRenderContext::apiSatisfied(2, v13));  // plain major 2
+    QVERIFY(VkRenderContext::apiSatisfied(1, v11));
+    QVERIFY(VkRenderContext::apiSatisfied(v13, 0));  // unknown highest never refuses
+    VkRenderContext::setHighestApiForTest(v11);
+    QCOMPARE(VkRenderContext::highestUsableApi(), v11);
+    VkRenderContext::setHighestApiForTest(0);
+    QVERIFY(VkRenderContext::highestUsableApi() >= v10);  // probed in main()
+  }
+
+  // ---- Vulkan start fails, OpenGL takes over (ADR 0034)
+ private:
+  // Runs the game through EmulationRunner like the app: renderer vulkan, the core requires hardware rendering.
+  struct RunnerResult {
+    bool started = false;
+    QString error;
+    RenderInfo ri;
+    QSize frame;
+  };
+  RunnerResult runViaRunner(bool withFallback = true) {
+    RunnerResult out;
+    EmulationRunner runner(std::make_unique<LibretroBackend>());
+    QSignalSpy started(&runner, &EmulationRunner::started);
+    QSignalSpy failed(&runner, &EmulationRunner::startFailed);
+    QSignalSpy frames(&runner, &EmulationRunner::frameReady);
+    EmulationRunner::StartRequest req;
+    req.corePath = QStringLiteral(FB_TEST_CORE_PATH);
+    req.gamePath = QStringLiteral(FB_TEST_ROM_PATH);
+    req.systemDir = m_dirs.filePath(QStringLiteral("system"));
+    req.saveDir = m_dirs.filePath(QStringLiteral("save"));
+    req.coreOptions = {{QStringLiteral("test_render_mode"), QStringLiteral("vulkan")}};
+    req.requireHwRender = true;
+    req.preferredRenderer = QStringLiteral("vulkan");
+    if (withFallback) req.openglFallbackOptions = {{QStringLiteral("test_render_mode"), QStringLiteral("opengl")}};
+    runner.start(req);
+    QTest::qWait(50);
+    for (int i = 0; i < 400 && started.isEmpty() && failed.isEmpty(); ++i) QTest::qWait(50);
+    out.started = !started.isEmpty();
+    if (!failed.isEmpty()) out.error = failed.first().first().toString();
+    if (out.started) {
+      for (int i = 0; i < 100 && frames.count() < 3; ++i) QTest::qWait(20);
+      out.ri = runner.renderInfo();
+      if (!frames.isEmpty()) out.frame = frames.last().first().value<QImage>().size();
+    }
+    runner.stop();
+    return out;
+  }
+  bool glUsable() {
+    LibretroBackend be;
+    QString err;
+    const bool ok = start(be, QStringLiteral("opengl"), &err) && be.renderInfo().hwActive;
+    be.unloadCore();
+    return ok;
+  }
+
+ private slots:
+  void impossibleVersionStartsWithOpenGl() {
+    if (!glUsable()) QSKIP("no OpenGL context here");
+    EnvGuard g("FB_TEST_CORE_VK_VERSION", "1.99");
+    {  // without fallback options the start fails as before
+      const RunnerResult none = runViaRunner(false);
+      QVERIFY(!none.started);
+      EmulationRunner::resetVulkanFailuresForTest();
+    }
+    g_retries = 0;
+    const RunnerResult r = runViaRunner();
+    QVERIFY2(r.started, qPrintable(r.error));
+    QCOMPARE(g_retries.load(), 1);
+    QVERIFY(r.ri.hwActive);
+    QVERIFY(!r.ri.vulkan);
+    QVERIFY(r.ri.api.startsWith(QLatin1String("OpenGL")));
+    QVERIFY2(r.ri.vulkanFallback.contains(QLatin1String("Vulkan 1.99 needed")), qPrintable(r.ri.vulkanFallback));
+    QVERIFY(r.ri.vulkanFallback.contains(QLatin1String("available")));
+    QCOMPARE(r.frame, QSize(tc::kWidth, tc::kHeight));
+  }
+
+  void failedContextCreationStartsWithOpenGl() {
+    if (!glUsable()) QSKIP("no OpenGL context here");
+    VkRenderContext::setCreateFailsForTest(true);
+    const RunnerResult r = runViaRunner();
+    QVERIFY2(r.started, qPrintable(r.error));
+    QVERIFY(r.ri.hwActive && !r.ri.vulkan);
+    QVERIFY(!r.ri.vulkanFallback.isEmpty());
+  }
+
+  void secondStartSkipsVulkan() {
+    if (!glUsable()) QSKIP("no OpenGL context here");
+    EnvGuard g("FB_TEST_CORE_VK_VERSION", "1.99");
+    g_retries = 0;
+    QVERIFY(runViaRunner().started);
+    QCOMPARE(g_retries.load(), 1);  // the failed Vulkan load, then the OpenGL load
+    g_retries = 0;
+    // The second start loads the core once: no failed Vulkan load in front of it.
+    const RunnerResult r = runViaRunner();
+    QVERIFY2(r.started, qPrintable(r.error));
+    QVERIFY(r.ri.hwActive && !r.ri.vulkan);
+    QVERIFY(r.ri.vulkanFallback.contains(QLatin1String("Vulkan 1.99 needed")));
+    QCOMPARE(g_retries.load(), 0);  // straight to OpenGL: no failed Vulkan load
+  }
+
+  void coreRetryingWithOpenGlNeedsNoRunnerRetry() {
+    if (!glUsable()) QSKIP("no OpenGL context here");
+    EnvGuard g("FB_TEST_CORE_VK_VERSION", "1.99");
+    EnvGuard g2("FB_TEST_CORE_VK_RETRY_GL", "1");
+    g_retries = 0;
+    const RunnerResult r = runViaRunner();
+    QVERIFY2(r.started, qPrintable(r.error));
+    QVERIFY(r.ri.hwActive && !r.ri.vulkan);
+    QCOMPARE(g_retries.load(), 0);  // one load only
+    QVERIFY(r.ri.vulkanFallback.contains(QLatin1String("Vulkan 1.99 needed")));
+    // nothing was remembered: the next start tries Vulkan again (and is refused again, cheaply)
+    const RunnerResult r2 = runViaRunner();
+    QVERIFY2(r2.started, qPrintable(r2.error));
+    QCOMPARE(g_retries.load(), 0);
+  }
+
+  void usableVulkanVersionStillUsesVulkan() {
+    EnvGuard g("FB_TEST_CORE_VK_VERSION", "1.1");
+    const RunnerResult r = runViaRunner();
+    QVERIFY2(r.started, qPrintable(r.error));
+    QVERIFY(r.ri.vulkan);
+    QVERIFY(r.ri.vulkanFallback.isEmpty());
+  }
 
   void describeHelpers() {
     QCOMPARE(VkRenderContext::describeApi((1u << 22) | (3u << 12) | 275u), QStringLiteral("Vulkan 1.3"));

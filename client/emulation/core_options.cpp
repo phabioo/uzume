@@ -163,6 +163,13 @@ bool isLockedCoreOption(const SystemManifest& manifest, const QString& key) {
   return false;
 }
 
+QMap<QString, QString> openglFallbackOptions(const SystemManifest& manifest, const QString& renderer) {
+  if (renderer != QLatin1String("vulkan") || manifest.rendererOption.isEmpty()) return {};
+  const auto it = manifest.rendererValues.constFind(QStringLiteral("opengl"));
+  if (it == manifest.rendererValues.constEnd()) return {};
+  return {{manifest.rendererOption, it.value()}};
+}
+
 QMap<QString, QString> launchCoreOptions(const SystemManifest& manifest, const QMap<QString, QString>& userOverrides,
                                          const QMap<QString, QString>& firmwareOptions, const QString& renderer) {
   QMap<QString, QString> out = manifest.coreOptions;

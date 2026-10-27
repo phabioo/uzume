@@ -45,6 +45,9 @@ class LibretroBackend final : public EmulatorBackend {
 
   void setRequireHwRender(bool required) override { m_requireHw = required; }
   void setPreferredRenderer(const QString& renderer) override { m_preferredRenderer = renderer; }
+  bool vulkanAttemptFailed() const override { return m_vkFailed; }
+  QString vulkanFailureReason() const override { return m_vkFailReason; }
+  void setVulkanFallbackNote(const QString& reason) override { m_vkNote = reason; }
   bool loadGame(const QString& path, QString* error = nullptr) override;
   void unloadGame() override;
   bool isGameLoaded() const override;
@@ -184,6 +187,9 @@ class LibretroBackend final : public EmulatorBackend {
   std::unique_ptr<HwRenderContext> m_hw;
   std::unique_ptr<VkRenderContext> m_vk;  // Vulkan next to OpenGL (ADR 0034); m_hwActive stays OpenGL-only
   bool m_vkActive = false;                // SET_HW_RENDER accepted with Vulkan (context created in finishHwSetup)
+  bool m_vkFailed = false;                // a Vulkan attempt of this load failed (reset by loadCore); GET_PREFERRED then says OpenGL
+  QString m_vkFailReason;
+  QString m_vkNote;                       // Vulkan is off for this backend (retry after a failure); also the diagnostics reason
   int m_vkProbe = -1;                     // -1 unknown, 0 none, 1 a Vulkan device exists
   QString m_preferredRenderer = QStringLiteral("opengl");
   // Core's hardware callbacks (copied from retro_hw_render_callback).

@@ -49,6 +49,10 @@ class EmulationRunner : public QObject {
     QMap<QString, QString> coreOptions;  // e.g. manifest defaults, set before the game starts
     bool requireHwRender = false;        // core profile "requires_hw_render": start fails without an OpenGL context
     QString preferredRenderer;           // "opengl" (default, also when empty) | "vulkan" (ADR 0034); UZUME_RENDERER overrides
+    // Core options that switch the core to OpenGL (core profile "renderer" mapping), set only when Vulkan is the chosen
+    // renderer. When the Vulkan start fails (API version above the system's, no device, device creation failed) the
+    // runner starts the core once more with the preferred renderer "opengl" and these options overlaid; empty = no retry.
+    QMap<QString, QString> openglFallbackOptions;
     // Speed-up (fast-forward) settings: chosen speed, start sped up (if the core allows it), audio during speed-up.
     double speedUpRatio = kDefaultSpeedUpRatio;
     bool speedUpOnStart = false;
@@ -153,6 +157,8 @@ class EmulationRunner : public QObject {
   // (kStopTimeoutMs): a core that hangs while unloading is logged and abandoned (the save was flushed before that).
   void stop();
   static constexpr int kStopTimeoutMs = 10000;
+  // Cores whose Vulkan start failed in this app run (key: core path): their next start goes straight to OpenGL.
+  static void resetVulkanFailuresForTest();
   static std::atomic<int> stopTimeoutMsForTest;  // tests only: overrides kStopTimeoutMs when > 0
   // After stop(): why the final battery save write failed (progress may be lost); empty = saved or nothing to save.
   QString finalSaveError() const { return m_finalSaveError; }

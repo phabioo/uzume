@@ -41,6 +41,10 @@ bool isLockedCoreOption(const SystemManifest& manifest, const QString& key);
 // Core options at launch: manifest defaults < user overrides (already merged game > system > global, only explicit
 // values; "uzume.*" keys are ignored) < firmware options < locked manifest values < the renderer core option of the
 // core profile ("renderer": {"option", "values"}, ADR 0034) for `renderer` ("opengl" | "vulkan"; empty = leave as is).
+// Core options that put a core on OpenGL when its Vulkan start fails (ADR 0034): the profile's renderer option with its
+// "opengl" value. Empty unless `renderer` is "vulkan" and the profile maps both options.
+QMap<QString, QString> openglFallbackOptions(const SystemManifest& manifest, const QString& renderer);
+
 QMap<QString, QString> launchCoreOptions(const SystemManifest& manifest, const QMap<QString, QString>& userOverrides,
                                          const QMap<QString, QString>& firmwareOptions, const QString& renderer = QString());
 

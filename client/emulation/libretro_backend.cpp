@@ -229,7 +229,10 @@ bool LibretroBackend::loadCore(const QString& libraryPath, QString* error) {
   {
     QMutexLocker l(&m_renderMutex);
     m_render = RenderInfo{};
+    m_render.vulkanFallback = m_vkNote;
   }
+  m_vkFailed = false;
+  m_vkFailReason.clear();
   {
     QMutexLocker l(&m_optMutex);
     m_options.clear();
@@ -268,7 +271,7 @@ void LibretroBackend::unloadCore() {
   m_lib.unload();
   m_coreLoaded = false;
   s_active.store(nullptr);
-  m_hw.reset();
+  if (!m_vkFailed) m_hw.reset();  // after a failed Vulkan start the OpenGL retry reuses the offscreen surface (made on the GUI thread)
   m_vk.reset();
 }
 
@@ -732,6 +735,7 @@ bool LibretroBackend::setupHwRender(void* data) {
 }
 
 bool LibretroBackend::vulkanPreferred() const {
+  if (m_vkFailed || !m_vkNote.isEmpty()) return false;  // Vulkan did not work for this game: the core is served OpenGL
   const QString env = uzume::env::get("UZUME_RENDERER").trimmed().toLower();
   if (env == QLatin1String("vulkan")) return true;
   if (env == QLatin1String("opengl")) return false;
@@ -758,9 +762,27 @@ bool LibretroBackend::setupVulkan(void* data) {
     fallback(uzume::env::get("UZUME_DISABLE_HW_RENDER") == QLatin1String("1") ? kFallbackDisabled : kFallbackNoContext);
     return false;
   }
+  if (!m_vkNote.isEmpty()) {  // retry after a failed Vulkan attempt: OpenGL only
+    qCInfo(lcCore) << "Vulkan is off for this start; the core is not served Vulkan";
+    return false;
+  }
   if (!VkRenderContext::compiledIn() || !vulkanAvailable()) {
     qCInfo(lcCore) << "No Vulkan device; core falls back to software";
+    m_vkFailed = true;
+    m_vkFailReason = QString::fromLatin1(kFallbackNoVulkan);
     fallback(kFallbackNoVulkan);
+    return false;
+  }
+  const unsigned highest = VkRenderContext::highestUsableApi();
+  if (!VkRenderContext::apiSatisfied(cb->version_major, highest)) {
+    const QString need = VkRenderContext::describeApi(VkRenderContext::normalizeApiVersion(cb->version_major));
+    const QString have = VkRenderContext::describeApi(highest);
+    m_vkFailed = true;
+    m_vkFailReason = QStringLiteral("%1 needed, %2 available").arg(need, have.mid(QStringLiteral("Vulkan ").size()));
+    qCInfo(lcCore).noquote() << QStringLiteral("Core needs %1, this system offers %2; Vulkan refused")
+                                    .arg(need, have);
+    QMutexLocker l(&m_renderMutex);
+    m_render.vulkanFallback = m_vkFailReason;
     return false;
   }
   if (!m_vk) m_vk = std::make_unique<VkRenderContext>();
@@ -789,7 +811,10 @@ bool LibretroBackend::finishHwSetup(unsigned maxWidth, unsigned maxHeight, QStri
     if (!m_vk->create(&err)) {
       qCWarning(lcCore).noquote() << "Vulkan context could not be created:" << err;
       if (error) *error = QStringLiteral("Vulkan hardware rendering could not be started: %1").arg(err);
+      m_vkFailed = true;
+      m_vkFailReason = err;
       QMutexLocker l(&m_renderMutex);
+      m_render.vulkanFallback = err;
       m_render.hwActive = false;
       m_render.fallbackReason = QString::fromLatin1(kFallbackNoVulkan);
       return false;

@@ -10,6 +10,8 @@
 //     none), GET_HW_RENDER_INTERFACE, an own B8G8R8A8 image (FB_TEST_CORE_VK_FORMAT=rgba: R8G8B8A8) filled by a buffer copy
 //     with the same quadrants as the OpenGL mode plus a moving cyan marker (vkMarkerX in test_core_layout.h), set_image +
 //     video_refresh(VALID). Own queue submit by default, FB_TEST_CORE_VK_CMDBUFS=1 uses set_command_buffers,
+//     FB_TEST_CORE_VK_VERSION=<major>.<minor> asks for that Vulkan version (1.99: impossible), FB_TEST_CORE_VK_RETRY_GL=1 retries
+//     a refused SET_HW_RENDER with OpenGL Core itself,
 //     FB_TEST_CORE_VK_LAYOUT=general hands the image over in VK_IMAGE_LAYOUT_GENERAL. Also falls back to software when
 //     the frontend rejects SET_HW_RENDER. uzume_test_core_vk_state() reports what the frontend exercised;
 //   - 800 (or rate/fps) stereo audio frames per retro_run;
@@ -944,6 +946,10 @@ FB_EXPORT bool retro_load_game(const retro_game_info* info) {
     std::memset(&g_hwCb, 0, sizeof g_hwCb);
     g_hwCb.context_type = RETRO_HW_CONTEXT_VULKAN;
     g_hwCb.version_major = VK_MAKE_VERSION(1, 1, 0);
+    if (const char* ver = std::getenv("FB_TEST_CORE_VK_VERSION")) {  // "<major>.<minor>": asks for a Vulkan version, e.g. 1.99
+      unsigned maj = 0, mnr = 0;
+      if (std::sscanf(ver, "%u.%u", &maj, &mnr) == 2) g_hwCb.version_major = VK_MAKE_VERSION(maj, mnr, 0);
+    }
     g_hwCb.version_minor = 0;
     g_hwCb.context_reset = vkc::contextReset;
     g_hwCb.context_destroy = vkc::contextDestroy;
@@ -957,7 +963,7 @@ FB_EXPORT bool retro_load_game(const retro_game_info* info) {
   }
 #endif
   // OpenGL render mode: hardware frames; when the frontend rejects SET_HW_RENDER the core falls back to software.
-  if (!g_hw && wantGl) {
+  if (!g_hw && (wantGl || (wantVk && envSet("FB_TEST_CORE_VK_RETRY_GL")))) {  // the latter: a core that retries with OpenGL itself
     g_scale = scaleFromOption();
     std::memset(&g_hwCb, 0, sizeof g_hwCb);
     g_hwCb.context_type = RETRO_HW_CONTEXT_OPENGL_CORE;

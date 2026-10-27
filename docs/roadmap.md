@@ -66,7 +66,6 @@ Tests only Fabio can do at the end: audio on Windows (volume, mute, mute in back
 ## 0.24 leftovers
 
 - Vulkan has no zero-copy display or GPU-direct encode; frames are read back.
-- A core that requires a Vulkan API version above the loader's fails the game start instead of falling back.
 - The debug MCP `settings_get` does not list emulation settings.
 - The AppImage is unsigned and needs glibc 2.38 or newer.
 

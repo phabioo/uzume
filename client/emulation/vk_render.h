@@ -30,6 +30,19 @@ class VkRenderContext {
   static void setUnavailableForTest(bool unavailable);
   // A Vulkan loader and at least one physical device exist (creates and destroys a temporary instance).
   static bool probe(QString* why = nullptr);
+  // Highest packed Vulkan API version a core can get on this system: the maximum over the physical devices of
+  // min(loader instance version, device apiVersion). Cached by probe(); 0 before a successful probe and without Vulkan.
+  static unsigned highestUsableApi();
+  // Tests: forces highestUsableApi() to report `packedVersion` (0 = off, report the probed value).
+  static void setHighestApiForTest(unsigned packedVersion);
+  // Tests: makes create() fail (with a Vulkan device present) as if the device could not be created.
+  static void setCreateFailsForTest(bool fails);
+  // Pure: a retro_hw_render_callback::version_major value (packed VK_MAKE_VERSION, or a plain major number where 1 =
+  // Vulkan 1.0) as a packed version, at least Vulkan 1.0. Same rule as setRequiredApiVersion.
+  static unsigned normalizeApiVersion(unsigned versionMajor);
+  // Pure: the system can serve a core that asks for `versionMajor` when `highest` (packed) reaches it. highest 0 = unknown
+  // and never refuses.
+  static bool apiSatisfied(unsigned versionMajor, unsigned highest);
 
   // Pure helpers: packed VkPhysicalDeviceProperties::apiVersion -> "Vulkan 1.3"; device name + vendor id + packed driver
   // version -> "<name> · Driver <version>" (NVIDIA uses its own bit layout).

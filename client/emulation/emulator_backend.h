@@ -46,6 +46,7 @@ struct RenderInfo {
   QString gpu;               // "<renderer> · Driver <version>"; empty for software
   QString fallbackReason;    // set when hardware was requested but software runs, see kFallback* below
   bool vulkan = false;       // hwActive runs on Vulkan (readback only: no GL texture targets, ADR 0034)
+  QString vulkanFallback;    // Vulkan was requested but could not start, so OpenGL (or software) runs: why, e.g. "Vulkan 1.3 needed, 1.1 available"
 };
 inline constexpr char kFallbackDisabled[] = "disabled by UZUME_DISABLE_HW_RENDER";
 inline constexpr char kFallbackNoContext[] = "no OpenGL 3.3 context";
@@ -103,6 +104,14 @@ class EmulatorBackend {
   // GET_PREFERRED_HW_RENDER answers; a core that asks for a specific API is served that API when it is available.
   // UZUME_RENDERER overrides it. Call BEFORE loadCore. Default: ignored.
   virtual void setPreferredRenderer(const QString& renderer) { Q_UNUSED(renderer); }
+  // Vulkan was requested for this game but could not start (ADR 0034): the core asked for an API version the system lacks,
+  // no device exists, or the device could not be created. Set by loadCore/loadGame, valid after a failed loadGame (until
+  // the next loadCore). Default: never.
+  virtual bool vulkanAttemptFailed() const { return false; }
+  virtual QString vulkanFailureReason() const { return {}; }
+  // Switches Vulkan off for this backend (a retry after a failed Vulkan attempt): the core is served OpenGL only, and the
+  // render info says `reason` as RenderInfo::vulkanFallback. Empty re-enables Vulkan. Call BEFORE loadCore.
+  virtual void setVulkanFallbackNote(const QString& reason) { Q_UNUSED(reason); }
 
   virtual bool loadGame(const QString& path, QString* error = nullptr) = 0;
   virtual void unloadGame() = 0;
