@@ -427,6 +427,9 @@ class PlayerController : public QObject {
   // view, else asks the window to show the plugin screen sheet (pluginScreenRequested). Plugins have no sidebar entry.
   Q_INVOKABLE void openPluginScreen(const QString& pluginId);
   Q_INVOKABLE void showRuns();  // Runs screen (docs/design/legacy/plugins.md 4j-2)
+  // `uzume://run/<server>/<run id>/recap` (from the command line or the single-instance socket): opens the recap of that run when
+  // the app is connected to that server. True when `link` is a run link (handled, also when it needs a different server).
+  bool openRunLink(const QString& link);
   // Admin area: screen "server" on a tab (overview | people | games | systems | plugins | reports | settings; the old ids
   // status and users are aliases of overview and people; unknown -> overview). Only for admins of a server with admin_v1
   // (otherwise the screen shows the member block); reads the server status again.

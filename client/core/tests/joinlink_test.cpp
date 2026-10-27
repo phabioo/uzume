@@ -113,6 +113,26 @@ class JoinLinkTest : public QObject {
     QVERIFY(!in.ok());
   }
 
+  void runLinks() {
+    const QString id = QStringLiteral("11111111-2222-3333-4444-555555555555");
+    const QString link = makeRunLink(QStringLiteral("https://192.0.2.20:8443/"), id.toUpper());
+    QCOMPARE(link, QStringLiteral("uzume://run/192.0.2.20:8443/") + id + QStringLiteral("/recap"));
+    QCOMPARE(makeRunLink(QStringLiteral("pi.local"), id), QStringLiteral("uzume://run/pi.local:8443/") + id + QStringLiteral("/recap"));
+    const RunLink parsed = parseRunLink(link);
+    QVERIFY(parsed.ok);
+    QCOMPARE(parsed.address, QStringLiteral("192.0.2.20:8443"));
+    QCOMPARE(parsed.runId, id);
+    QVERIFY(parseRunLink(QStringLiteral("UZUME://RUN/pi.local/") + id + QStringLiteral("/Recap/")).ok);
+    QCOMPARE(parseRunLink(QStringLiteral("uzume://run/pi.local/") + id + QStringLiteral("/recap")).address, QStringLiteral("pi.local:8443"));
+    QVERIFY(makeRunLink(QStringLiteral("bad host"), id).isEmpty());
+    QVERIFY(makeRunLink(QStringLiteral("pi.local"), QStringLiteral("not-a-run")).isEmpty());
+    QVERIFY(!parseRunLink(QStringLiteral("uzume://run/pi.local/") + id).ok);                       // no view
+    QVERIFY(!parseRunLink(QStringLiteral("uzume://run/pi.local/") + id + QStringLiteral("/chat")).ok);
+    QVERIFY(!parseRunLink(QStringLiteral("uzume://run/pi.local/xyz/recap")).ok);
+    QVERIFY(!parseRunLink(QStringLiteral("uzume://join/pi.local/UZ-8XK2-M4QD")).ok);
+    QVERIFY(!parseRunLink(QStringLiteral("pi.local")).ok);
+  }
+
   void makeLinkRoundTrips() {
     const QString link = makeJoinLink(QStringLiteral("https://192.0.2.20:8443/"), QStringLiteral("uz 8xk2 m4qd"), kFp);
     QCOMPARE(link, QStringLiteral("uzume://join/192.0.2.20:8443/UZ-8XK2-M4QD#") + plainFp());

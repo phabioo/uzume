@@ -1,8 +1,12 @@
 // Runs in the Player UI (docs/design/legacy/plugins.md 4j-2, 0.18 package 9): the sidebar entry (the Hub announces runs_v1; no plugin
-// needed), the invite card with the game picker, the run view in tabs (Board, Log, one tab per plugin with a screen), status
+// needed), the invite card with the game picker, the run view in tabs (Board, Recap, Log, one tab per plugin with a screen), status
 // actions, "Start a run" (Rules: None or a plugin), and "Play run" (Hub copies of the run's plugins, the run's own save slot).
 // Synthetic plugins and a fake Hub only. With UZUME_SCREENSHOT_DIR=<dir> the views are also saved as PNGs (dark and light) for the review.
+#include <QClipboard>
 #include <QDir>
+#include <QGuiApplication>
+#include <QQuickItemGrabResult>
+#include <QTemporaryDir>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QSignalSpy>
@@ -11,6 +15,7 @@
 #include "fakehub.h"
 #include "keyedrowsmodel.h"
 #include "fbplugin_testutil.h"
+#include "runrecapcontroller.h"
 #include "runscontroller.h"
 #include "savehistorycontroller.h"
 #include "runtypes.h"
@@ -101,6 +106,7 @@ class RunsUiTest : public QObject {
     spec.id = kPluginId;
     spec.name = "Run Notes";
     spec.permissions = {"run.state"};
+    spec.recap = QJsonArray{QJsonObject{{"type", "tide.catch"}, {"glyph", "catch"}}, QJsonObject{{"type", "tide.badge"}, {"glyph", "badge"}}};
     const QByteArray file = makeFbPlugin(spec);
     const QString sha = sha256Hex(file);
     hub.pluginList.append(QJsonObject{{"plugin_id", spec.id}, {"version", spec.version}, {"name", spec.name}, {"description", "Notes for runs"}, {"api", 1},
@@ -193,6 +199,85 @@ class RunsUiTest : public QObject {
     QVERIFY(h.item("runEventsTitle")->isVisible());
     QVERIFY(h.click("tab_Board"));
     QTRY_VERIFY(h.item("runBoardTab")->isVisible());
+
+    // Recap (0.22, board 4jh-app-2): a run without events of the plugin shows the empty state; mapped events of the plugin (the
+    // pinned Hub copy's `recap` block) become glyphs, the tiles count them, Share link / HTML / image export work.
+    {
+      RunRecapController* recap = runs->recap();
+      QVERIFY(h.item("tab_Recap") != nullptr);
+      QVERIFY(h.click("tab_Recap"));
+      QTRY_VERIFY(h.item("runRecapTab")->isVisible() && !h.item("runBoardTab")->isVisible());
+      QCOMPARE(runs->runTab(), QStringLiteral("recap"));
+      QTRY_COMPARE_WITH_TIMEOUT(recap->state(), QStringLiteral("ready"), 8000);
+      QVERIFY(recap->recapEmpty());
+      QTRY_VERIFY(h.item("recapEmpty") != nullptr && h.item("recapEmpty")->isVisible());
+      QVERIFY(!h.item("recapSheet")->isVisible());
+      QVERIFY(!h.item("recapExport")->isEnabled());
+      shot(h, QStringLiteral("4jh-app-2-recap-empty"));
+
+      hub.addRunEvent(runId, QStringLiteral("tide.catch"), QStringLiteral("Caught a Tentacool"), hub.runsMe, spec.id, {}, true);
+      hub.addRunEvent(runId, QStringLiteral("tide.catch"), QStringLiteral("Caught a Staryu"), hub.runsMe, spec.id, {}, true);
+      hub.addRunEvent(runId, QStringLiteral("tide.badge"), QStringLiteral("Badge 1"), hub.runsMe, spec.id, {}, true);
+      hub.addRunEvent(runId, QStringLiteral("tide.unmapped"), QStringLiteral("Not shown"), hub.runsMe, spec.id, {}, true);
+      hub.addRunEvent(runId, QStringLiteral("memory.write"), QStringLiteral("Wrote memory"), hub.runsMe, {}, {}, true);
+      QTRY_VERIFY_WITH_TIMEOUT(!recap->recapEmpty() && recap->state() == QLatin1String("ready"), 12000);
+      QTRY_VERIFY(h.item("recapSheet")->isVisible());
+      const QVariantMap model = recap->model();
+      QCOMPARE(model.value("shownEvents").toInt(), 4);  // 2 catches, 1 badge, 1 note
+      const QVariantList tiles = model.value("tiles").toList();
+      QCOMPARE(tiles.at(0).toMap().value("value").toString(), QStringLiteral("2"));
+      QCOMPARE(tiles.at(2).toMap().value("value").toString(), QStringLiteral("1"));
+      QCOMPARE(model.value("lanes").toList().size(), 2);  // one lane per person who joined (Lena has nothing on hers)
+      QVERIFY(h.item("recapTile_catches") != nullptr && h.item("recapTile_catches")->isVisible());
+      QVERIFY(h.item("recapLane_u_test_1") != nullptr);
+      QVERIFY(h.item("recapLegend")->isVisible());
+      QVERIFY(h.item("recapFootnote")->property("text").toString().contains(QStringLiteral("everyone on Home")));
+      QVERIFY(h.item("recapExport")->isEnabled());
+      shot(h, QStringLiteral("4jh-app-2-recap"));
+      h.controller->setAppearance(QStringLiteral("light"));
+      shot(h, QStringLiteral("4jh-app-2-recap-light"));
+      h.controller->setAppearance(QStringLiteral("dark"));
+
+      // Share link: the run's app link goes to the clipboard and a note shows.
+      QCOMPARE(recap->shareLink(), QStringLiteral("uzume://run/") + hub.address().section("://", -1) + QLatin1Char('/') + runId + QStringLiteral("/recap"));
+      QCOMPARE(QGuiApplication::clipboard()->text(), recap->shareLink());
+      QTRY_VERIFY(h.item("recapMessage")->isVisible());
+      QVERIFY(!recap->messageIsError());
+      recap->dismissMessage();
+
+      // Export as HTML and as image.
+      QTemporaryDir out;
+      QVERIFY(out.isValid());
+      const QString htmlPath = out.filePath(QStringLiteral("recap.html"));
+      recap->saveHtml(QUrl::fromLocalFile(htmlPath).toString());
+      QFile html(htmlPath);
+      QVERIFY(html.open(QIODevice::ReadOnly));
+      const QString htmlText = QString::fromUtf8(html.readAll());
+      QVERIFY(htmlText.contains(QStringLiteral("Tide Hardcore")) && !htmlText.contains(QStringLiteral("http")));
+      QVERIFY(recap->suggestedFileName("png").startsWith(QStringLiteral("Tide Hardcore - recap")));
+      QQuickItem* sheet = h.item("recapSheet");
+      QSharedPointer<QQuickItemGrabResult> grab = sheet->grabToImage();
+      QVERIFY(grab);
+      QSignalSpy grabbed(grab.data(), &QQuickItemGrabResult::ready);
+      QVERIFY(grabbed.wait(8000));
+      QVERIFY(!uitest::isAllBlack(grab->image()));
+      const QString pngPath = out.filePath(QStringLiteral("recap.png"));
+      recap->saveImage(QVariant::fromValue(grab->image()), pngPath);
+      QVERIFY(QImage(pngPath).width() > 100);
+      QVERIFY(!recap->messageIsError());
+      recap->saveImage(QVariant(), pngPath);  // nothing grabbed: an error note, no crash
+      QVERIFY(recap->messageIsError());
+      recap->dismissMessage();
+
+      // Error state with a retry.
+      recap->load(QStringLiteral("00000000-0000-4000-8000-000000000000"));
+      QTRY_COMPARE(recap->state(), QStringLiteral("error"));
+      QTRY_VERIFY(h.item("recapError")->isVisible());
+      recap->load(runId);
+      QTRY_COMPARE_WITH_TIMEOUT(recap->state(), QStringLiteral("ready"), 8000);
+      QVERIFY(h.click("tab_Board"));
+      QTRY_VERIFY(h.item("runBoardTab")->isVisible());
+    }
 
     // Status: the creator starts the run; any member can pause and resume it.
     QVERIFY(!menuHas(h, "start"));  // not the creator
@@ -455,13 +540,14 @@ class RunsUiTest : public QObject {
     QCOMPARE(sec.value("slot").toString(), QStringLiteral("screen"));
     QTRY_COMPARE_WITH_TIMEOUT(pc->runSections().at(0).toMap().value("tree").toMap().value("text").toString(), QStringLiteral("screen true"), 10000);
 
-    // Tabs: Board, Log, then the plugin tab, with the badge.
+    // Tabs: Board, Recap, Log, then the plugin tab, with the badge.
     QTRY_VERIFY(h.item("runTabs") != nullptr && h.item("runTabs")->isVisible());
     const QVariantList opts = h.item("runTabs")->property("items").toList();
-    QCOMPARE(opts.size(), 3);
+    QCOMPARE(opts.size(), 4);
     QCOMPARE(opts.at(0).toString(), QStringLiteral("Board"));
-    QCOMPARE(opts.at(1).toString(), QStringLiteral("Log"));
-    QCOMPARE(opts.at(2).toString(), QStringLiteral("Pairs"));
+    QCOMPARE(opts.at(1).toString(), QStringLiteral("Recap"));
+    QCOMPARE(opts.at(2).toString(), QStringLiteral("Log"));
+    QCOMPARE(opts.at(3).toString(), QStringLiteral("Pairs"));
     QTRY_COMPARE(h.item("tabCountText_Pairs")->property("text").toString(), QStringLiteral("3"));  // the badge sits on the tab
     QCOMPARE(runs->runTab(), QStringLiteral("board"));
 
@@ -484,7 +570,7 @@ class RunsUiTest : public QObject {
     QVERIFY(h.click("tab_Log"));
     QTRY_COMPARE(runs->runTab(), QStringLiteral("log"));
     QTRY_VERIFY(h.item("runLogTab")->isVisible());
-    QCOMPARE(h.item("runTabs")->property("items").toList().size(), 2);
+    QCOMPARE(h.item("runTabs")->property("items").toList().size(), 3);
     QVERIFY(h.item("tab_Pairs") == nullptr);
   }
 

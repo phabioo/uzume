@@ -152,7 +152,49 @@ ManifestResult fail(const QString& msg) {
   return r;
 }
 
+// `recap`: a list of {type, glyph}. Anything that is not valid is a warning and skipped; the manifest still loads.
+void parseRecap(const QJsonValue& v, Manifest& m) {
+  if (v.isUndefined() || v.isNull()) return;
+  if (!v.isArray()) {
+    m.warnings << QStringLiteral("recap: ignored, it must be a list of {type, glyph}");
+    return;
+  }
+  static const QRegularExpression typeRe(QStringLiteral("^[a-z0-9_.-]{1,64}$"));
+  const QJsonArray arr = v.toArray();
+  if (arr.size() > kMaxRecapEntries)
+    m.warnings << QStringLiteral("recap: only the first %1 of %2 entries are used").arg(kMaxRecapEntries).arg(arr.size());
+  std::set<QString> seen;
+  for (qsizetype i = 0; i < arr.size() && i < kMaxRecapEntries; ++i) {
+    const QJsonValue ev = arr.at(i);
+    if (!ev.isObject()) {
+      m.warnings << QStringLiteral("recap[%1]: ignored, not an object").arg(i);
+      continue;
+    }
+    const QJsonObject o = ev.toObject();
+    const QJsonValue t = o.value(QLatin1String("type"));
+    const QJsonValue g = o.value(QLatin1String("glyph"));
+    if (!t.isString() || !typeRe.match(t.toString()).hasMatch()) {
+      m.warnings << QStringLiteral("recap[%1]: ignored, invalid type").arg(i);
+      continue;
+    }
+    if (!g.isString() || !validRecapGlyph(g.toString())) {
+      m.warnings << QStringLiteral("recap[%1]: ignored, glyph must be catch, lost, badge, note or screenshot").arg(i);
+      continue;
+    }
+    if (!seen.insert(t.toString()).second) {
+      m.warnings << QStringLiteral("recap[%1]: ignored, type %2 is mapped twice").arg(i).arg(t.toString());
+      continue;
+    }
+    m.recap.append({t.toString(), g.toString()});
+  }
+}
+
 }  // namespace
+
+bool validRecapGlyph(const QString& glyph) {
+  return glyph == QLatin1String("catch") || glyph == QLatin1String("lost") || glyph == QLatin1String("badge") ||
+         glyph == QLatin1String("note") || glyph == QLatin1String("screenshot");
+}
 
 std::optional<VersionRange> VersionRange::parse(const QString& textIn) {
   const QString t = textIn.trimmed();
@@ -432,6 +474,8 @@ ManifestResult parseManifest(const QByteArray& json, const QString& pluginDir) {
   const QJsonValue rsV = o.value(QLatin1String("run_settings"));
   if (!rsV.isUndefined() && !rsV.isNull())
     if (const QString e = parseRunSettings(rsV, m.runSettings); !e.isEmpty()) return fail(e);
+
+  parseRecap(o.value(QLatin1String("recap")), m);
 
   const QJsonValue uiV = o.value(QLatin1String("ui"));
   if (!uiV.isUndefined() && !uiV.isNull()) {

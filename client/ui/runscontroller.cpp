@@ -38,6 +38,7 @@ QString statusTone(const QString& s) {
 
 RunsController::RunsController(RunClient* client, PluginsController* plugins, HubLibrary* library, HubConnection* connection, QObject* parent)
     : QObject(parent), client_(client), plugins_(plugins), library_(library), conn_(connection) {
+  recap_ = new RunRecapController(client, plugins, connection, this);
   connect(client, &RunClient::runsChanged, this, &RunsController::scheduleRebuild);
   connect(client, &RunClient::runChanged, this, &RunsController::scheduleRebuild);
   connect(client, &RunClient::eventAdded, this, [this](const QString& id, const RunEvent& e) {
@@ -488,7 +489,10 @@ void RunsController::setBusy(bool busy, const QString& text) {
 // ------------------------------------------------------------------ opening a run
 
 void RunsController::openRun(const QString& runId) {
-  if (openRunId_ != runId.toLower()) setRunTab(QStringLiteral("board"));
+  if (openRunId_ != runId.toLower()) {
+    setRunTab(QStringLiteral("board"));
+    recap_->clear();
+  }
   openRunId_ = runId.toLower();
   client_->catchUp(openRunId_);
   rebuildDetail();
@@ -497,6 +501,7 @@ void RunsController::openRun(const QString& runId) {
 void RunsController::setRunTab(const QString& tab) {
   if (runTab_ == tab) return;
   runTab_ = tab;
+  if (tab == QLatin1String("recap") && !openRunId_.isEmpty()) recap_->load(openRunId_);
   emit runTabChanged();
 }
 
@@ -552,6 +557,7 @@ void RunsController::rebuildRunTabs() {
 
 void RunsController::closeRun() {
   openRunId_.clear();
+  recap_->clear();
   setRunTab(QStringLiteral("board"));
   rebuildDetail();
 }
