@@ -94,6 +94,13 @@ struct RecapModel {
 
 RecapModel buildRecap(const RecapInput& in);
 
+// Groups the glyphs of one lane (QML events as produced by RecapModel::toVariant) that would overlap on a track of `trackWidth`
+// px with glyphs `glyphWidth` px wide: a glyph closer than one glyph width to the first glyph of the open group joins it.
+// Deterministic (events sorted by pos, stable). Each group: pos (of its first event), glyph/glyphChar (of the first), count,
+// extra (count - 1), day, text (one event: its text; several: up to `maxListed` lines "<glyph>: <text>" and "and N more"),
+// tip (tooltip: the text plus the day for one event, the list for a group), name (accessible name).
+QVariantList groupRecapEvents(const QVariantList& events, double trackWidth, double glyphWidth, int maxListed = 5);
+
 // "62 h", "45 min", "1 h 30 min" is not used: hours are rounded, below an hour minutes are shown.
 QString recapDurationText(qint64 seconds);
 // One self-contained HTML file: inline CSS (follows prefers-color-scheme), glyphs as text, no external resource and no script.

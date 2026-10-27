@@ -9,6 +9,7 @@
 #include <QSaveFile>
 #include <QStandardPaths>
 #include <QUrl>
+#include <QtGlobal>
 
 #include "joinlink.h"
 #include "plugin_manager.h"
@@ -47,6 +48,9 @@ RunRecapController::RunRecapController(RunClient* client, PluginsController* plu
   connect(&refreshTimer_, &QTimer::timeout, this, [this] {
     if (state_ == QLatin1String("ready") && !runId_.isEmpty()) load(runId_);
   });
+  messageTimer_.setSingleShot(true);
+  messageTimer_.setInterval(6000);
+  connect(&messageTimer_, &QTimer::timeout, this, [this] { setMessage({}, false); });
   if (client_) {
     connect(client_, &RunClient::eventAdded, this, [this](const QString& id) {
       if (id == runId_ && state_ == QLatin1String("ready")) scheduleRefresh();
@@ -58,6 +62,19 @@ RunRecapController::RunRecapController(RunClient* client, PluginsController* plu
 }
 
 void RunRecapController::scheduleRefresh() { refreshTimer_.start(); }
+
+QVariantList RunRecapController::groupEvents(const QVariantList& events, double trackWidth, double glyphWidth) const {
+  return groupRecapEvents(events, trackWidth, glyphWidth);
+}
+
+// Plain words for the user; the technical text only goes to the log.
+QString RunRecapController::plainError(const QString& technical) {
+  qWarning().noquote() << "run recap: load failed:" << technical;
+  const QString t = technical.toLower();
+  for (const char* k : {"refused", "reach", "timed out", "timeout", "host", "network", "did not answer", "closed", "unreachable", "socket"})
+    if (t.contains(QLatin1String(k))) return tr("The server cannot be reached right now.");
+  return tr("The recap could not be loaded.");
+}
 
 QString RunRecapController::serverName() const { return conn_ ? conn_->hubInfo().name : QString(); }
 
@@ -90,6 +107,11 @@ void RunRecapController::load(const QString& runId) {
   if (id.isEmpty()) return;
   const bool same = id == runId_;
   if (same && state_ == QLatin1String("loading")) return;
+  if (!same) {
+    setMessage({}, false);  // a note about another run does not belong here
+    model_ = RecapModel();
+    modelVariant_.clear();
+  }
   runId_ = id;
   const quint64 gen = ++gen_;
   if (!same || state_ != QLatin1String("ready")) {  // a refresh of what is shown keeps showing it
@@ -98,6 +120,7 @@ void RunRecapController::load(const QString& runId) {
     state_ = QStringLiteral("loading");
   }
   errorText_.clear();
+  staleNotice_.clear();
   emit changed();
   const auto run = client_ ? client_->run(id) : std::nullopt;
   if (!run) {
@@ -124,10 +147,15 @@ void RunRecapController::load(const QString& runId) {
   loader_->load(id, [this, gen, info, maps](const RecapFetch& f) {
     if (gen != gen_) return;
     if (!f.ok) {
-      state_ = QStringLiteral("error");
-      errorText_ = f.error;
-      model_ = RecapModel();
-      modelVariant_.clear();
+      const QString plain = plainError(f.error);
+      if (state_ == QLatin1String("ready")) {  // keep what was loaded for this run, with a notice
+        staleNotice_ = plain;
+      } else {
+        state_ = QStringLiteral("error");
+        errorText_ = plain;
+        model_ = RecapModel();
+        modelVariant_.clear();
+      }
     } else {
       RecapInput in;
       in.run = client_ && client_->run(info.runId) ? *client_->run(info.runId) : info;  // the newest run data (status, play time)
@@ -144,8 +172,9 @@ void RunRecapController::load(const QString& runId) {
 
 void RunRecapController::reload() {
   if (runId_.isEmpty()) return;
+  setMessage({}, false);
   const QString id = runId_;
-  state_ = QStringLiteral("idle");  // forces the loading state
+  if (state_ != QLatin1String("ready")) state_ = QStringLiteral("idle");  // a loaded recap stays shown while it refreshes
   load(id);
 }
 
@@ -157,8 +186,10 @@ void RunRecapController::clear() {
   runId_.clear();
   state_ = QStringLiteral("idle");
   errorText_.clear();
+  staleNotice_.clear();
   model_ = RecapModel();
   modelVariant_.clear();
+  setMessage({}, false);
   emit changed();
 }
 
@@ -166,6 +197,8 @@ void RunRecapController::setMessage(const QString& text, bool error) {
   if (message_ == text && messageIsError_ == error) return;
   message_ = text;
   messageIsError_ = error;
+  if (text.isEmpty()) messageTimer_.stop();
+  else messageTimer_.start();
   emit messageChanged();
 }
 

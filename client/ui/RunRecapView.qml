@@ -38,7 +38,23 @@ ColumnLayout {
     RowLayout {
         Layout.fillWidth: true
         spacing: Theme.space1
-        Item { Layout.fillWidth: true }
+        // Status note: lives in the action row (no extra row), so it never pushes the sheet down.
+        RowLayout {
+            objectName: "recapMessage"
+            visible: root.recap.message !== ""
+            Layout.fillWidth: true
+            spacing: Theme.space2
+            UzStatusIcon {
+                Layout.fillWidth: true
+                Layout.minimumWidth: 0
+                kind: root.recap.messageIsError ? "error" : "done"
+                small: true
+                text: root.recap.message
+                maxWidth: Math.max(0, root.width - 360)
+            }
+            UzButton { kind: "link"; text: qsTr("Dismiss"); onClicked: root.recap.dismissMessage() }
+        }
+        Item { Layout.fillWidth: true; visible: root.recap.message === "" }
         UzButton {
             id: exportButton
             objectName: "recapExport"
@@ -51,7 +67,7 @@ ColumnLayout {
             objectName: "recapShare"
             text: qsTr("Share link")
             destructive: true
-            enabled: root.recap.runId !== ""
+            enabled: root.recap.runId !== "" && !(root.recap.state === "ready" && root.recap.recapEmpty)
             onClicked: root.recap.shareLink()
         }
     }
@@ -62,19 +78,19 @@ ColumnLayout {
         onChosen: item => root.startExport(item.name)
     }
     RowLayout {
-        objectName: "recapMessage"
-        visible: root.recap.message !== ""
+        objectName: "recapStale"
+        visible: root.recap.staleNotice !== "" && root.recap.state === "ready"
         Layout.fillWidth: true
         spacing: Theme.space2
         UzStatusIcon {
             Layout.fillWidth: true
             Layout.minimumWidth: 0
-            kind: root.recap.messageIsError ? "error" : "done"
+            kind: "warning"
             small: true
-            text: root.recap.message
-            maxWidth: Math.max(0, root.width - 120)
+            text: qsTr("Showing the last loaded recap. %1").arg(root.recap.staleNotice)
+            maxWidth: Math.max(0, root.width - 140)
         }
-        UzButton { kind: "link"; text: qsTr("Dismiss"); onClicked: root.recap.dismissMessage() }
+        UzButton { kind: "link"; text: qsTr("Try again"); onClicked: root.recap.reload() }
     }
 
     // ------------------------------------------------------------ states
@@ -220,17 +236,21 @@ ColumnLayout {
                                 height: parent.height
                                 Rectangle { anchors.verticalCenter: parent.verticalCenter; width: parent.width; height: 1; color: Theme.rule2 }
                                 Repeater {
-                                    model: lane.modelData.events
+                                    // Glyphs closer than one glyph width are grouped into one glyph with a "+N" badge.
+                                    model: root.recap.groupEvents(lane.modelData.events, track.width, 16)
                                     delegate: Item {
                                         id: glyphItem
                                         required property var modelData
                                         objectName: "recapGlyph_" + glyphItem.modelData.glyph
+                                        readonly property bool grouped: glyphItem.modelData.count > 1
                                         x: Math.max(0, Math.min(track.width - width, glyphItem.modelData.pos * track.width - width / 2))
                                         y: (track.height - height) / 2
                                         width: 16
                                         height: 24
+                                        activeFocusOnTab: true
                                         Accessible.role: Accessible.StaticText
-                                        Accessible.name: glyphItem.modelData.glyph + ": " + glyphItem.modelData.text
+                                        Accessible.name: glyphItem.modelData.name
+                                        Accessible.focusable: true
                                         Text {
                                             anchors.centerIn: parent
                                             text: glyphItem.modelData.glyphChar
@@ -240,9 +260,30 @@ ColumnLayout {
                                             font.weight: Font.Medium
                                             color: glyphItem.modelData.glyph === "screenshot" ? Theme.muted : Theme.ink
                                         }
+                                        UzMono {
+                                            objectName: "recapGlyphBadge"
+                                            visible: glyphItem.grouped
+                                            x: parent.width - 4
+                                            y: 0
+                                            text: "+" + glyphItem.modelData.extra
+                                            color: Theme.accentText
+                                            font.pixelSize: 9
+                                        }
+                                        UzFocusRing { visible: glyphItem.activeFocus; inset: true }
                                         HoverHandler { id: hover }
-                                        ToolTip.visible: hover.hovered
-                                        ToolTip.text: glyphItem.modelData.text + " · " + qsTr("day %1").arg(glyphItem.modelData.day)
+                                        // An explicit tooltip: the attached one on a plain Item keeps the style's palette and drew no text.
+                                        ToolTip {
+                                            objectName: "recapGlyphTip"
+                                            visible: hover.hovered || glyphItem.activeFocus
+                                            text: glyphItem.modelData.tip
+                                            contentItem: Text {
+                                                text: glyphItem.modelData.tip
+                                                textFormat: Text.PlainText
+                                                color: Theme.ink
+                                                font.pixelSize: Theme.roles.small.size
+                                            }
+                                            background: Rectangle { color: Theme.surface; border.color: Theme.rule; border.width: 1 }
+                                        }
                                     }
                                 }
                             }
@@ -265,15 +306,18 @@ ColumnLayout {
                     }
                 }
             }
-            UzLabel {
-                objectName: "recapFootnote"
-                Layout.fillWidth: true
-                text: qsTr("Share link shares the recap with everyone on %1.").arg(root.serverName)
-                wrapMode: Text.WordWrap
-                color: Theme.muted
-                font.pixelSize: Theme.roles.small.size
-            }
         }
+    }
+
+    // Outside the sheet: it is a hint for this screen and must not end up in the exported image.
+    UzLabel {
+        objectName: "recapFootnote"
+        visible: sheet.visible
+        Layout.fillWidth: true
+        text: qsTr("Share link shares the recap with everyone on %1.").arg(root.serverName)
+        wrapMode: Text.WordWrap
+        color: Theme.muted
+        font.pixelSize: Theme.roles.small.size
     }
 
     // ------------------------------------------------------------ save dialog (QtQuick.Dialogs when installed)

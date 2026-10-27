@@ -105,6 +105,32 @@ class RunRecapTest : public QObject {
   }
 
  private slots:
+  void groupsOverlappingGlyphs() {
+    auto e = [](double pos, const QString& glyph, const QString& text) {
+      return QVariant(QVariantMap{{"pos", pos}, {"glyph", glyph}, {"glyphChar", "■"}, {"text", text}, {"day", 2}});
+    };
+    // Two at the same moment, one 5 px away (grouped on 500 px), one far away, one 100 px away.
+    const QVariantList ev{e(0.2, "catch", "A"), e(0.2, "lost", "B"), e(0.21, "note", "C"), e(0.5, "badge", "D")};
+    QVariantList g = groupRecapEvents(ev, 500, 16);
+    QCOMPARE(g.size(), 2);
+    QCOMPARE(g.at(0).toMap().value("count").toInt(), 3);
+    QCOMPARE(g.at(0).toMap().value("extra").toInt(), 2);
+    QCOMPARE(g.at(0).toMap().value("glyph").toString(), QString("catch"));
+    QVERIFY(g.at(0).toMap().value("tip").toString().contains("lost: B"));
+    QCOMPARE(g.at(1).toMap().value("count").toInt(), 1);
+    QVERIFY(g.at(1).toMap().value("tip").toString().contains("day 2"));
+    // A wider track separates them; deterministic for equal input.
+    QCOMPARE(groupRecapEvents(ev, 5000, 16).size(), 3);
+    QCOMPARE(groupRecapEvents(ev, 500, 16), g);
+    // The list is capped: first 5, then "and N more".
+    QVariantList many;
+    for (int i = 0; i < 8; ++i) many.append(e(0.3, "catch", QString("E%1").arg(i)));
+    g = groupRecapEvents(many, 500, 16);
+    QCOMPARE(g.size(), 1);
+    const QString tip = g.at(0).toMap().value("tip").toString();
+    QVERIFY(tip.contains("E4") && !tip.contains("E5") && tip.contains("and 3 more"));
+  }
+
   void countsLanesAndIgnoresUnmapped() {
     RecapInput in = baseInput();
     in.events = {

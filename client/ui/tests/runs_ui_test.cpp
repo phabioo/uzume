@@ -233,6 +233,26 @@ class RunsUiTest : public QObject {
       QVERIFY(h.item("recapLegend")->isVisible());
       QVERIFY(h.item("recapFootnote")->property("text").toString().contains(QStringLiteral("everyone on Home")));
       QVERIFY(h.item("recapExport")->isEnabled());
+      QVERIFY(h.item("recapShare")->isEnabled());
+      // The footnote is outside the exported sheet.
+      for (QQuickItem* p = h.item("recapFootnote"); p != nullptr; p = p->parentItem()) QVERIFY(p != h.item("recapSheet"));
+      // Same-moment events share a glyph with a "+N" badge; glyphs are focusable and carry the event text.
+      {
+        QTRY_VERIFY(!h.items("recapGlyphBadge").isEmpty());
+        bool grouped = false;
+        for (QQuickItem* b : h.items("recapGlyphBadge"))
+          if (b->isVisible() && b->property("text").toString().startsWith(QLatin1Char('+'))) grouped = true;
+        QVERIFY(grouped);
+        QQuickItem* glyph = h.item("recapGlyph_catch");
+        QVERIFY(glyph != nullptr && glyph->activeFocusOnTab());
+        bool reduced = false;
+        for (const QVariant& l : recap->model().value("lanes").toList()) {
+          const QVariantList evs = l.toMap().value("events").toList();
+          const QVariantList g = recap->groupEvents(evs, 400, 16);
+          if (evs.size() >= 2 && g.size() < evs.size() && g.at(0).toMap().value("count").toInt() >= 2) reduced = true;
+        }
+        QVERIFY(reduced);
+      }
       shot(h, QStringLiteral("4jh-app-2-recap"));
       h.controller->setAppearance(QStringLiteral("light"));
       shot(h, QStringLiteral("4jh-app-2-recap-light"));
@@ -243,6 +263,12 @@ class RunsUiTest : public QObject {
       QCOMPARE(QGuiApplication::clipboard()->text(), recap->shareLink());
       QTRY_VERIFY(h.item("recapMessage")->isVisible());
       QVERIFY(!recap->messageIsError());
+      {  // the note sits in the action row: it does not move the sheet
+        const qreal sheetY = h.item("recapSheet")->mapToScene(QPointF(0, 0)).y();
+        recap->dismissMessage();
+        QTRY_VERIFY(!h.item("recapMessage")->isVisible());
+        QCOMPARE(h.item("recapSheet")->mapToScene(QPointF(0, 0)).y(), sheetY);
+      }
       recap->dismissMessage();
 
       // Export as HTML and as image.
@@ -273,8 +299,22 @@ class RunsUiTest : public QObject {
       recap->load(QStringLiteral("00000000-0000-4000-8000-000000000000"));
       QTRY_COMPARE(recap->state(), QStringLiteral("error"));
       QTRY_VERIFY(h.item("recapError")->isVisible());
+      QVERIFY(!recap->errorText().isEmpty() && !recap->errorText().contains(QStringLiteral("refused")));
       recap->load(runId);
       QTRY_COMPARE_WITH_TIMEOUT(recap->state(), QStringLiteral("ready"), 8000);
+      // A status note does not survive a run change, a reload keeps the recap shown.
+      recap->shareLink();
+      QVERIFY(!recap->message().isEmpty());
+      recap->load(QStringLiteral("00000000-0000-4000-8000-000000000000"));
+      QVERIFY(recap->message().isEmpty());
+      recap->load(runId);
+      QTRY_COMPARE_WITH_TIMEOUT(recap->state(), QStringLiteral("ready"), 8000);
+      recap->shareLink();
+      recap->reload();
+      QVERIFY(recap->message().isEmpty());
+      QCOMPARE(recap->state(), QStringLiteral("ready"));
+      QVERIFY(!recap->model().isEmpty());
+      QTRY_VERIFY_WITH_TIMEOUT(recap->staleNotice().isEmpty() && recap->state() == QLatin1String("ready"), 8000);
       QVERIFY(h.click("tab_Board"));
       QTRY_VERIFY(h.item("runBoardTab")->isVisible());
     }

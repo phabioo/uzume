@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cmath>
 #include <set>
+#include <vector>
 
 namespace uzume {
 
@@ -289,6 +290,54 @@ QVariantMap RecapModel::toVariant() const {
   return {{QStringLiteral("runId"), runId}, {QStringLiteral("runName"), runName}, {QStringLiteral("status"), status},
           {QStringLiteral("startDate"), startDate}, {QStringLiteral("days"), days}, {QStringLiteral("empty"), isEmpty()},
           {QStringLiteral("shownEvents"), shownEvents}, {QStringLiteral("tiles"), tl}, {QStringLiteral("lanes"), ll}, {QStringLiteral("axis"), axis}};
+}
+
+QVariantList groupRecapEvents(const QVariantList& events, double trackWidth, double glyphWidth, int maxListed) {
+  struct Item {
+    double pos;
+    int order;
+    QVariantMap ev;
+  };
+  std::vector<Item> items;
+  int order = 0;
+  for (const QVariant& v : events) {
+    const QVariantMap m = v.toMap();
+    items.push_back({m.value(QStringLiteral("pos")).toDouble(), order++, m});
+  }
+  std::stable_sort(items.begin(), items.end(), [](const Item& a, const Item& b) { return a.pos < b.pos; });
+  std::vector<std::vector<const Item*>> groups;
+  for (const Item& it : items) {
+    if (!groups.empty() && (it.pos - groups.back().front()->pos) * trackWidth < glyphWidth)
+      groups.back().push_back(&it);
+    else
+      groups.push_back({&it});
+  }
+  QVariantList out;
+  for (const auto& g : groups) {
+    const QVariantMap& first = g.front()->ev;
+    const int count = int(g.size());
+    const QString glyph = first.value(QStringLiteral("glyph")).toString();
+    QString text = first.value(QStringLiteral("text")).toString();
+    QString tip = text + QStringLiteral(" · ") + QCoreApplication::translate("RecapModel", "day %1").arg(first.value(QStringLiteral("day")).toInt());
+    QString name = glyph + QStringLiteral(": ") + text;
+    if (count > 1) {
+      QStringList lines;
+      for (int i = 0; i < count && i < maxListed; ++i)
+        lines << g[i]->ev.value(QStringLiteral("glyph")).toString() + QStringLiteral(": ") + g[i]->ev.value(QStringLiteral("text")).toString();
+      if (count > maxListed) lines << QCoreApplication::translate("RecapModel", "and %1 more").arg(count - maxListed);
+      text = lines.join(QLatin1Char('\n'));
+      tip = text;
+      name = QCoreApplication::translate("RecapModel", "%1 events").arg(count) + QStringLiteral(": ") + lines.join(QStringLiteral("; "));
+    }
+    QVariantMap o = first;
+    o.insert(QStringLiteral("count"), count);
+    o.insert(QStringLiteral("extra"), count - 1);
+    o.insert(QStringLiteral("text"), text);
+    o.insert(QStringLiteral("tip"), tip);
+    o.insert(QStringLiteral("name"), name);
+    out.append(o);
+  }
+  return out;
 }
 
 QJsonObject RecapModel::toJson() const {

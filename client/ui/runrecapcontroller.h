@@ -37,6 +37,7 @@ class RunRecapController : public QObject {
   Q_PROPERTY(QVariantMap model READ model NOTIFY changed)      // RecapModel::toVariant() (empty map until ready)
   Q_PROPERTY(bool recapEmpty READ recapEmpty NOTIFY changed)   // ready, but nothing to draw
   Q_PROPERTY(QString message READ message NOTIFY messageChanged)
+  Q_PROPERTY(QString staleNotice READ staleNotice NOTIFY changed)  // a reload failed, the last loaded recap stays shown
   Q_PROPERTY(bool messageIsError READ messageIsError NOTIFY messageChanged)
 
  public:
@@ -47,6 +48,7 @@ class RunRecapController : public QObject {
   QString errorText() const { return errorText_; }
   QVariantMap model() const { return modelVariant_; }
   bool recapEmpty() const { return state_ == QLatin1String("ready") && model_.isEmpty(); }
+  QString staleNotice() const { return staleNotice_; }
   QString message() const { return message_; }
   bool messageIsError() const { return messageIsError_; }
 
@@ -61,6 +63,8 @@ class RunRecapController : public QObject {
   // Copies the run's app link to the clipboard and shows the note; returns the link ("" when the server address is unusable).
   Q_INVOKABLE QString shareLink();
   Q_INVOKABLE void reportDialogMissing();  // the native file dialog (QtQuick.Dialogs) is not installed
+  // Glyphs of one lane grouped by what overlaps on a track of that width (see groupRecapEvents).
+  Q_INVOKABLE QVariantList groupEvents(const QVariantList& events, double trackWidth, double glyphWidth) const;
   Q_INVOKABLE QString serverName() const;
   Q_INVOKABLE QString suggestedFileName(const QString& extension) const;
 
@@ -75,6 +79,7 @@ class RunRecapController : public QObject {
  private:
   void setMessage(const QString& text, bool error);
   void scheduleRefresh();
+  static QString plainError(const QString& technical);
   static QString localPath(const QString& pathOrUrl);
 
   QPointer<RunClient> client_;
@@ -85,11 +90,13 @@ class RunRecapController : public QObject {
   QString errorText_;
   RecapModel model_;
   QVariantMap modelVariant_;
+  QString staleNotice_;
   QString message_;
   bool messageIsError_ = false;
   quint64 gen_ = 0;
   RunRecapLoader* loader_ = nullptr;  // of the displayed recap
   QTimer refreshTimer_;
+  QTimer messageTimer_;  // auto-dismisses a status message
 };
 
 }  // namespace uzume::ui
