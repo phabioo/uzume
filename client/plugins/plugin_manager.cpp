@@ -1,5 +1,6 @@
 #include "plugin_manager.h"
 
+#include <QDebug>
 #include <QDir>
 #include <QDirIterator>
 #include <QFile>
@@ -697,13 +698,23 @@ GameResolution PluginManager::resolveWhere(const std::function<bool(const Manife
 
 // ---- developer-folder watching
 
+void PluginManager::setWatchEnabled(bool on) {
+  if (m_watchEnabled == on) return;
+  m_watchEnabled = on;
+  m_dirtyIds.clear();
+  m_debounce.stop();
+  refreshWatcher();
+}
+
 void PluginManager::refreshWatcher() {
   const QStringList old = m_watcher.files() + m_watcher.directories();
   if (!old.isEmpty()) m_watcher.removePaths(old);
+  if (!m_watchEnabled) return;
   int budget = 5000;
   for (auto it = m_linked.begin(); it != m_linked.end(); ++it) {
     if (!QFileInfo(it.value()).isDir()) continue;
     m_watcher.addPath(it.value());
+    if (!old.contains(it.value())) qDebug().noquote() << "watching" << it.value() << "for changes";
     QDirIterator di(it.value(), QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
     while (di.hasNext() && budget-- > 0) {
       di.next();

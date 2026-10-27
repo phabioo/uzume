@@ -27,6 +27,8 @@
 
 #include "mcp_tools.h"
 #include "playercontroller.h"
+#include "runscontroller.h"
+#include "pluginscontroller.h"
 #include "savehistorycontroller.h"
 #include "tools_util.h"
 
@@ -1092,9 +1094,17 @@ void installUiTools(McpToolRegistry& registry, ui::PlayerController& player) {
     t.description = QStringLiteral(
         "Starts a library game exactly like the Play button (selects it, optionally picks a save slot, then playSelected). If another game "
         "runs in the background, the app asks to quit it: the answer is {status: \"confirm_pending\", startConfirm} and the person decides "
-        "in the app. Otherwise {status: \"started\" | \"starting\" | \"resumed\"}.");
+        "in the app. Otherwise {status: \"started\" | \"starting\" | \"resumed\"}. With identity {system, code} the plugins are matched "
+        "against that game identity instead of the detected one (for example to start the test core as a game the plugins know); accepted only while developer mode is on "
+        "(developer_mode_required otherwise), used for this start only. With run_id the game starts as part of that run (the same path as Play on the run page: "
+        "the run's save slot, its plugins and run state); a run that cannot be played answers run_unavailable with the reason.");
     t.inputSchema = schema({{QStringLiteral("gameId"), typeStr(QStringLiteral("Library game id."))},
-                            {QStringLiteral("slot"), typeStr(QStringLiteral("Save slot name (an existing slot of the game)."))}},
+                            {QStringLiteral("slot"), typeStr(QStringLiteral("Save slot name (an existing slot of the game)."))},
+                            {QStringLiteral("identity"), typeObject({{QStringLiteral("system"), typeStr(QStringLiteral("System id, e.g. 3ds."))},
+                                                                     {QStringLiteral("code"), typeStr(QStringLiteral("Game code or title id."))}},
+                                                                    {QStringLiteral("system"), QStringLiteral("code")},
+                                                                    QStringLiteral("Overrides the game identity for plugin matching (developer mode only)."))},
+                            {QStringLiteral("run_id"), typeStr(QStringLiteral("Start the game as part of this run, like Play on the run page (the run's save slot, plugins and run state); gameId must be the game of the run and slot is not used."))}},
                            {QStringLiteral("gameId")});
     t.targetArg = QStringLiteral("gameId");
     t.timeoutMs = 20000;
@@ -1102,7 +1112,16 @@ void installUiTools(McpToolRegistry& registry, ui::PlayerController& player) {
       if (!pc) return reply(ToolResult::error(QStringLiteral("app_closing")));
       const QString gameId = a.value(QStringLiteral("gameId")).toString();
       const QString slot = a.value(QStringLiteral("slot")).toString();
+      const QString runId = a.value(QStringLiteral("run_id")).toString().trimmed();
       if (gameId.isEmpty()) return reply(ToolResult::error(QStringLiteral("gameId required")));
+      if (!runId.isEmpty() && !slot.isEmpty()) return reply(ToolResult::error(QStringLiteral("run_id and slot exclude each other: a run plays in its own slot")));
+      const bool hasIdentity = a.contains(QStringLiteral("identity"));
+      const QJsonObject identity = a.value(QStringLiteral("identity")).toObject();
+      if (hasIdentity) {
+        if (!pc->plugins()->developerMode()) return reply(ToolResult::error(QStringLiteral("developer_mode_required: identity is accepted only while developer mode is on")));
+        if (identity.value(QStringLiteral("system")).toString().isEmpty() || identity.value(QStringLiteral("code")).toString().isEmpty())
+          return reply(ToolResult::error(QStringLiteral("identity needs system and code")));
+      }
       if (!pc->runningGameId().isEmpty() && !pc->gameInBackground()) return reply(ToolResult::error(QStringLiteral("game_running: stop it first (game_stop)")));
       if (!selectKnownGame(*pc, gameId)) return reply(ToolResult::error(QStringLiteral("unknown_game: %1").arg(gameId)));
       if (!slot.isEmpty()) {
@@ -1112,26 +1131,44 @@ void installUiTools(McpToolRegistry& registry, ui::PlayerController& player) {
       }
       const QVariantMap sel = pc->selectedGame();
       const bool running = sel.value(QStringLiteral("running")).toBool();
-      if (!running && !sel.value(QStringLiteral("canPlay")).toBool()) {
+      if (runId.isEmpty() && !running && !sel.value(QStringLiteral("canPlay")).toBool()) {
         ToolResult r = ToolResult::error(QStringLiteral("cannot_play"));
         r.addText(sel.value(QStringLiteral("playDisabledReason")).toString());
         return reply(r);
       }
       const bool wasBackground = pc->gameInBackground();
-      pc->playSelected();
+      if (hasIdentity && !pc->plugins()->setIdentityOverride(identity.value(QStringLiteral("system")).toString(), identity.value(QStringLiteral("code")).toString()))
+        return reply(ToolResult::error(QStringLiteral("invalid_identity: system is a lowercase id, code uses letters, digits, . _ -")));
+      if (!runId.isEmpty()) {
+        // Same path as the Play button on the run page; it refuses with a message when the run cannot be played.
+        pc->runs()->dismissMessage();
+        pc->runs()->playRun(runId);
+        if (pc->runs()->messageIsError() && !pc->runs()->message().isEmpty()) {
+          pc->plugins()->clearIdentityOverride();
+          ToolResult r = ToolResult::error(QStringLiteral("run_unavailable"));
+          r.addText(pc->runs()->message());
+          return reply(r);
+        }
+      } else {
+        pc->playSelected();
+      }
       const auto state = [pc, gameId]() -> QString {
         if (!pc) return QStringLiteral("closing");
         if (pc->startConfirm().value(QStringLiteral("active")).toBool()) return QStringLiteral("confirm_pending");
         if (pc->runningGameId() == gameId && pc->screen() == QLatin1String("game")) return QStringLiteral("started");
         return QString();
       };
-      pollUntil([state]() { return !state().isEmpty(); }, 2500, [reply, pc, state, running, wasBackground](bool) {
+      pollUntil([state]() { return !state().isEmpty(); }, 2500, [reply, pc, state, running, wasBackground, runId](bool) {
         if (!pc) return reply(ToolResult::error(QStringLiteral("app_closing")));
         QString st = state();
         if (st.isEmpty()) st = QStringLiteral("starting");
         else if (st == QLatin1String("started") && running && wasBackground) st = QStringLiteral("resumed");
+        else if (st == QLatin1String("confirm_pending")) pc->plugins()->clearIdentityOverride();  // the person decides; the override does not wait
         QJsonObject o = navState(*pc);
         o.insert(QStringLiteral("status"), st);
+        // A run start that cannot go ahead (game cannot start, copies missing ...) says why on the run page; pass it on.
+        if (st == QLatin1String("starting") && !runId.isEmpty() && pc->runs()->messageIsError() && !pc->runs()->message().isEmpty())
+          o.insert(QStringLiteral("run_error"), pc->runs()->message());
         if (st == QLatin1String("confirm_pending")) o.insert(QStringLiteral("hint"), QStringLiteral("The app asks whether to quit the running game; the person answers in the app."));
         reply(ToolResult::json(o));
       });

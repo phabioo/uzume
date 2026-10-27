@@ -327,6 +327,157 @@ class PluginsRuntimeUiTest : public QObject {
     QTRY_COMPARE_WITH_TIMEOUT(m_pc->toasts().size(), 1, 10000);
   }
 
+  // ---------------------------------------------------------------- developer console (0.22)
+
+  QVariantMap toastWithTitle(const QString& prefix) const {
+    for (const QVariant& t : m_pc->toasts())
+      if (t.toMap().value("title").toString().startsWith(prefix)) return t.toMap();
+    return {};
+  }
+
+  void reloadToastAndConsoleModel() {
+    writePlugin(m_src.path(), "net.test.shell", {{"name", "Item Helper"}, {"ui", QJsonObject{{"screen", QJsonObject{{"title", "Runs"}}}}}}, "fb.log.info('hi')");
+    install("net.test.shell");
+    m_pc->setDeveloperMode(true);
+    m_pc->setPluginEnabled("net.test.shell", true);
+    QTRY_VERIFY(m_pc->shellRunning());
+    DevConsole* dc = m_pc->devConsole();
+    QTRY_COMPARE_WITH_TIMEOUT(dc->buildModel().value("status").toString(), QStringLiteral("running"), 10000);
+    QCOMPARE(dc->buildModel().value("selected").toString(), QStringLiteral("net.test.shell"));
+    QCOMPARE(dc->buildModel().value("reload").toMap().value("count").toInt(), 0);
+    QSignalSpy reloaded(dc, &DevConsole::reloaded);
+    m_pc->reloadPlugin("net.test.shell");
+    QTRY_COMPARE_WITH_TIMEOUT(reloaded.size(), 1, 10000);
+    const qint64 ms = reloaded.at(0).at(2).toLongLong();
+    QVERIFY(ms >= 0);
+    const QVariantMap toast = toastWithTitle("Item Helper reloaded");
+    QVERIFY(!toast.isEmpty());
+    QCOMPARE(toast.value("title").toString(), QStringLiteral("Item Helper reloaded · %1 ms").arg(ms));
+    QVERIFY(toast.value("host").toBool());
+    QCOMPARE(dc->buildModel().value("reload").toMap().value("ms").toLongLong(), ms);
+    // Only a person in Developer mode gets the toast (a plain "Restart plugin" stays quiet).
+    m_pc->dismissToast(toast.value("toastId").toInt());
+    m_pc->devConsole()->resetSeen();
+    m_pc->setDeveloperMode(false);
+    m_pc->setDeveloperMode(true);
+    QCOMPARE(m_pc->toasts().size(), 0);
+  }
+
+  void threeErrorsPauseWithToast() {
+    writePlugin(m_src.path(), "net.test.shell", {{"name", "Item Helper"}, {"ui", QJsonObject{{"screen", QJsonObject{{"title", "Runs"}}}}}},
+                "fb.ui.on_action(function() error('boom') end)");
+    install("net.test.shell");
+    m_pc->setDeveloperMode(true);
+    m_pc->setPluginEnabled("net.test.shell", true);
+    QTRY_VERIFY(m_pc->shellRunning());
+    DevConsole* dc = m_pc->devConsole();
+    QTRY_COMPARE_WITH_TIMEOUT(dc->buildModel().value("status").toString(), QStringLiteral("running"), 10000);
+    QSignalSpy paused(dc, &DevConsole::pausedAfterError);
+    m_pc->sendAction("net.test.shell", "screen", "x");
+    QTRY_COMPARE_WITH_TIMEOUT(dc->buildModel().value("counts").toMap().value("error").toInt(), 1, 10000);
+    QCOMPARE(dc->buildModel().value("status").toString(), QStringLiteral("running"));  // one error is only logged
+    QVERIFY(toastWithTitle("Item Helper paused").isEmpty());
+    m_pc->sendAction("net.test.shell", "screen", "x");
+    m_pc->sendAction("net.test.shell", "screen", "x");
+    QTRY_COMPARE_WITH_TIMEOUT(paused.size(), 1, 10000);
+    const QVariantMap toast = toastWithTitle("Item Helper paused after an error");
+    QVERIFY(!toast.isEmpty());
+    const QVariantList acts = toast.value("actions").toList();
+    QCOMPARE(acts.size(), 2);
+    QCOMPARE(acts.at(0).toMap().value("label").toString(), QStringLiteral("Restart plugin"));
+    QCOMPARE(acts.at(1).toMap().value("label").toString(), QStringLiteral("Open console"));
+    const QVariantMap m = dc->buildModel();
+    QVERIFY(m.value("paused").toBool());
+    QCOMPARE(m.value("errorFirst").toString().contains("boom"), true);
+    QCOMPARE(m.value("counts").toMap().value("error").toInt(), 4);  // three handler errors and the "Paused:" line
+    // Reload and resume: the plugin runs again; the toast for a reload follows.
+    m_pc->reloadPlugin("net.test.shell");
+    QTRY_COMPARE_WITH_TIMEOUT(dc->buildModel().value("status").toString(), QStringLiteral("running"), 10000);
+  }
+
+  void loadUnpackedChecksTheManifest() {
+    m_pc->setDeveloperMode(true);
+    // 4d-2B: a manifest problem installs nothing.
+    const QString bad = writePlugin(m_src.path(), "net.test.bad", {{"name", "Item Helper"}, {"permissions", "oops"}}, "fb.log.info('x')", {});
+    const QVariantMap r = m_pc->loadUnpacked(bad);
+    QCOMPARE(r.value("state").toString(), QStringLiteral("error"));
+    QCOMPARE(r.value("title").toString(), QStringLiteral("Item Helper didn't load"));
+    QVERIFY(r.value("detail").toString().startsWith(QStringLiteral("manifest.json: ")));
+    QCOMPARE(r.value("note").toString(), QStringLiteral("Nothing was installed."));
+    QCOMPARE(m_pc->plugins().size(), 0);
+    QCOMPARE(m_pc->unpackedResult().value("state").toString(), QStringLiteral("error"));
+    m_pc->dismissUnpackedResult();
+    QVERIFY(m_pc->unpackedResult().isEmpty());
+    QVERIFY(!m_pc->loadUnpacked(m_src.path() + "/missing").value("detail").toString().isEmpty());
+    QCOMPARE(m_pc->plugins().size(), 0);
+    // A good folder is linked and turned on; the console lists it with the Unpacked flag and its folder.
+    const QString good = writePlugin(m_src.path(), "net.test.good", {{"name", "Item Helper"}, {"ui", QJsonObject{{"screen", QJsonObject{{"title", "Runs"}}}}}}, "fb.log.info('ok')");
+    const QVariantMap ok = m_pc->loadUnpacked(good);
+    QCOMPARE(ok.value("state").toString(), QStringLiteral("ok"));
+    QCOMPARE(m_pc->plugins().size(), 1);
+    QVERIFY(m_pc->plugins().at(0).toMap().value("devLinked").toBool());
+    QVERIFY(m_pc->plugins().at(0).toMap().value("enabled").toBool());
+    QTRY_VERIFY_WITH_TIMEOUT(m_pc->shellRunning(), 10000);
+    const QVariantMap model = m_pc->devConsole()->buildModel();
+    QVERIFY(model.value("unpacked").toBool());
+    QVERIFY(QDir(model.value("folder").toString()) == QDir(good));
+    // A second folder: the console switches to the plugin that was just loaded (not the first one it listed).
+    const QString second = writePlugin(m_src.path(), "net.test.second", {{"name", "Second Helper"}}, "fb.log.info('ok')");
+    QCOMPARE(m_pc->loadUnpacked(second).value("state").toString(), QStringLiteral("ok"));
+    QCOMPARE(m_pc->devConsole()->selectedId(), QStringLiteral("net.test.second"));
+    m_pc->selectConsolePlugin(QStringLiteral("net.test.good"));
+    QCOMPARE(m_pc->devConsole()->selectedId(), QStringLiteral("net.test.good"));
+    // Developer mode off: nothing loads.
+    m_pc->setDeveloperMode(false);
+    QCOMPARE(m_pc->loadUnpacked(good).value("state").toString(), QStringLiteral("error"));
+  }
+
+  void reloadOnFileChangeSwitch() {
+    QVERIFY(m_pc->manager()->watchEnabled());
+    QVERIFY(m_pc->devConsole()->reloadOnChange());
+    m_pc->devConsole()->setReloadOnChange(false);
+    QVERIFY(!m_pc->manager()->watchEnabled());
+    m_pc->devConsole()->setReloadOnChange(true);
+    QVERIFY(m_pc->manager()->watchEnabled());
+  }
+
+  // The debug MCP game_start identity: only with Developer mode, once, and plugin matching sees it.
+  void identityOverrideGuard() {
+    writePlugin(m_src.path(), "net.test.gba", {{"games", QJsonArray{QJsonObject{{"system", "gba"}, {"codes", QJsonArray{"AXVE"}}}}}}, "fb.log.info('matched')", {});
+    install("net.test.gba");
+    m_pc->setPluginEnabled("net.test.gba", true);
+    QVERIFY(!m_pc->setIdentityOverride("gba", "AXVE"));  // Developer mode is off
+    QVERIFY(m_pc->identityOverride().isEmpty());
+    m_pc->setDeveloperMode(true);
+    QVERIFY(!m_pc->setIdentityOverride("GBA!", "AXVE"));
+    QVERIFY(!m_pc->setIdentityOverride("gba", ""));
+    QVERIFY(m_pc->setIdentityOverride("gba", "AXVE"));
+    QCOMPARE(m_pc->identityOverride().value("code").toString(), QStringLiteral("AXVE"));
+    m_pc->gameStarted("nds", QString(), QString(), "Test");
+    QVERIFY(m_pc->pluginsRunning());
+    QCOMPARE(m_pc->devConsole()->buildModel().value("selected").toString(), QStringLiteral("net.test.gba"));
+    QVERIFY(m_pc->identityOverride().isEmpty());  // used once
+    // A "paused after an error" notice of this game does not carry over into the next game.
+    emit m_pc->devConsole()->pausedAfterError(QStringLiteral("net.test.gba"), QStringLiteral("boom"));
+    QCOMPARE(m_pc->toasts().size(), 1);
+    m_pc->gameStopped();
+    QCOMPARE(m_pc->toasts().size(), 0);
+    m_pc->gameStarted("nds", QString(), QString(), "Test");  // the real identity matches no plugin
+    QVERIFY(!m_pc->pluginsRunning());
+    m_pc->gameStopped();
+    // Switched off between the call and the start: ignored.
+    QVERIFY(m_pc->setIdentityOverride("gba", "AXVE"));
+    m_pc->setDeveloperMode(false);
+    m_pc->setDeveloperMode(true);
+    m_pc->clearIdentityOverride();
+    QVERIFY(m_pc->identityOverride().isEmpty());
+    QVERIFY(m_pc->setIdentityOverride("gba", "AXVE"));
+    m_pc->setDeveloperMode(false);
+    m_pc->gameStarted("nds", QString(), QString(), "Test");
+    QVERIFY(!m_pc->pluginsRunning());
+    m_pc->gameStopped();
+  }
+
   // ---------------------------------------------------------------- image provider
 
   void imageProviderRules() {

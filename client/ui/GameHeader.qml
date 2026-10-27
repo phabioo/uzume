@@ -388,6 +388,7 @@ Rectangle {
                 id: identText
                 Layout.fillWidth: true
                 Layout.maximumWidth: Math.max(titleMetrics.advanceWidth + 1, subMetrics.advanceWidth + 1) + 70
+                                         + (root.player.plugins.developerMode && !root.multi ? devTag.implicitWidth + Theme.space15 : 0)
                 Layout.alignment: Qt.AlignVCenter
                 spacing: 0
                 // Title with the system chip after it: plain positioning (no Layout) so the chip can never sit over the title.
@@ -400,13 +401,17 @@ Rectangle {
                     readonly property real chipSpace: chip.implicitWidth + Theme.space15
                     // The chip shows only when the full title and the chip fit; the title shrinks (to 160 px at least) before it hides.
                     readonly property bool chipFits: width >= Math.min(titleNatural, 160) + chipSpace
+                    // "Developer mode" tag (board 4d-2F): shown while Developer mode is on, when it fits next to the title and the chip.
+                    readonly property real devSpace: devTag.implicitWidth + Theme.space15
+                    readonly property bool devFits: (root.own || (root.session.title !== "" && !root.multi && root.session.hasFrame)) && root.player.plugins.developerMode && !root.multi
+                                                    && width >= Math.min(titleNatural, 160) + (chip.visible ? chipSpace : 0) + devSpace
                     Text {
                         id: titleText
                         objectName: root.multi ? "multiviewTitle" : "gameTitle"
                         // The natural width comes from TextMetrics: an elided Text can report its elided width as
                         // implicitWidth, which then pinned the title to "Rev…".
                         x: 0
-                        width: Math.max(0, Math.min(titleRow.titleNatural, titleRow.width - (chip.visible ? titleRow.chipSpace : 0)))
+                        width: Math.max(0, Math.min(titleRow.titleNatural, titleRow.width - (chip.visible ? titleRow.chipSpace : 0) - (devTag.visible ? titleRow.devSpace : 0)))
                         elide: Text.ElideRight
                         textFormat: Text.PlainText
                         text: root.multi ? qsTr("Multiview")
@@ -429,6 +434,21 @@ Rectangle {
                         system: root.systemCode
                         x: titleText.x + titleText.width + Theme.space15
                         anchors.verticalCenter: titleText.verticalCenter
+                    }
+                    UzTag {
+                        id: devTag
+                        objectName: "developerModeTag"
+                        visible: titleRow.devFits
+                        small: true
+                        icon: "none"
+                        tone: "accent"
+                        text: qsTr("Developer mode")
+                        x: (chip.visible ? chip.x + chip.width : titleText.x + titleText.width) + Theme.space15
+                        anchors.verticalCenter: titleText.verticalCenter
+                        ToolTip.visible: devHover.hovered
+                        ToolTip.delay: 500
+                        ToolTip.text: qsTr("Ctrl+Shift+D opens the developer console")
+                        HoverHandler { id: devHover }
                     }
                 }
                 Text {

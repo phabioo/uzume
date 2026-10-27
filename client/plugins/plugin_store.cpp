@@ -89,6 +89,13 @@ PluginStore::Entry PluginStore::get(const QString& pluginId, const QString& key)
   return {true, it->value, it->rev};
 }
 
+QStringList PluginStore::keys(const QString& pluginId) const {
+  std::lock_guard<std::mutex> l(m_);
+  QStringList out = plugin(pluginId).keys.keys();
+  out.sort();
+  return out;
+}
+
 PluginStore::PutResult PluginStore::put(const QString& pluginId, const QString& key, const QJsonValue& value, std::optional<qint64> baseRevision) {
   PutResult res;
   if (!validKey(key) || !validPluginId(pluginId)) {

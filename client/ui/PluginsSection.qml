@@ -600,13 +600,6 @@ ColumnLayout {
                 text: qsTr("Install from folder…")
                 onClicked: root.openFolderDialog("install")
             }
-            UzButton {
-                textFormat: Text.PlainText
-                objectName: "pluginLinkButton"
-                visible: root.ctl.developerMode
-                text: qsTr("Link folder for development…")
-                onClicked: root.openFolderDialog("link")
-            }
         }
     }
     RowLayout {
@@ -617,16 +610,16 @@ ColumnLayout {
             id: pathField
             objectName: "pluginFolderPathField"
             Layout.fillWidth: true
-            placeholderText: root.pathMode === "file" ? qsTr("Plugin file (.fbplugin) or folder path") : qsTr("Plugin folder path")
+            placeholderText: root.pathMode === "file" ? qsTr("Plugin file (.fbplugin) or folder path") : root.pathMode === "link" ? qsTr("Folder with manifest.json") : qsTr("Plugin folder path")
             onAccepted: applyPath.clicked()
         }
         UzButton {
             textFormat: Text.PlainText
             id: applyPath
             objectName: "pluginFolderApplyButton"
-            text: root.pathMode === "link" ? qsTr("Link folder") : qsTr("Install")
+            text: root.pathMode === "link" ? qsTr("Load") : qsTr("Install")
             onClicked: {
-                if (root.pathMode === "link") root.ctl.linkDevFolder(pathField.text)
+                if (root.pathMode === "link") root.ctl.loadUnpacked(pathField.text)
                 else if (root.pathMode === "file") root.ctl.installFromPath(pathField.text)
                 else root.ctl.installFromFolder(pathField.text)
                 root.pathPromptOpen = false
@@ -642,6 +635,39 @@ ColumnLayout {
         color: root.ctl.messageIsError ? Theme.danger : Theme.ink2
         font.pixelSize: Theme.roles.small.size
         wrapMode: Text.WordWrap
+    }
+
+    // ---- Developer console (boards 4d-1 and 4d-2): Developer mode only
+    property alias consoleBlock: devConsoleBlock
+    property alias developerConsole: devConsoleItem
+    ColumnLayout {
+        id: devConsoleBlock
+        objectName: "pluginDeveloperConsole"
+        visible: root.ctl.developerMode
+        Layout.fillWidth: true
+        Layout.minimumWidth: 0
+        Layout.topMargin: Theme.space15
+        spacing: Theme.space1
+        Rectangle { Layout.fillWidth: true; height: 1; color: Theme.rule2 }
+        UzSectionLabel { Layout.fillWidth: true; text: qsTr("Developer console") }
+        UzLabel {
+            textFormat: Text.PlainText
+            objectName: "pluginDeveloperConsoleHint"
+            Layout.fillWidth: true
+            wrapMode: Text.WordWrap
+            font.pixelSize: Theme.roles.small.size
+            color: Theme.muted
+            text: qsTr("Load a plugin from a folder, reload it and read its log. Ctrl+Shift+D opens this console from anywhere; Ctrl+R reloads while it has the focus.")
+        }
+        PluginConsole {
+            id: devConsoleItem
+            player: root.player
+            settingsMode: true
+            Layout.fillWidth: true
+            Layout.minimumWidth: 0
+            Layout.preferredHeight: implicitHeight
+            onLoadUnpackedRequested: root.openFolderDialog("link")
+        }
     }
 
     // ---- detail sheet

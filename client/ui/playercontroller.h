@@ -437,6 +437,9 @@ class PlayerController : public QObject {
   Q_INVOKABLE void hideSetupAssistant();
   // "Plugin settings" / "Notice settings…": Settings -> Plugins (pluginId highlights its row; empty = the section only).
   Q_INVOKABLE void showPluginSettings(const QString& pluginId = QString());
+  // Ctrl+Shift+D (Developer mode): in a game the Plugin console tab of the panel, otherwise Settings > Plugins scrolled to the
+  // Developer console.
+  Q_INVOKABLE void showDeveloperConsole();
   // "Upload ROM": source = local path or file:// URL (from the file dialog). Streamed; progress in upload.
   Q_INVOKABLE void dismissCoreNotice(const QString& code);
   Q_INVOKABLE void uploadRom(const QString& source);
@@ -477,6 +480,8 @@ class PlayerController : public QObject {
   void settingsSectionRequested(const QString& section);
   // Settings screen: scroll to a section ("plugins") and highlight a plugin row.
   void pluginSettingsRequested(const QString& pluginId);
+  void developerConsoleRequested();   // Settings shows its Developer console
+  void gameConsoleRequested();        // the game view opens the Plugin console tab
   void hubsChanged();
   void autoConnectChanged();
   void pairingChanged();

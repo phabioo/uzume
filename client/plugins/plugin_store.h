@@ -55,6 +55,7 @@ class PluginStore {
   static bool validPluginId(const QString& id);
 
   Entry get(const QString& pluginId, const QString& key) const;
+  QStringList keys(const QString& pluginId) const;  // sorted (developer console "Inspect")
   // baseRevision: the revision the plugin read; a different current revision is a Conflict (the attempted value is kept in
   // conflicts(), the current value stays).
   PutResult put(const QString& pluginId, const QString& key, const QJsonValue& value, std::optional<qint64> baseRevision = std::nullopt);

@@ -32,6 +32,9 @@ class ConsoleStore {
   void addLog(const QString& id, LogLevel level, const QString& text);
   void addEvent(const QString& id, const EventLine& line);
   bool setWatched(const QString& id, const QList<WatchedRow>& rows);  // true when changed
+  void noteDenied(const QString& id, const QString& permission);       // an fb.* call was refused for a missing permission
+  void noteError(const QString& id);                                   // a handler error (counted for the console)
+  void setReloaded(const QString& id, qint64 ms);                      // a reload finished after `ms`
   ConsoleSnapshot snapshot(const QString& id) const;
   QStringList ids() const;
   QStringList takeDirty();
@@ -115,6 +118,7 @@ struct Plugin {
   std::chrono::steady_clock::time_point toastLast = std::chrono::steady_clock::now();
 
   int slowCalls = 0;                          // consecutive callbacks above half the wall budget
+  ErrorBurst errors;                          // handler errors of the last ten seconds (pause rule)
 
   QString id() const { return info.manifest.id; }
 };
@@ -160,6 +164,8 @@ class PluginEngine {
   void emitEvent(Plugin& p, const std::string& name, Value value);
   void syncWatches(Plugin& p);
   void pause(Plugin& p, const std::string& error);
+  // A handler failed with a Lua error (not a budget trip): logged; the third error within ten seconds pauses the plugin.
+  void handlerError(Plugin& p, const std::string& error);
   // Runs a callback (registry ref) of `p` with arguments pushed by `pushArgs`; pauses `p` on failure.
   void callRef(Plugin& p, int ref, const std::function<int(lua_State*)>& pushArgs);
   void releaseState(Plugin& p);

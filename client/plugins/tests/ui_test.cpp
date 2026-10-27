@@ -520,6 +520,11 @@ class UiTest : public QObject {
     QCOMPARE(m_host->uiTree(kId, "panel").value("text").toString(), QStringLiteral("alive"));
     QCOMPARE(m_host->uiState(kId).badge, 4);
     QSignalSpy spy(m_host, &PluginHost::uiChanged);
+    // One error is only logged; the third within ten seconds pauses (0.22, board 4d-2D).
+    m_host->sendAction(kId, "panel", "x");
+    QTRY_VERIFY_WITH_TIMEOUT(con().errorCount >= 1, 5000);
+    QCOMPARE(con().status, PluginStatus::Running);
+    m_host->sendAction(kId, "panel", "x");
     m_host->sendAction(kId, "panel", "x");
     QTRY_COMPARE_WITH_TIMEOUT(con().status, PluginStatus::Paused, 5000);
     QTRY_VERIFY(m_host->uiState(kId).paused);

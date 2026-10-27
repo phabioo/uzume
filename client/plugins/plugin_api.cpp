@@ -35,7 +35,11 @@ constexpr qint64 kMaxCacheRead = 32ll * 1024 * 1024;
 Plugin* self(lua_State* L) { return static_cast<Plugin*>(LuaSandbox::from(L)->owner()); }
 
 void need(lua_State* L, const char* perm) {
-  if (!self(L)->info.manifest.hasPermission(QLatin1String(perm))) luaL_error(L, "permission %s not granted", perm);
+  Plugin* p = self(L);
+  if (!p->info.manifest.hasPermission(QLatin1String(perm))) {
+    p->engine->store.noteDenied(p->id(), QLatin1String(perm));  // shown as "Not granted" in the developer console
+    luaL_error(L, "permission %s not granted", perm);
+  }
 }
 
 template <class F>

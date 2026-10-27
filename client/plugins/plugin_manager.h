@@ -73,6 +73,10 @@ class PluginManager : public QObject {
   void setTrustedKeys(const QList<QByteArray>& keys) { m_keys = keys; }
   // Runs straight from `srcDir` and reloads on file changes (~300 ms debounce). Does not copy.
   InstallResult linkDevFolder(const QString& srcDir);
+  // "Reload on file change" (developer console): whether linked folders are watched. On by default; off keeps the links and
+  // stops the watching (a debug log line "watching <folder> for changes" is written for every folder when it is on).
+  void setWatchEnabled(bool on);
+  bool watchEnabled() const { return m_watchEnabled; }
   // Removes the installed copy and its cache, or only the link of a dev-linked folder (the folder is never deleted).
   bool uninstall(const QString& id);
   bool setEnabled(const QString& id, bool enabled);
@@ -119,6 +123,7 @@ class PluginManager : public QObject {
 
   QString m_root;
   bool m_devMode = false;
+  bool m_watchEnabled = true;
   QString m_playerVersion;
   QMap<QString, bool> m_enabled;
   QMap<QString, QString> m_linked;   // plugin id -> folder

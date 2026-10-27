@@ -14,6 +14,7 @@
 #include "format_helpers.h"
 #include "gamesession.h"
 #include "inputmap.h"
+#include "memory_access.h"
 #include "mcp_tools.h"
 #include "playercontroller.h"
 #include "tools_util.h"
@@ -41,14 +42,7 @@ QString stateName(ui::GameSession::State s) {
 
 QJsonArray sizeJson(const QSize& s) { return QJsonArray{s.width(), s.height()}; }
 
-// Parses "DE AD be ef", "deadbeef", "0xDEADBEEF"; empty on bad input.
-QByteArray parseHex(QString s) {
-  s.remove(QLatin1Char(' ')).remove(QLatin1Char(':'));
-  if (s.startsWith(QLatin1String("0x"), Qt::CaseInsensitive)) s = s.mid(2);
-  if (s.isEmpty() || s.size() % 2 != 0) return {};
-  const QByteArray out = QByteArray::fromHex(s.toLatin1());
-  return out.size() * 2 == s.size() ? out : QByteArray();
-}
+QByteArray parseHex(const QString& s) { return emu::memaccess::parseHex(s); }
 
 // Waits for `ready()` to become true on `signal` of `obj`, at most `ms`; then calls `done(ok)` once. GUI thread.
 template <class Obj, class Signal, class Ready, class Done>
@@ -159,16 +153,7 @@ void installGameTools(McpToolRegistry& registry, ui::PlayerController& player) {
           noMap = true;
           return;
         }
-        quint64 at = *addr, left = *len;
-        data.reserve(static_cast<qsizetype>(left));
-        while (left > 0) {
-          const emu::MemoryMap::Span sp = map->resolve(at);
-          if (sp.ptr == nullptr || sp.len == 0) break;
-          const quint64 n = (std::min<quint64>)(left, sp.len);
-          data.append(reinterpret_cast<const char*>(sp.ptr), static_cast<qsizetype>(n));
-          at += n;
-          left -= n;
-        }
+        data = emu::memaccess::read(*map, *addr, *len);
       });
       if (!ran) return reply(ToolResult::error(QStringLiteral("emulation_busy")));
       if (noMap) return reply(ToolResult::error(QStringLiteral("no_memory_map")));
@@ -212,16 +197,14 @@ void installGameTools(McpToolRegistry& registry, ui::PlayerController& player) {
       } else if (a.contains(QStringLiteral("value"))) {
         const auto v = parseNumber(a.value(QStringLiteral("value")));
         const QString type = a.value(QStringLiteral("type")).toString();
-        const int size = type == QLatin1String("u8") ? 1 : type == QLatin1String("u16") ? 2 : type == QLatin1String("u32") ? 4 : 0;
-        if (!v || size == 0) return reply(ToolResult::error(QStringLiteral("value needs a non-negative number and type u8, u16 or u32")));
-        for (int i = 0; i < size; ++i) pattern.append(static_cast<char>((*v >> (8 * i)) & 0xFF));
+        pattern = v ? emu::memaccess::valueBytes(*v, type) : QByteArray();
+        if (pattern.isEmpty()) return reply(ToolResult::error(QStringLiteral("value needs a non-negative number and type u8, u16 or u32")));
       } else {
         return reply(ToolResult::error(QStringLiteral("pattern or value+type is required")));
       }
       const int max = (std::max)(1, (std::min)(kMaxMatches, a.value(QStringLiteral("max")).isDouble() ? a.value(QStringLiteral("max")).toInt(100) : 100));
-      QJsonArray matches;
-      quint64 scanned = 0;
-      bool truncated = false, noMap = false;
+      emu::memaccess::SearchResult found;
+      bool noMap = false;
       const bool ran = gs->runOnEmuThread(
           [&](emu::EmulatorBackend& be) {
             const emu::MemoryMap* map = be.memoryMap();
@@ -229,35 +212,15 @@ void installGameTools(McpToolRegistry& registry, ui::PlayerController& player) {
               noMap = true;
               return;
             }
-            quint64 at = *start;
-            const quint64 limit = (std::min<quint64>)(*end, *start + static_cast<quint64>(kMaxScanBytes));
-            truncated = *end > limit;
-            while (at < limit && matches.size() < max) {
-              const emu::MemoryMap::Span sp = map->resolve(at);
-              if (sp.ptr == nullptr || sp.len == 0) {  // unmapped: skip on in page steps
-                at += 0x1000 - (at & 0xFFF);
-                continue;
-              }
-              const quint64 n = (std::min<quint64>)(limit - at, sp.len);
-              const uint8_t* base = sp.ptr;
-              const uint8_t* cur = base;
-              const uint8_t* stop = base + n;
-              while (cur < stop && matches.size() < max) {
-                const uint8_t* hit = std::search(cur, stop, pattern.constData(), pattern.constData() + pattern.size(),
-                                                 [](uint8_t x, char y) { return x == static_cast<uint8_t>(y); });
-                if (hit == stop) break;
-                matches.append(hexAddr(at + static_cast<quint64>(hit - base)));
-                cur = hit + 1;
-              }
-              scanned += n;
-              at += n;
-            }
+            found = emu::memaccess::search(*map, *start, *end, pattern, max);
           },
           15000);
       if (!ran) return reply(ToolResult::error(QStringLiteral("emulation_busy")));
       if (noMap) return reply(ToolResult::error(QStringLiteral("no_memory_map")));
-      reply(ToolResult::json(QJsonObject{{QStringLiteral("matches"), matches}, {QStringLiteral("scanned_bytes"), static_cast<double>(scanned)},
-                                         {QStringLiteral("truncated"), truncated || matches.size() >= max}}));
+      QJsonArray matches;
+      for (const quint64 m : found.matches) matches.append(hexAddr(m));
+      reply(ToolResult::json(QJsonObject{{QStringLiteral("matches"), matches}, {QStringLiteral("scanned_bytes"), static_cast<double>(found.scanned)},
+                                         {QStringLiteral("truncated"), found.truncated}}));
     };
     registry.add(std::move(t));
   }
