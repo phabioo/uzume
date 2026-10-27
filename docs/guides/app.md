@@ -144,6 +144,9 @@ The server binds to `127.0.0.1` only, checks the token, the `Host` header and (i
 | `game_input` | `buttons`, `frames`, `touch?` | holds buttons (and a touch) for N frames, then releases; keyboard and gamepad are untouched |
 | `game_pause` / `game_resume` | | pause state |
 | `game_frame_step` | `frames` | runs exactly N frames of a paused game |
+| `game_state_save` | `name?` | saves the core's state into app memory under a name (raw, no server, no file); returns size and frame |
+| `game_state_load` | `name?` | loads a state saved with `game_state_save`; the active cheat list is re-applied |
+| `game_memory_write` | `addr`, `hex` | writes bytes into live memory through the between-frames queue; whole range must be mapped, max 1 MiB |
 | `ui_tree` | `root?`, `depth?` (12), `visibleOnly?` (true), `window?` | the QML items of the visible windows, popups and dialogs included: type, objectName, text, label, placeholder, checked, enabled, visible, focus, accessible role and name, rect in window coordinates, a path id, `destructive`; capped at about 200 KB (`truncated`) |
 | `ui_click` | `target` (objectName, path id or text) or `x`,`y`; `button?`, `double?` | real mouse events (move, press, release) on the item, scrolled into view first |
 | `ui_type` | `target?`, `text`, `clear?`, `submit?` | real key events into the focused or the target field; the content of password fields is never returned |

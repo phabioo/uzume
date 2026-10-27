@@ -139,6 +139,11 @@ struct LibretroBackend::Api {
   void(RETRO_CALLCONV* reset)() = nullptr;
   void*(RETRO_CALLCONV* get_memory_data)(unsigned) = nullptr;  // optional
   size_t(RETRO_CALLCONV* get_memory_size)(unsigned) = nullptr;  // optional
+  size_t(RETRO_CALLCONV* serialize_size)() = nullptr;           // optional (states)
+  bool(RETRO_CALLCONV* serialize)(void*, size_t) = nullptr;     // optional
+  bool(RETRO_CALLCONV* unserialize)(const void*, size_t) = nullptr;  // optional
+  void(RETRO_CALLCONV* cheat_reset)() = nullptr;                // optional (cheats)
+  void(RETRO_CALLCONV* cheat_set)(unsigned, bool, const char*) = nullptr;  // optional
 };
 
 std::atomic<LibretroBackend*> LibretroBackend::s_active{nullptr};
@@ -181,6 +186,11 @@ bool LibretroBackend::loadCore(const QString& libraryPath, QString* error) {
   sym(a.reset, "retro_reset");
   a.get_memory_data = reinterpret_cast<void*(RETRO_CALLCONV*)(unsigned)>(m_lib.resolve("retro_get_memory_data"));
   a.get_memory_size = reinterpret_cast<size_t(RETRO_CALLCONV*)(unsigned)>(m_lib.resolve("retro_get_memory_size"));
+  a.serialize_size = reinterpret_cast<size_t(RETRO_CALLCONV*)()>(m_lib.resolve("retro_serialize_size"));
+  a.serialize = reinterpret_cast<bool(RETRO_CALLCONV*)(void*, size_t)>(m_lib.resolve("retro_serialize"));
+  a.unserialize = reinterpret_cast<bool(RETRO_CALLCONV*)(const void*, size_t)>(m_lib.resolve("retro_unserialize"));
+  a.cheat_reset = reinterpret_cast<void(RETRO_CALLCONV*)()>(m_lib.resolve("retro_cheat_reset"));
+  a.cheat_set = reinterpret_cast<void(RETRO_CALLCONV*)(unsigned, bool, const char*)>(m_lib.resolve("retro_cheat_set"));
   if (!ok) {
     m_lib.unload();
     return fail(QStringLiteral("Not a valid libretro library (symbols missing)"));
@@ -202,6 +212,9 @@ bool LibretroBackend::loadCore(const QString& libraryPath, QString* error) {
   m_corePath = libraryPath;
   m_corePathUtf8 = QDir::toNativeSeparators(libraryPath).toUtf8();
   m_shutdownRequested = false;
+  m_serQuirks = 0;
+  m_stateContext = RETRO_SAVESTATE_CONTEXT_NORMAL;
+  m_ranFrame = false;
   m_pixelFormat = RETRO_PIXEL_FORMAT_0RGB1555;
   m_frame = QImage();
   m_frameCount = 0;
@@ -501,6 +514,7 @@ void LibretroBackend::unloadGame() {
   m_api->unload_game();
   teardownHw();
   m_gameLoaded = false;
+  m_ranFrame = false;
   m_gameData.clear();
   m_memMap = MemoryMap(); ++m_memMapGen;
 }
@@ -527,6 +541,7 @@ bool LibretroBackend::runFrame() {
     }
   }
   m_api->run();
+  m_ranFrame = true;
   if (m_savePendingLoad) tryLoadSave();  // as soon as the core exposes save memory, before any flush
   if (++m_framesSinceFlush >= 180) {
     m_framesSinceFlush = 0;
@@ -537,6 +552,45 @@ bool LibretroBackend::runFrame() {
 
 void LibretroBackend::reset() {
   if (m_gameLoaded) m_api->reset();
+}
+
+bool LibretroBackend::supportsStates() const {
+  return m_coreLoaded && m_api->serialize_size && m_api->serialize && m_api->unserialize;
+}
+
+qint64 LibretroBackend::serializeSize() {
+  if (!supportsStates() || !m_gameLoaded) return 0;
+  if ((m_serQuirks & RETRO_SERIALIZATION_QUIRK_MUST_INITIALIZE) && !m_ranFrame) return 0;
+  if (m_hwActive && !m_hw->makeCurrent()) return 0;
+  m_stateContext = RETRO_SAVESTATE_CONTEXT_NORMAL;
+  return static_cast<qint64>(m_api->serialize_size());
+}
+
+bool LibretroBackend::serialize(QByteArray* out) {
+  if (!out) return false;
+  out->clear();
+  const qint64 size = serializeSize();  // asked right before: a core may change its size from frame to frame
+  if (size <= 0) return false;
+  out->resize(static_cast<qsizetype>(size));
+  if (m_api->serialize(out->data(), static_cast<size_t>(size))) return true;
+  out->clear();
+  return false;
+}
+
+bool LibretroBackend::unserialize(const QByteArray& state) {
+  if (!supportsStates() || !m_gameLoaded || state.isEmpty()) return false;
+  if ((m_serQuirks & RETRO_SERIALIZATION_QUIRK_MUST_INITIALIZE) && !m_ranFrame) return false;
+  if (m_hwActive && !m_hw->makeCurrent()) return false;
+  m_stateContext = RETRO_SAVESTATE_CONTEXT_NORMAL;
+  return m_api->unserialize(state.constData(), static_cast<size_t>(state.size()));
+}
+
+bool LibretroBackend::supportsCheats() const { return m_coreLoaded && m_api->cheat_reset && m_api->cheat_set; }
+void LibretroBackend::cheatReset() {
+  if (supportsCheats() && m_gameLoaded) m_api->cheat_reset();
+}
+void LibretroBackend::cheatSet(unsigned index, bool enabled, const QString& code) {
+  if (supportsCheats() && m_gameLoaded) m_api->cheat_set(index, enabled, code.toUtf8().constData());
 }
 
 QImage LibretroBackend::videoFrame() const { return m_frame; }
@@ -965,7 +1019,12 @@ bool LibretroBackend::handleEnvironment(unsigned rawCmd, void* data) {
     case RETRO_ENVIRONMENT_SET_SUPPORT_NO_GAME:
       m_supportsNoGame = data != nullptr && *static_cast<const bool*>(data);
       return true;
-    case RETRO_ENVIRONMENT_SET_SERIALIZATION_QUIRKS: return true;
+    case RETRO_ENVIRONMENT_SET_SERIALIZATION_QUIRKS:
+      if (data) m_serQuirks = *static_cast<const uint64_t*>(data);
+      return true;
+    case RETRO_ENVIRONMENT_GET_SAVESTATE_CONTEXT & ~RETRO_ENVIRONMENT_EXPERIMENTAL:
+      if (data) *static_cast<int*>(data) = m_stateContext;
+      return true;
     case RETRO_ENVIRONMENT_SET_CONTENT_INFO_OVERRIDE: return true;
     case RETRO_ENVIRONMENT_SET_CONTROLLER_INFO: return true;
     case RETRO_ENVIRONMENT_SET_SUBSYSTEM_INFO: return true;

@@ -45,6 +45,10 @@ Long reads are bounded (memory 1 MiB per call, RomFS 4 MiB per call, logs 2000 l
 - Every call is logged by name and target, never with its arguments' content or results.
 - `memory.write` comes with 0.20 and follows its rules (snapshot before the first write, one write queue, run log event).
 
+#### Amendment (0.20, 2026-10-27): state and memory tools
+
+`game_state_save`, `game_state_load` and `game_memory_write` exist since 0.20. They are available only with the same opt-in as every other tool (`--mcp` / developer switch and token), nothing changes about who can call them. Writes go through the same between-frames command queue as plugin memory writes (one queue, applied on the emulation thread); states stay in app memory under a name, never on disk or on a server, so the rule that saves are never overwritten or sent elsewhere holds. The per-game consent and the run rules of `memory.write` apply to plugins; the debug tools are developer tools behind the opt-in and are not run-ruled.
+
 ## Consequences
 
 - The developer console of 0.22 can use the same data sources; the MCP server does not replace it.

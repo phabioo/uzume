@@ -37,5 +37,7 @@
   ],
   "always_shown_core_options": [
     "citra_resolution_factor"
-  ]
+  ],
+  "states": {"supported": true, "run_ahead": false},
+  "cheats": {"formats": ["gateway"]}
 }

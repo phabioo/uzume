@@ -122,7 +122,7 @@ class McpToolsTest : public QObject {
     for (const char* n : {"status", "logs_tail", "logs_search", "settings_get", "collect_diagnostics", "connection_check", "plugins_list", "plugin_console", "plugin_ui",
                           "plugin_action", "plugin_reload", "plugin_call", "plugin_eval", "plugin_cache_list", "plugin_cache_read", "plugin_image", "game_state",
                           "memory_regions", "memory_read", "memory_search", "romfs_list", "romfs_read", "rom_read", "screenshot", "game_input", "game_pause",
-                          "game_resume", "game_frame_step"})
+                          "game_resume", "game_frame_step", "game_state_save", "game_state_load", "game_memory_write"})
       QVERIFY2(names.contains(QLatin1String(n)), n);
   }
 
@@ -137,6 +137,9 @@ class McpToolsTest : public QObject {
     QVERIFY(call("game_state").isError == false);
     QVERIFY(call("memory_regions").isError);  // no game
     QCOMPARE(call("memory_read", {{"addr", 0}, {"len", 4}}).content.value(0).text, QStringLiteral("no_game"));
+    QCOMPARE(call("game_state_save").content.value(0).text, QStringLiteral("no_game"));
+    QCOMPARE(call("game_state_load").content.value(0).text, QStringLiteral("no_game"));
+    QCOMPARE(call("game_memory_write", {{"addr", 0}, {"hex", "00"}}).content.value(0).text, QStringLiteral("no_game"));
   }
 
   void switchPersistsAndTokenStaysOutOfTheLog() {
@@ -396,6 +399,50 @@ class McpToolsTest : public QObject {
     QVERIFY(call("rom_read", {{"offset", 0}, {"len", 16}}).isError);  // the controller has no library game here
     gs->stop();
     QVERIFY(call("memory_read", {{"addr", 0x08000000}, {"len", 4}}).isError);
+  }
+
+  // game_state_save / game_state_load / game_memory_write through the emulation command queue (0.20), against the test core.
+  void emulationToolsAgainstTheTestCore() {
+    ui::GameSession* gs = pc->gameSession();
+    ui::GameSession::LaunchConfig cfg;
+    cfg.title = QStringLiteral("Uzume Test");
+    cfg.corePath = qEnvironmentVariable("UZUME_MELONDS_DS_CORE");
+    cfg.gamePath = QStringLiteral(FB_TEST_ROM_PATH);
+    cfg.systemDir = dir.filePath("sys");
+    cfg.saveDir = dir.filePath("save");
+    cfg.display.layout = QStringLiteral("vertical");
+    cfg.display.screens = {{QStringLiteral("top"), 256, 192, false}, {QStringLiteral("bottom"), 256, 192, true}};
+    gs->start(cfg);
+    QTRY_COMPARE_WITH_TIMEOUT(gs->state(), ui::GameSession::Running, 20000);
+    QTRY_VERIFY_WITH_TIMEOUT(gs->frameNumber() >= 40, 20000);
+
+    // Memory write: queued, applied between frames, read back live.
+    const ToolResult w = call("game_memory_write", {{"addr", "0x08000800"}, {"hex", "DE AD be ef"}});
+    QVERIFY2(!w.isError, qPrintable(w.content.value(0).text));
+    QCOMPARE(jsonOf(w).toObject().value("written").toInt(), 4);
+    QCOMPARE(jsonOf(call("memory_read", {{"addr", "0x08000800"}, {"len", 4}})).toObject().value("hex").toString(), QStringLiteral("de ad be ef"));
+    QCOMPARE(call("game_memory_write", {{"addr", "0x0F000000"}, {"hex", "00"}}).content.value(0).text, QStringLiteral("unmapped"));
+    QVERIFY(call("game_memory_write", {{"addr", "0x08000800"}, {"hex", "abc"}}).isError);  // odd hex
+    QVERIFY(call("game_memory_write", {{"addr", "0x08000800"}}).isError);
+
+    // Save state: size and frame; then the memory changes, and a load brings the saved bytes back (also while paused).
+    const ToolResult sv = call("game_state_save", {{"name", "a"}});
+    QVERIFY2(!sv.isError, qPrintable(sv.content.value(0).text));
+    const QJsonObject so = jsonOf(sv).toObject();
+    QVERIFY(so.value("size").toDouble() > 1000);
+    QVERIFY(so.value("frame").toDouble() >= 40);
+    QVERIFY(call("game_state_save", {{"name", "bad name!"}}).isError);
+    QVERIFY(!call("game_pause").isError);
+    QTRY_VERIFY_WITH_TIMEOUT(gs->isPaused(), 5000);
+    QVERIFY(!call("game_memory_write", {{"addr", "0x08000800"}, {"hex", "00000000"}}).isError);
+    QCOMPARE(jsonOf(call("memory_read", {{"addr", "0x08000800"}, {"len", 4}})).toObject().value("hex").toString(), QStringLiteral("00 00 00 00"));
+    QCOMPARE(call("game_state_load", {{"name", "nope"}}).content.value(0).text, QStringLiteral("unknown_state"));
+    const ToolResult ld = call("game_state_load", {{"name", "a"}});
+    QVERIFY2(!ld.isError, qPrintable(ld.content.value(0).text));
+    QCOMPARE(jsonOf(ld).toObject().value("size").toDouble(), so.value("size").toDouble());
+    QCOMPARE(jsonOf(call("memory_read", {{"addr", "0x08000800"}, {"len", 4}})).toObject().value("hex").toString(), QStringLiteral("de ad be ef"));
+    gs->stop();
+    QCOMPARE(call("game_state_save").content.value(0).text, QStringLiteral("no_game"));
   }
 };
 

@@ -55,6 +55,7 @@ constexpr uint64_t kRegionSize = 0x100000;  // 1 MiB each
 constexpr uint32_t kMagic = 0x4D4D4246;     // bytes "FBMM"
 constexpr uint64_t kMagicOff = 0x0;
 constexpr uint64_t kFrameOff = 0x4;
+constexpr uint64_t kCheatCountOff = 0x8;  // u32, number of enabled cheat entries (written every frame)
 constexpr uint64_t kPartyPtrOff = 0x10;
 constexpr uint32_t kPartyAddr = 0x14000100;
 constexpr uint32_t kPartySlots = 6;

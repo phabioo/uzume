@@ -27,5 +27,7 @@
   ],
   "always_shown_core_options": [
     "mgba_color_correction"
-  ]
+  ],
+  "states": {"supported": true, "run_ahead": true},
+  "cheats": {"formats": {"gb": ["gsa", "game_genie"], "gbc": ["gsa", "game_genie"], "gba": ["gsa", "cb", "ar_gba"]}}
 }

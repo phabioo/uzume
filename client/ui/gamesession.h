@@ -190,6 +190,9 @@ class GameSession : public QObject {
   // Debug access (MCP server, ADR 0032): runs `fn` on the emulation thread between frames, also while paused, and waits
   // (GUI thread). false: no game on a core, or the thread did not get to it within `timeoutMs`.
   bool runOnEmuThread(std::function<void(emu::EmulatorBackend&)> fn, int timeoutMs = 3000);
+  // Emulation command queue (save state, load state, cheats, memory write; see EmulationRunner::submit): async, applied
+  // between two frames in submit order. Returns the request id, 0 when no game runs. `onDone` runs on the emulation thread.
+  quint64 submitEmuCommand(emu::EmulationRunner::Command cmd, std::function<void(const emu::EmulationRunner::CommandResult&)> onDone = {});
   // Paused game only: runs exactly `frames` frames (1..emu::EmulationRunner::kMaxStepFrames) and stays paused. Returns the
   // frame count afterwards (the last frame arrives through frameChanged), -1 when not possible.
   qint64 stepFrames(int frames);

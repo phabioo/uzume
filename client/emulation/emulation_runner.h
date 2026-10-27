@@ -6,7 +6,9 @@
 // run in the emulation thread. Signals are emitted from the emulation thread; receivers in
 // other threads get them via queued connections (auto connection).
 
+#include <QByteArray>
 #include <QImage>
+#include <QList>
 #include <QMap>
 #include <QMutex>
 #include <QObject>
@@ -51,6 +53,45 @@ class EmulationRunner : public QObject {
     bool speedUpAudio = true;
   };
 
+  // One entry of the active cheat list. `format` is informational for the runner (the caller checks it against the core
+  // profile's cheat formats); `code` goes to retro_cheat_set unchanged.
+  struct CheatEntry {
+    QString id;
+    QString format;
+    QString code;
+    bool enabled = true;
+  };
+
+  // Commands for the emulation thread (0.20 foundation). All go through one queue, are applied between two frames (also
+  // while paused) in submit order, and report asynchronously: commandFinished() carries the request id that submit()
+  // returned. The emulation thread never waits for the GUI thread.
+  struct Command {
+    enum class Kind { SaveState, LoadState, SetCheats, WriteMemory };
+    Kind kind = Kind::SaveState;
+    QByteArray data;             // LoadState: the state; WriteMemory: the bytes
+    QList<CheatEntry> cheats;    // SetCheats: the whole active list (empty = clear)
+    quint64 address = 0;         // WriteMemory: address in the device address space (the core's memory map)
+    static Command saveState() { return {}; }
+    static Command loadState(QByteArray state) { Command c; c.kind = Kind::LoadState; c.data = std::move(state); return c; }
+    static Command setCheats(QList<CheatEntry> list) { Command c; c.kind = Kind::SetCheats; c.cheats = std::move(list); return c; }
+    static Command writeMemory(quint64 address, QByteArray bytes) {
+      Command c; c.kind = Kind::WriteMemory; c.address = address; c.data = std::move(bytes); return c;
+    }
+  };
+  struct CommandResult {
+    quint64 requestId = 0;
+    Command::Kind kind = Command::Kind::SaveState;
+    bool ok = false;
+    // On failure: "unsupported" (core has no states/cheats), "no_game", "failed" (the core refused), "unmapped" (address or
+    // part of the range is not in the memory map; nothing was written), "invalid", "stopped" (emulation ended first), "timeout".
+    QString error;
+    QByteArray state;  // SaveState: the serialized state
+    quint64 frame = 0; // SaveState: backend frame number at the time
+    QImage preview;    // SaveState: the current video frame (XRGB8888)
+    int applied = 0;   // SetCheats: number of enabled entries handed to the core
+  };
+  static constexpr int kMaxMemoryWriteBytes = 1 << 20;
+
   explicit EmulationRunner(std::unique_ptr<EmulatorBackend> backend, QObject* parent = nullptr);
   ~EmulationRunner() override;
 
@@ -70,6 +111,15 @@ class EmulationRunner : public QObject {
   // paused/running, the count is out of range or the thread did not get to it within `timeoutMs`.
   static constexpr int kMaxStepFrames = 600;
   qint64 stepFrames(int frames, int timeoutMs = 20000);
+  // Queues a command; returns its request id (> 0), or 0 when the emulation thread is not running (no result follows then).
+  // `onDone` (optional) is called on the emulation thread right before commandFinished is emitted.
+  quint64 submit(Command cmd, std::function<void(const CommandResult&)> onDone = {});
+  // Blocking convenience for non-emulation threads (MCP, tests): submit + wait. error "timeout" if the thread did not get to
+  // it in time (a command that has not started then never runs), "stopped" if the runner is not running.
+  CommandResult execute(Command cmd, int timeoutMs = 5000);
+  // The active cheat list as last accepted by a SetCheats command (thread-safe copy). It is re-applied after reset() and
+  // after a state load.
+  QList<CheatEntry> activeCheats() const;
   // Writes the battery save to its file now if it changed (blocking). Without it the file lags up to ~3 s.
   bool flushSaveNow();
   // Whether the running core's battery save memory has exactly `size` bytes (blocking).
@@ -143,6 +193,8 @@ class EmulationRunner : public QObject {
   // A save problem known while the game runs (e.g. the save file cannot be read, so this game will not be saved).
   void saveProblem(const QString& message);
   void stopped();
+  // A queued command finished (emulation thread; queued to receivers elsewhere). See submit().
+  void commandFinished(const uzume::emu::EmulationRunner::CommandResult& result);
   // The core re-sent its memory map while running; memoryRegions() now returns the new list.
   void memoryRegionsChanged();
 
@@ -163,6 +215,9 @@ class EmulationRunner : public QObject {
   std::atomic<int> m_snapshotInterval{1};
   mutable QMutex m_regionsMutex;
   std::vector<MemoryMap::RegionInfo> m_regions;
+  std::atomic<quint64> m_nextRequestId{1};
+  mutable QMutex m_cheatsMutex;
+  QList<CheatEntry> m_activeCheats;
 };
 
 }  // namespace uzume::emu
@@ -170,3 +225,4 @@ class EmulationRunner : public QObject {
 Q_DECLARE_METATYPE(uzume::emu::AvInfo)
 Q_DECLARE_METATYPE(uzume::emu::CoreInfo)
 Q_DECLARE_METATYPE(uzume::emu::EmulationRunner::State)
+Q_DECLARE_METATYPE(uzume::emu::EmulationRunner::CommandResult)

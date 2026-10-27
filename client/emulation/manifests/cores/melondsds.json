@@ -64,5 +64,7 @@
   ],
   "always_shown_core_options": [
     "melonds_opengl_resolution"
-  ]
+  ],
+  "states": {"supported": true, "run_ahead": false},
+  "cheats": {"formats": ["ar_ds"]}
 }
