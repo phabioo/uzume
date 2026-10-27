@@ -35,6 +35,7 @@ constexpr const char* kWhatsNewKey = "whats_new_version";
 constexpr const char* kDiagOpenKey = "diagnostics_open";
 constexpr const char* kDeveloperModeKey = "developer_mode";
 constexpr const char* kPluginReloadOnChangeKey = "plugin_reload_on_change";
+constexpr const char* kDiscordPresenceKey = "discord_presence";
 constexpr const char* kPlayOnThisPcKey = "play_on_this_pc";
 constexpr const char* kLocalServerModeKey = "local_server_mode";
 constexpr const char* kLocalServerPortKey = "local_server_port";
@@ -102,6 +103,7 @@ PlayerSettings::PlayerSettings(const QString& baseDir)
   diagOpen_ = raw_.value(QLatin1String(kDiagOpenKey)).toBool(false);
   developerMode_ = raw_.value(QLatin1String(kDeveloperModeKey)).toBool(false);
   pluginReloadOnChange_ = raw_.value(QLatin1String(kPluginReloadOnChangeKey)).toBool(true);
+  discordPresence_ = raw_.value(QLatin1String(kDiscordPresenceKey)).toBool(false);
   playOnThisPc_ = raw_.value(QLatin1String(kPlayOnThisPcKey)).toBool(false);
   if (const QString m = raw_.value(QLatin1String(kLocalServerModeKey)).toString(); m == QLatin1String("child") || m == QLatin1String("service")) {
     localServerMode_ = m;
@@ -274,6 +276,12 @@ bool PlayerSettings::setDeveloperMode(bool on) {
 bool PlayerSettings::setPluginReloadOnChange(bool on) {
   pluginReloadOnChange_ = on;
   raw_.insert(QLatin1String(kPluginReloadOnChangeKey), on);
+  return save();
+}
+
+bool PlayerSettings::setDiscordPresence(bool on) {
+  discordPresence_ = on;
+  raw_.insert(QLatin1String(kDiscordPresenceKey), on);
   return save();
 }
 

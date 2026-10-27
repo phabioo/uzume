@@ -133,6 +133,10 @@ class McpToolsTest : public QObject {
     const QJsonObject s = jsonOf(call("status")).toObject();
     QVERIFY(!s.value("app").toObject().value("version").toString().isEmpty());
     QVERIFY(s.contains("servers"));
+    const QJsonObject discord = s.value("discord").toObject();  // Rich Presence: off by default, nothing sent
+    QVERIFY(discord.contains("enabled") && !discord.value("enabled").toBool());
+    QVERIFY(!discord.value("connected").toBool());
+    QVERIFY(discord.value("details").toString().isEmpty());
     QVERIFY(!s.value("data_dir").toString().isEmpty());
     const QString text = QJsonDocument(s).toJson();
     QVERIFY(!text.contains("token", Qt::CaseInsensitive));
