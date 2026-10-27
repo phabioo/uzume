@@ -774,7 +774,7 @@ class LibrarySavesUiTest : public QObject {
       QVERIFY2(r.top() >= tabsRect.top() - 0.5 && r.bottom() <= tabsRect.bottom() + 0.5, name);
     }
     // Scrolling the content (or a shrinking content height) never moves the tabs.
-    flick->setProperty("contentY", std::max(0.0, flick->property("contentHeight").toReal() - flick->height()) + 12);
+    flick->setProperty("contentY", (std::max)(0.0, flick->property("contentHeight").toReal() - flick->height()) + 12);
     hist->selectSlot(QStringLiteral("default"));
     QTRY_VERIFY(!shown(h, "slotManageRow"));
     QQuickTest::qWaitForPolish(h.window);
