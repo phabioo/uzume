@@ -369,7 +369,9 @@ void SaveHistoryController::refresh() {
                                  {QStringLiteral("reasonText"), reasonText(v.reason)},
                                  {QStringLiteral("device"), v.deviceName},
                                  {QStringLiteral("when"), formatWhen(v.createdAt)},
-                                 {QStringLiteral("isSnapshot"), v.reason == QLatin1String("manual_snapshot")}});
+                                 {QStringLiteral("isSnapshot"), v.reason == QLatin1String("manual_snapshot")},
+                                 {QStringLiteral("cheatsUsed"), v.cheatsUsed},
+                                 {QStringLiteral("autoKind"), autoKind(v.reason, v.label)}});
         }
       }
       self->history_ = out;
@@ -642,6 +644,9 @@ void SaveHistoryController::requestDelete(int version) {
     const QVariantMap m = v.toMap();
     if (m.value(QStringLiteral("version")).toInt() == version &&
         (m.value(QStringLiteral("isSnapshot")).toBool() || env_.saves->hubSupportsSavesV6())) {
+      if (!m.value(QStringLiteral("autoKind")).toString().isEmpty()) {
+        return;  // automatic "Before cheats" / "Before memory changes" copies are never deleted from the app (11g)
+      }
       deleteRequest_ = m;
       deleteRequest_.insert(QStringLiteral("slot"), slot());
       restoreRequest_.clear();
@@ -1038,6 +1043,14 @@ void SaveHistoryController::setMessage(const QString& text, bool isError) {
   message_ = text;
   messageIsError_ = isError;
   emit changed();
+}
+
+// Design 11g: the app's own safety copies before cheats / memory writes (pluginemulation.cpp) are automatic entries, not user snapshots.
+QString SaveHistoryController::autoKind(const QString& reason, const QString& label) {
+  if (reason != QLatin1String("manual_snapshot")) return {};
+  if (label == QLatin1String("Before cheats")) return QStringLiteral("cheats");
+  if (label == QLatin1String("Before memory changes")) return QStringLiteral("memory");
+  return {};
 }
 
 QString SaveHistoryController::reasonText(const QString& reason) {

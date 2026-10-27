@@ -11,6 +11,8 @@ ColumnLayout {
     property string versionText: ""
     property string label: ""
     property string meta: ""
+    property bool cheats: false           // 11g: made from a save written with cheats or memory writes on
+    property string autoKind: ""          // 11g: "" | "cheats" | "memory": the app's automatic safety copy; no Delete, Restore is the one action
     property bool showRestore: true
     property bool showDelete: false
     property bool restoreEnabled: true
@@ -28,6 +30,7 @@ ColumnLayout {
 
     readonly property bool isCurrent: kind === "current"
     readonly property bool isSnap: kind === "snap"
+    readonly property bool isAuto: autoKind !== ""
 
     objectName: "saveRow"
     Layout.fillWidth: true
@@ -105,13 +108,28 @@ ColumnLayout {
                     text: qsTr("✓ Current")
                 }
                 UzTag {
-                    visible: root.isSnap
+                    visible: root.isSnap && !root.isAuto
                     small: true
                     tone: "warn"
                     text: qsTr("◆ Snapshot")
                 }
+                UzTag {
+                    objectName: "historyAutoTag"
+                    visible: root.isAuto
+                    small: true
+                    tone: "ok"
+                    text: root.autoKind === "memory" ? qsTr("Before memory changes") : qsTr("Before cheats")
+                }
+                UzTag {
+                    objectName: "historyCheatsTag"
+                    visible: root.cheats && !root.isAuto
+                    small: true
+                    tone: "danger"
+                    icon: "warn"
+                    text: qsTr("Cheats")
+                }
                 UzLabel {
-                    visible: root.label !== ""
+                    visible: root.label !== "" && !root.isAuto
                     objectName: "historyLabel"
                     width: Math.min(implicitWidth, textCol.width)
                     text: "“" + root.label + "”"
@@ -147,11 +165,12 @@ ColumnLayout {
                 visible: root.showRestore && !root.isCurrent
                 enabled: root.restoreEnabled
                 size: "sm"
+                kind: root.isAuto ? "primary" : "outline"
                 hPadding: Theme.space2
                 on: root.confirm === "restore"
                 width: Math.min(implicitWidth, actions.maxButtonWidth)
                 opacity: enabled && !root.muted ? 1 : 0.5
-                text: qsTr("Restore")
+                text: root.isAuto ? (root.autoKind === "memory" ? qsTr("Restore before changes") : qsTr("Restore before cheats")) : qsTr("Restore")
                 Accessible.name: qsTr("Restore %1").arg(root.versionText)
                 onClicked: root.restoreClicked()
             }

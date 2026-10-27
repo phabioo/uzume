@@ -985,7 +985,8 @@ QJsonObject FakeHub::versionJson(const FakeVersion& v) const {
           {QStringLiteral("device_name"), v.deviceName},
           {QStringLiteral("created_at"), QStringLiteral("2026-01-01T12:%1:00Z").arg(v.version % 60, 2, 10, QLatin1Char('0'))},
           {QStringLiteral("reason"), v.reason},
-          {QStringLiteral("label"), v.label.isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(v.label)}};
+          {QStringLiteral("label"), v.label.isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(v.label)},
+          {QStringLiteral("cheats_used"), v.cheatsUsed}};
 }
 
 QJsonObject FakeHub::slotJson(const QString& key, const FakeSlot& s) const {

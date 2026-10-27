@@ -37,6 +37,7 @@ struct FakeVersion {
   QByteArray content;
   QString deviceId, deviceName, reason = QStringLiteral("session_end");
   QString label;
+  bool cheatsUsed = false;  // run_rules_v1 `cheats_used`
 };
 struct FakeSlot {
   QList<FakeVersion> history;  // oldest first
