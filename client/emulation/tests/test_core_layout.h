@@ -9,6 +9,7 @@
 //     RETRO_DEVICE_ID_JOYPAD id i is pressed (B Y Select Start Up Down Left Right A X L R L2 R2 L3 R3), else magenta.
 //     y 240: data row, pixel i = 0xFF000000 | value (24 bits), see DataIndex.
 // OpenGL path (render mode "opengl"): the same quadrants and magenta, scaled by the resolution option, no strips.
+// Vulkan path (render mode "vulkan"): the same, plus an 8x8 (times scale) cyan marker in rows 0..7 at vkMarkerX(frame, scale).
 #include <cstdint>
 
 namespace uzume::testcore {
@@ -20,6 +21,8 @@ constexpr int kCellWidth = 16;
 constexpr int kDataRow = 240;
 constexpr uint32_t kMagenta = 0xFFFF00FF;
 constexpr uint32_t kPressed = 0xFF000000;
+// Left edge of the cyan marker of the Vulkan render mode for the frame number `frame` (inside the red quadrant).
+constexpr int vkMarkerX(uint64_t frame, int scale) { return static_cast<int>((frame * 8) % (kWidth / 2 - 8)) * scale; }
 
 enum DataIndex : int {
   DataFrame = 0,     // frames since retro_load_game

@@ -8,6 +8,10 @@
   ],
   "order": 0,
   "requires_hw_render": true,
+  "renderer": {
+    "option": "citra_graphics_api",
+    "values": {"opengl": "OpenGL", "vulkan": "Vulkan"}
+  },
   "save": {
     "source": "core_tree",
     "format": "azahar_sdmc",

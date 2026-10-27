@@ -79,6 +79,10 @@ struct SystemManifest {
   bool saveShortDir = false;  // core profile save.short_dir: the core gets SaveStore::shortCoreDir
   QString saveShortDirSubfolder;  // core profile save.short_dir_subfolder
   bool requiresHwRender = false;  // core profile: OpenGL (Core) required, no software fallback (start fails with an error)
+  // Core profile "renderer": the core option that selects the core's renderer and its value per renderer ("opengl" /
+  // "vulkan" -> option value); empty = the core has no such option (ADR 0034).
+  QString rendererOption;
+  QMap<QString, QString> rendererValues;
   QStringList extensions;  // lowercase, with dot
   FirmwareSpec firmware;
   QString inputProfile;
@@ -130,6 +134,10 @@ struct CoreProfile {
   bool saveShortDir = false;
   QString saveShortDirSubfolder;  // "save"."short_dir_subfolder": core-created tree moved once from the old save dir (empty = none)
   bool requiresHwRender = false;  // "requires_hw_render": the core has no usable software mode (Azahar)
+  // "renderer": {"option": "<core option key>", "values": {"opengl": "<value>", "vulkan": "<value>"}}: the core option that
+  // selects the core's renderer (ADR 0034); only set when the core's source confirms the key.
+  QString rendererOption;
+  QMap<QString, QString> rendererValues;
   QString sysfileOption;  // core option that switches built-in / external BIOS; empty = none
   QString sysfileNative = QStringLiteral("native");
   QString sysfileBuiltin = QStringLiteral("builtin");

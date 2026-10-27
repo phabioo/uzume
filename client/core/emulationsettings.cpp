@@ -135,6 +135,14 @@ QMap<QString, QString> EmulationSettings::mergedOverrides(const QString& systemI
   return m;
 }
 
+QString EmulationSettings::normalizeRenderer(const QString& value) {
+  return value.trimmed().compare(QLatin1String("vulkan"), Qt::CaseInsensitive) == 0 ? QStringLiteral("vulkan") : QStringLiteral("opengl");
+}
+
+QString EmulationSettings::renderer(const QString& systemId, const QString& gameId) const {
+  return normalizeRenderer(resolve(QString::fromLatin1(kRendererKey), systemId, gameId, QString(), QStringLiteral("opengl")).value);
+}
+
 QString EmulationSettings::sourceName(Source s) {
   switch (s) {
     case Source::Game: return QStringLiteral("game");

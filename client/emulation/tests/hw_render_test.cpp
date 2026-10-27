@@ -238,6 +238,13 @@ class HwRenderTest : public QObject {
 
  private slots:
   void init() { clearLog(); }
+  // Every test starts from a clean fake-core mode, also after a failed QCOMPARE returned early.
+  void cleanup() {
+    for (const char* k : {"FB_FAKE_HW_CTX", "FB_FAKE_HW_MAJOR", "FB_FAKE_HW_MINOR", "FB_FAKE_HW_SCALE", "FB_FAKE_HW_STRIPES",
+                          "FB_FAKE_HW_BOTTOM_LEFT", "FB_FAKE_HW_COUNTER", "FB_FAKE_HW_LOGAV", "FB_FAKE_HW_READFBO",
+                          "FB_FAKE_HW_GLERROR", "FB_FAKE_HW_DUPE_EVERY", "UZUME_SYNC_READBACK", "UZUME_DISABLE_HW_RENDER"})
+      qunsetenv(k);
+  }
   void initTestCase() {
     QVERIFY(m_log.open());
     qputenv("FB_FAKE_HW_LOG", m_log.fileName().toUtf8());
@@ -341,7 +348,7 @@ class HwRenderTest : public QObject {
   }
 
   void otherApisAreRejected() {
-    qputenv("FB_FAKE_HW_CTX", "6");  // Vulkan
+    qputenv("FB_FAKE_HW_CTX", "7");  // D3D11: Vulkan is supported since ADR 0034 (vk_render_test), D3D stays unsupported
     QTemporaryFile rom;
     QVERIFY(rom.open());
     rom.write("x");

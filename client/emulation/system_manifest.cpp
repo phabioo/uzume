@@ -188,6 +188,11 @@ std::optional<CoreProfile> ManifestRegistry::parseProfile(const QByteArray& json
   p.lockedCoreOptions = stringList(o.value(QLatin1String("locked_core_options")));
   p.alwaysShownCoreOptions = stringList(o.value(QLatin1String("always_shown_core_options")));
   p.requiresHwRender = o.value(QLatin1String("requires_hw_render")).toBool(false);
+  const QJsonObject rend = o.value(QLatin1String("renderer")).toObject();
+  p.rendererOption = rend.value(QLatin1String("option")).toString().trimmed();
+  const QJsonObject rv = rend.value(QLatin1String("values")).toObject();
+  for (auto it = rv.begin(); it != rv.end(); ++it) p.rendererValues.insert(it.key(), it.value().toString());
+  if (p.rendererOption.isEmpty()) p.rendererValues.clear();
   const QJsonObject save = o.value(QLatin1String("save")).toObject();
   p.saveSource = save.value(QLatin1String("source")).toString(p.saveSource);
   p.saveExtension = save.value(QLatin1String("extension")).toString(p.saveExtension);
@@ -289,6 +294,8 @@ std::optional<SystemManifest> ManifestRegistry::resolve(const QString& systemId,
     m.saveShortDir = p->saveShortDir;
     m.saveShortDirSubfolder = p->saveShortDirSubfolder;
     m.requiresHwRender = p->requiresHwRender;
+    m.rendererOption = p->rendererOption;
+    m.rendererValues = p->rendererValues;
     m.coreOptions = p->coreOptions;
     m.lockedCoreOptions = p->lockedCoreOptions;
     m.alwaysShownCoreOptions = p->alwaysShownCoreOptions;

@@ -164,7 +164,7 @@ bool isLockedCoreOption(const SystemManifest& manifest, const QString& key) {
 }
 
 QMap<QString, QString> launchCoreOptions(const SystemManifest& manifest, const QMap<QString, QString>& userOverrides,
-                                         const QMap<QString, QString>& firmwareOptions) {
+                                         const QMap<QString, QString>& firmwareOptions, const QString& renderer) {
   QMap<QString, QString> out = manifest.coreOptions;
   for (auto it = userOverrides.cbegin(); it != userOverrides.cend(); ++it) {
     if (it.key().startsWith(QLatin1String("uzume.")) || isLockedCoreOption(manifest, it.key())) continue;
@@ -175,6 +175,10 @@ QMap<QString, QString> launchCoreOptions(const SystemManifest& manifest, const Q
   }
   for (const QString& k : manifest.lockedCoreOptions) {
     if (manifest.coreOptions.contains(k)) out.insert(k, manifest.coreOptions.value(k));
+  }
+  // The renderer choice is Uzume's (it may sit among the locked keys): it wins over the locked default.
+  if (!renderer.isEmpty() && !manifest.rendererOption.isEmpty() && manifest.rendererValues.contains(renderer)) {
+    out.insert(manifest.rendererOption, manifest.rendererValues.value(renderer));
   }
   return out;
 }
