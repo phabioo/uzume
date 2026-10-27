@@ -373,6 +373,10 @@ void GameView::keyPressEvent(QKeyEvent* e) {
     e->accept();
     return;
   }
+  if (e->key() == Qt::Key_Escape && (e->modifiers() & Qt::ShiftModifier)) {
+    e->ignore();  // Shift+Esc (pause for everyone) is handled by the game screen
+    return;
+  }
   if (e->key() == Qt::Key_Escape) {
     emit escapePressed();
     e->accept();

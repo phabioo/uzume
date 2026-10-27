@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://uzume.invalid/schemas/ws-ready-check-cancel.schema.json",
+  "title": "ws-ready-check-cancel (app to server)",
+  "type": "object",
+  "required": [
+    "type",
+    "payload"
+  ],
+  "properties": {
+    "type": {
+      "const": "ready_check_cancel"
+    },
+    "id": {
+      "type": "string"
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "check_id"
+      ],
+      "properties": {
+        "check_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  },
+  "description": "Only the starter can cancel. Error forbidden for everybody else, not_found when the check is not open."
+}

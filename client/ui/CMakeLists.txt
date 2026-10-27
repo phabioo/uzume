@@ -50,6 +50,7 @@ qt_add_qml_module(uzume_ui
     runrecapcontroller.h runrecapcontroller.cpp
     onlineroster.h onlineroster.cpp
     notificationcenter.h notificationcenter.cpp
+    togethercontroller.h togethercontroller.cpp
     personalcontroller.h personalcontroller.cpp
     screenshotcontroller.h screenshotcontroller.cpp
     localstoragecontroller.h localstoragecontroller.cpp
@@ -256,6 +257,7 @@ qt_add_qml_module(uzume_ui
     UzPopover.qml
     UzToast.qml
     ToastHost.qml
+    TogetherCard.qml
     NotificationsPopover.qml
     UzStageDiagnostics.qml
     UzDiagRows.qml

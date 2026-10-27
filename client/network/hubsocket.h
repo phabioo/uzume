@@ -20,6 +20,27 @@ class QSslError;
 
 namespace uzume {
 
+// together_v1 (ADR 0033 D3): ready check and shared pause, scope "run" | "session". `by` is a user id.
+struct ReadyCheckMember {
+  QString userId;
+  QString state;  // pending | ready | not_ready
+};
+struct ReadyCheckMessage {
+  QString checkId;
+  QString scope;
+  QString id;
+  QString by;
+  QString status;  // open | all_ready | cancelled | expired
+  qint64 expiresAtMs = 0;  // epoch ms, 0 when unknown
+  QList<ReadyCheckMember> members;
+};
+struct PauseStateMessage {
+  QString scope;
+  QString id;
+  bool paused = false;
+  QString by;  // user id, "" when the server cleared the pause
+};
+
 // WSS client of the Hub (`GET /api/v1/ws`, ADR 0006 D3): Bearer upgrade with the same leaf pinning as HubHttp,
 // `hello` after connect, typed signals for every Hub message, WebSocket ping every 20 s, automatic reconnect
 // with backoff (the token is renewed through HubConnection when the Hub rejects it).
@@ -47,6 +68,12 @@ class HubSocket : public QObject {
   // `runId` (Uzume 0.19) only with state "in_game": the game was started as a run game, the server counts the play time for the run.
   void sendPresence(const QString& state, const QString& gameId = {}, const QString& runId = {});
 
+  // together_v1 (ADR 0033 D3). Sent now or dropped: a late ready check or pause is worse than none.
+  void sendReadyCheckStart(const QString& scope, const QString& id);
+  void sendReadyCheckAnswer(const QString& checkId, bool ready);
+  void sendReadyCheckCancel(const QString& checkId);
+  void sendPauseRequest(const QString& scope, const QString& id, bool paused);
+
   // Timing (tests): ping interval, backoff start/max, hello_ack timeout.
   void setPingIntervalMs(int ms) { pingIntervalMs_ = ms; }
   void setBackoffMs(int initial, int max) {
@@ -70,6 +97,8 @@ class HubSocket : public QObject {
   void runUpdated(const QJsonObject& run);
   void runStateReceived(const QJsonObject& payload);  // {run_id, user_id, state_rev, state}
   void runEventReceived(const QJsonObject& payload);  // {run_id, event}
+  void readyCheckReceived(const uzume::ReadyCheckMessage& check);
+  void pauseStateReceived(const uzume::PauseStateMessage& state);
   void hubError(const QString& code, const QString& message);  // `error` message of the Hub
   void connectionError(const QString& code, const QString& message);  // transport: unreachable, certificate_changed, ...
 
@@ -119,3 +148,6 @@ class HubSocket : public QObject {
 };
 
 }  // namespace uzume
+
+Q_DECLARE_METATYPE(uzume::ReadyCheckMessage)
+Q_DECLARE_METATYPE(uzume::PauseStateMessage)

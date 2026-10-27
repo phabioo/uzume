@@ -954,6 +954,12 @@ void ControllersController::feedPadNav(const QSet<QString>& tokens, qint64 nowMs
   if (mute || pads_.capturing() || !padHotkeyListening_.isEmpty() || !hotkeyListening_.isEmpty() || !listening_.isEmpty() ||
       (padNavGate_ && !padNavGate_())) {
     padNavDir_.clear();
+    if (!mute && padNavGate_ && !padNavGate_() && padTogetherGate_ && padTogetherGate_() && !pads_.capturing() && padHotkeyListening_.isEmpty() &&
+        hotkeyListening_.isEmpty() && listening_.isEmpty()) {
+      // The pad plays the game; the ready check card still hears A and B (the game gets the press as well).
+      if (fresh.contains(padToken(QStringLiteral("a")))) { notePadInput(); emit padCommand(QStringLiteral("togetherReady")); }
+      else if (fresh.contains(padToken(QStringLiteral("b")))) { notePadInput(); emit padCommand(QStringLiteral("togetherNotYet")); }
+    }
     return;
   }
   const auto has = [&](const char* a, const char* b) { return tokens.contains(padToken(QString::fromLatin1(a))) || (b != nullptr && tokens.contains(padToken(QString::fromLatin1(b)))); };

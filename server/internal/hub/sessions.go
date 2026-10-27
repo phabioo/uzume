@@ -648,18 +648,24 @@ func (s *Service) endLocked(ctx context.Context, d *sessionData, reason string) 
 	for _, v := range d.viewers {
 		s.cancelViewerGrace(v.id)
 	}
+	s.reconcileTogether(scopeSession, d.id, nil) // the ready check is cancelled and the pause cleared
 	for _, c := range s.clients() {
 		if d.allows(c.userID, c.deviceID) {
 			c.sendMsg("session_ended", "", map[string]string{"session_id": d.id, "reason": reason})
 		}
 	}
-	s.resendPresence(d.ownerDeviceID, func(c *Client) bool { return d.allows(c.userID, c.deviceID) }) // session_id disappears
+	s.resendPresence(d.ownerDeviceID, nil, func(c *Client) bool { return d.allows(c.userID, c.deviceID) }) // session_id disappears
 	return nil
 }
 
 // broadcastSession sends session_update (personalised) to every connected device that may see the Session and
 // session_ended(no_longer_visible) to devices that could see it before and cannot now.
 func (s *Service) broadcastSession(before, after *sessionData, inviteUser string) {
+	if after.ended {
+		s.reconcileTogether(scopeSession, after.id, nil)
+	} else {
+		s.reconcileTogether(scopeSession, after.id, sessionMembers(after))
+	}
 	for _, c := range s.clients() {
 		now := after.allows(c.userID, c.deviceID)
 		was := before != nil && before.allows(c.userID, c.deviceID)
@@ -673,7 +679,7 @@ func (s *Service) broadcastSession(before, after *sessionData, inviteUser string
 		}
 	}
 	// session_id in the owner's presence appears or disappears for the devices whose access changed
-	s.resendPresence(after.ownerDeviceID, func(c *Client) bool {
+	s.resendPresence(after.ownerDeviceID, after, func(c *Client) bool {
 		return after.allows(c.userID, c.deviceID) != (before != nil && before.allows(c.userID, c.deviceID))
 	})
 }

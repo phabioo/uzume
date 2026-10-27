@@ -672,6 +672,17 @@ func loadEvents(ctx context.Context, q dbq, runID string, after, upTo int64, lim
 // pushRunUpdated sends run_updated to every connection of every participant (all statuses). Joined participants get
 // the plugin states, the others the run without states (viewFor).
 func (s *Service) pushRunUpdated(run Run) {
+	var joinedUsers []string
+	for _, p := range run.Participants {
+		if p.Status == ParticipantJoined {
+			joinedUsers = append(joinedUsers, p.UserID)
+		}
+	}
+	if run.Status == RunPaused || run.Finished() || run.Archived { // left the active state: ready check and pause end
+		s.endTogether(scopeRun, run.ID, joinedUsers)
+	} else {
+		s.reconcileTogether(scopeRun, run.ID, joinedUsers)
+	}
 	joined := map[string]bool{}
 	users := map[string]bool{}
 	for _, p := range run.Participants {
@@ -1663,6 +1674,7 @@ func (s *Service) DeleteRun(ctx context.Context, runID string) (err error) {
 		return ErrNotFound
 	}
 	s.dropRunBuckets(runID)
+	s.reconcileTogether(scopeRun, runID, nil)
 	s.PruneOldPlugins(ctx)
 	return nil
 }

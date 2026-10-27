@@ -16,6 +16,7 @@
 #include "onboardingcontroller.h"
 #include "playercontroller.h"
 #include "sessioncontroller.h"
+#include "togethercontroller.h"
 #include "tools_util.h"
 
 namespace uzume::mcp {
@@ -167,7 +168,7 @@ void installTogetherTools(McpToolRegistry& registry, ui::PlayerController& playe
   state.description = QStringLiteral(
       "The online list and the notifications of the current server as the app shows them: roster (people other than me: name, state "
       "online|in_game, game title, system, session_id when watchable, invite_kind session|run|none), notifications (newest first: index, "
-      "kind, text, time, action label, read) and the unread count. Read-only; opening the bell is what marks entries read, this does not.");
+      "kind, text, time, action label, read), the unread count, the scope of the running game (run or Session, `available`), the open ready check (title, seconds left, my state, members with state, the last result notice) and the shared pause. Read-only; opening the bell is what marks entries read, this does not.");
   state.inputSchema = schema();
   state.handler = [pc](const QJsonObject&, ToolReply reply) {
     if (!pc) return reply(ToolResult::error(QStringLiteral("app_closing")));
@@ -192,9 +193,26 @@ void installTogetherTools(McpToolRegistry& registry, ui::PlayerController& playe
                                {QStringLiteral("action"), m.value(QStringLiteral("actionLabel")).toString()},
                                {QStringLiteral("read"), m.value(QStringLiteral("read")).toBool()}});
     }
-    reply(ToolResult::json(QJsonObject{{QStringLiteral("roster"), roster},
-                                       {QStringLiteral("notifications"), notes},
-                                       {QStringLiteral("unread"), pc->notifications()->unread()}}));
+    ui::TogetherController* tg = pc->together();
+    QJsonArray members;
+    for (const QVariant& v : tg->checkMembers()) {
+      const QVariantMap m = v.toMap();
+      members.append(QJsonObject{{QStringLiteral("user_id"), m.value(QStringLiteral("userId")).toString()},
+                                 {QStringLiteral("name"), m.value(QStringLiteral("name")).toString()},
+                                 {QStringLiteral("state"), m.value(QStringLiteral("state")).toString()}});
+    }
+    reply(ToolResult::json(QJsonObject{
+        {QStringLiteral("roster"), roster},
+        {QStringLiteral("notifications"), notes},
+        {QStringLiteral("unread"), pc->notifications()->unread()},
+        {QStringLiteral("scope"), QJsonObject{{QStringLiteral("kind"), tg->scopeKind()}, {QStringLiteral("id"), tg->scopeId()}, {QStringLiteral("available"), tg->available()}}},
+        {QStringLiteral("ready_check"), QJsonObject{{QStringLiteral("open"), tg->checkOpen()},
+                                                    {QStringLiteral("title"), tg->checkTitle()},
+                                                    {QStringLiteral("seconds_left"), tg->secondsLeft()},
+                                                    {QStringLiteral("my_state"), tg->myState()},
+                                                    {QStringLiteral("members"), members},
+                                                    {QStringLiteral("notice"), tg->notice()}}},
+        {QStringLiteral("pause"), QJsonObject{{QStringLiteral("paused"), tg->paused()}, {QStringLiteral("text"), tg->pausedText()}, {QStringLiteral("holding_my_game"), tg->holdActive()}}}}));
   };
   registry.add(std::move(state));
 
@@ -260,6 +278,51 @@ void installTogetherTools(McpToolRegistry& registry, ui::PlayerController& playe
     reply(ToolResult::json(QJsonObject{{QStringLiteral("was_shared"), was}}));
   };
   registry.add(std::move(stop));
+
+  // together_ready_check / together_pause (0.23, ADR 0033 D3): the "Ready check…" and "Pause for everyone" entries of the ⋯ menu.
+  ToolDef rc;
+  rc.name = QStringLiteral("together_ready_check");
+  rc.description = QStringLiteral(
+      "Ready check of the scope of the running game (its run, else the shared or watched Session), like the \"Ready check…\" menu entry and the "
+      "card buttons. action: start | ready | not_ready | cancel (cancel only for the starter). Answers no_scope, no_open_check or not_starter. "
+      "Read the result with together_state.");
+  rc.inputSchema = schema({{QStringLiteral("action"), typeStr(QStringLiteral("start | ready | not_ready | cancel"))}}, {QStringLiteral("action")});
+  rc.handler = [pc](const QJsonObject& a, ToolReply reply) {
+    if (!pc) return reply(ToolResult::error(QStringLiteral("app_closing")));
+    ui::TogetherController* tg = pc->together();
+    const QString action = a.value(QStringLiteral("action")).toString();
+    if (action == QLatin1String("start")) {
+      if (!tg->available()) return reply(ToolResult::error(QStringLiteral("no_scope")));
+      tg->startCheck();
+    } else if (action == QLatin1String("ready") || action == QLatin1String("not_ready")) {
+      if (!tg->checkOpen()) return reply(ToolResult::error(QStringLiteral("no_open_check")));
+      tg->answer(action == QLatin1String("ready"));
+    } else if (action == QLatin1String("cancel")) {
+      if (!tg->checkOpen()) return reply(ToolResult::error(QStringLiteral("no_open_check")));
+      if (!tg->iStarted()) return reply(ToolResult::error(QStringLiteral("not_starter")));
+      tg->cancelCheck();
+    } else {
+      return reply(ToolResult::error(QStringLiteral("action must be start, ready, not_ready or cancel")));
+    }
+    reply(ToolResult::json(QJsonObject{{QStringLiteral("ok"), true}}));
+  };
+  registry.add(std::move(rc));
+
+  ToolDef tp;
+  tp.name = QStringLiteral("together_pause");
+  tp.description = QStringLiteral(
+      "Pauses (paused true) or resumes (false) the game for everyone in the scope of the running game (Shift+Esc). Answers no_scope without a "
+      "run or Session. The Hub answers every member; read the result with together_state or game_state.");
+  tp.inputSchema = schema({{QStringLiteral("paused"), typeBool(QStringLiteral("true = pause for everyone, false = resume"))}}, {QStringLiteral("paused")});
+  tp.handler = [pc](const QJsonObject& a, ToolReply reply) {
+    if (!pc) return reply(ToolResult::error(QStringLiteral("app_closing")));
+    if (!a.value(QStringLiteral("paused")).isBool()) return reply(ToolResult::error(QStringLiteral("paused is required (true or false)")));
+    ui::TogetherController* tg = pc->together();
+    if (!tg->available()) return reply(ToolResult::error(QStringLiteral("no_scope")));
+    tg->setPaused(a.value(QStringLiteral("paused")).toBool());
+    reply(ToolResult::json(QJsonObject{{QStringLiteral("ok"), true}}));
+  };
+  registry.add(std::move(tp));
 }
 
 }  // namespace uzume::mcp

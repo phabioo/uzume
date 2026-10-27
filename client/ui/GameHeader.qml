@@ -23,6 +23,7 @@ Rectangle {
     property var hotkeys: ({})
     readonly property GameSession session: player.gameSession
     readonly property SessionController ctl: player.sessions
+    readonly property TogetherController together: player.together
     readonly property DiagnosticsModel diag: ctl.diagnostics
     readonly property bool own: session.active
     // Multiview: tab "multiview" with a game of your own or several surfaces; one remote Session alone is "watching".
@@ -231,6 +232,10 @@ Rectangle {
             it.push({ label: qsTr("Fullscreen"), shortcut: root.key(root.hotkeys.fullscreen), name: "fullscreen" })
         }
         if (it.length > 0) it.push({ separator: true })
+        // Together (ADR 0033 D3): one click each, enabled while a run or a Session is the scope of this game
+        it.push({ label: qsTr("Ready check…"), name: "readyCheck", disabled: !root.together.available })
+        it.push({ label: root.together.paused ? qsTr("Resume for everyone") : qsTr("Pause for everyone"), shortcut: "Shift+Esc", name: "sharedPause", disabled: !root.together.available })
+        it.push({ separator: true })
         it.push({ label: root.diag.open ? qsTr("Hide diagnostics") : qsTr("Diagnostics"), shortcut: root.key(root.hotkeys.diagnostics) || "F3", name: "diagnostics" })
         it.push({ label: qsTr("HUD widgets"), shortcut: "F4", name: "hud", disabled: root.player.plugins.hudWidgets.length === 0 })
         if (root.own && root.session.active)
@@ -244,6 +249,8 @@ Rectangle {
     }
     function runMore(name) {
         if (name === "pause") root.session.togglePause()
+        else if (name === "readyCheck") root.together.startCheck()
+        else if (name === "sharedPause") root.together.togglePause()
         else if (name === "speedup") root.session.toggleFastForward()
         else if (name === "panel") root.panelToggled()
         else if (name === "multiview") root.ctl.tab = "multiview"

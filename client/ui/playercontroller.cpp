@@ -880,6 +880,65 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
     }
   });
   wireNotifications();
+  wireTogether();
+}
+
+// ---------------------------------------------------------------- Together: ready check and shared pause (0.23, ADR 0033 D3)
+
+void PlayerController::wireTogether() {
+  together_ = std::make_unique<TogetherController>(sessions_->socket());
+  together_->setSelf([this]() { return conn_->hubUserId(); });
+  together_->setNameResolver([this](const QString& userId) -> QString {
+    if (userId == conn_->hubUserId()) return conn_->userDisplayName();
+    for (const OnlineRoster::Person& p : sessions_->roster()->people()) {
+      if (p.userId == userId && !p.name.isEmpty()) return p.name;
+    }
+    const QString runId = sessions_->localRunId();
+    if (!runId.isEmpty()) {
+      if (const auto run = runClient_->run(runId)) {
+        if (const RunParticipant* part = run->participant(userId)) return part->userName;
+      }
+    }
+    return {};
+  });
+  together_->setScopeProvider([this]() -> TogetherController::Scope {
+    TogetherController::ScopeInputs in;
+    const auto activeJoined = [this](const QString& runId, bool needJoined) -> bool {
+      const auto run = runClient_->run(runId);
+      if (!run || run->status != QLatin1String("active")) return false;
+      const RunParticipant* me = run->participant(conn_->hubUserId());
+      return !needJoined || (me && me->status == QLatin1String("joined"));
+    };
+    // The board of an active run I have joined (Runs screen): the same ready check, without a game
+    if (screen() == QLatin1String("runs") && !runs_->openRunId().isEmpty() && activeJoined(runs_->openRunId(), true)) in.boardRunId = runs_->openRunId();
+    in.gameActive = session_.isActive();
+    const QString runId = sessions_->localRunId();
+    if (!runId.isEmpty() && in.gameActive && activeJoined(runId, false)) in.gameRunId = runId;
+    in.ownSessionId = sessions_->ownSessionId();
+    in.watched = sessions_->shownSessionIds();
+    in.focus = sessions_->audioFocus();
+    return TogetherController::pickScope(in);
+  });
+  together_->setGameHooks({[this]() { return session_.isPaused(); }, [this]() { session_.pause(); }, [this]() { session_.resume(); }});
+  connect(together_.get(), &TogetherController::pauseChanged, this, [this]() { sessions_->setHostPauseBy(together_->hostPauseName()); });
+  const auto refresh = [this]() { together_->refresh(); };
+  connect(sessions_.get(), &SessionController::shareChanged, this, refresh);
+  connect(sessions_.get(), &SessionController::gameChanged, this, refresh);
+  connect(sessions_.get(), &SessionController::watchChanged, this, refresh);
+  connect(sessions_.get(), &SessionController::surfacesChanged, this, refresh);
+  connect(runClient_.get(), &RunClient::runsChanged, this, refresh);
+  connect(this, &PlayerController::hubChanged, this, refresh);
+  connect(this, &PlayerController::screenChanged, this, refresh);
+  connect(runs_.get(), &RunsController::detailChanged, this, refresh);
+  connect(&session_, &GameSession::stateChanged, this, [this]() {
+    together_->refresh();
+    together_->noteLocalPauseChanged();
+  });
+  controllers_->setPadTogetherGate([this]() { return screen() == QLatin1String("game") && together_->awaitsAnswer(); });
+  connect(controllers_.get(), &ControllersController::padCommand, this, [this](const QString& command) {
+    if (command == QLatin1String("togetherReady")) together_->answer(true);
+    else if (command == QLatin1String("togetherNotYet")) together_->answer(false);
+  });
 }
 
 // ---------------------------------------------------------------- Together: notifications and the online list (0.23, ADR 0033)

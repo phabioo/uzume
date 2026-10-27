@@ -121,6 +121,13 @@ class SessionController : public QObject {
   bool shareBusy() const { return shareBusy_; }
   QString visibility() const { return visibility_; }
   QString ownName() const { return shared_ ? own_.owner.displayName : QString(); }
+  // A shared pause (TogetherController) holds the host's game: viewers read "Paused by <name>"; empty = the host's own name.
+  void setHostPauseBy(const QString& name) {
+    if (hostPauseBy_ == name) return;
+    hostPauseBy_ = name;
+    updateHostState();
+  }
+  QString ownSessionId() const { return shared_ ? own_.sessionId : QString(); }  // id of the shared Session, "" = nothing shared
   int viewerCount() const;
   QVariantList participants() const;
   QString participantsTitle() const;
@@ -262,7 +269,8 @@ class SessionController : public QObject {
   PlayerSettings* settings_ = nullptr;  // owned by the PlayerController
   void saveSettings() const;
   void updateGpuEncode();
-  void updateHostState();  // tells the viewers of the own Session whether the game is paused
+  void updateHostState();
+  QString hostPauseBy_;  // name shown to viewers instead of the host's while a shared pause holds the game  // tells the viewers of the own Session whether the game is paused
   static QString visibilityLabel(const QString& v);
   QString effectiveTab() const;
   QString errorText(const SessionApiResult& r, const QString& what) const;

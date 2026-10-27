@@ -187,6 +187,8 @@ class ControllersController : public QObject {
   // `gate` says whether the shell has the input (false while a game runs unpaused); nothing is translated while a capture runs.
   // feedPadNav() is what the SDL poll calls with the pressed tokens (tests call it directly).
   void setPadNavGate(std::function<bool()> gate) { padNavGate_ = std::move(gate); }
+  // While it returns true and the pad belongs to the game, A / B are also offered as padCommand("togetherReady" / "togetherNotYet") (ready check card).
+  void setPadTogetherGate(std::function<bool()> gate) { padTogetherGate_ = std::move(gate); }
   void feedPadNav(const QSet<QString>& tokens, qint64 nowMs);
   Q_INVOKABLE void notePadInput();       // a gamepad button was used last
   Q_INVOKABLE void noteKeyboardInput();  // the keyboard was used last: hints show keys again
@@ -206,7 +208,7 @@ class ControllersController : public QObject {
   void hotkeysChanged();
   void hotkeyHintsChanged();
   void padActiveChanged();
-  void padCommand(const QString& command);   // search | filterPrev | filterNext
+  void padCommand(const QString& command);   // search | filterPrev | filterNext | togetherReady | togetherNotYet
   void holdSheetChanged();
   void padHotkeyTriggered(const QString& action);  // P1 gamepad hotkey pressed (combo or lone button)
   void padHotkeyReleased(const QString& action);   // ... and its button let go (hold hotkeys: rewind)
@@ -253,6 +255,7 @@ class ControllersController : public QObject {
   bool eventFilter(QObject* watched, QEvent* event) override;
   void sendPadKey(int key);
   std::function<bool()> padNavGate_;
+  std::function<bool()> padTogetherGate_;
   QSet<QString> padNavPrev_;
   QString padNavDir_;
   qint64 padNavNext_ = 0;

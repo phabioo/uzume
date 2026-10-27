@@ -154,6 +154,7 @@ func (s *Service) armOwnerGrace(sessionID, deviceID string) {
 func (s *Service) Close() {
 	s.stopBackup()
 	s.stopPlay()
+	s.stopTogether()
 	s.sess.mu.Lock() // waits for a running grace callback (they hold it while they work)
 	defer s.sess.mu.Unlock()
 	rt := &s.sess.rt
@@ -267,7 +268,8 @@ type Client struct {
 	registered bool
 	state      string
 	gameID     string
-	reqHost    string // Host of the WSS upgrade (TURN URLs)
+	game       *presenceGame // resolved with gameID (nil = none or unknown), guarded by mu
+	reqHost    string        // Host of the WSS upgrade (TURN URLs)
 	remoteIP   netip.Addr
 
 	bucket   float64   // rate limit tokens; guarded by mu
@@ -438,6 +440,14 @@ func (c *Client) Handle(data []byte) error {
 		c.signal(env)
 	case "presence_update":
 		c.presence(env)
+	case "ready_check_start":
+		c.readyCheckStart(env)
+	case "ready_check_answer":
+		c.readyCheckAnswer(env)
+	case "ready_check_cancel":
+		c.readyCheckCancel(env)
+	case "pause_request":
+		c.pauseRequest(env)
 	default:
 		c.sendError(env.ID, CodeBadRequest, "Unknown message type")
 	}
@@ -514,12 +524,18 @@ func (s *Service) attach(c *Client) {
 		old.closeWith(CloseCodePolicy, "replaced by a newer connection")
 	}
 	pb := s.newPresenceBuilder()
-	for _, o := range s.clients() {
+	others := s.clients()
+	for _, o := range others {
+		pb.lookupSession(o.deviceID) // database access: before sess.mu
+	}
+	pb.lookupSession(c.deviceID)
+	for _, o := range others {
 		if o != c {
 			c.sendMsg("presence_update", "", pb.payload(o, c)) // snapshot: who is where
 			o.sendMsg("presence_update", "", pb.payload(c, o))
 		}
 	}
+	s.togetherCatchUp(c)
 	s.sess.mu.Lock()
 	defer s.sess.mu.Unlock()
 	ctx := context.Background()
@@ -534,21 +550,64 @@ func (s *Service) attach(c *Client) {
 	}
 }
 
-// presenceBuilder builds the per-receiver presence_update payloads of one broadcast. It caches the sender's
-// active Session and the game lookups per receiving user. The caller may hold sess.mu (the lookups only read).
+// presenceGame is what presence needs of the game a device plays, resolved once when the device reports it
+// (outside any hub lock) so that building a presence_update never queries the database for the game.
+type presenceGame struct {
+	title, system string
+	onHub         bool
+	owners        map[string]bool // users that registered a ROM of the game (library visibility when not on the hub)
+}
+
+// visibleTo mirrors GetGameFor: a game is visible when its ROM is stored on the hub or the user owns a ROM of it.
+func (g *presenceGame) visibleTo(userID string) bool {
+	return g != nil && (g.onHub || g.owners[userID])
+}
+
+// resolvePresenceGame looks the game up for presence; nil when it does not exist. Never call it while holding
+// a hub lock or inside a transaction (the database has a single connection).
+func (s *Service) resolvePresenceGame(ctx context.Context, gameID string) *presenceGame {
+	g, err := s.GetGame(ctx, gameID)
+	if err != nil {
+		return nil
+	}
+	pg := &presenceGame{title: g.Title, system: g.System, onHub: g.OnHub, owners: map[string]bool{}}
+	if pg.onHub {
+		return pg
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT DISTINCT o.user_id FROM game_roms r JOIN rom_owners o ON o.sha256 = r.sha256
+		WHERE r.game_id = ?`, gameID)
+	if err != nil {
+		return pg
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var u string
+		if rows.Scan(&u) == nil {
+			pg.owners[u] = true
+		}
+	}
+	return pg
+}
+
+// presenceBuilder builds the per-receiver presence_update payloads of one broadcast. payload only reads memory:
+// the sender's active Session is either preset (setSession, for callers that hold sess.mu and already know it)
+// or looked up once with lookupSession, which queries the database and so must run outside hub locks.
 type presenceBuilder struct {
-	s     *Service
-	sess  map[string]*sessionData // sender device -> its active Session (nil = none)
-	games map[string]*Game        // receiver user + "\x00" + game id -> game (nil = unknown or not visible)
+	s    *Service
+	sess map[string]*sessionData // sender device -> its active Session (nil = none)
 }
 
 func (s *Service) newPresenceBuilder() *presenceBuilder {
-	return &presenceBuilder{s: s, sess: map[string]*sessionData{}, games: map[string]*Game{}}
+	return &presenceBuilder{s: s, sess: map[string]*sessionData{}}
 }
 
-func (b *presenceBuilder) session(deviceID string) *sessionData {
-	if d, ok := b.sess[deviceID]; ok {
-		return d
+// setSession fixes the active Session of a sender device (nil = none) without a database query.
+func (b *presenceBuilder) setSession(deviceID string, d *sessionData) { b.sess[deviceID] = d }
+
+// lookupSession loads the active Session of a sender device from the database. Not under hub locks.
+func (b *presenceBuilder) lookupSession(deviceID string) {
+	if _, ok := b.sess[deviceID]; ok {
+		return
 	}
 	var d *sessionData
 	ctx := context.Background()
@@ -560,27 +619,13 @@ func (b *presenceBuilder) session(deviceID string) *sessionData {
 		}
 	}
 	b.sess[deviceID] = d
-	return d
-}
-
-func (b *presenceBuilder) game(userID, gameID string) *Game {
-	k := userID + "\x00" + gameID
-	if g, ok := b.games[k]; ok {
-		return g
-	}
-	var out *Game
-	if g, err := b.s.GetGameFor(context.Background(), userID, gameID); err == nil {
-		out = &g
-	}
-	b.games[k] = out
-	return out
 }
 
 // payload is the presence_update of sender c as receiver r may see it: display_name, game_title and system when
-// r may see the game (library visibility), session_id only when the Session ACL allows r.
+// r may see the game (library visibility), session_id only when the Session ACL allows r. It does no I/O.
 func (b *presenceBuilder) payload(c, r *Client) map[string]string {
 	c.mu.Lock()
-	state, gameID := c.state, c.gameID
+	state, gameID, game := c.state, c.gameID, c.game
 	c.mu.Unlock()
 	p := map[string]string{"user_id": c.userID, "device_id": c.deviceID, "state": state}
 	if c.name != "" {
@@ -588,24 +633,26 @@ func (b *presenceBuilder) payload(c, r *Client) map[string]string {
 	}
 	if state == "in_game" && gameID != "" {
 		p["game_id"] = gameID
-		if g := b.game(r.userID, gameID); g != nil {
-			p["game_title"], p["system"] = g.Title, g.System
+		if game.visibleTo(r.userID) {
+			p["game_title"], p["system"] = game.title, game.system
 		}
 	}
-	if d := b.session(c.deviceID); d != nil && d.allows(r.userID, r.deviceID) {
+	if d := b.sess[c.deviceID]; d != nil && d.allows(r.userID, r.deviceID) {
 		p["session_id"] = d.id
 	}
 	return p
 }
 
 // resendPresence re-sends the presence of the owner device of a Session to the selected receivers so that
-// session_id appears or disappears. The caller may hold sess.mu.
-func (s *Service) resendPresence(ownerDeviceID string, only func(*Client) bool) {
+// session_id appears or disappears. active is the Session as it is now (nil once it ended). It does no database
+// query, so the caller may hold sess.mu.
+func (s *Service) resendPresence(ownerDeviceID string, active *sessionData, only func(*Client) bool) {
 	c := s.clientOf(ownerDeviceID)
 	if c == nil {
 		return
 	}
 	pb := s.newPresenceBuilder()
+	pb.setSession(ownerDeviceID, active)
 	for _, o := range s.clients() {
 		if o != c && only(o) {
 			o.sendDroppable(encode("presence_update", "", pb.payload(c, o)))
@@ -638,11 +685,16 @@ func (c *Client) presence(env envelope) {
 			return
 		}
 	}
+	var game *presenceGame
+	if p.State == "in_game" && p.GameID != "" {
+		game = c.svc.resolvePresenceGame(context.Background(), p.GameID) // database access: before any lock
+	}
 	c.mu.Lock()
-	c.state, c.gameID = p.State, p.GameID
+	c.state, c.gameID, c.game = p.State, p.GameID, game
 	c.mu.Unlock()
 	c.svc.playPresence(c, p.State, p.GameID, p.RunID) // run_id is for play time only, never broadcast
 	pb := c.svc.newPresenceBuilder()
+	pb.lookupSession(c.deviceID)
 	for _, o := range c.svc.clients() {
 		if o != c {
 			o.sendDroppable(encode("presence_update", "", pb.payload(c, o)))

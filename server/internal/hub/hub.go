@@ -62,6 +62,8 @@ type Options struct {
 	ICEServers []string
 	// OwnerGrace is how long a Session survives the owner's dropped WSS connection (default 30 s; injectable for tests).
 	OwnerGrace time.Duration
+	// ReadyCheckTTL is how long a ready check stays open (default 30 s; injectable for tests).
+	ReadyCheckTTL time.Duration
 	// CoreBuildbotURL is the libretro buildbot nightly base URL (default https://buildbot.libretro.com/nightly), CoreInfoURL
 	// the core info archive (default https://buildbot.libretro.com/assets/frontend/info.zip). Both https only (ADR 0020).
 	CoreBuildbotURL, CoreInfoURL string
@@ -147,6 +149,7 @@ type Service struct {
 	bk     backupState
 	rep    reportState
 	play   playState
+	tg     togetherState
 
 	child       bool       // running as the app's child process (Options.Child)
 	localMu     sync.Mutex // local setup defaults
@@ -186,6 +189,7 @@ func Open(ctx context.Context, db *sql.DB, o Options) (*Service, error) {
 	}
 	s.saveKeep = saveRetention{recent: o.SaveKeepRecent, daily: o.SaveKeepDaily, weekly: o.SaveKeepWeekly}
 	s.sess.init(o)
+	s.tg.init(o)
 	s.initPlay(o)
 	s.cores.init(o)
 	s.cheat.init(o)

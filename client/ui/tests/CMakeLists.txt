@@ -380,6 +380,9 @@ target_include_directories(test_ui_states_controller_testcore PRIVATE ${FB_NETTE
 # Together (0.23): online roster and notification center without QML.
 uzume_add_test(ui_together together_test.cpp LIBS uzume_ui uzume_core uzume_emulation)
 
+# Together (0.23, D3): TogetherController (scope, ready check, shared pause) without QML.
+uzume_add_test(ui_together_controller togethercontroller_test.cpp LIBS uzume_ui uzume_core uzume_emulation)
+
 # Together (0.23) in the UI: ONLINE list, bell, toasts, Settings > Notifications against FakeHub.
 uzume_add_test(ui_together_ui together_ui_test.cpp ${FB_NETTEST_DIR}/fakehub.cpp ${FB_NETTEST_DIR}/fakehub.h
   LIBS ${FB_UI_TEST_LIBS})

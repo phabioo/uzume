@@ -1,0 +1,1 @@
+{"type":"ready_check","payload":{"check_id":"6b1f0d52-3c4e-4f7a-9b8d-2e1a0c9d7f31","scope":"run","id":"3f2b8c1e-5d4a-4b7e-9a10-0c1d2e3f4a5b","by":"u_placeholder_1","status":"open","expires_at":"2026-10-27T12:00:30Z","members":[{"user_id":"u_placeholder_1","state":"ready"},{"user_id":"u_placeholder_2","state":"pending"}]}}
