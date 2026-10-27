@@ -1,6 +1,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QScopeGuard>
 #include <QTemporaryDir>
 #include <QUuid>
 #include <QtTest>
@@ -140,7 +141,21 @@ class ProfileStoreTest : public QObject {
     QVERIFY(s.romCacheDir().endsWith(QStringLiteral("cache/roms")));
   }
 
+  void chooseBaseDirNeverPortableInsideAppImage() {
+    const QByteArray old = qgetenv("APPIMAGE");
+    auto restore = qScopeGuard([&]() { old.isNull() ? qunsetenv("APPIMAGE") : qputenv("APPIMAGE", old); });
+    QTemporaryDir app;  // writable, as the mount of an extract-and-run image is
+    qputenv("APPIMAGE", "/home/x/Uzume.AppImage");
+    const auto c = ProfileStore::chooseBaseDir(app.path(), QStringLiteral("/appdata"));
+    QVERIFY(!c.portable);
+    QCOMPARE(c.path, QStringLiteral("/appdata"));
+    QVERIFY(!QFileInfo::exists(QDir(app.path()).filePath(QStringLiteral("data"))));
+    qunsetenv("APPIMAGE");
+    QVERIFY(ProfileStore::chooseBaseDir(app.path(), QStringLiteral("/appdata")).portable);
+  }
+
   void chooseBaseDirPortableOrFallback() {
+    qunsetenv("APPIMAGE");
     QTemporaryDir app;
     const auto c = ProfileStore::chooseBaseDir(app.path(), QStringLiteral("/appdata"));
     QVERIFY(c.portable);

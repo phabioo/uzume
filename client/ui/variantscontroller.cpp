@@ -292,7 +292,16 @@ void VariantsController::reloadList() {
   deps_.client->list(gid, [this, gen, gid](const QList<VariantInfo>& list, const VariantCall& c) {
     Q_UNUSED(gen);
     if (c.ok) {
-      byGame_.insert(gid, list);
+      // The Randomize dialog lists and creates right after each other: an answer to a list sent before a create can arrive after
+      // it. Keep the variants this PC is building that the answer does not know yet, or their rows would vanish.
+      QList<VariantInfo> merged = list;
+      for (const VariantInfo& old : byGame_.value(gid)) {
+        if (stateOf(old.id) != QLatin1String("building")) continue;
+        bool known = false;
+        for (const VariantInfo& v : list) known = known || v.id == old.id;
+        if (!known) merged.prepend(old);
+      }
+      byGame_.insert(gid, merged);
       loadedOk_[gid] = true;
     } else {
       loadedOk_[gid] = false;

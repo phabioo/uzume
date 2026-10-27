@@ -430,6 +430,209 @@ jobs:
           scripts/e2e-player-hub.sh
           scripts/e2e-session.sh
 
+  # Linux x86-64 AppImage of the app (milestone 0.24, docs/guides/packaging.md): release build of the app, the server
+  # binary and the pinned AppImage tools, then a smoke test of the finished image. Runs parallel to client-linux (own
+  # Release build; it shares only the dependency caches with it). Not part of the required checks.
+  app-appimage:
+    name: App package (AppImage, Linux)
+    # Skipped for docs-only changes (see job changes); every other push, PR and main build runs it, because the beta
+    # prerelease of main carries the AppImage (release.yml).
+    if: needs.changes.outputs.docs_only != 'true'
+    needs: [version, changes]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      UZUME_VERSION: ${{ needs.version.outputs.version }}
+      UZUME_CHANNEL: ${{ needs.version.outputs.channel }}
+      UZUME_COMMIT: ${{ needs.version.outputs.commit }}
+      VCPKG_ROOT: ${{ github.workspace }}/.vcpkg
+      VCPKG_BINARY_SOURCES: clear
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_MAXSIZE: 400M
+    steps:
+      - uses: actions/checkout@v7
+      - name: Image key and week key
+        id: week
+        run: |
+          echo "image=${ImageOS:-unknown}-$(uname -m)" >> "$GITHUB_OUTPUT"
+          echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+      - name: Cache vcpkg checkout
+        uses: actions/cache@v6
+        with:
+          path: ${{ env.VCPKG_ROOT }}
+          key: vcpkg-root-${{ runner.os }}-${{ steps.week.outputs.image }}-${{ hashFiles('scripts/bootstrap-vcpkg.sh', 'client/vcpkg.json') }}
+      # Same keys as client-linux: whichever job runs first builds and saves the dependency, the other restores it.
+      - name: Restore libdatachannel
+        id: cache-ddc
+        uses: actions/cache/restore@v6
+        with:
+          path: ~/.cache/uzume/deps/libdatachannel
+          key: libdatachannel-linux-${{ steps.week.outputs.image }}-${{ hashFiles('scripts/libdatachannel.pin', 'scripts/fetch-libdatachannel.sh') }}
+      - name: Restore SDL3
+        id: cache-sdl3
+        uses: actions/cache/restore@v6
+        with:
+          path: ~/.cache/uzume/deps/sdl3
+          key: sdl3-linux-${{ steps.week.outputs.image }}-${{ hashFiles('scripts/sdl3.pin', 'scripts/fetch-sdl3.sh') }}
+      - name: Restore AppImage tools
+        id: cache-tools
+        uses: actions/cache/restore@v6
+        with:
+          path: ~/.cache/uzume/tools/appimage
+          key: appimage-tools-${{ hashFiles('scripts/appimage-tools.pin', 'scripts/fetch-appimage-tools.sh') }}
+      - name: Restore ccache
+        id: cache-ccache
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-appimage-${{ steps.week.outputs.image }}-${{ github.sha }}
+          restore-keys: ccache-appimage-${{ steps.week.outputs.image }}-
+      - name: Provision tools and Qt 6.4
+        timeout-minutes: 30
+        run: |
+          mapfile -t pkgs < <(grep -vE '^[[:space:]]*(#|$)' scripts/qt-packages.txt)
+          scripts/ci-apt-install.sh "${pkgs[@]}" ccache file qt6-wayland desktop-file-utils
+      - name: Bootstrap vcpkg
+        timeout-minutes: 10
+        run: scripts/bootstrap-vcpkg.sh
+      - name: Build libdatachannel
+        timeout-minutes: 45
+        run: make fetch-deps
+      - name: Save libdatachannel
+        if: steps.cache-ddc.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ~/.cache/uzume/deps/libdatachannel
+          key: ${{ steps.cache-ddc.outputs.cache-primary-key }}
+      - name: Build SDL3
+        timeout-minutes: 45
+        run: make fetch-sdl3
+      - name: Save SDL3
+        if: steps.cache-sdl3.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ~/.cache/uzume/deps/sdl3
+          key: ${{ steps.cache-sdl3.outputs.cache-primary-key }}
+      - name: Fetch AppImage tools (pinned, checksum-verified)
+        run: scripts/fetch-appimage-tools.sh
+      - name: Save AppImage tools
+        if: steps.cache-tools.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ~/.cache/uzume/tools/appimage
+          key: ${{ steps.cache-tools.outputs.cache-primary-key }}
+      - name: Build the app (Release)
+        timeout-minutes: 75
+        working-directory: client
+        env:
+          CMAKE_C_COMPILER_LAUNCHER: ccache
+          CMAKE_CXX_COMPILER_LAUNCHER: ccache
+        run: |
+          ddc="$(../scripts/fetch-libdatachannel.sh)"
+          sdl="$(../scripts/fetch-sdl3.sh)"
+          cmake --preset linux-release "-DCMAKE_PREFIX_PATH=$ddc" "-DSDL3_ROOT=$sdl" \
+            "-DUZUME_VERSION=$UZUME_VERSION" "-DUZUME_CHANNEL=$UZUME_CHANNEL" "-DUZUME_COMMIT=$UZUME_COMMIT"
+          cmake --build --preset linux-release --target uzume_app uzume_cli
+      - name: ccache statistics
+        if: always()
+        run: ccache -s | head -n 12 || true
+      - name: Save ccache
+        # As in client-linux: only main saves (one entry per merge), PR and branch runs restore it.
+        if: always() && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ${{ steps.cache-ccache.outputs.cache-primary-key }}
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
+      - name: Build server binary (bundled for "Only on this PC")
+        # Same flags and version stamping as scripts/check.sh hub_build, built natively instead of downloading the
+        # artifact of another job (no dependency between the jobs).
+        working-directory: server
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          mkdir -p ../dist/hub
+          go build -trimpath \
+            -ldflags "-s -w -X github.com/phabioo/uzume/server/internal/version.Version=$UZUME_VERSION -X github.com/phabioo/uzume/server/internal/version.Channel=$UZUME_CHANNEL -X github.com/phabioo/uzume/server/internal/version.Commit=$UZUME_COMMIT" \
+            -o ../dist/hub/uzume-server ./cmd/uzume-server
+          ../dist/hub/uzume-server version --json | tee ../dist/hub/hub-info.json
+          grep -qF "\"version\":\"$UZUME_VERSION\"" ../dist/hub/hub-info.json
+      - name: Assemble the AppImage
+        timeout-minutes: 20
+        env:
+          APP_VERSION: ${{ needs.version.outputs.version }}
+          APP_SERVER: ${{ github.workspace }}/dist/hub/uzume-server
+          APP_OUT: ${{ github.workspace }}/dist/appimage
+        run: |
+          # Fails when the AppDir contains an emulator core (*_libretro.*, cores directory) or an unresolved library.
+          make package-app-appimage
+          ls -l "$APP_OUT"/*.AppImage
+      - name: Package smoke test
+        timeout-minutes: 15
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: "1"   # the runner has no FUSE
+          QT_QUICK_BACKEND: software
+        run: |
+          set -euo pipefail
+          img="$(ls "$GITHUB_WORKSPACE"/dist/appimage/Uzume-*-x86_64.AppImage)"
+          dist="$GITHUB_WORKSPACE/dist/appimage"
+          out="$RUNNER_TEMP/appimage-logs"
+          mkdir -p "$out"
+          # 1) Release info (as the Windows job): version and channel of this build.
+          "$img" --version-json | tee "$dist/player-release-info-linux.json"
+          jq -e --arg v "$UZUME_VERSION" --arg c "$UZUME_CHANNEL" '.product == "player" and .version == $v and .channel == $c' "$dist/player-release-info-linux.json" >/dev/null \
+            || { echo "::error::--version-json does not report product player, version $UZUME_VERSION, channel $UZUME_CHANNEL"; exit 1; }
+          # 2) Static: unpack, no "not found" library for any executable or library; no cores; the bundled server runs.
+          work="$RUNNER_TEMP/appimage-unpacked"
+          rm -rf "$work"; mkdir -p "$work"
+          # Unset the extract-and-run switch here, or the runtime may start the app instead of unpacking it.
+          (cd "$work" && env -u APPIMAGE_EXTRACT_AND_RUN "$img" --appimage-extract >/dev/null) || { echo "::error::--appimage-extract failed"; exit 1; }
+          [ -d "$work/squashfs-root/usr" ] || { echo "::error::--appimage-extract produced no squashfs-root/usr"; exit 1; }
+          root="$work/squashfs-root"
+          notfound="$(find "$root/usr" -type f -print0 | while IFS= read -r -d '' f; do
+            case "$(file -b "$f")" in ELF*) LD_LIBRARY_PATH="$root/usr/lib" ldd "$f" 2>/dev/null | grep 'not found' | sed "s|^|${f#"$root"/}: |" || true ;; esac
+          done | sort -u)"
+          if [ -n "$notfound" ]; then echo "$notfound"; echo "::error::unresolved libraries in the AppImage"; exit 1; fi
+          if [ -n "$(find "$root" \( -name '*_libretro.*' -o -type d -iname cores \) -print)" ]; then echo "::error::emulator core in the AppImage"; exit 1; fi
+          for f in LICENSE THIRD-PARTY-NOTICE.txt THIRD-PARTY-NOTICES-server.txt; do test -s "$root/usr/share/doc/uzume/$f" || { echo "::error::missing or empty usr/share/doc/uzume/$f in the AppImage"; exit 1; }; done
+          [ -n "$(ls "$root"/usr/share/doc/uzume/licenses 2>/dev/null)" ] || { echo "::error::usr/share/doc/uzume/licenses is missing or empty"; exit 1; }
+          "$root/usr/bin/uzume-server" version --json | tee "$work/server-info.json"
+          jq -e --arg v "$UZUME_VERSION" '.version == $v' "$work/server-info.json" >/dev/null \
+            || { echo "::error::bundled uzume-server version is not $UZUME_VERSION"; exit 1; }
+          # 3) Dynamic, through the image as users start it: --smoke-test loads the QML UI offscreen (QML modules,
+          # imageformats, platform plugin); the loader fails before main() when a library is missing.
+          export HOME="$RUNNER_TEMP/appimage-home"; rm -rf "$HOME"; mkdir -p "$HOME"
+          unset UZUME_DATA_DIR
+          QT_QPA_PLATFORM=offscreen timeout 90 "$img" --smoke-test
+          # 4) Start the GUI for a few seconds, once offscreen and once on the xcb platform (Xvfb); it must keep running
+          # (timeout exits 124) and print no missing-library or plugin errors. The data folder must be the XDG one even
+          # though extract-and-run mode unpacks into a writable folder.
+          for plat in offscreen xcb; do
+            rc=0
+            if [ "$plat" = xcb ]; then
+              QT_QPA_PLATFORM=xcb timeout 8 xvfb-run -a "$img" >"$out/gui-$plat.log" 2>&1 || rc=$?
+            else
+              QT_QPA_PLATFORM=offscreen timeout 8 "$img" >"$out/gui-$plat.log" 2>&1 || rc=$?
+            fi
+            tail -n 20 "$out/gui-$plat.log"
+            if [ "$rc" != 124 ] && [ "$rc" != 0 ]; then echo "::error::GUI ($plat) exited with code $rc"; exit 1; fi
+            if grep -Ei 'error while loading shared libraries|cannot open shared object|could not load the qt platform plugin|module ".*" is not installed|no qt platform plugin' "$out/gui-$plat.log"; then
+              echo "::error::missing library or plugin on platform $plat"; exit 1
+            fi
+          done
+          test -f "$HOME/.local/share/Uzume/Uzume/device.json" || { find "$HOME/.local/share" | head -n 20; echo "::error::data folder is not the XDG data location"; exit 1; }
+      - uses: actions/upload-artifact@v7
+        with:
+          name: uzume-app-linux-x64
+          path: |
+            dist/appimage/Uzume-*-x86_64.AppImage
+            dist/appimage/player-release-info-linux.json
+          if-no-files-found: error
+          retention-days: 7
+
   client-windows:
     name: Player (C++, Windows MSVC)
     # ADR 0008: PRs, manual runs, pushes to main (cache priming and beta releases).

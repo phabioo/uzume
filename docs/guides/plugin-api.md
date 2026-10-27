@@ -90,6 +90,8 @@ Calling a function without its permission raises the Lua error `permission <p> n
 
 An *entry call* is anything the host starts: loading the entry file, a tick, an event handler, or a call made with `fb.call`. When a plugin exceeds its budget or memory limit, or raises an error that it does not catch, **only that plugin is paused**: the error and its traceback appear in the developer console, its watched ranges are released, and the game and all other plugins keep running. Fix the file and reload the plugin to start it again. A plugin cannot hide a budget overrun with `pcall`.
 
+**Pause rule.** A budget or memory overrun pauses the plugin at once. An ordinary Lua error that is not caught is only logged (level Error) and the plugin keeps running; the third such error within 10 seconds pauses it (the log line says "3 errors within 10 s"). The app shows the toast "<Plugin> paused after an error" (with "Open console" in Developer mode). A reload starts a fresh 10-second window.
+
 Native string functions cannot be interrupted by the instruction hook, so the pattern matcher of the vendored Lua counts its own steps: a pathological pattern such as `("a"):rep(40000):find(".-b")` (about 7 s in stock Lua) ends with the error `time budget exceeded (pattern matching budget used up)` after at most about 0.2 s, and like any budget overrun it pauses only that plugin and cannot be swallowed with `pcall`. Plain `find(s, x, 1, true)`, `rep` and `format` are linear and bounded by the memory limit (and the 16 MiB `rep` cap).
 
 Hardening of the sandbox that plugins can observe:
@@ -408,6 +410,7 @@ Subscribe with `fb.events.on("fb", name, fn)`; `fn(value, "fb", name)`.
 | `detail.game` | `{ system, code, sha256, title }` when the game detail shows a game, `nil` for none. The host clears the `detail` slot on every change; the plugin sets a new tree. Posted when the selected game in the Library changes. The game code is known only once the game file is cached, so plugins whose `games` entry has code globs match a game from then on. |
 | `tiles` | Array of `{ id, player, user_id, game }` for the visible remote Multiview tiles; `user_id` is the remote player's server user id, an empty string when unknown; `id` is stable for a session and is the `<tileId>` of `tile:<tileId>`. |
 | `hud.visible` | `true` or `false` when the user shows or hides this plugin's HUD widget. |
+| `reloaded` | `{ ms }` after the plugin was reloaded (console Reload, Ctrl+R, reload on file change, Restart). Use it to restore state from `fb.store`. |
 
 #### Blocks
 
@@ -613,7 +616,14 @@ Plugins that are not signed ("Local file") only run while **Developer mode** is 
 
 - install a plugin from a folder (the app copies it),
 - link a folder (`linkDevFolder`): the plugin runs straight from your folder, and saving a file reloads it after about 300 ms,
-- read the developer console: status, WATCHED values, EVENTS, LOG, and the error with traceback when a plugin was paused.
+- open the **Developer console** (Settings › This PC › Plugins, and the Plugin console tab in the game panel; Ctrl+Shift+D jumps to it). One console, one data source: the debug MCP tools `plugin_console` and `devconsole_state` read the same model. It offers:
+  - a plugin select (unpacked plugins carry an "Unpacked" tag and their folder), **Load unpacked...** (manifest check; an invalid folder shows the reason and installs nothing) and a primary **Reload** (Ctrl+R, only while the console has focus);
+  - **Permissions**: granted permissions and "Not granted: <permission>" for permissions the plugin tried to use without declaring them;
+  - **Log** (newest first; level filters Error, Warn, Info, Debug with counts; Pause log, Copy, Clear). After a pause caused by errors the console shows "Paused after an error. Your game keeps running." with **Reload and resume**;
+  - **Inspect** (run state, `fb.store` keys) and a read-only **Memory viewer** (region, go to address, hex and ASCII rows, search for a value or bytes; there is no edit field);
+  - **Reload on file change** for linked folders (debounced, on by default; setting `plugin_reload_on_change`).
+- A reload shows the toast "<Plugin> reloaded - <ms> ms". **What a reload keeps:** the run state on the server (`fb.run`), `fb.store`, `fb.cache` and the per-game consent. **What it rebuilds:** the Lua state, UI trees, event subscriptions and watches. The plugin receives the host event `fb`/`reloaded`.
+- The game header shows a "Developer mode" tag while the mode is on.
 
 A new install is turned off. A plugin whose requirements are missing, too old or cyclic cannot be turned on; the app shows the reason (for example "needs Creature Core ^2.0 · you have 1.2.0", "needs net.example.core, not installed", "dependency cycle: a -> b -> a").
 

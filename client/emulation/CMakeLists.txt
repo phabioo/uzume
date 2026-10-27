@@ -11,6 +11,7 @@ add_library(uzume_emulation STATIC
   hw_render.cpp
   vk_render.cpp
   memory_map.cpp
+  memory_access.cpp
   memory_snapshot.cpp
   game_identity.cpp)
 # Systems and core profiles are data only (ADR 0020 D6): a new manifests/{systems,cores}/*.json needs no CMake edit.
@@ -71,6 +72,7 @@ if(BUILD_TESTING)
 
   # Plugin memory access: pure map/identity tests, and snapshots against the test core's synthetic memory map.
   uzume_add_test(emulation_memory_map tests/memory_map_test.cpp LIBS uzume_emulation)
+  uzume_add_test(emulation_memory_access tests/memory_access_test.cpp LIBS uzume_emulation)
   uzume_add_test(emulation_game_identity tests/game_identity_test.cpp LIBS uzume_emulation)
 
   # Test-only libretro MODULEs. They link no vcpkg DLLs, so skip vcpkg's z-applocal post-link step (it is attached in

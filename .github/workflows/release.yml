@@ -76,13 +76,16 @@ jobs:
           mkdir -p "$rel"
           hub_info="$art/uzume-server-linux/hub-release-info.json"
           player_info="$art/uzume-app-windows-x64/player-release-info.json"
-          for f in "$hub_info" "$player_info"; do [ -f "$f" ] || { echo "::error::missing $f (artifacts of CI run $RUN_ID)"; exit 1; }; done
+          player_info_linux="$art/uzume-app-linux-x64/player-release-info-linux.json"
+          for f in "$hub_info" "$player_info" "$player_info_linux"; do [ -f "$f" ] || { echo "::error::missing $f (artifacts of CI run $RUN_ID)"; exit 1; }; done
           version="$(jq -r .version "$hub_info")"
           channel="$(jq -r .channel "$hub_info")"
           commit="$(jq -r .commit "$hub_info")"
           for k in version channel; do
             [ "$(jq -r ".$k" "$player_info")" = "$(jq -r ".$k" "$hub_info")" ] || { echo "::error::server and app disagree on $k"; exit 1; }
+            [ "$(jq -r ".$k" "$player_info_linux")" = "$(jq -r ".$k" "$hub_info")" ] || { echo "::error::server and Linux app disagree on $k"; exit 1; }
           done
+          [ "$(jq -r .commit "$player_info_linux")" = "$(jq -r .commit "$hub_info")" ] || { echo "::error::server and Linux app disagree on commit"; exit 1; }
           [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::unexpected version '$version' (plain X.Y.Z expected)"; exit 1; }
           [ "$channel" = beta ] || { echo "::error::main build with channel '$channel'"; exit 1; }
           [ "$commit" = "$HEAD_SHA" ] || { echo "::error::build commit $commit is not the CI run commit $HEAD_SHA"; exit 1; }
@@ -98,6 +101,7 @@ jobs:
           cp "$art/uzume-server-linux/THIRD-PARTY-NOTICES.txt" "$rel/THIRD-PARTY-NOTICES-hub.txt"
           cp "$art/uzume-app-windows-x64/uzume-$version-windows-x64.zip" "$rel/"
           cp "$art/uzume-windows-x64-msi/uzume-$version-windows-x64.msi" "$rel/"
+          cp "$art/uzume-app-linux-x64/Uzume-$version-x86_64.AppImage" "$rel/"
           (cd "$rel" && sha256sum -- * > SHA256SUMS)
           cat "$rel/SHA256SUMS"
           {
@@ -247,8 +251,9 @@ jobs:
           h6="$(artifact windows-amd64 msi "uzume-$VERSION-windows-x64.msi")"
           p0="$(artifact windows-x64 msi "uzume-$VERSION-windows-x64.msi")"
           p1="$(artifact windows-x64 zip "uzume-$VERSION-windows-x64.zip")"
+          p2="$(artifact linux-x64 appimage "Uzume-$VERSION-x86_64.AppImage")"
           hub_arts="$(jq -sc '.' <<<"$h1 $h2 $h3 $h4 $h5 $h6")"
-          player_arts="$(jq -sc '.' <<<"$p0 $p1")"
+          player_arts="$(jq -sc '.' <<<"$p0 $p1 $p2")"
           mk hub "$art/uzume-server-linux/hub-release-info.json" "$hub_arts" "$RUNNER_TEMP/notes-hub.txt" > "$out/hub.json"
           mk player "$art/uzume-app-windows-x64/player-release-info.json" "$player_arts" "$RUNNER_TEMP/notes-player.txt" > "$out/player.json"
           jq -c '{product, channel, version, artifacts: (.artifacts | length)}' "$out/hub.json" "$out/player.json"

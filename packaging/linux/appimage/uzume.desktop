@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Uzume
+GenericName=Retro gaming
+Comment=Play retro games from your Uzume server, alone or together
+Exec=uzume %u
+Icon=uzume
+Terminal=false
+Categories=Game;Emulator;
+Keywords=retro;emulator;games;saves;multiplayer;
+MimeType=x-scheme-handler/uzume;
+StartupWMClass=uzume

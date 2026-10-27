@@ -51,6 +51,7 @@ const (
 	KindBinary    = "binary"
 	KindInstaller = "installer"
 	KindZip       = "zip"
+	KindAppImage  = "appimage"
 )
 
 var (
@@ -68,6 +69,7 @@ var platformKinds = map[string]map[string][]string{
 	},
 	ProductPlayer: {
 		"windows-x64": {KindInstaller, KindZip, KindMSI},
+		"linux-x64":   {KindAppImage},
 	},
 }
 

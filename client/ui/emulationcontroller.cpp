@@ -44,6 +44,13 @@ bool statesOptionOffered(const emu::ManifestRegistry* manifests, const QString& 
   if (prof == nullptr) return false;
   return key == QLatin1String(EmulationController::kRunAheadKey) ? prof->statesRunAhead : prof->statesSupported;
 }
+// The Renderer row (ADR 0034) only exists for cores whose profile offers both renderers; one-screen/software cores and melonDS DS
+// (OpenGL only) have none. Decided by the core profile, not by an installed core.
+bool isRendererKey(const QString& key) { return key == QLatin1String(EmulationController::kRendererKey); }
+bool offersRenderer(const emu::SystemManifest* man) {
+  return man != nullptr && !man->rendererOption.isEmpty() && man->rendererValues.contains(QStringLiteral("opengl")) &&
+         man->rendererValues.contains(QStringLiteral("vulkan"));
+}
 QString labelOf(const QList<emu::CoreOptionValue>& values, const QString& value) {
   for (const emu::CoreOptionValue& v : values) {
     if (v.value == value) return v.label.isEmpty() ? v.value : v.label;
@@ -134,6 +141,12 @@ const QList<EmulationController::FbOption>& EmulationController::uzumeOptions() 
        QObject::tr("Opens a second window with the bottom screen (touch works there); the game view shows the top screen only."),
        {{QStringLiteral("off"), QObject::tr("Off")}, {QStringLiteral("on"), QObject::tr("On")}},
        QStringLiteral("off"),
+       true},
+      {QString::fromLatin1(kRendererKey),
+       QObject::tr("Renderer"),
+       QObject::tr("How the core draws 3D. Vulkan is faster on many GPUs; OpenGL is the safe default."),
+       {{QStringLiteral("opengl"), QObject::tr("OpenGL")}, {QStringLiteral("vulkan"), QObject::tr("Vulkan")}},
+       QStringLiteral("opengl"),
        true},
       {QString::fromLatin1(kSpeedUpRatioKey),
        QObject::tr("Speed-up speed"),
@@ -641,7 +654,8 @@ QVariantMap EmulationController::row(const QString& key, const QString& label, c
           {QStringLiteral("valueLabel"), valueLabel},
           {QStringLiteral("isSet"), isSet},
           {QStringLiteral("origin"), origin},
-          {QStringLiteral("restart"), !uzume && gameRunning_}};
+          {QStringLiteral("restart"), !uzume && gameRunning_},
+          {QStringLiteral("tag"), isRendererKey(key) ? tr("Next start") : QString()}};
 }
 
 void EmulationController::rebuild() {
@@ -678,7 +692,7 @@ void EmulationController::rebuild() {
       // Defaults: options that do not depend on a system.
       QVariantList fb;
       for (const FbOption& o : uzumeOptions()) {
-        if (isProfileKey(o.key)) continue;  // controller profiles are chosen per system or game
+        if (isProfileKey(o.key) || isRendererKey(o.key)) continue;  // profiles are chosen per system or game, the renderer per core
         fb.append(row(o.key, o.label, o.description, !o.category.isEmpty() ? o.category : (o.perSystem && !isTwoScreenKey(o.key)) ? tr("Speed-up") : tr("Display"), o.values, QString(), o.defaultValue, true));
       }
       groups.append(QVariantMap{{QStringLiteral("id"), QStringLiteral("uzume")},
@@ -794,6 +808,7 @@ void EmulationController::rebuild() {
         const bool twoScreen = o.key == QLatin1String(kScreenLayoutKey) || o.key == QLatin1String(kScreenSwapKey) || o.key == QLatin1String(kBottomWindowKey);
         if (twoScreen && (man == nullptr || man->display.screens.size() < 2)) continue;
         if (isStatesKey(o.key) && !statesOptionOffered(manifests_, o.key, man)) continue;
+        if (isRendererKey(o.key) && !offersRenderer(man)) continue;
         QList<emu::CoreOptionValue> vals = o.values;
         if (o.key == QLatin1String(kRewindKey)) vals = rewindValues(vals, selected_);
         if (isProfileKey(o.key)) vals = profileValues(o.key, settings_.resolve(o.key, selected_, gameLvl ? selectedGame_ : QString(), QString(), o.defaultValue).value);
@@ -888,7 +903,8 @@ QVariantMap EmulationController::gameSettings(const QString& gameId) const {
                        {QStringLiteral("isSet"), isSet},
                        {QStringLiteral("defaultValue"), inherited},
                        {QStringLiteral("defaultLabel"), labelOf(values, inherited)},
-                       {QStringLiteral("restart"), restart && runningHere}};
+                       {QStringLiteral("restart"), restart && runningHere},
+                       {QStringLiteral("tag"), isRendererKey(key) ? tr("Next start") : QString()}};
   };
   const auto uzumeRow = [&](const FbOption& o) {
     QList<emu::CoreOptionValue> vals = o.values;
@@ -905,7 +921,9 @@ QVariantMap EmulationController::gameSettings(const QString& gameId) const {
       if (statesOptionOffered(manifests_, o.key, man)) statesRows.append(uzumeRow(o));
       continue;
     }
+    if (isRendererKey(o.key) && !offersRenderer(man)) continue;
     if (isProfileKey(o.key)) controls.append(uzumeRow(o));
+    else if (isRendererKey(o.key)) core.append(uzumeRow(o));  // lands on the Core tab next to the core choice
     else if (appliesLive(o.key) || isTwoScreenKey(o.key)) picture.append(uzumeRow(o));
     else speed.append(uzumeRow(o));
   }

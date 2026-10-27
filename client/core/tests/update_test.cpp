@@ -8,6 +8,7 @@
 #include <QMap>
 #include <QRandomGenerator>
 #include <QSignalSpy>
+#include <QScopeGuard>
 #include <QTemporaryDir>
 #include <QtTest>
 #include <memory>
@@ -90,6 +91,10 @@ Index parseOk(const QByteArray& json) {
   if (!r.ok) qWarning() << r.error;
   return r.index;
 }
+
+constexpr QFileDevice::Permissions kMode755 = QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner |
+                                              QFileDevice::ReadGroup | QFileDevice::ExeGroup | QFileDevice::ReadOther |
+                                              QFileDevice::ExeOther;
 
 bool writeBytes(const QString& path, const QByteArray& b) {
   QFile f(path);
@@ -234,6 +239,8 @@ class UpdateTest : public QObject {
                                          release("player", "stable", "0.3.0", oneArt("s")),
                                          release("player", "beta", "0.4.0-test.1", oneArt("t41"))}));
     SelectionInput in;
+    in.platform = "windows-x64";
+    in.kind = "msi";
     in.currentVersion = "0.3.0-dev";
     in.channel = Channel::Stable;
     Selection s = selectRelease(idx, in);
@@ -247,6 +254,8 @@ class UpdateTest : public QObject {
   void selectionDevIsOff() {
     const Index idx = parseOk(indexJson({release("player", "stable", "0.3.0", oneArt())}));
     SelectionInput in;
+    in.platform = "windows-x64";
+    in.kind = "msi";
     in.currentVersion = "0.3.0-dev";
     in.channel = channelFromCompiled("dev");
     QCOMPARE(in.channel, Channel::Off);
@@ -258,6 +267,8 @@ class UpdateTest : public QObject {
   void selectionNoDowngradeAndEqual() {
     const Index idx = parseOk(indexJson({release("player", "stable", "0.3.0", oneArt()), release("player", "beta", "0.3.1-test.2", oneArt("b"))}));
     SelectionInput in;
+    in.platform = "windows-x64";
+    in.kind = "msi";
     in.channel = Channel::Beta;
     in.currentVersion = "0.3.0";
     QCOMPARE(selectRelease(idx, in).release.version, QString("0.3.1-test.2"));
@@ -276,6 +287,8 @@ class UpdateTest : public QObject {
                                          release("player", "stable", "0.4.0", zipOnly),
                                          release("player", "stable", "0.5.0", QJsonArray{wrongPlatform})}));
     SelectionInput in;
+    in.platform = "windows-x64";
+    in.kind = "msi";
     in.channel = Channel::Stable;
     in.currentVersion = "0.3.0";
     QCOMPARE(selectRelease(idx, in).status, Selection::Status::UpToDate);  // no installer for windows-x64
@@ -296,6 +309,8 @@ class UpdateTest : public QObject {
     const Index idx = parseOk(indexJson({release("player", "stable", "0.4.0", oneArt("a"), 3, 3),
                                          release("player", "stable", "0.3.5", oneArt("b"), 1, 1)}));
     SelectionInput in;
+    in.platform = "windows-x64";
+    in.kind = "msi";
     in.channel = Channel::Stable;
     in.currentVersion = "0.3.0";
     in.hub = HubProtocol{1, 1};
@@ -578,6 +593,156 @@ class UpdateTest : public QObject {
     QTRY_COMPARE_WITH_TIMEOUT(m.state(), UpdateManager::State::Error, 5000);
     QVERIFY(m.statusText().contains("signature"));
   }
+  // ---------------------------------------------------------------- Linux AppImage (0.24)
+  void platformAndKindPerBuild() {
+    QCOMPARE(QString(playerPlatformFor(PlayerOs::Windows)), QString("windows-x64"));
+    QCOMPARE(QString(playerKindFor(PlayerOs::Windows)), QString("msi"));
+    QCOMPARE(QString(playerPlatformFor(PlayerOs::Linux)), QString("linux-x64"));
+    QCOMPARE(QString(playerKindFor(PlayerOs::Linux)), QString("appimage"));
+    QCOMPARE(QString(playerPlatformFor(PlayerOs::Other)), QString("windows-x64"));  // unchanged elsewhere
+    QCOMPARE(QString(playerKindFor(PlayerOs::Other)), QString("msi"));
+#if defined(Q_OS_WIN)
+    QCOMPARE(QString(playerPlatform()), QString("windows-x64"));
+    QCOMPARE(QString(playerKind()), QString("msi"));
+#elif defined(Q_OS_LINUX) && defined(Q_PROCESSOR_X86_64)
+    QCOMPARE(QString(playerPlatform()), QString("linux-x64"));
+    QCOMPARE(QString(playerKind()), QString("appimage"));
+#endif
+    // Selection follows the build's pair: an index with both artifacts yields the one of this platform.
+    QJsonObject lin = artifact("Uzume-0.5.0-x86_64.AppImage", "a", "https://e.invalid/a", "appimage");
+    lin["platform"] = "linux-x64";
+    const Index idx = parseOk(indexJson({release("player", "stable", "0.5.0", QJsonArray{artifact("u.msi", "m", "https://e.invalid/m"), lin})}));
+    SelectionInput in;
+    in.platform = "windows-x64";
+    in.kind = "msi";
+    in.channel = Channel::Stable;
+    in.currentVersion = "0.3.0";
+    in.platform = "linux-x64";
+    in.kind = "appimage";
+    QCOMPARE(selectRelease(idx, in).artifact.name, QString("Uzume-0.5.0-x86_64.AppImage"));
+    in.platform = "windows-x64";
+    in.kind = "msi";
+    QCOMPARE(selectRelease(idx, in).artifact.name, QString("u.msi"));
+  }
+  void appImageRelaunchArgumentsDropOneShotFlags() {
+    QCOMPARE(appImageRelaunchArguments({"--smoke-test", "--data-dir", "/d", "--mcp", "uzume://join/x", "--dev-allow-http", "--setup-local-hub"}),
+             (QStringList{"--data-dir", "/d", "--dev-allow-http"}));
+  }
+#ifdef Q_OS_UNIX
+  void appImageApplySupportedNeedsWritableImageFolder() {
+    QTemporaryDir tmp;
+    uzume::PlayerSettings settings(tmp.filePath("data"));
+    UpdateManager::Config c;
+    c.baseDir = tmp.filePath("data");
+    c.currentVersion = "0.3.0";
+    c.compiledChannel = "beta";
+    c.platform = "linux-x64";
+    c.kind = "appimage";
+    c.trustedKeys = {makeKey().pub};
+    UpdateManager m(c, &settings);
+    const QByteArray oldEnv = qgetenv("APPIMAGE");
+    auto restore = qScopeGuard([&]() { oldEnv.isNull() ? qunsetenv("APPIMAGE") : qputenv("APPIMAGE", oldEnv); });
+#ifdef Q_OS_LINUX
+    const QString notAppImage = "Automatic installation is only available for the Windows installer and the Linux AppImage.";
+    qunsetenv("APPIMAGE");
+    QVERIFY(!m.applySupported());
+    QCOMPARE(m.applyUnsupportedReason(), notAppImage);
+    qputenv("APPIMAGE", tmp.filePath("missing.AppImage").toLocal8Bit());  // names no file
+    QVERIFY(!m.applySupported());
+    QCOMPARE(m.applyUnsupportedReason(), notAppImage);
+    QVERIFY(QDir().mkpath(tmp.filePath("img")));
+    const QString image = tmp.filePath("img/Uzume.AppImage");
+    QVERIFY(writeBytes(image, "old"));
+    qputenv("APPIMAGE", image.toLocal8Bit());
+    QVERIFY(m.applySupported());
+    QVERIFY(m.applyUnsupportedReason().isEmpty());
+    QVERIFY(QFile::setPermissions(tmp.filePath("img"), QFileDevice::ReadOwner | QFileDevice::ExeOwner));
+    auto unlock = qScopeGuard([&]() { QFile::setPermissions(tmp.filePath("img"), QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner); });
+    if (directoryWritable(tmp.filePath("img"))) QSKIP("running with rights that ignore directory permissions (root)");
+    QVERIFY(!m.applySupported());
+    QCOMPARE(m.applyUnsupportedReason(), QString("The folder of the AppImage is not writable."));
+#endif
+  }
+  void replaceAppImageDirect() {
+    QTemporaryDir tmp;
+    const QString image = tmp.filePath("Uzume.AppImage");
+    const QString staged = tmp.filePath("staged.bin");
+    QVERIFY(writeBytes(image, "old"));
+    QVERIFY(writeBytes(staged, "new-image"));
+    const QString sha = QString::fromLatin1(QCryptographicHash::hash("new-image", QCryptographicHash::Sha256).toHex());
+    QString why;
+    QVERIFY(!replaceAppImage(staged, image, QString(64, 'a'), 9, &why));  // wrong hash: nothing changes
+    QCOMPARE(readAll(image), QByteArray("old"));
+    QVERIFY(!QFileInfo::exists(tmp.filePath(".Uzume.AppImage.part")));
+    QVERIFY(!QFileInfo::exists(image + ".previous"));
+    QVERIFY(replaceAppImage(staged, image, sha, 9, &why));
+    QCOMPARE(readAll(image), QByteArray("new-image"));
+    QCOMPARE(readAll(image + ".previous"), QByteArray("old"));
+    QVERIFY(!QFileInfo::exists(tmp.filePath(".Uzume.AppImage.part")));
+    QCOMPARE(QFileInfo(image).permissions() & 0x7077, kMode755);
+  }
+  void managerReplacesAppImage() {
+    QTemporaryDir imgDir;
+    const QString image = imgDir.filePath("Uzume.AppImage");
+    QVERIFY(writeBytes(image, "old-image"));
+    qputenv("APPIMAGE", image.toLocal8Bit());
+    auto unset = qScopeGuard([]() { qunsetenv("APPIMAGE"); });
+    Env env;
+    env.appImage = true;
+    const QByteArray data = "new-image-bytes-0.3.1";
+    env.publish(data, "0.3.1-test.3");
+    uzume::PlayerSettings settings(env.dir.filePath("data"));
+    settings.setUpdateChannel("beta");
+    QStringList launched;
+    auto mp = env.manager(settings);
+    UpdateManager& m = *mp;
+    m.setLauncher([&](const QString& prog, const QStringList& args) { launched << prog << args.join('\n'); return true; });
+    QSignalSpy quit(&m, &UpdateManager::quitRequested);
+    m.checkNow();
+    QTRY_COMPARE_WITH_TIMEOUT(m.state(), UpdateManager::State::Ready, 5000);
+    QCOMPARE(readAll(image), QByteArray("old-image"));  // staged only, the image is untouched
+    QVERIFY(m.applyStagedAtStart());
+    QCOMPARE(quit.count(), 1);
+    QCOMPARE(readAll(image), data);
+    QCOMPARE(readAll(image + ".previous"), QByteArray("old-image"));
+    QCOMPARE(QFileInfo(image).permissions() & 0x7077, kMode755);
+    QVERIFY(QDir(imgDir.path()).entryList({"*.part"}, QDir::Files | QDir::Hidden).isEmpty());
+    QCOMPARE(launched.value(0), QString("/bin/sh"));
+    QVERIFY(launched.value(1).contains(image));  // watcher args: image, previous, marker, old pid, original args
+    QVERIFY(launched.value(1).contains(image + ".previous"));
+  }
+  void managerAppImageRejectionsLeaveNothingBehind() {
+    for (int mode = 0; mode < 3; ++mode) {
+      QTemporaryDir imgDir;
+      const QString image = imgDir.filePath("Uzume.AppImage");
+      QVERIFY(writeBytes(image, "old-image"));
+      qputenv("APPIMAGE", image.toLocal8Bit());
+      auto unset = qScopeGuard([]() { qunsetenv("APPIMAGE"); });
+      Env env;
+      env.appImage = true;
+      env.publish("new-image", "0.3.1-test.3", mode == 0 ? 5 : -1, mode == 1 ? QString(64, 'a') : QString());
+      if (mode == 2) {  // index tampered after signing
+        QByteArray idx = readAll(env.dir.filePath("updates-index.json"));
+        idx.replace("0.3.1-test.3", "0.3.9-test.3");
+        QVERIFY(writeBytes(env.dir.filePath("updates-index.json"), idx));
+      }
+      uzume::PlayerSettings settings(env.dir.filePath("data"));
+      settings.setUpdateChannel("beta");
+      int launches = 0;
+      auto mp = env.manager(settings);
+      mp->setLauncher([&](const QString&, const QStringList&) { ++launches; return true; });
+      mp->checkNow();
+      QTRY_COMPARE_WITH_TIMEOUT(mp->state(), UpdateManager::State::Error, 5000);
+      QVERIFY(!mp->applyStagedAtStart());
+      QCOMPARE(launches, 0);
+      QCOMPARE(readAll(image), QByteArray("old-image"));
+      QVERIFY(!QFileInfo::exists(image + ".previous"));
+      QVERIFY(QDir(imgDir.path()).entryList({"*.part"}, QDir::Files | QDir::Hidden).isEmpty());
+      QVERIFY(QDir(env.dir.filePath("data/cache/updates")).entryList({"*.part", "*"}, QDir::Files | QDir::Hidden | QDir::NoDotAndDotDot).isEmpty());
+    }
+  }
+#endif
+
   // ---------------------------------------------------------------- resolved default channel
   void defaultChannelResolvesStableWhenPromoted() {
     Env env;
@@ -668,9 +833,9 @@ class UpdateTest : public QObject {
     const QString base = env.dir.filePath("data");
     const QString inst = QDir(stagingRoot(base)).filePath("0.3.1-test.3/" + env.installerName);
     QVERIFY(QFileInfo::exists(inst));
-    QVERIFY(loadVerifiedStaged(base, "0.3.0-dev", env.keys, true));
+    QVERIFY(loadVerifiedStaged(base, "0.3.0-dev", env.keys, true, "windows-x64", "msi"));
     QVERIFY(writeBytes(inst, "installer-byteX"));
-    QVERIFY(!loadVerifiedStaged(base, "0.3.0-dev", env.keys, true));
+    QVERIFY(!loadVerifiedStaged(base, "0.3.0-dev", env.keys, true, "windows-x64", "msi"));
   }
   void stagedReplayAndWrongKeyRejected() {
     Env env;
@@ -681,14 +846,14 @@ class UpdateTest : public QObject {
     mp->checkNow();
     QTRY_COMPARE_WITH_TIMEOUT(mp->state(), UpdateManager::State::Ready, 5000);
     const QString base = env.dir.filePath("data");
-    QVERIFY(!loadVerifiedStaged(base, "0.3.0-dev", {makeKey().pub}, true));  // wrong trust keys (also prunes)
+    QVERIFY(!loadVerifiedStaged(base, "0.3.0-dev", {makeKey().pub}, true, "windows-x64", "msi"));  // wrong trust keys (also prunes)
     auto m2p = env.manager(settings);  // fresh manager (state Idle): stages again
     m2p->checkNow();
     QTRY_COMPARE_WITH_TIMEOUT(m2p->state(), UpdateManager::State::Ready, 5000);
-    QVERIFY(loadVerifiedStaged(base, "0.3.0-dev", env.keys, true).has_value());
+    QVERIFY(loadVerifiedStaged(base, "0.3.0-dev", env.keys, true, "windows-x64", "msi").has_value());
     // The staged version must be strictly newer than the running one (replay of an old signed release).
-    QVERIFY(!loadVerifiedStaged(base, "0.3.1-test.3", env.keys, true));
-    QVERIFY(!loadVerifiedStaged(base, "0.9.0", env.keys, true));
+    QVERIFY(!loadVerifiedStaged(base, "0.3.1-test.3", env.keys, true, "windows-x64", "msi"));
+    QVERIFY(!loadVerifiedStaged(base, "0.9.0", env.keys, true, "windows-x64", "msi"));
   }
 
   // ---------------------------------------------------------------- update rollback (ADR 0029 D4)
@@ -705,6 +870,8 @@ class UpdateTest : public QObject {
                                          rel("1.0.0", "beta", true),                                   // the running version: not older
                                          release("hub", "stable", "0.0.5", oneArt("h"))}));
     RollbackQuery q;
+    q.platform = "windows-x64";
+    q.kind = "msi";
     q.currentVersion = "1.0.0";
     q.channel = Channel::Beta;
     q.protocolVersion = 2;
@@ -954,6 +1121,9 @@ class UpdateTest : public QObject {
     c.trustedKeys = env.keys;
     c.installRoot = env.dir.path();
     c.forceApplySupport = false;  // portable / Linux / development: the list is shown, going back is manual
+    c.platform = QStringLiteral("windows-x64");
+    c.kind = QStringLiteral("msi");
+    qunsetenv("APPIMAGE");
     UpdateManager m(c, &settings);
     int launches = 0;
     m.setLauncher([&](const QString&, const QStringList&) { ++launches; return true; });
@@ -980,13 +1150,13 @@ class UpdateTest : public QObject {
 
     const QDateTime now = QDateTime::currentDateTimeUtc();
     const bool file = true;
-    QVERIFY(loadVerifiedRollback(base, "0.2.0", "0.3.0", env.keys, file, 1, now));
-    QVERIFY(!loadVerifiedRollback(base, "0.2.0", "0.2.0", env.keys, file, 1, now));  // not older than the running version
-    QVERIFY(!loadVerifiedRollback(base, "0.2.0", "0.1.0", env.keys, file, 1, now));
-    QVERIFY(!loadVerifiedRollback(base, "0.3.0", "0.4.0", env.keys, file, 1, now));  // nothing staged for it
-    QVERIFY(!loadVerifiedRollback(base, "0.2.0", "0.3.0", {makeKey().pub}, file, 1, now));  // wrong key
-    QVERIFY(!loadVerifiedRollback(base, "0.2.0", "0.3.0", env.keys, file, 2, now));  // does not speak the protocol of this Player
-    QVERIFY(!loadVerifiedRollback(base, "0.2.0", "0.3.0", env.keys, false, 1, now));  // file:// artifact URLs only in tests
+    QVERIFY(loadVerifiedRollback(base, "0.2.0", "0.3.0", env.keys, file, 1, now, "windows-x64", "msi"));
+    QVERIFY(!loadVerifiedRollback(base, "0.2.0", "0.2.0", env.keys, file, 1, now, "windows-x64", "msi"));  // not older than the running version
+    QVERIFY(!loadVerifiedRollback(base, "0.2.0", "0.1.0", env.keys, file, 1, now, "windows-x64", "msi"));
+    QVERIFY(!loadVerifiedRollback(base, "0.3.0", "0.4.0", env.keys, file, 1, now, "windows-x64", "msi"));  // nothing staged for it
+    QVERIFY(!loadVerifiedRollback(base, "0.2.0", "0.3.0", {makeKey().pub}, file, 1, now, "windows-x64", "msi"));  // wrong key
+    QVERIFY(!loadVerifiedRollback(base, "0.2.0", "0.3.0", env.keys, file, 2, now, "windows-x64", "msi"));  // does not speak the protocol of this Player
+    QVERIFY(!loadVerifiedRollback(base, "0.2.0", "0.3.0", env.keys, false, 1, now, "windows-x64", "msi"));  // file:// artifact URLs only in tests
     // An index that ran out (a stale signed index must not bring an old installer back).
     env.publishReleases({{"0.2.0", "beta", true}}, "2026-10-08T10:00:00Z");
     auto stale = [&] {
@@ -997,11 +1167,11 @@ class UpdateTest : public QObject {
       QVERIFY(QFile::copy(env.dir.filePath("updates-index.json.sig"), d.filePath("index.json.sig")));
     };
     stale();
-    QVERIFY(!loadVerifiedRollback(base, "0.2.0", "0.3.0", env.keys, file, 1, now));
-    QVERIFY(loadVerifiedRollback(base, "0.2.0", "0.3.0", env.keys, file, 1, QDateTime::fromString("2026-10-07T10:00:00Z", Qt::ISODate)));
+    QVERIFY(!loadVerifiedRollback(base, "0.2.0", "0.3.0", env.keys, file, 1, now, "windows-x64", "msi"));
+    QVERIFY(loadVerifiedRollback(base, "0.2.0", "0.3.0", env.keys, file, 1, QDateTime::fromString("2026-10-07T10:00:00Z", Qt::ISODate), "windows-x64", "msi"));
     // The installer changed on disk after the download.
     QVERIFY(writeBytes(QDir(rollbackStagingRoot(base)).filePath("0.2.0/uzume-0.2.0-windows-x64.msi"), "changed"));
-    QVERIFY(!loadVerifiedRollback(base, "0.2.0", "0.3.0", env.keys, file, 1, QDateTime::fromString("2026-10-07T10:00:00Z", Qt::ISODate)));
+    QVERIFY(!loadVerifiedRollback(base, "0.2.0", "0.3.0", env.keys, file, 1, QDateTime::fromString("2026-10-07T10:00:00Z", Qt::ISODate), "windows-x64", "msi"));
   }
 
  private:
@@ -1017,15 +1187,17 @@ class UpdateTest : public QObject {
     QList<QByteArray> keys{key.pub};
     QString installerName;
     QString channel;
+    bool appImage = false;  // publish the Linux AppImage artifact (linux-x64/appimage) instead of the Windows MSI
 
     void publish(const QByteArray& installer, const QString& version, qint64 sizeOverride = -1,
                  const QString& shaOverride = QString(), const QString& chan = QStringLiteral("beta")) {
       channel = chan;
-      installerName = "uzume-" + version + "-windows-x64.msi";
+      installerName = appImage ? "Uzume-" + version + "-x86_64.AppImage" : "uzume-" + version + "-windows-x64.msi";
       QVERIFY(writeBytes(dir.filePath("Uzume.exe"), "launcher"));  // copied to temp by apply()
       const QString path = dir.filePath(installerName);
       QVERIFY(writeBytes(path, installer));
-      QJsonObject art = artifact(installerName, installer, QUrl::fromLocalFile(path).toString());
+      QJsonObject art = artifact(installerName, installer, QUrl::fromLocalFile(path).toString(), appImage ? "appimage" : "msi");
+      if (appImage) art["platform"] = "linux-x64";
       if (sizeOverride >= 0) art["size"] = static_cast<double>(sizeOverride);
       if (!shaOverride.isEmpty()) art["sha256"] = shaOverride;
       const QByteArray idx = indexJson({release("player", chan, version, QJsonArray{art}),
@@ -1079,6 +1251,8 @@ class UpdateTest : public QObject {
       c.trustedKeys = keys;
       c.installRoot = dir.path();
       c.forceApplySupport = true;
+      c.platform = appImage ? QStringLiteral("linux-x64") : QStringLiteral("windows-x64");  // fixtures follow their artifact, not the host
+      c.kind = appImage ? QStringLiteral("appimage") : QStringLiteral("msi");
       return std::make_unique<UpdateManager>(c, &s);
     }
   };

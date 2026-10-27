@@ -8,10 +8,12 @@
 #include <QPointer>
 #include <memory>
 
+#include "devconsole.h"
 #include "mcp_tools.h"
 #include "playercontroller.h"
 #include "plugin_engine.h"
 #include "plugin_host.h"
+#include "pluginscontroller.h"
 #include "run_bridge.h"
 #include "pluginimageprovider.h"
 #include "tools_util.h"
@@ -137,30 +139,88 @@ void installPluginTools(McpToolRegistry& registry, ui::PlayerController& player)
   {
     ToolDef t;
     t.name = QStringLiteral("plugin_console");
-    t.description = QStringLiteral("The developer console of a running plugin: status, error with traceback, log (500 lines), events (200), watched memory rows and the budgets.");
+    t.description = QStringLiteral(
+        "The developer console of a running plugin, read from the same model as the app's console: status, error with traceback, log (500 lines, oldest first, each with a seq), "
+        "events (200), watched memory rows and the budgets. Optional filters: level (error | warn | info | debug, a comma list or an array) and since_seq (only log lines with a "
+        "higher seq; poll with last_seq). counts has the lines per level before the filters. paused, pause_reason, errors_total (handler errors, logged), not_granted "
+        "(permissions the plugin used without declaring them) and reload {count, last_ms} describe the plugin's state. A plugin pauses after 3 errors within 10 s or at once on a "
+        "budget or memory overrun.");
     t.targetArg = QStringLiteral("id");
-    t.inputSchema = schema(idProps(), {QStringLiteral("id")});
+    t.inputSchema = schema(idProps({{QStringLiteral("level"), typeAny(QStringLiteral("error | warn | info | debug; a comma-separated string or an array of them."))},
+                                    {QStringLiteral("since_seq"), typeInt(QStringLiteral("Only log lines with seq greater than this."))}}),
+                           {QStringLiteral("id")});
     t.handler = [pc](const QJsonObject& a, ToolReply reply) {
       if (!pc) return reply(ToolResult::error(QStringLiteral("app_closing")));
       const QString id = a.value(QStringLiteral("id")).toString();
       plugins::PluginHost* host = pc->plugins()->host();
       if (!host->pluginIds().contains(id)) return reply(ToolResult::error(QStringLiteral("plugin_not_running")));
+      ui::ConsoleLogFilter filter;
+      filter.limit = kMaxLogLines;
+      QStringList wanted;
+      const QJsonValue lv = a.value(QStringLiteral("level"));
+      if (lv.isString()) wanted = lv.toString().split(QLatin1Char(','), Qt::SkipEmptyParts);
+      else if (lv.isArray())
+        for (const QJsonValue& v : lv.toArray()) wanted << v.toString();
+      for (QString l : wanted) {
+        l = l.trimmed().toLower();
+        if (l != QLatin1String("error") && l != QLatin1String("warn") && l != QLatin1String("info") && l != QLatin1String("debug"))
+          return reply(ToolResult::error(QStringLiteral("invalid_level: use error, warn, info or debug")));
+        filter.levels.insert(l);
+      }
+      if (a.contains(QStringLiteral("since_seq"))) {
+        const auto since = parseNumber(a.value(QStringLiteral("since_seq")));
+        if (!since) return reply(ToolResult::error(QStringLiteral("since_seq must be a non-negative number")));
+        filter.sinceSeq = static_cast<qint64>(*since);
+      }
+      ui::DevConsole* dc = pc->plugins()->devConsole();
       const plugins::ConsoleSnapshot s = host->consoleSnapshot(id);
-      QJsonArray events, watched;
+      const ui::ConsoleLogView view = dc->logView(id, filter);
+      QJsonArray log;
+      for (auto it = view.lines.crbegin(); it != view.lines.crend(); ++it)  // oldest first
+        log.append(QJsonObject{{QStringLiteral("seq"), static_cast<double>(it->seq)}, {QStringLiteral("time"), isoTime(it->timeMs)}, {QStringLiteral("level"), it->level}, {QStringLiteral("text"), it->text}});
+      QJsonArray events, watched, notGranted;
       for (const plugins::EventLine& e : s.events)
         events.append(QJsonObject{{QStringLiteral("time"), isoTime(e.timeMs)}, {QStringLiteral("plugin"), e.plugin}, {QStringLiteral("name"), e.name}, {QStringLiteral("text"), e.text}});
       for (const plugins::WatchedRow& w : s.watched)
         watched.append(QJsonObject{{QStringLiteral("label"), w.label}, {QStringLiteral("address"), w.address}, {QStringLiteral("value"), w.value}});
+      for (const QString& p : s.notGranted) notGranted.append(p);
       const plugins::HostLimits lim = host->limits();
+      const auto info = infoOf(*pc, id);
       reply(ToolResult::json(QJsonObject{
           {QStringLiteral("status"), statusName(s.status)},
+          {QStringLiteral("paused"), s.status == PluginStatus::Paused},
+          {QStringLiteral("pause_reason"), s.error.section(QLatin1Char('\n'), 0, 0)},
           {QStringLiteral("error"), s.error},
-          {QStringLiteral("log"), logJson(s.log)},
+          {QStringLiteral("errors_total"), s.errorCount},
+          {QStringLiteral("unpacked"), info ? info->devLinked : false},
+          {QStringLiteral("not_granted"), notGranted},
+          {QStringLiteral("reload"), QJsonObject{{QStringLiteral("count"), s.reloadCount}, {QStringLiteral("last_ms"), static_cast<double>(s.reloadMs)}}},
+          {QStringLiteral("counts"), QJsonObject{{QStringLiteral("error"), view.error}, {QStringLiteral("warn"), view.warn}, {QStringLiteral("info"), view.info},
+                                                 {QStringLiteral("debug"), view.debug}, {QStringLiteral("total"), view.total}}},
+          {QStringLiteral("last_seq"), static_cast<double>(view.lastSeq)},
+          {QStringLiteral("log"), log},
           {QStringLiteral("events"), events},
           {QStringLiteral("watched"), watched},
           {QStringLiteral("budgets"), QJsonObject{{QStringLiteral("memory_bytes"), static_cast<double>(lim.memoryBytes)},
                                                   {QStringLiteral("instructions_per_call"), static_cast<double>(lim.instructions)},
                                                   {QStringLiteral("wall_ms_per_call"), lim.wallMs}}}}));
+    };
+    registry.add(std::move(t));
+  }
+
+  {
+    ToolDef t;
+    t.name = QStringLiteral("devconsole_state");
+    t.description = QStringLiteral(
+        "What the developer console shows right now (the same model as Settings > Plugins > Developer console): the plugins it lists with status and Unpacked flag, the selected "
+        "plugin, its permissions (granted / not granted), the log as filtered by the person (level chips, Pause log, Clear), counts per level, inspect (run state, store keys, "
+        "watched values), the last reload, and the memory viewer (region, address, hex rows, search).");
+    t.inputSchema = schema();
+    t.handler = [pc](const QJsonObject&, ToolReply reply) {
+      if (!pc) return reply(ToolResult::error(QStringLiteral("app_closing")));
+      ui::DevConsole* dc = pc->plugins()->devConsole();
+      reply(ToolResult::json(QJsonObject{{QStringLiteral("model"), QJsonObject::fromVariantMap(dc->buildModel())},
+                                         {QStringLiteral("memory"), QJsonObject::fromVariantMap(dc->memory())}}));
     };
     registry.add(std::move(t));
   }

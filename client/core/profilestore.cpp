@@ -168,7 +168,9 @@ bool dirIsWritable(const QString& path) {
 }  // namespace
 
 ProfileStore::BaseDirChoice ProfileStore::chooseBaseDir(const QString& appDir, const QString& appDataDir) {
-  if (!appDir.isEmpty()) {
+  // Inside an AppImage (APPIMAGE is set by its runtime) the program directory is the image's mount, which extract-and-run
+  // mode makes writable but throws away: never portable there.
+  if (!appDir.isEmpty() && qEnvironmentVariableIsEmpty("APPIMAGE")) {
     const QString portable = QDir(appDir).filePath(QStringLiteral("data"));
     if (dirIsWritable(portable)) {
       return {portable, true};

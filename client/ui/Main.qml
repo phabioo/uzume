@@ -206,6 +206,12 @@ ApplicationWindow {
         enabled: (window.navHotkeys || window.player.screen === "game") && window.player.accounts.phase === "idle"
         onActivated: window.player.accounts.open()
     }
+    // Developer console (boards 4d-1, 4d-2F): Ctrl+Shift+D while Developer mode is on, from every screen with a server, also in a game.
+    Shortcut {
+        sequence: "Ctrl+Shift+D"
+        enabled: window.player.plugins.developerMode && (window.navHotkeys || window.player.screen === "game")
+        onActivated: window.player.showDeveloperConsole()
+    }
     // An invite link pasted anywhere in the window (8c-1). A text field that has the focus keeps its own paste.
     TextEdit { id: clipboardProbe; visible: false }
     Shortcut {

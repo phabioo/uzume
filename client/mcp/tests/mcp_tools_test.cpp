@@ -121,7 +121,7 @@ class McpToolsTest : public QObject {
     }
     for (const char* n : {"status", "logs_tail", "logs_search", "settings_get", "collect_diagnostics", "connection_check", "plugins_list", "plugin_console", "plugin_ui",
                           "plugin_action", "plugin_reload", "plugin_call", "plugin_eval", "plugin_cache_list", "plugin_cache_read", "plugin_image", "game_state",
-                          "memory_regions", "memory_read", "memory_search", "romfs_list", "romfs_read", "rom_read", "screenshot", "game_input", "game_pause",
+                          "devconsole_state", "memory_regions", "memory_read", "memory_search", "romfs_list", "romfs_read", "rom_read", "screenshot", "game_input", "game_pause",
                           "game_resume", "game_frame_step", "game_state_save", "game_state_load", "game_memory_write", "cheats_list", "cheats_apply",
                           "cheats_clear", "store_get", "store_put", "consent_set", "server_sign_in", "states_list", "states_save", "states_load",
                           "states_delete", "rewind", "runs_list", "run_set_rules", "run_events", "plugin_link", "developer_mode", "file_dialog_pick", "settings_set", "saves_history", "toasts_list"})
@@ -364,6 +364,35 @@ class McpToolsTest : public QObject {
     QCOMPARE(console.value("status").toString(), QStringLiteral("running"));
     QVERIFY(QJsonDocument(console.value("log").toArray()).toJson().contains("plugin loaded"));
     QVERIFY(console.value("budgets").toObject().value("wall_ms_per_call").toInt() > 0);
+
+    // 0.22: seq numbers, counts per level, level and since_seq filters, paused and error info.
+    QVERIFY(console.value("log").toArray().at(0).toObject().contains("seq"));
+    QVERIFY(!console.value("paused").toBool());
+    QVERIFY(console.value("pause_reason").toString().isEmpty());
+    QCOMPARE(console.value("errors_total").toInt(), 0);
+    QVERIFY(!console.value("unpacked").toBool());
+    QCOMPARE(console.value("reload").toObject().value("count").toInt(), 0);
+    const int seq0 = console.value("last_seq").toInt();
+    QVERIFY(seq0 >= 2);
+    QVERIFY2(!call("plugin_eval", {{"id", "net.test.local"}, {"code", "fb.log.warn('w1') fb.log.error('e1') fb.log.error('e2')"}}).isError, "eval");
+    const QJsonObject errs = jsonOf(call("plugin_console", {{"id", "net.test.local"}, {"level", "error"}, {"since_seq", seq0}})).toObject();
+    QCOMPARE(errs.value("log").toArray().size(), 2);
+    QCOMPARE(errs.value("log").toArray().at(0).toObject().value("text").toString(), QStringLiteral("e1"));  // oldest first
+    QCOMPARE(errs.value("log").toArray().at(0).toObject().value("seq").toInt(), seq0 + 2);
+    QCOMPARE(errs.value("counts").toObject().value("error").toInt(), 2);  // counts are not narrowed by the filters
+    QCOMPARE(errs.value("counts").toObject().value("warn").toInt(), 1);
+    QCOMPARE(errs.value("last_seq").toInt(), seq0 + 3);
+    const QJsonObject both = jsonOf(call("plugin_console", {{"id", "net.test.local"}, {"level", QJsonArray{"warn", "error"}}})).toObject();
+    QCOMPARE(both.value("log").toArray().size(), 3);
+    const QJsonObject csv = jsonOf(call("plugin_console", {{"id", "net.test.local"}, {"level", "warn,error"}, {"since_seq", seq0 + 1}})).toObject();
+    QCOMPARE(csv.value("log").toArray().size(), 2);
+    QVERIFY(call("plugin_console", {{"id", "net.test.local"}, {"level", "loud"}}).isError);
+    QVERIFY(call("plugin_console", {{"id", "net.test.local"}, {"since_seq", "x"}}).isError);
+    // devconsole_state: the model the app's console shows.
+    const QJsonObject dev = jsonOf(call("devconsole_state")).toObject();
+    QVERIFY(dev.value("model").toObject().contains("counts"));
+    QVERIFY(dev.value("model").toObject().contains("permissions"));
+    QVERIFY(dev.value("memory").toObject().contains("available"));
 
     // plugin_call: a number, a table and an image as PNG content.
     ToolResult add = call("plugin_call", {{"id", "net.test.local"}, {"interface", "test.iface"}, {"function", "add"}, {"args", QJsonArray{2, 40}}});

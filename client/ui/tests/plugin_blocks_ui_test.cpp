@@ -445,6 +445,24 @@ class PluginBlocksUiTest : public QObject {
     shot(QStringLiteral("plugin-blocks-narrow"));
   }
 
+  // A row with a text and an input (Splits editor: number + name + buttons): the text keeps its natural width and the inputs of
+  // different rows start at the same x, whatever they contain.
+  void rowInputsAlign() {
+    const char* tree = R"({"type":"column","gap":8,"children":[
+      {"type":"row","gap":8,"align":"center","children":[{"type":"text","id":"n1","text":"1"},{"type":"textfield","id":"f1","text":"Route 1"},{"type":"button","label":"x","action":"d1"}]},
+      {"type":"row","gap":8,"align":"center","children":[{"type":"text","id":"n2","text":"2"},{"type":"textfield","id":"f2","text":"A much longer split name than the first one has"},{"type":"button","label":"x","action":"d2"}]}]})";
+    show(json(tree), false, 700);
+    QQuickItem* n1 = mustFind("plugin_n1");
+    QQuickItem* f1 = mustFind("plugin_f1");
+    QQuickItem* f2 = mustFind("plugin_f2");
+    QVERIFY(n1 != nullptr && f1 != nullptr && f2 != nullptr);
+    QVERIFY2(n1->width() <= n1->implicitWidth() + 0.5, qPrintable(QString::number(n1->width())));
+    const qreal x1 = f1->mapToItem(sheet_, QPointF(0, 0)).x();
+    const qreal x2 = f2->mapToItem(sheet_, QPointF(0, 0)).x();
+    QVERIFY2(qAbs(x1 - x2) < 0.5, qPrintable(QStringLiteral("field x %1 vs %2").arg(x1).arg(x2)));
+    QVERIFY2(qAbs(f1->width() - f2->width()) < 0.5, qPrintable(QStringLiteral("field width %1 vs %2").arg(f1->width()).arg(f2->width())));
+  }
+
   // SoulLink's HUD tree (card > row(gap 8) > text + badge) at the block width of a 240 and a 320 px HUD widget: the text never gets
   // narrower than min(its width, 96 px); the badge gives way by eliding.
   void hudRowKeepsTheTextReadable() {
