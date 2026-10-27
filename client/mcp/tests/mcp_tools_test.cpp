@@ -122,7 +122,8 @@ class McpToolsTest : public QObject {
     for (const char* n : {"status", "logs_tail", "logs_search", "settings_get", "collect_diagnostics", "connection_check", "plugins_list", "plugin_console", "plugin_ui",
                           "plugin_action", "plugin_reload", "plugin_call", "plugin_eval", "plugin_cache_list", "plugin_cache_read", "plugin_image", "game_state",
                           "memory_regions", "memory_read", "memory_search", "romfs_list", "romfs_read", "rom_read", "screenshot", "game_input", "game_pause",
-                          "game_resume", "game_frame_step", "game_state_save", "game_state_load", "game_memory_write"})
+                          "game_resume", "game_frame_step", "game_state_save", "game_state_load", "game_memory_write", "cheats_list", "cheats_apply",
+                          "cheats_clear", "store_get", "store_put", "consent_set", "server_sign_in"})
       QVERIFY2(names.contains(QLatin1String(n)), n);
   }
 
@@ -140,6 +141,64 @@ class McpToolsTest : public QObject {
     QCOMPARE(call("game_state_save").content.value(0).text, QStringLiteral("no_game"));
     QCOMPARE(call("game_state_load").content.value(0).text, QStringLiteral("no_game"));
     QCOMPARE(call("game_memory_write", {{"addr", 0}, {"hex", "00"}}).content.value(0).text, QStringLiteral("no_game"));
+  }
+
+  // 0.20 plugin API debug tools: without a game the cheat tools refuse, the plugin store and the consent answers work.
+  void pluginApiDebugTools() {
+    QCOMPARE(call("cheats_list").content.value(0).text, QStringLiteral("no_game"));
+    QCOMPARE(call("cheats_apply", {{"cheats", QJsonArray()}}).content.value(0).text, QStringLiteral("no_game"));
+    QCOMPARE(call("cheats_clear").content.value(0).text, QStringLiteral("no_game"));
+    QCOMPARE(call("consent_set", {{"kind", "cheats"}, {"allow", true}}).content.value(0).text, QStringLiteral("no_game"));
+    QVERIFY(call("consent_set", {{"kind", "bogus"}, {"allow", true}}).isError);
+    const QJsonObject c = jsonOf(call("consent_set", {{"kind", "memory_write"}, {"allow", true}, {"game", "g-mcp-test"}})).toObject();
+    QCOMPARE(c.value("consent").toString(), QStringLiteral("allowed"));
+    QCOMPARE(jsonOf(call("consent_set", {{"kind", "memory_write"}, {"forget", true}, {"game", "g-mcp-test"}})).toObject().value("consent").toString(), QStringLiteral("ask"));
+
+    QVERIFY(!jsonOf(call("store_get", {{"plugin_id", "uzume.cheats"}, {"key", "lists"}})).toObject().value("found").toBool());
+    QVERIFY(call("store_get", {{"plugin_id", "Bad Id"}, {"key", "lists"}}).isError);
+    const QJsonObject put = jsonOf(call("store_put", {{"plugin_id", "uzume.cheats"}, {"key", "lists"}, {"value", QJsonObject{{"a", 1}}}})).toObject();
+    QCOMPARE(put.value("result").toString(), QStringLiteral("ok"));
+    QCOMPARE(put.value("revision").toInt(), 1);
+    const QJsonObject got = jsonOf(call("store_get", {{"plugin_id", "uzume.cheats"}, {"key", "lists"}})).toObject();
+    QVERIFY(got.value("found").toBool());
+    QCOMPARE(got.value("value").toObject().value("a").toInt(), 1);
+    const QJsonObject stale = jsonOf(call("store_put", {{"plugin_id", "uzume.cheats"}, {"key", "lists"}, {"value", 2}, {"base_revision", 0}})).toObject();
+    QCOMPARE(stale.value("result").toString(), QStringLiteral("conflict"));
+    QCOMPARE(jsonOf(call("store_get", {{"plugin_id", "uzume.cheats"}, {"key", "lists"}})).toObject().value("conflicts").toArray().size(), 1);
+  }
+
+  void serverSignInValidatesArguments() {
+    QVERIFY(call("server_sign_in").isError);
+    QVERIFY(call("server_sign_in", {{"url", "https://127.0.0.1:1"}, {"username", "lena"}}).isError);  // no password
+    QVERIFY(call("server_sign_in", {{"url", ""}, {"username", "lena"}, {"password", "x"}}).isError);
+    QVERIFY(validateServerSignInArgs({{"url", "u"}, {"username", "n"}, {"password", "p"}}).isEmpty());
+    QVERIFY(!validateServerSignInArgs({{"url", "u"}, {"username", "n"}, {"password", "p"}, {"trust_fingerprint", 5}}).isEmpty());
+    // Fingerprint decision: colons/case do not matter, a different or missing value is refused.
+    QVERIFY(serverFingerprintTrusted(QStringLiteral("AB:CD:EF"), QStringLiteral("abcdef")));
+    QVERIFY(!serverFingerprintTrusted(QStringLiteral("AB:CD:EF"), QStringLiteral("abcdee")));
+    QVERIFY(!serverFingerprintTrusted(QStringLiteral("AB:CD:EF"), QString()));
+    QVERIFY(!serverFingerprintTrusted(QString(), QString()));
+  }
+
+  void tokenFromEnvironmentOnlyWithMcpFlag() {
+    const QByteArray tok(43, 'a');
+    qputenv("UZUME_MCP_TOKEN", tok);
+    QVERIFY(ui::McpController::tokenFromEnvironment(false).isEmpty());  // without --mcp it is ignored
+    QCOMPARE(ui::McpController::tokenFromEnvironment(true), tok);
+    QVERIFY(!pc->mcp()->setTokenForThisStart("short"));
+    QVERIFY(!pc->mcp()->setTokenForThisStart(QByteArray(40, '!')));
+    QVERIFY(pc->mcp()->setTokenForThisStart(tok));
+    const quint16 port = freePort();
+    QVERIFY(!pc->mcp()->setPortForThisStart(80));
+    QVERIFY(pc->mcp()->setPortForThisStart(port));
+    pc->mcp()->enableForThisStart();
+    QVERIFY(pc->mcp()->listening());
+    QCOMPARE(pc->mcp()->port(), int(port));
+    QVERIFY(pc->mcp()->setupCommand().contains(QString::fromLatin1(tok)));
+    QCOMPARE(mcptest::request(port, "POST", "/mcp", mcptest::goodHeaders(port, tok), mcptest::rpc(1, "ping")).status, 200);
+    // Neither the token nor the port reached the credential store or the settings.
+    QVERIFY(!creds->read(QString::fromLatin1(ui::McpController::kTokenTarget)).has_value());
+    qunsetenv("UZUME_MCP_TOKEN");
   }
 
   void switchPersistsAndTokenStaysOutOfTheLog() {

@@ -154,8 +154,13 @@ QVariant LibraryModel::data(const QModelIndex& index, int role) const {
         text = tr("↓ Downloading %1 %").arg(qBound(0, pct, 100));
       } else if (kind != QLatin1String("ready")) {
         text = tr("Verifying…");
+      } else if (variantBadge(it.game.id).value(QStringLiteral("buildPercent"), -1).toInt() >= 0) {
+        text = tr("Building %1 %").arg(variantBadge(it.game.id).value(QStringLiteral("buildPercent")).toInt());
       } else if (it.sync == QLatin1String("pending")) {
         text = tr("⟳ Save sync pending");
+      } else if (variantBadge(it.game.id).value(QStringLiteral("count")).toInt() > 0) {
+        text = QStringLiteral("● ") + variantCountText(variantBadge(it.game.id).value(QStringLiteral("count")).toInt());
+        tone = QStringLiteral("ok");
       } else {
         text = tr("● Ready");
         tone = QStringLiteral("ok");
@@ -183,7 +188,12 @@ QVariant LibraryModel::data(const QModelIndex& index, int role) const {
       if (kind == QLatin1String("missing")) return QStringLiteral("amber");
       return QStringLiteral("neutral");
     case StatusTextRole: {
-      if (kind == QLatin1String("ready")) return tr("Ready");
+      if (kind == QLatin1String("ready")) {
+        const QVariantMap b = variantBadge(it.game.id);
+        if (b.value(QStringLiteral("buildPercent"), -1).toInt() >= 0) return tr("Building %1 %").arg(b.value(QStringLiteral("buildPercent")).toInt());
+        if (b.value(QStringLiteral("count")).toInt() > 0) return variantCountText(b.value(QStringLiteral("count")).toInt());
+        return tr("Ready");
+      }
       if (kind == QLatin1String("download")) {
         const qint64 total = it.status.totalBytes > 0 ? it.status.totalBytes : it.game.romSize;
         return tr("Download needed · %1").arg(formatSize(total));
@@ -429,6 +439,17 @@ QString LibraryModel::playedDateText(qint64 msecs, const QDate& today) {
   return QStringLiteral("%1 %2").arg(d.day()).arg(QLocale::c().monthName(d.month(), QLocale::ShortFormat).toUpper());
 }
 
+QVariantMap LibraryModel::variantBadge(const QString& gameId) const { return variantBadges_.value(gameId).toMap(); }
+
+QString LibraryModel::variantCountText(int count) { return count == 1 ? tr("1 variant") : tr("%1 variants").arg(count); }
+
+void LibraryModel::setVariantBadges(const QVariantMap& byGameId) {
+  if (byGameId == variantBadges_) return;
+  variantBadges_ = byGameId;
+  if (!visible_.isEmpty()) emit dataChanged(index(0), index(visible_.size() - 1), {TileTextRole, TileToneRole, StatusTextRole, StatusWordRole, StatusToneRole});
+  emit continueChanged();
+}
+
 QVariantList LibraryModel::continueEntriesAt(const QDate& today) const {
   QList<QPair<qint64, const Item*>> played;
   for (const Item& it : items_) {
@@ -443,10 +464,17 @@ QVariantList LibraryModel::continueEntriesAt(const QDate& today) const {
     const Item& it = *played.at(i).second;
     const QString sys = it.game.system.toUpper();
     // The save slot / version is not known to the model: the meta is the system only.
+    // The variant played last resumes with the game (10g-1): "<game> · <variant>" and its slot in the meta line.
+    const QVariantMap badge = variantBadge(it.game.id);
+    const qint64 variantMs = static_cast<qint64>(badge.value(QStringLiteral("lastPlayedMs")).toDouble());
+    const bool variant = !badge.value(QStringLiteral("lastId")).toString().isEmpty() && variantMs > 0 && variantMs + 120000 >= played.at(i).first;
+    const QString variantName = variant ? badge.value(QStringLiteral("lastName")).toString() : QString();
     out.append(QVariantMap{{QStringLiteral("gameId"), it.game.id},
-                           {QStringLiteral("title"), it.game.title},
+                           {QStringLiteral("title"), variant ? tr("%1 · %2").arg(it.game.title, variantName) : it.game.title},
                            {QStringLiteral("system"), sys},
-                           {QStringLiteral("meta"), sys},
+                           {QStringLiteral("meta"), variant ? tr("%1 · variant slot %2").arg(sys, variantName) : sys},
+                           {QStringLiteral("variantId"), variant ? badge.value(QStringLiteral("lastId")).toString() : QString()},
+                           {QStringLiteral("variantName"), variantName},
                            {QStringLiteral("dateText"), playedDateText(played.at(i).first, today)}});
   }
   return out;

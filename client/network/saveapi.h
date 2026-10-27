@@ -130,6 +130,10 @@ class SaveApi : public QObject {
   void getSlot(const QString& gameId, const QString& slot, Callback cb);
   void putSave(const QString& gameId, const QString& slot, const QByteArray& data, int baseRevision, const QString& reason,
                Callback cb);
+  // run_rules_v1: while set, every putSave sends `X-Uzume-Cheats-Used: true` (cheats or memory writes were active in this play
+  // session); SaveSync sets it for the session and clears it when the next session begins.
+  void setCheatsUsed(bool used) { cheatsUsed_ = used; }
+  bool cheatsUsed() const { return cheatsUsed_; }
   void getContent(const QString& gameId, const QString& slot, Callback cb);
   void resolve(const QString& gameId, const QString& slot, const QString& conflictId, const QString& resolution,
                int expectedRevision, Callback cb);
@@ -155,6 +159,7 @@ class SaveApi : public QObject {
   static QString slotPath(const QString& gameId, const QString& slot);
 
   QPointer<HubConnection> conn_;
+  bool cheatsUsed_ = false;
 };
 
 }  // namespace uzume

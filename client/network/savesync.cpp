@@ -1069,6 +1069,7 @@ void SaveSync::resolveError(const QString& message, SaveRestoreResult::Outcome k
 // ---------------------------------------------------------------- Session: checkpoints and final sync
 
 void SaveSync::beginSession() {
+  api_.setCheatsUsed(false);  // a new play session starts without the marker
   if (a_.gameId.isEmpty() || a_.localOnly) {  // local-only: no sync session, no polling, no final upload
     return;
   }

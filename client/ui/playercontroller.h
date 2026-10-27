@@ -166,6 +166,9 @@ class PlayerController : public QObject {
   Q_PROPERTY(uzume::ui::PluginsController* plugins READ plugins CONSTANT)
   Q_PROPERTY(uzume::ui::RunsController* runs READ runs CONSTANT)
   Q_PROPERTY(uzume::ui::VariantsController* variants READ variants CONSTANT)  // game variants (0.21)
+  // Play run of a randomized run that has to build the person's variant first (10f-3): {runId, runName, gameTitle, state: building |
+  // failed, step: reading|randomizing|writing|"", fraction, percent, etaText, error, startWhenReady, background}; empty when none.
+  Q_PROPERTY(QVariantMap runBuild READ runBuild NOTIFY runBuildChanged)
   // Favourites and collections of the signed-in person (3c-0, 3c-1, 3c-4)
   Q_PROPERTY(uzume::ui::PersonalController* personal READ personal CONSTANT)
   Q_PROPERTY(uzume::ui::ScreenshotController* screenshots READ screenshots CONSTANT)
@@ -250,6 +253,11 @@ class PlayerController : public QObject {
   PluginsController* plugins() { return plugins_.get(); }
   RunsController* runs() { return runs_.get(); }
   VariantsController* variants() { return variants_.get(); }
+  QVariantMap runBuild() const { return runBuild_; }
+  Q_INVOKABLE void setRunBuildStartWhenReady(bool on);  // "Start <run> when it's ready"
+  Q_INVOKABLE void runBuildInBackground();              // hides the dialog, the build goes on
+  Q_INVOKABLE void cancelRunBuild();                    // stops the build; nothing is kept
+  Q_INVOKABLE void dismissRunBuild();                   // closes the dialog after a failure
   ToolsClient* toolsClient() { return toolsClient_.get(); }  // debug MCP server
   ToolCache* toolCache() { return toolCache_.get(); }
   VariantCache* variantCache() { return variantCache_.get(); }
@@ -454,6 +462,7 @@ class PlayerController : public QObject {
   Q_INVOKABLE void resolveSaveConflict(const QString& action);
 
  signals:
+  void runBuildChanged();
   void screenChanged();
   void pluginScreenRequested(const QString& pluginId);
   void serverPageChanged();
@@ -587,7 +596,11 @@ class PlayerController : public QObject {
   struct PendingRunPlay {
     QString runId;
     QString gameId;
+    bool startWhenReady = true;
+    bool background = false;
   };
+  QVariantMap runBuild_;
+  void refreshRunBuild();
   PendingRunPlay pendingRunPlay_;  // a run start waits for its run variant
   void startVariantGame(const QString& variantId);
   VariantLaunch variantLaunchFor(const GameEntry& game);

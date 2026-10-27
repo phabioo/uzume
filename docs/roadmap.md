@@ -1,6 +1,6 @@
 # Roadmap
 
-Status and plan of Uzume after the proof of concept: what is finished, what comes next up to 1.0 and what is deliberately left for later. Work is cut into one work package per thread and PR (see [workflow](workflow.md)). Next up: 0.20 (emulation). Finished milestones and the decisions behind the old numbering are in [history](history.md); what the product does today is in [features](features.md).
+Status and plan of Uzume after the proof of concept: what is finished, what comes next up to 1.0 and what is deliberately left for later. Work is cut into one work package per thread and PR (see [workflow](workflow.md)). Next up: 0.20 (emulation); 0.21 (randomizer) is built, its real-engine test and the 3DS updates are open. Finished milestones and the decisions behind the old numbering are in [history](history.md); what the product does today is in [features](features.md).
 
 ## Goal 1.0
 
@@ -100,14 +100,14 @@ Cheats (decided by Fabio on 2026-10-23). Action Replay and the other formats run
 
 ## 0.21 Randomizer
 
-Decided by Fabio on 2026-10-23 (as 0.22; renumbered on 2026-10-23; [ADR 0031](adr/0031-game-variants-and-randomizer.md), proposed; design sheet 5, [randomizer.md](design/uzume/randomizer.md); assessment in the project notes). Friends want a SoulLink or Nuzlocke run where each person plays their own randomized game. The engine is the Universal Pokémon Randomizer FVX (GPL-3.0, Gen 1 to 7, never in a repository); each app builds its own variant from a recipe, so no ROM data travels. ORAS is tested first, every generation from GB to 3DS is built: Gen 1 to 5 as a whole ROM, Gen 6 and 7 as a LayeredFS folder in the Azahar dir of the slot. Order by dependency; the spike comes first.
+Decided by Fabio on 2026-10-23 (as 0.22; renumbered on 2026-10-23); [ADR 0031](adr/0031-game-variants-and-randomizer.md) accepted on 2026-10-27; design sheet 5, [randomizer.md](design/uzume/randomizer.md); behaviour in [features](features.md#game-variants-and-the-randomizer). Built (2026-10-27): server (OpenAPI 1.40.0, migration 0025), app core, app UI, plugin `uzume-plugin-randomizer` v0.1, with the test engine `uzume_test_engine` in CI. Open: 3DS updates and Fabio's test with the real engine on his PC (determinism per system, LayeredFS in a slot); the milestone moves to [history](history.md) when both are done. Friends want a SoulLink or Nuzlocke run where each person plays their own randomized game. The engine is the Universal Pokémon Randomizer FVX (GPL-3.0, Gen 1 to 7, never in a repository); each app builds its own variant from a recipe, so no ROM data travels. Gen 1 to 5 are built as a whole ROM, Gen 6 and 7 as a LayeredFS folder in the Azahar dir of the slot.
 
-- [ ] Spike on Fabio's PC: same base, settings, seed and engine version give the same bytes, for one game per system (GB, GBC, GBA, NDS, 3DS); a LayeredFS folder in the Azahar dir of a run slot loads and leaves Main untouched (S)
-- [ ] Game variants: variant = base game + recipe (engine version, settings, seed, base dump SHA-256 or 3DS update) + owner + own save slot; REST, OpenAPI and migration; start exactly the variant (not another dump); variant cache with limit and Storage entry; LayeredFS into the slot's Azahar dir; `fb.rom.*` reads the started file and lays mod files over the RomFS; library row with variant count, slot picker (M-L)
-- [ ] 3DS updates on the server and in the app, so a variant can be built for the update the app plays (10b-3d, 10d-4f/g) (M)
-- [ ] Tools catalog: the server downloads the engine per platform like cores (SHA-256 pin, offline import, versions kept while in use, Server › Tools); the app starts it with a fixed argument list, no shell, progress, cancel, time and memory limits; build permission for signed official plugins only, no generic `tool.exec` (M)
-- [ ] Plugin `uzume-plugin-randomizer` v0.1 in its own repository (Fabio creates it): presets as settings strings, Randomize dialog, variant list, run setting, spoiler log only on request (M)
-- [ ] Runs with variants: run seed and pinned engine version and update, per-person seed derived from the run seed and the user ID or "Same world for everyone", own variants if allowed, "Building your variant" before Play run, run board column Game (M)
+- [ ] Fabio's test on his PC with the real engine: server › Tools gets FVX, ORAS is randomized twice with the same seed and `variant_files` gives the same hashes, the variant starts with the mod loaded and Main is original, a run "Each person gets their own" with two accounts, SoulLink sees randomized encounters; one game per system (GB, GBC, GBA, NDS) for determinism (S)
+- [x] Game variants: variant = base game + recipe + owner + own save slot `var-<8 hex>`; REST, OpenAPI and migration; start exactly the variant; variant cache with limit and Storage entry; LayeredFS into the slot's Azahar dir; `fb.rom.*` reads the started file and lays mod files over the RomFS; variant count and slot picker (M-L)
+- [ ] 3DS updates on the server and in the app, so a variant can be built for the update the app plays (10b-3d, 10d-4f/g); decided after Fabio's ORAS test, 0.21 builds and plays without an update (M)
+- [x] Tools catalog: the server downloads the engine per platform like cores (SHA-256 pin, `import-tools`, versions kept while in use, Server › Tools); the app starts it with a fixed argument list, no shell, progress, cancel, time and memory limits; permission `variants.build`, no `tool.exec` (M)
+- [x] Plugin `uzume-plugin-randomizer` v0.1 in its own repository: presets as settings strings, supported games and the overview card; Uzume draws the dialogs, the variant list and the run setting itself (ADR 0031 amendment) (M)
+- [x] Runs with variants: run seed and pinned engine version, per-person seed derived from the run seed and the user ID or "Same world for everyone", own variants if allowed, "Building your variant", run board column Game and Randomizer block (M)
 - [ ] SoulLink: show the variant in the run, read encounter data from the variant, test with ORAS (S, plugin repositories)
 
 ## 0.22 Plugins
@@ -121,7 +121,7 @@ Decided by Fabio on 2026-10-21 (as 0.21; renumbered on 2026-10-22 and 2026-10-23
 
 ## 0.23 Together
 
-Decided by Fabio on 2026-10-21 (as 0.20; renumbered on 2026-10-22 and 2026-10-23). The UI is drawn in the Uzume design (speaking mark, mixer popover, People and Chat tabs, notifications); no own design round. Dependency chains: online status -> notifications -> ready check (same presence over WSS); chat -> audio mixer stage 2 -> voice chat; viewer role -> controller hand-over. Spike first for voice chat (echo and noise without libwebrtc).
+Decided by Fabio on 2026-10-21 (as 0.20; renumbered on 2026-10-22 and 2026-10-23). The UI is drawn in the Uzume design (speaking mark, mixer popover, People and Chat tabs, notifications); no own design round. Dependency chains: online status -> notifications -> ready check (same presence over WSS); chat -> audio mixer stage 2 -> voice chat; viewer role -> controller hand-over. Spike first for voice chat (echo and noise without libwebrtc). Decisions: [ADR 0033](adr/0033-together.md).
 
 - [ ] Online status: who is online and what they play, "Watch" and "Invite" from the list (S)
 - [ ] Notifications (app toasts and bell): Session started, invite, run event; switchable per kind (S-M)

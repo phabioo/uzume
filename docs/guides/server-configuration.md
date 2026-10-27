@@ -2,7 +2,7 @@
 
 At a glance: Reference for running the server: commands, flags and environment variables (`UZUME_*`), TURN, reverse proxy, certificate, limits, data directory. Everyday settings are in the app (Server › Settings). Install first: [server-install.md](server-install.md).
 
-Contents: [Commands](#commands), [Server commands](#server-commands), [Flags and environment](#flags-and-environment), [Settings in the app](#settings-in-the-app), [Diagnostics bundle](#diagnostics-bundle), [Problem reports](#problem-reports), [Overview and metrics endpoint](#overview-and-metrics-endpoint), [Reverse proxy](#reverse-proxy), [Certificate](#certificate), [Resumable ROM uploads](#resumable-rom-uploads), [Limits for unauthenticated requests](#limits-for-unauthenticated-requests), [Core packages](#core-packages), [Run export](#run-export), [Plugins](#plugins), [Windows](#windows), [Data directory](#data-directory).
+Contents: [Commands](#commands), [Server commands](#server-commands), [Flags and environment](#flags-and-environment), [Settings in the app](#settings-in-the-app), [Diagnostics bundle](#diagnostics-bundle), [Problem reports](#problem-reports), [Overview and metrics endpoint](#overview-and-metrics-endpoint), [Reverse proxy](#reverse-proxy), [Certificate](#certificate), [Resumable ROM uploads](#resumable-rom-uploads), [Limits for unauthenticated requests](#limits-for-unauthenticated-requests), [Core packages](#core-packages), [Run export](#run-export), [Plugins](#plugins), [Tools](#tools), [Windows](#windows), [Data directory](#data-directory).
 
 Reference for running the Uzume server binary: commands, flags and environment variables, certificates. For installation see [server-install.md](server-install.md).
 
@@ -329,6 +329,7 @@ Tools (0.21, [ADR 0031](../adr/0031-game-variants-and-randomizer.md) D3) are pro
 - Offered: the admin decides. A newly installed tool is not offered (default off); apps see only offered tools and only cached versions, and the package download answers 404 otherwise. Un-offering keeps the copies apps already have.
 - Remove a version: refused (409 `tool_in_use`, with `used_by` counts) while a variant that is not deleted or a run that is not finished or abandoned pins it; there is no force.
 - Offline: `uzume-server import-tools <zip>...` takes the release zips as downloaded (version and platform come from the file name, content checked like a download, SHA-256 pinned, origin `import`; one line per file; the offered switch is not touched). Run it as the service user with the service's `-data-dir`.
+- Apps: an app lists `GET /api/v1/tools` (any trusted device), downloads the zip of its platform with `GET /api/v1/tools/{id}/packages/{version}/{platform}` (ETag = SHA-256, 304) and checks the hash; the app uses the version a variant or run pins, so keep old versions while they are used. Using it is explained in [app.md](app.md#randomize-a-game). The server stores only recipes of game variants and runs (engine version, settings string, seed, base pin) in the database, so they are part of the normal backup; the engine zips are not (see Install above). The server never runs the engine and never stores ROM data, patches or spoiler logs.
 
 ## Windows
 

@@ -299,10 +299,14 @@ const QHash<QString, TypeSpec>& specs() {
                       {"action", vAction(), true},
                       {"value", vAny()},
                       {"confirm", vObject({{"title", vStr(1, 100), true}, {"text", vStr(1, 300), true}, {"confirm_label", vStr(1, 40)}, {"danger", vBool()}})}}});
-    m.insert(QStringLiteral("toggle"), TypeSpec{false, {{"label", shortStr}, {"checked", vBool()}, {"action", vAction(), true}}});
+    m.insert(QStringLiteral("toggle"), TypeSpec{false, {{"label", shortStr}, {"checked", vBool()}, {"action", vAction(), true}, {"disabled", vBool()}, {"value", vAny()}}});
     m.insert(QStringLiteral("select"), TypeSpec{false, {{"options", vOptions(1, 100), true}, {"selected", vScalar()}, {"action", vAction(), true}}});
     m.insert(QStringLiteral("segmented"), TypeSpec{false, {{"options", vOptions(2, 3), true}, {"selected", vScalar()}, {"action", vAction(), true}}});
-    m.insert(QStringLiteral("textfield"), TypeSpec{false, {{"text", vStr()}, {"placeholder", shortStr}, {"error", shortStr}, {"action", vAction(), true}}});
+    m.insert(QStringLiteral("textfield"), TypeSpec{false, {{"text", vStr()}, {"placeholder", shortStr}, {"error", shortStr}, {"action", vAction(), true}, {"live", vBool()}}});
+    // textarea (0.20): multi-line input; "change" fires (default action name "change") with {id, value} once typing pauses.
+    m.insert(QStringLiteral("textarea"),
+             TypeSpec{false, {{"value", vStr(0, kUiMaxTextareaBytes)}, {"lines", vInt(1, 40)}, {"mono", vBool()}, {"placeholder", shortStr}, {"error", shortStr},
+                              {"action", vAction()}}});  // action defaults to the block id; the value is the text
     m.insert(QStringLiteral("empty"), TypeSpec{false, {{"title", shortStr, true}, {"text", vStr(0, 500)}, {"action_label", vStr(0, 60)}, {"action", vAction()}, {"tone", vTone()}}});
     m.insert(QStringLiteral("location"),
              TypeSpec{true, {{"title", shortStr, true}, {"sub", shortStr}, {"status", vEnum(sl({"open", "encounter", "caught", "missed", "none"}))}}});
@@ -650,6 +654,30 @@ void UiStore::addOpenRequest(const QString& id, const QString& slot) {
   if (m_openRequests.size() >= 20) m_openRequests.removeFirst();
   m_openRequests.append({id, slot});
   dirty(id, QStringLiteral("@open"));
+}
+
+void UiStore::addCloseRequest(const QString& id, const QString& slot) {
+  std::lock_guard<std::mutex> l(m_mutex);
+  if (m_closeRequests.size() >= 20) m_closeRequests.removeFirst();
+  m_closeRequests.append({id, slot});
+  dirty(id, QStringLiteral("@close"));
+}
+
+QList<QPair<QString, QString>> UiStore::takeCloseRequests() {
+  std::lock_guard<std::mutex> l(m_mutex);
+  return std::exchange(m_closeRequests, {});
+}
+
+void UiStore::addPickRequest(const PickRequest& r) {
+  std::lock_guard<std::mutex> l(m_mutex);
+  if (m_pickRequests.size() >= 8) m_pickRequests.removeFirst();
+  m_pickRequests.append(r);
+  dirty(r.pluginId, QStringLiteral("@pick"));
+}
+
+QList<PickRequest> UiStore::takePickRequests() {
+  std::lock_guard<std::mutex> l(m_mutex);
+  return std::exchange(m_pickRequests, {});
 }
 
 QList<QPair<QString, QString>> UiStore::takeOpenRequests() {

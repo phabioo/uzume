@@ -251,6 +251,10 @@ ApplicationWindow {
         function onLinkAdded(serverName: string) { linkAddedToast.serverName = serverName }
     }
 
+    // Variants (0.21): the "<name> is ready" toast with Play and the confirm before quitting while a build runs (design 10c).
+    VariantNotices { id: variantNotices; player: window.player }
+    onClosing: (close) => { if (!variantNotices.allowClose()) close.accepted = false }
+
     // Connection check (6e): modal over every screen; "Edit Hub address…" opens the inline edit of the Hub in Settings.
     ConnectionCheckDialog { player: window.player }
     Connections {
@@ -270,6 +274,25 @@ ApplicationWindow {
             if (slot === "screen" && window.player.screen !== "game") window.player.openPluginScreen(pluginId)
         }
     }
+    Connections {
+        target: window.player.plugins
+        function onCloseRequested(pluginId, slot) {
+            if (slot === "screen" && window.screenSheetPlugin === pluginId) window.screenSheetPlugin = ""
+        }
+        function onPickFileRequested(pluginId, requestId, title, filters, maxBytes) {
+            pluginPick.active = true   // loaded on first use: QtQuick.Dialogs may be missing
+            if (pluginPick.status === Loader.Ready && pluginPick.item) pluginPick.item.ask(pluginId, requestId, title, filters)
+            else window.player.plugins.completePick(pluginId, requestId, "")   // no dialog available: same as cancel
+        }
+    }
+    // fb.ui.pick_file and the consent question of cheats / memory writes (0.20).
+    Loader {
+        id: pluginPick
+        active: false
+        source: "PluginPickDialog.qml"
+        onLoaded: item.plugins = window.player.plugins
+    }
+    PluginConsentDialog { plugins: window.player.plugins }
     Connections {
         target: window.player
         function onPluginScreenRequested(pluginId) { window.screenSheetPlugin = pluginId }
@@ -322,6 +345,7 @@ ApplicationWindow {
     ConflictDialog { player: window.player }
     UzConfirmDialog { controller: window.player.admin; parent: Window.contentItem; z: 200 }   // "Confirm it's you": opens for any admin request that needs it
     ShareDialogs { player: window.player; parent: Window.contentItem; z: 190 }
+    RunVariantBuildDialog { player: window.player }  // Play run of a randomized run builds the person's variant first (10f-3)
     ReportProblemDialog { player: window.player }  // Settings > Diagnostics and the game "⋯" menu open it
     WhatsNewDialog { player: window.player }   // once per new app version (release notes of the signed updates index)
     SetupAssistant { player: window.player }   // player.showSetupAssistant()

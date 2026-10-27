@@ -21,6 +21,7 @@ inline constexpr int kUiMaxString = 2000;
 inline constexpr size_t kUiMaxBytes = 512 * 1024;
 inline constexpr int kUiReadDepth = 64;  // table nesting of the Lua value (blocks use two levels each)
 inline constexpr int kUiMaxToastText = 300;
+inline constexpr int kUiMaxTextareaBytes = 64 * 1024;  // value of a textarea block
 
 // Validates `tree` (one block) and converts it to a QVariantMap: type, id, children (QVariantList), props. On failure
 // returns false and sets `error` to e.g. `children[2].type: unknown block "foo"` (no "ui tree: " prefix).
@@ -44,6 +45,16 @@ struct UiPluginState {
   bool paused = false;                // the plugin was paused; trees are kept so the UI can show them dimmed
 };
 
+// fb.ui.pick_file: a file dialog the person has to confirm. The plugin never gets the path, only the content (delivered by
+// PluginHost::deliverFile to the callback).
+struct PickRequest {
+  QString pluginId;
+  quint64 id = 0;
+  QString title;
+  QStringList filters;  // "*.cht"
+  qint64 maxBytes = 0;
+};
+
 // Thread-safe: written on the plugin thread, read on the UI thread. Changes are only marked dirty; the plugin host
 // flushes the dirty set at most about every 33 ms, which coalesces bursts to <= 30 updates per second and slot.
 class UiStore {
@@ -59,6 +70,12 @@ class UiStore {
   int addToast(const QString& id, QVariantMap toast);
   // fb.ui.open: a request to show the plugin's slot ("screen" or "panel"); queued like toasts, dirty "@open".
   void addOpenRequest(const QString& id, const QString& slot);
+  // fb.ui.close: like addOpenRequest, dirty "@close".
+  void addCloseRequest(const QString& id, const QString& slot);
+  QList<QPair<QString, QString>> takeCloseRequests();
+  // fb.ui.pick_file: queued like toasts, dirty "@pick".
+  void addPickRequest(const PickRequest& r);
+  QList<PickRequest> takePickRequests();
 
   UiPluginState state(const QString& id) const;
   QVariantMap tree(const QString& id, const QString& slot) const;
@@ -75,6 +92,8 @@ class UiStore {
   QSet<QPair<QString, QString>> m_dirty;
   QList<QVariantMap> m_toasts;
   QList<QPair<QString, QString>> m_openRequests;
+  QList<PickRequest> m_pickRequests;
+  QList<QPair<QString, QString>> m_closeRequests;
   int m_nextToast = 1;
 };
 

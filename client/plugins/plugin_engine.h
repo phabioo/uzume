@@ -108,6 +108,9 @@ struct Plugin {
   uint64_t captureNextId = 1;                 // fb.video.capture request ids
   std::optional<PendingCapture> capture;      // at most one pending capture
   std::optional<std::chrono::steady_clock::time_point> captureLast;  // last accepted request (1 per second)
+  std::optional<std::chrono::steady_clock::time_point> snapshotLast;  // fb.save.snapshot: last accepted call (1 per minute)
+  std::map<uint64_t, int> pickRefs;           // fb.ui.pick_file: request id -> registry ref of the callback
+  uint64_t pickNextId = 1;
   double toastTokens = 3;                     // notify rate limit: burst 3, one per second sustained
   std::chrono::steady_clock::time_point toastLast = std::chrono::steady_clock::now();
 
@@ -143,6 +146,9 @@ class PluginEngine {
   // Host-side input from the UI thread (queued onto the plugin thread by the host).
   void deliverAction(const QString& pluginId, const QString& slot, const QString& action, const Value& value);
   void postHostEvent(const QString& name, Value value, const QString& target);  // event source "fb"
+  void postAppEvent(const QString& name, Value value, const QString& target);   // event source "app" (cheats.blocked ...)
+  // fb.ui.pick_file result: calls the callback of the request once; `error` empty = content valid.
+  void deliverFile(const QString& pluginId, uint64_t requestId, const std::string& content, const std::string& name, const std::string& error);
   // Whether an event of `bytes` from `from` still fits the queue (count, total bytes, per-source bytes).
   bool eventFits(const QString& from, size_t bytes) const;
   size_t queuedEventBytes() const { return queuedBytes; }

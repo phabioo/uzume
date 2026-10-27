@@ -2,7 +2,7 @@
 
 At a glance: How to install and use the Uzume app: connect and pair, play, share and watch Sessions, run a server on this PC, collect logs and report problems. Administration of the server is in the app (sidebar item "Server", admins only; server settings under Server › Settings). What it does: [features.md](../features.md).
 
-Contents: [Install](#install), [Play on this PC and share](#play-on-this-pc-and-share), [Set up a server on this PC](#set-up-a-server-on-this-pc), [Connect and pair](#connect-and-pair), [Play](#play), [Plugins (developer mode)](#plugins-developer-mode), [Collect logs](#collect-logs), [Connection check](#connection-check), [Claude debugging (MCP)](#claude-debugging-mcp), [Report a problem](#report-a-problem), [Data directory](#data-directory), [Command line and environment](#command-line-and-environment), [Multiview](#multiview).
+Contents: [Install](#install), [Play on this PC and share](#play-on-this-pc-and-share), [Set up a server on this PC](#set-up-a-server-on-this-pc), [Connect and pair](#connect-and-pair), [Play](#play), [Randomize a game](#randomize-a-game), [Plugins (developer mode)](#plugins-developer-mode), [Collect logs](#collect-logs), [Connection check](#connection-check), [Claude debugging (MCP)](#claude-debugging-mcp), [Report a problem](#report-a-problem), [Data directory](#data-directory), [Command line and environment](#command-line-and-environment), [Multiview](#multiview).
 
 Uzume (`client/`, the app) connects to a server, keeps your library and saves in sync, runs games locally and shares or watches Sessions. Feature overview: [features.md](../features.md). Internals: [app-internals.md](../reference/app-internals.md).
 
@@ -63,6 +63,20 @@ After a server certificate change (renewal) the server card shows the stored and
 
 Saves sync automatically; see [saves.md](saves.md). Sharing and watching: [sessions-over-the-internet.md](sessions-over-the-internet.md).
 
+## Randomize a game
+
+Since 0.21 ([ADR 0031](../adr/0031-game-variants-and-randomizer.md), behaviour: [features.md](../features.md#game-variants-and-the-randomizer)). You play a randomized copy of a game in its own save slot; Main and the original game stay untouched. Needs the plugin Randomizer (enabled; official, or a local copy with Developer mode on) and a server that offers the randomizer engine.
+
+1. **Server side (admin, once):** Server › Tools shows the engine (UPR FVX, GPL-3.0). "Get the engine" downloads a release for all platforms, "Offer to apps" turns it on for the apps; without a source use `uzume-server import-tools` ([server guide](server-configuration.md#tools)). Nothing is offered until an admin turns it on.
+2. **Randomize:** open the game page and choose Randomize… next to Play (it is off with a reason for games the plugin does not support, and missing without the plugin). Pick a preset or "Custom" and paste a settings string, optionally set a seed (off: a random one) and "Keep a spoiler log", and name the variant (up to 60 characters, unique per game). The dialog shows the slot the variant will play in.
+3. **First time on this PC:** if the engine is not on this PC, "Download and build" fetches it from your server (size and SHA-256 are checked; it is a Java runtime with the engine, up to 400 MB, downloaded once into `<data>/cache/tools/`). If the server offers no engine or is offline, the dialog says so and, for admins, links to Server › Tools.
+4. **Build:** reading the game file, randomizing, writing; small games (GB, GBC, GBA) build in the background with the button reading "Building…", larger ones show a progress dialog with "Run in background" and Cancel (cancelling keeps nothing; quitting while building asks first and the build starts over next time). A 3DS game runs the engine with a 4 GB Java heap (the build checks that about three quarters of it is free) and takes up to 15 minutes at most; other games get 1 GB and 3 minutes. If your game file is a different dump than the recipe pins, the variant shows what it expected and "Build anyway".
+5. **Play and manage:** the game page has a Variants section with each variant's preset, slot and status (Play, Rebuild, Rename…, Copy seed and settings, Open spoiler log…, Delete…). Deleting asks whether to keep the saves (default; the recipe stays so you can build it again) or delete the slot too. The slot picker lists Main and the variants; a library row shows how many variants a game has. The spoiler log opens only after a confirm and is never shown in game or to others.
+6. **Runs:** in New run choose the Randomizer section ("Each person gets their own" or "Same world for everyone", preset or custom string, "Allow own variants"). Everyone joining builds their own copy on their own PC before the first start ("Building your variant"); with "Allow own variants" you may instead bring one of your variants of the same game that uses the run's engine version. The run's spoiler log opens from Saves only after the run ends, and only your own.
+7. **Storage:** Settings › Folders & storage › Variants shows the built copies in `<data>/cache/variants/` (default limit 8 GB, least recently played go first), "Free space" and "Remove variants not played for 30/60/90 days". Only the copies on this PC go; recipes and saves stay on the server, and a variant rebuilds from its recipe the next time you play it.
+
+3DS variants are a LayeredFS folder that the app places in the Azahar folder of the variant's slot; 3DS game updates are not handled yet (open).
+
 ## Plugins (developer mode)
 
 Plugin runtime of 0.11 ([API reference](plugin-api.md), [design](../architecture/12-plugins.md)); plugins have no on-screen UI yet.
@@ -110,7 +124,8 @@ For developers: the app can embed a local [MCP](https://modelcontextprotocol.io)
 
 1. Settings › Diagnostics › Claude debugging (MCP): turn on "Allow Claude to control this app" (or start the app with `--mcp`). The port is 47615 unless you change it (1024 to 65535).
 2. "Copy setup command" and run it in Claude Code on this PC: `claude mcp add --transport http uzume http://127.0.0.1:<port>/mcp --header "Authorization: Bearer <token>"`. "New token" replaces the token at once. The token is random, lives only in the OS credential store (target `Uzume/mcp`) and is never written to a file or the log.
-3. While the server listens, a band "Claude can control this app" with a "Stop" button shows at the bottom of every screen, the game included.
+3. `--mcp-port <n>` sets the port for this start only. With `--mcp`, the environment variable `UZUME_MCP_TOKEN` (32 to 256 characters of `A-Z a-z 0-9 - _`) is the token for this start instead of the credential store; it is never stored or logged and is ignored without `--mcp`.
+4. While the server listens, a band "Claude can control this app" with a "Stop" button shows at the bottom of every screen, the game included.
 
 The server binds to `127.0.0.1` only, checks the token, the `Host` header and (if present) a loopback `Origin`, and takes `POST /mcp` with bodies up to 1 MiB. Every call is logged as `mcp: <tool> <target>`, never with arguments or results.
 
@@ -147,6 +162,11 @@ The server binds to `127.0.0.1` only, checks the token, the `Host` header and (i
 | `game_state_save` | `name?` | saves the core's state into app memory under a name (raw, no server, no file); returns size and frame |
 | `game_state_load` | `name?` | loads a state saved with `game_state_save`; the active cheat list is re-applied |
 | `game_memory_write` | `addr`, `hex` | writes bytes into live memory through the between-frames queue; whole range must be mapped, max 1 MiB |
+| `cheats_list` | | active cheats, core formats, why cheats are blocked, consent state of the running game |
+| `cheats_apply` | `cheats` (list of `{id?, name, format, code, enabled?}`), `bypass_consent?` | replaces the active list as plugin `mcp`; run rule, safety copy "Before cheats" and run log still apply; `bypass_consent` skips only the per-game question |
+| `cheats_clear` | | turns all cheats off |
+| `store_get` / `store_put` | `plugin_id`, `key` / `plugin_id`, `key`, `value`, `base_revision?` | a plugin's own data (`fb.store`) in the local copy of the connected user; `store_put` changes it |
+| `consent_set` | `kind` (`cheats`, `memory_write`), `allow`, `forget?`, `game?` | pre-answers the per-game consent question of plugins (`allow` true is remembered) |
 | `ui_tree` | `root?`, `depth?` (12), `visibleOnly?` (true), `window?` | the QML items of the visible windows, popups and dialogs included: type, objectName, text, label, placeholder, checked, enabled, visible, focus, accessible role and name, rect in window coordinates, a path id, `destructive`; capped at about 200 KB (`truncated`) |
 | `ui_click` | `target` (objectName, path id or text) or `x`,`y`; `button?`, `double?` | real mouse events (move, press, release) on the item, scrolled into view first |
 | `ui_type` | `target?`, `text`, `clear?`, `submit?` | real key events into the focused or the target field; the content of password fields is never returned |
@@ -155,8 +175,9 @@ The server binds to `127.0.0.1` only, checks the token, the `Host` header and (i
 | `navigate` | `to` (`library`, `game`, `settings`, `server`, `emulation`, `controllers`, `runs`, `plugin`, `plugin_settings`, `setup`), `page?`, `gameId?` | opens the screen through the controller calls the sidebar uses; `not_reachable` without a connected server or while a game is in front |
 | `game_start` / `game_stop` | `gameId`, `slot?` / | the Play and Quit game calls; a start that needs the "quit the running game?" dialog answers `confirm_pending` and leaves the decision to the person |
 | `app_screenshot` | `window?` | PNG of an app window as drawn (`grabWindow`), dialogs included |
+| `server_sign_in` | `url`, `username`, `password`, `trust_fingerprint?` | adds the server and signs in with the password (live tests); a self-signed certificate only with a matching SHA-256 `trust_fingerprint`, otherwise it fails and returns the fingerprint; the password is never logged or returned |
 
-Limits: memory 1 MiB, RomFS and ROM 4 MiB, logs 2000 lines, images 4096 x 4096 per call; a tool that does not answer within 10 s fails with `timeout`. The report tools use the app's own admin connection and only read; they answer `not_admin` without an admin sign-in and `not_supported` for a server without `admin_v1`. Brakes: no tool writes saves or memory, and none returns passwords, tokens or relay credentials; log lines are redacted like the diagnostics bundle. The UI tools act like a person at the keyboard, with one exception: a destructive control is never operated. `ui_click`, and `ui_key` or `ui_type` with Return, Enter or Space on it, answer `needs_confirmation_in_app` and the refusal is logged (`mcp: refused ui_click needs_confirmation_in_app <objectName>`). Destructive are danger buttons (`kind: "danger"`, the `destructive` property of `UzButton`), and buttons for deleting, removing, restoring or overwriting, "Share with others", "Stop sharing", installs and updates (which can need admin rights); "New token" and turning the server off are allowed. The match is deliberately wide: it also covers "Remove" of a library folder. `ui_tree` marks such controls with `destructive: true`. Password fields (and fields of a component with `secret`) show `***` instead of their text in `ui_tree`, in the answers of `ui_type` and in text search; typing into them is allowed. A screenshot shows what the screen shows, so do not reveal a password while Claude looks. Known limit: a control that is destructive but not marked or named as above is not recognised, so mark new ones with `destructive: true`. Game data goes only to your Claude session on this PC.
+Limits: memory 1 MiB, RomFS and ROM 4 MiB, logs 2000 lines, images 4096 x 4096 per call; a tool that does not answer within 10 s fails with `timeout`. The report tools use the app's own admin connection and only read; they answer `not_admin` without an admin sign-in and `not_supported` for a server without `admin_v1`. Brakes: no tool writes saves (the cheat and memory tools change the running game only, with the safety copy and run rules of the plugin API), and none returns passwords, tokens or relay credentials; log lines are redacted like the diagnostics bundle. The UI tools act like a person at the keyboard, with one exception: a destructive control is never operated. `ui_click`, and `ui_key` or `ui_type` with Return, Enter or Space on it, answer `needs_confirmation_in_app` and the refusal is logged (`mcp: refused ui_click needs_confirmation_in_app <objectName>`). Destructive are danger buttons (`kind: "danger"`, the `destructive` property of `UzButton`), and buttons for deleting, removing, restoring or overwriting, "Share with others", "Stop sharing", installs and updates (which can need admin rights); "New token" and turning the server off are allowed. The match is deliberately wide: it also covers "Remove" of a library folder. `ui_tree` marks such controls with `destructive: true`. Password fields (and fields of a component with `secret`) show `***` instead of their text in `ui_tree`, in the answers of `ui_type` and in text search; typing into them is allowed. A screenshot shows what the screen shows, so do not reveal a password while Claude looks. Known limit: a control that is destructive but not marked or named as above is not recognised, so mark new ones with `destructive: true`. Game data goes only to your Claude session on this PC.
 
 ## Report a problem
 
@@ -175,12 +196,12 @@ While it uploads, the dialog shows progress and "Cancel" (back to editing, the t
 
 ## Data directory
 
-The ROM cache, `profiles.json`, `device.json`, `hubs/<id>/users/<user_id>/saves/<game_id>/`, `system/` and settings are stored portable by default in `<directory of the executable>/data` (plugins in `plugins/`), provided a real write test succeeds there. Otherwise the app falls back to AppData (`QStandardPaths::AppDataLocation`) and logs a note, for example when installed under Program Files. On the first portable start existing AppData data is copied once (nothing is moved, deleted or overwritten; `device_id` is preserved; the ROM cache is re-downloaded). Credentials stay in the OS credential store. `--data-dir <path>` or `UZUME_DATA_DIR` take precedence ([ADR 0004](../adr/0004-player-portable-data.md)).
+The ROM cache, `profiles.json`, `device.json`, `hubs/<id>/users/<user_id>/saves/<game_id>/`, `system/` and settings are stored portable by default in `<directory of the executable>/data` (plugins in `plugins/`, the randomizer engine in `cache/tools/`, built variants in `cache/variants/`), provided a real write test succeeds there. Otherwise the app falls back to AppData (`QStandardPaths::AppDataLocation`) and logs a note, for example when installed under Program Files. On the first portable start existing AppData data is copied once (nothing is moved, deleted or overwritten; `device_id` is preserved; the ROM cache is re-downloaded). Credentials stay in the OS credential store. `--data-dir <path>` or `UZUME_DATA_DIR` take precedence ([ADR 0004](../adr/0004-player-portable-data.md)).
 
 ## Command line and environment
 
 ```sh
-uzume [--data-dir <path>] [--mcp] [--dev-allow-http] [--collect-logs <out.zip>] [--version | --version-json] [--help]
+uzume [--data-dir <path>] [--mcp [--mcp-port <n>]] [--dev-allow-http] [--collect-logs <out.zip>] [--version | --version-json] [--help]
 uzume-cli <command> ...            # run without arguments for the usage text
 ```
 

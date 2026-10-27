@@ -201,7 +201,7 @@ class McpUiTest : public QObject {
     // Server pages are the tabs of the Server screen (the old ids status and users still pass the check).
     const Answer badServer = call(QStringLiteral("navigate"), {{"to", "server"}, {"page", "nonsense"}});
     QVERIFY(badServer.result.isError);
-    for (const char* id : {"overview", "people", "games", "systems", "plugins", "reports", "settings"}) {
+    for (const char* id : {"overview", "people", "games", "systems", "tools", "plugins", "reports", "settings"}) {
       QVERIFY2(badServer.text().contains(QLatin1String(id)), id);
     }
     const Answer back = call(QStringLiteral("navigate"), {{"to", "game"}, {"gameId", "g1"}});

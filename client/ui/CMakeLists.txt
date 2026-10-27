@@ -42,6 +42,7 @@ qt_add_qml_module(uzume_ui
     localhubcontroller.h localhubcontroller.cpp
     pluginruntime.h pluginruntime.cpp
     pluginscontroller.h pluginscontroller.cpp
+    pluginemulation.h pluginemulation.cpp
     keyedrowsmodel.h keyedrowsmodel.cpp
     runscontroller.h runscontroller.cpp
     personalcontroller.h personalcontroller.cpp
@@ -177,17 +178,22 @@ qt_add_qml_module(uzume_ui
     UnverifiedNote.qml
     GamePickList.qml
     RunJoinDialog.qml
+    RunVariantBuildDialog.qml
+    RunRandomizerSection.qml
     ConnectionCheckDialog.qml
     RunStartDialog.qml
     PluginConsole.qml
     PluginFocusable.qml
     PluginImage.qml
     PluginConfirmDialog.qml
+    PluginConsentDialog.qml
+    PluginPickDialog.qml
     PluginButton.qml
     PluginToggle.qml
     PluginSegmented.qml
     PluginSelect.qml
     PluginTextField.qml
+    PluginTextArea.qml
     PluginList.qml
     PluginTable.qml
     PluginMapView.qml
@@ -259,6 +265,12 @@ qt_add_qml_module(uzume_ui
     ScreenshotSaveDialog.qml
     LibraryAdminBar.qml
     LibraryContinue.qml
+    RandomizeDialog.qml
+    VariantEngineDialog.qml
+    VariantBuildDialog.qml
+    VariantDialogs.qml
+    VariantsSection.qml
+    VariantNotices.qml
     LibraryNotices.qml
     LibraryAdminDetails.qml
     SavesAdminSwitch.qml
@@ -280,6 +292,7 @@ qt_add_qml_module(uzume_ui
     ServerSystemsPage.qml
     ServerSystemsFileDialog.qml
     ServerPluginsPage.qml
+    ServerToolsPage.qml
     ServerSettingsPane.qml
     ServerGamesPage.qml
     ServerSettingsGames.qml

@@ -31,6 +31,7 @@ AdminPage {
     property var ticks: ({})                  // permission -> bool
     property string stageError: ""
     property bool stageBusy: false
+    property var engineTool: null              // AdminTool of the randomizer engine, read while the Randomizer plugin is selected (10h-3)
 
     readonly property var pluginRows: root.rowsOf(root.offered)
     readonly property var selected: root.pluginIndex >= 0 && root.pluginIndex < root.pluginRows.length ? root.pluginRows[root.pluginIndex] : null
@@ -76,6 +77,10 @@ AdminPage {
         case "ui": return qsTr("Show panels in game")
         case "run.state": return qsTr("Share run progress")
         case "video.capture": return qsTr("Capture the game picture")
+        case "variants.build": return qsTr("Build game variants")
+        case "memory.write": return qsTr("Change game memory")
+        case "cheats": return qsTr("Turn cheats on and off")
+        case "store": return qsTr("Keep its data with your account")
         default: return p
         }
     }
@@ -232,6 +237,22 @@ AdminPage {
         if (st !== null) root.call("DELETE", "/admin/plugins/stage/" + st.stage_id, undefined, function () {})
     }
 
+    // 10h-3: the Randomizer plugin's detail says which engine the server offers to apps.
+    readonly property bool randomizerSelected: root.selected !== null && root.selected.plugin_id === "uzume.randomizer"
+    readonly property string engineLine: {
+        const t = root.engineTool
+        if (t === null) return ""
+        const vs = (t.versions ?? []).filter(v => v.installed === true)
+        if (vs.length === 0) return qsTr("No engine is installed yet.")
+        return t.offered === true ? qsTr("Engine %1 is offered to apps.").arg(vs[0].version) : qsTr("Engine %1 is installed but not offered to apps.").arg(vs[0].version)
+    }
+    onRandomizerSelectedChanged: if (root.randomizerSelected) root.loadEngine()
+    function loadEngine() {
+        root.call("GET", "/admin/tools", undefined, function (ok, data) {
+            root.engineTool = ok && data && data.tools ? (data.tools.find(t => t.id === "randomizer") ?? null) : null
+        })
+    }
+
     Component.onCompleted: root.load()
     onVisibleChanged: if (visible && root.phase !== "loading") root.load()
 
@@ -365,7 +386,27 @@ AdminPage {
                     font.pixelSize: Theme.roles.input.size
                     color: Theme.muted
                 }
+                Text {
+                    objectName: "pluginRandomizerInfo"
+                    Layout.fillWidth: true
+                    visible: root.randomizerSelected
+                    wrapMode: Text.Wrap
+                    text: qsTr("Adds Randomize… to game pages and the Randomizer section to New run. It needs the engine from Server › Tools.")
+                          + (root.engineLine !== "" ? "  " + root.engineLine : "")
+                    textFormat: Text.PlainText
+                    font.family: Theme.sans
+                    font.pixelSize: Theme.roles.input.size
+                    color: Theme.muted
+                }
                 Row {
+                    spacing: Theme.space2
+                    UzButton {
+                        objectName: "pluginOpenTools"
+                        visible: root.randomizerSelected
+                        size: "sm"
+                        text: qsTr("Open Tools")
+                        onClicked: root.player.showServerPage("tools")
+                    }
                     UzButton {
                         objectName: "pluginRemove"
                         size: "sm"

@@ -103,7 +103,10 @@ int AdminController::request(const QString& method, const QString& path, const Q
   p.start = [this, method, path, body](const Pending& self) {
     api_.request(method, path, body, [this, self](const AdminApi::Result& r) { onResult(self, r); });
   };
-  p.deliver = [this, id = p.id](const AdminApi::Result& r) { emit replied(id, r.ok, r.status, r.data, r.code, r.message); };
+  p.deliver = [this, id = p.id, method, path](const AdminApi::Result& r) {
+    emit replied(id, r.ok, r.status, r.data, r.code, r.message);
+    if (r.ok && method != QLatin1String("GET") && path.startsWith(QLatin1String("/admin/tools"))) emit toolsChanged();
+  };
   const int id = p.id;
   launch(std::move(p));
   return id;

@@ -61,12 +61,20 @@ class PluginHost : public QObject {
   void sendAction(const QString& pluginId, const QString& slot, const QString& action, const QVariant& value = QVariant());
   // Host event with source plugin id "fb" (fb.events.on("fb", name, fn)); `targetPlugin` empty = all subscribers.
   void postHostEvent(const QString& name, const QVariant& value, const QString& targetPlugin = QString());
+  // Host event with source plugin id "app" (fb.events.on("app", name, fn)): events the app raises on behalf of the person or a run
+  // rule, e.g. cheats.blocked {reason}. `targetPlugin` empty = all subscribers.
+  void postAppEvent(const QString& name, const QVariant& value, const QString& targetPlugin = QString());
+  // fb.ui.pick_file: requests waiting for a file dialog, and the answer. `error` empty = `content` (and the base name of the file)
+  // is handed to the callback; otherwise the callback gets nil, error ("cancelled", "too_large", "read_failed").
+  QList<PickRequest> takePickRequests();
+  void deliverFile(const QString& pluginId, quint64 requestId, const QByteArray& content, const QString& name, const QString& error = QString());
   // Removes the tree of `slot` from every plugin (the host clears "detail" when the shown game changes).
   void clearSlot(const QString& slot);
   UiPluginState uiState(const QString& pluginId) const;
   QVariantMap uiTree(const QString& pluginId, const QString& slot) const;
   QList<QVariantMap> takeToasts();
   QList<QPair<QString, QString>> takeOpenRequests();  // fb.ui.open requests (plugin id, slot)
+  QList<QPair<QString, QString>> takeCloseRequests();  // fb.ui.close requests (plugin id, slot)
 
   // --- debug probes (MCP server, ADR 0032) ---
   // Both run on the plugin thread in the plugin's own Lua state under the normal budget and call `done` on the owner's

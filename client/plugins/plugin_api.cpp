@@ -17,6 +17,7 @@
 #include "lua.h"
 #include "plugin_engine.h"
 #include "plugin_ui.h"
+#include "run_bridge.h"
 
 namespace uzume::plugins {
 
@@ -998,6 +999,15 @@ int uiOpen(lua_State* L) {
   return 0;
 }
 
+// fb.ui.close(slot): closes the screen sheet / panel tab that fb.ui.open showed.
+int uiClose(lua_State* L) {
+  const QString slot = checkSlot(L, 1);
+  if (slot != QLatin1String("panel") && slot != QLatin1String("screen")) luaL_error(L, "fb.ui.close only supports the slots screen and panel");
+  Plugin* p = self(L);
+  p->engine->store.ui.addCloseRequest(p->id(), slot);
+  return 0;
+}
+
 int uiOnAction(lua_State* L) {
   need(L, "ui");
   Plugin* p = self(L);
@@ -1008,6 +1018,321 @@ int uiOnAction(lua_State* L) {
   lua_pushvalue(L, 1);
   p->actionRef = luaL_ref(L, LUA_REGISTRYINDEX);
   return 0;
+}
+
+
+// ------------------------------------------------------------------ fb.memory.write (permission memory.write)
+
+constexpr lua_Integer kMaxWriteBytes = 64 * 1024;
+
+void setStr(lua_State* L, const char* k, const QString& v);
+void setFn(lua_State* L, const char* k, lua_CFunction f);
+
+int pushNilMsg(lua_State* L, const QString& msg) {
+  lua_pushnil(L);
+  const QByteArray u = msg.toUtf8();
+  lua_pushlstring(L, u.constData(), static_cast<size_t>(u.size()));
+  return 2;
+}
+
+int pushWriteResult(lua_State* L, const QString& err) {
+  if (!err.isEmpty()) return pushNilMsg(L, err);
+  lua_pushboolean(L, 1);
+  return 1;
+}
+
+int doWrite(lua_State* L, uint64_t addr, const QByteArray& bytes) {
+  Plugin* p = self(L);
+  const auto& emu = p->engine->ctx.emulation;
+  if (!emu) return pushNilMsg(L, QStringLiteral("no_game"));
+  return pushWriteResult(L, emu->writeMemory(p->id(), addr, bytes));
+}
+
+int memWrite(lua_State* L) {
+  need(L, "memory.write");
+  const uint64_t addr = checkAddr(L, 1);
+  size_t n = 0;
+  const char* s = luaL_checklstring(L, 2, &n);
+  if (n == 0 || n > static_cast<size_t>(kMaxWriteBytes)) luaL_error(L, "write length must be between 1 and 65536 bytes");
+  return doWrite(L, addr, QByteArray(s, static_cast<qsizetype>(n)));
+}
+
+// upvalue 1: size in bytes (little endian, the byte order of every supported system)
+int memWriteNum(lua_State* L) {
+  need(L, "memory.write");
+  const int size = static_cast<int>(lua_tointeger(L, lua_upvalueindex(1)));
+  const uint64_t addr = checkAddr(L, 1);
+  const lua_Integer v = luaL_checkinteger(L, 2);
+  const lua_Integer lo = size == 4 ? -(1ll << 31) : size == 2 ? -(1ll << 15) : -(1ll << 7);
+  const lua_Integer hi = size == 4 ? (1ll << 32) - 1 : size == 2 ? (1ll << 16) - 1 : (1ll << 8) - 1;
+  if (v < lo || v > hi) luaL_error(L, "value does not fit in %d byte%s", size, size == 1 ? "" : "s");
+  QByteArray b(size, '\0');
+  for (int i = 0; i < size; ++i) b[i] = static_cast<char>((static_cast<uint64_t>(v) >> (8 * i)) & 0xFF);
+  return doWrite(L, addr, b);
+}
+
+// ------------------------------------------------------------------ fb.cheats (permission cheats)
+
+constexpr size_t kMaxCheatEntries = 2000;
+
+QString tableString(lua_State* L, int idx, const char* key, bool required, size_t maxLen) {
+  lua_getfield(L, idx, key);
+  if (lua_isnil(L, -1) && !required) {
+    lua_pop(L, 1);
+    return {};
+  }
+  if (lua_type(L, -1) != LUA_TSTRING) luaL_error(L, "cheat entry: %s must be a string", key);
+  size_t n = 0;
+  const char* s = lua_tolstring(L, -1, &n);
+  if (n > maxLen) luaL_error(L, "cheat entry: %s is longer than %d characters", key, static_cast<int>(maxLen));
+  const QString out = QString::fromUtf8(s, static_cast<qsizetype>(n));
+  lua_pop(L, 1);
+  return out;
+}
+
+int cheatsFormats(lua_State* L) {
+  need(L, "cheats");
+  const auto& emu = self(L)->engine->ctx.emulation;
+  const QStringList f = emu ? emu->cheatFormats() : QStringList();
+  lua_createtable(L, static_cast<int>(f.size()), 0);
+  int i = 1;
+  for (const QString& s : f) {
+    const QByteArray u = s.toUtf8();
+    lua_pushlstring(L, u.constData(), static_cast<size_t>(u.size()));
+    lua_rawseti(L, -2, i++);
+  }
+  const QString core = emu ? emu->coreName() : QString();
+  if (core.isEmpty()) return 1;
+  const QByteArray c = core.toUtf8();
+  lua_pushlstring(L, c.constData(), static_cast<size_t>(c.size()));
+  return 2;
+}
+
+// fb.cheats.allowed() -> true | false, reason ("run_rule"): whether the run's rule lets cheats be turned on.
+int cheatsAllowed(lua_State* L) {
+  need(L, "cheats");
+  const auto& emu = self(L)->engine->ctx.emulation;
+  const QString why = emu ? emu->cheatsBlockedReason() : QString();
+  lua_pushboolean(L, why.isEmpty());
+  if (why.isEmpty()) return 1;
+  const QByteArray u = why.toUtf8();
+  lua_pushlstring(L, u.constData(), static_cast<size_t>(u.size()));
+  return 2;
+}
+
+int cheatsApply(lua_State* L) {
+  need(L, "cheats");
+  luaL_checktype(L, 1, LUA_TTABLE);
+  QList<CheatItem> list;
+  const lua_Integer n = luaL_len(L, 1);
+  if (static_cast<size_t>(n) > kMaxCheatEntries) luaL_error(L, "too many cheats (max %d)", static_cast<int>(kMaxCheatEntries));
+  for (lua_Integer i = 1; i <= n; ++i) {
+    lua_rawgeti(L, 1, i);
+    if (!lua_istable(L, -1)) luaL_error(L, "cheat entry %d must be a table {id, name, format, code, enabled}", static_cast<int>(i));
+    CheatItem c;
+    const int t = lua_gettop(L);
+    c.id = tableString(L, t, "id", true, 64);
+    c.name = tableString(L, t, "name", false, 120);
+    c.format = tableString(L, t, "format", true, 32);
+    c.code = tableString(L, t, "code", true, 4096);
+    lua_getfield(L, t, "enabled");
+    c.enabled = lua_isnil(L, -1) ? true : lua_toboolean(L, -1) != 0;
+    lua_pop(L, 2);
+    list.append(c);
+  }
+  Plugin* p = self(L);
+  const auto& emu = p->engine->ctx.emulation;
+  if (!emu) return pushNilMsg(L, QStringLiteral("no_game"));
+  const CheatApplyResult r = emu->applyCheats(p->id(), list);
+  if (!r.error.isEmpty()) return pushNilMsg(L, r.error);
+  lua_createtable(L, 0, 2);
+  lua_pushinteger(L, r.applied);
+  lua_setfield(L, -2, "applied");
+  lua_createtable(L, static_cast<int>(r.rejected.size()), 0);
+  int i = 1;
+  for (const CheatReject& rj : r.rejected) {
+    lua_createtable(L, 0, 2);
+    setStr(L, "id", rj.id);
+    setStr(L, "reason", rj.reason);
+    lua_rawseti(L, -2, i++);
+  }
+  lua_setfield(L, -2, "rejected");
+  return 1;
+}
+
+int cheatsClear(lua_State* L) {
+  need(L, "cheats");
+  Plugin* p = self(L);
+  const auto& emu = p->engine->ctx.emulation;
+  if (!emu) return pushNilMsg(L, QStringLiteral("no_game"));
+  return pushWriteResult(L, emu->clearCheats(p->id()));
+}
+
+int cheatsDatabase(lua_State* L) {
+  need(L, "cheats");
+  const auto& emu = self(L)->engine->ctx.emulation;
+  if (!emu) return pushNilMsg(L, QStringLiteral("no_game"));
+  const CheatDatabaseResult r = emu->cheatDatabase();
+  if (!r.error.isEmpty()) return pushNilMsg(L, r.error);
+  pushValue(L, valueFromJson(r.data));
+  return 1;
+}
+
+// ------------------------------------------------------------------ fb.save.snapshot (no permission)
+
+constexpr int kMaxSnapshotReason = 80;
+
+int saveSnapshot(lua_State* L) {
+  size_t n = 0;
+  const char* s = luaL_checklstring(L, 1, &n);
+  const QString reason = QString::fromUtf8(s, static_cast<qsizetype>(n)).trimmed();
+  Plugin* p = self(L);
+  if (reason.isEmpty()) return pushNilMsg(L, QStringLiteral("reason is empty"));
+  if (reason.size() > kMaxSnapshotReason) return pushNilMsg(L, QStringLiteral("reason is longer than 80 characters"));
+  const auto& emu = p->engine->ctx.emulation;
+  if (!emu) return pushNilMsg(L, QStringLiteral("no_game"));
+  const auto now = std::chrono::steady_clock::now();
+  if (p->snapshotLast && now - *p->snapshotLast < std::chrono::minutes(1)) return pushNilMsg(L, QStringLiteral("rate_limited"));
+  const QString err = emu->snapshot(p->id(), p->info.manifest.name, reason);
+  if (!err.isEmpty()) return pushNilMsg(L, err);
+  p->snapshotLast = now;
+  lua_pushboolean(L, 1);
+  return 1;
+}
+
+// ------------------------------------------------------------------ fb.store (permission store)
+
+QString storeKey(lua_State* L, int idx) {
+  const QString key = QString::fromStdString(checkStr(L, idx));
+  if (!PluginStore::validKey(key)) luaL_error(L, "invalid store key '%s' (use a-z 0-9 _ . - , 1 to 64 characters)", key.toUtf8().constData());
+  return key;
+}
+
+PluginStore* storeOf(lua_State* L) {
+  need(L, "store");
+  return self(L)->engine->ctx.store.get();
+}
+
+int storeGet(lua_State* L) {
+  PluginStore* st = storeOf(L);
+  const QString key = storeKey(L, 1);
+  if (!st) return pushNilMsg(L, QStringLiteral("unavailable"));
+  const PluginStore::Entry e = st->get(self(L)->id(), key);
+  if (!e.found) {
+    lua_pushnil(L);
+    lua_pushinteger(L, 0);
+    return 2;
+  }
+  pushValue(L, valueFromJson(e.value));
+  lua_pushinteger(L, static_cast<lua_Integer>(e.revision));
+  return 2;
+}
+
+int storePut(lua_State* L) {
+  PluginStore* st = storeOf(L);
+  const QString key = storeKey(L, 1);
+  if (lua_isnoneornil(L, 2)) luaL_error(L, "fb.store.put: value must not be nil");
+  Value v;
+  std::string err;
+  if (!readValue(L, 2, v, err)) luaL_error(L, "fb.store.put: %s", err.c_str());
+  QJsonValue json;
+  QString e;
+  if (!jsonFromValue(v, json, e)) luaL_error(L, "fb.store.put: %s", e.toUtf8().constData());
+  std::optional<qint64> base;
+  if (!lua_isnoneornil(L, 3)) base = static_cast<qint64>(luaL_checkinteger(L, 3));
+  if (!st) return pushNilMsg(L, QStringLiteral("unavailable"));
+  using K = PluginStore::PutResult::Kind;
+  const PluginStore::PutResult r = st->put(self(L)->id(), key, json, base);
+  switch (r.kind) {
+    case K::Ok:
+      lua_pushboolean(L, 1);
+      lua_pushinteger(L, static_cast<lua_Integer>(r.revision));
+      return 2;
+    case K::Conflict: return pushNilMsg(L, QStringLiteral("conflict"));
+    case K::TooLarge: return pushNilMsg(L, QStringLiteral("too_large"));
+    case K::Quota: return pushNilMsg(L, QStringLiteral("quota_exceeded"));
+    case K::Invalid: break;
+  }
+  return pushNilMsg(L, QStringLiteral("invalid"));
+}
+
+int storeConflicts(lua_State* L) {
+  PluginStore* st = storeOf(L);
+  const QString key = storeKey(L, 1);
+  lua_newtable(L);
+  if (!st) return 1;
+  int i = 1;
+  for (const PluginStore::Conflict& c : st->conflicts(self(L)->id(), key)) {
+    lua_createtable(L, 0, 3);
+    pushValue(L, valueFromJson(c.value));
+    lua_setfield(L, -2, "value");
+    lua_pushinteger(L, static_cast<lua_Integer>(c.revision));
+    lua_setfield(L, -2, "revision");
+    setStr(L, "source", c.source);
+    lua_rawseti(L, -2, i++);
+  }
+  return 1;
+}
+
+// ------------------------------------------------------------------ fb.ui.pick_file (permission ui)
+
+constexpr lua_Integer kPickDefaultMax = 1024 * 1024;
+constexpr lua_Integer kPickMaxMax = 8 * 1024 * 1024;
+
+// fb.ui.pick_file{title=, filters={"*.cht"}, max_bytes=} , callback: opens a file dialog; callback(content, {name=, size=}) on
+// success, callback(nil) when cancelled, callback(nil, "too_large" | "read_failed") otherwise. The plugin never learns the path.
+int uiPickFile(lua_State* L) {
+  need(L, "ui");
+  luaL_checktype(L, 1, LUA_TTABLE);
+  int cbIdx = 0;
+  if (lua_isfunction(L, 2)) {
+    cbIdx = 2;
+  } else {
+    lua_getfield(L, 1, "callback");
+    if (lua_isfunction(L, -1)) cbIdx = lua_gettop(L);
+    else lua_pop(L, 1);
+  }
+  if (cbIdx == 0) luaL_error(L, "fb.ui.pick_file: a callback function is required");
+  PickRequest req;
+  req.title = tableString(L, 1, "title", false, 100);
+  lua_getfield(L, 1, "filters");
+  if (!lua_isnil(L, -1)) {
+    if (!lua_istable(L, -1)) luaL_error(L, "fb.ui.pick_file: filters must be a list of patterns like \"*.cht\"");
+    const lua_Integer n = luaL_len(L, -1);
+    if (n > 12) luaL_error(L, "fb.ui.pick_file: at most 12 filters");
+    for (lua_Integer i = 1; i <= n; ++i) {
+      lua_rawgeti(L, -1, i);
+      if (lua_type(L, -1) != LUA_TSTRING) luaL_error(L, "fb.ui.pick_file: filters must be strings");
+      const QString f = QString::fromUtf8(lua_tostring(L, -1));
+      static const QRegularExpression ok(QStringLiteral("^\\*\\.[A-Za-z0-9]{1,10}$"));
+      if (!ok.match(f).hasMatch()) luaL_error(L, "fb.ui.pick_file: filter '%s' must look like \"*.cht\"", f.toUtf8().constData());
+      req.filters << f;
+      lua_pop(L, 1);
+    }
+  }
+  lua_pop(L, 1);
+  lua_getfield(L, 1, "max_bytes");
+  lua_Integer maxBytes = kPickDefaultMax;
+  if (!lua_isnil(L, -1)) {
+    if (!lua_isinteger(L, -1)) luaL_error(L, "fb.ui.pick_file: max_bytes must be an integer");
+    maxBytes = lua_tointeger(L, -1);
+    if (maxBytes < 1 || maxBytes > kPickMaxMax) luaL_error(L, "fb.ui.pick_file: max_bytes must be between 1 and 8388608");
+  }
+  lua_pop(L, 1);
+  req.maxBytes = maxBytes;
+  Plugin* p = self(L);
+  if (p->pickRefs.size() >= 1) {
+    lua_pushnil(L);
+    lua_pushliteral(L, "busy");
+    return 2;
+  }
+  lua_pushvalue(L, cbIdx);
+  req.id = p->pickNextId++;
+  req.pluginId = p->id();
+  p->pickRefs[req.id] = luaL_ref(L, LUA_REGISTRYINDEX);
+  p->engine->store.ui.addPickRequest(req);
+  lua_pushboolean(L, 1);
+  return 1;
 }
 
 
@@ -1237,6 +1562,18 @@ int i18nT(lua_State* L) {
   });
 }
 
+// fb.game.hash(): SHA-256 of the game file (hex) for the cheat database match, nil without a game.
+int gameHash(lua_State* L) {
+  const QString h = self(L)->engine->ctx.sha256;
+  if (h.isEmpty()) {
+    lua_pushnil(L);
+    return 1;
+  }
+  const QByteArray u = h.toUtf8();
+  lua_pushlstring(L, u.constData(), static_cast<size_t>(u.size()));
+  return 1;
+}
+
 int clockFn(lua_State* L) {
   using namespace std::chrono;
   lua_pushinteger(L, static_cast<lua_Integer>(duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count()));
@@ -1275,6 +1612,7 @@ void registerFbApi(PluginEngine& engine, Plugin& p) {
   setStr(L, "sha256", g.sha256);
   setStr(L, "title", g.title);
   if (!g.shell) setStr(L, "language", g.language);
+  if (!g.shell) setFn(L, "hash", gameHash);  // the shell has no game: fb.game stays empty
   lua_setfield(L, -2, "game");
 
   lua_newtable(L);  // fb.log
@@ -1292,6 +1630,13 @@ void registerFbApi(PluginEngine& engine, Plugin& p) {
   setFn(L, "unwatch", memUnwatch);
   setFn(L, "bytes", memBytes);
   setFn(L, "frame", memFrame);
+  setFn(L, "write", memWrite);
+  static const struct { const char* name; int size; } wnums[] = {{"write_u8", 1}, {"write_u16", 2}, {"write_u32", 4}};
+  for (const auto& n : wnums) {
+    lua_pushinteger(L, n.size);
+    lua_pushcclosure(L, memWriteNum, 1);
+    lua_setfield(L, -2, n.name);
+  }
   static const struct { const char* name; int size; bool sign; } nums[] = {
       {"u8", 1, false}, {"u16", 2, false}, {"u32", 4, false}, {"u64", 8, false}, {"s8", 1, true}, {"s16", 2, true}, {"s32", 4, true}};
   for (const auto& n : nums) {
@@ -1336,6 +1681,23 @@ void registerFbApi(PluginEngine& engine, Plugin& p) {
     setFn(L, "build", variantsBuild);
     lua_setfield(L, -2, "variants");
   }
+  lua_newtable(L);  // fb.cheats (permission cheats)
+  setFn(L, "formats", cheatsFormats);
+  setFn(L, "allowed", cheatsAllowed);
+  setFn(L, "apply", cheatsApply);
+  setFn(L, "clear", cheatsClear);
+  setFn(L, "database", cheatsDatabase);
+  lua_setfield(L, -2, "cheats");
+
+  lua_newtable(L);  // fb.save (no permission)
+  setFn(L, "snapshot", saveSnapshot);
+  lua_setfield(L, -2, "save");
+
+  lua_newtable(L);  // fb.store (permission store)
+  setFn(L, "get", storeGet);
+  setFn(L, "put", storePut);
+  setFn(L, "conflicts", storeConflicts);
+  lua_setfield(L, -2, "store");
 
   lua_newtable(L);  // fb.codec (pure functions, no permission)
   setFn(L, "lz_decompress", codecLz);
@@ -1365,6 +1727,8 @@ void registerFbApi(PluginEngine& engine, Plugin& p) {
   setFn(L, "notify", uiNotify);
   setFn(L, "open", uiOpen);
   setFn(L, "on_action", uiOnAction);
+  setFn(L, "pick_file", uiPickFile);
+  setFn(L, "close", uiClose);
   lua_setfield(L, -2, "ui");
 
   lua_newtable(L);  // fb.i18n

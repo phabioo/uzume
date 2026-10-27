@@ -27,7 +27,7 @@ Item {
     }
     // Children of a row that give way when the row is narrow (text wraps or elides, containers shrink); the others keep their size.
     function shrinks(t) {
-        return ["text", "stat", "bar", "select", "textfield", "location", "card", "column", "row", "grid", "list", "table"].indexOf(t) >= 0
+        return ["text", "stat", "bar", "select", "textfield", "textarea", "location", "card", "column", "row", "grid", "list", "table"].indexOf(t) >= 0
     }
     function alignFlag(horizontal) {
         switch (node.align || (horizontal ? "stretch" : "center")) {
@@ -65,6 +65,7 @@ Item {
             case "select": return selectC
             case "segmented": return segmentedC
             case "textfield": return textfieldC
+            case "textarea": return textareaC
             case "empty": return emptyC
             case "location": return locationC
             case "map": return mapC
@@ -717,6 +718,7 @@ Item {
     Component { id: toggleC; PluginToggle { node: root.node; dark: root.dark; pluginId: root.pluginId; onAction: (a, v) => root.action(a, v) } }
     Component { id: selectC; PluginSelect { node: root.node; dark: root.dark; pluginId: root.pluginId; onAction: (a, v) => root.action(a, v) } }
     Component { id: segmentedC; PluginSegmented { node: root.node; dark: root.dark; pluginId: root.pluginId; onAction: (a, v) => root.action(a, v) } }
+    Component { id: textareaC; PluginTextArea { node: root.node; dark: root.dark; pluginId: root.pluginId; onAction: (a, v) => root.action(a, v) } }
     Component { id: textfieldC; PluginTextField { node: root.node; dark: root.dark; pluginId: root.pluginId; onAction: (a, v) => root.action(a, v) } }
     Component { id: mapC; PluginMapView { node: root.node; dark: root.dark; pluginId: root.pluginId; onAction: (a, v) => root.action(a, v) } }
 }

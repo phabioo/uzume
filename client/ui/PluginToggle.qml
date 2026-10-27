@@ -20,8 +20,10 @@ Item {
         anchors.fill: parent
         text: root.node.label || ""
         checked: root.checked
+        enabled: root.node.disabled !== true
         onToggled: {
-            root.action(root.node.action || "", toggle.checked)
+            // with a `value` the action gets {checked, value}, otherwise the new bool
+            root.action(root.node.action || "", root.node.value !== undefined ? { checked: toggle.checked, value: root.node.value } : toggle.checked)
             toggle.checked = Qt.binding(() => root.checked)
         }
     }
