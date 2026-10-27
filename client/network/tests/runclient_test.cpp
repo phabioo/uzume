@@ -96,6 +96,15 @@ class RunClientTest : public QObject {
     dir_.reset();
   }
 
+  // 0.20: the run's core rules are parsed leniently; anything that is not "logged" / true means off.
+  void runRulesParse() {
+    const RunRules none = parseRunRules({});
+    QVERIFY(!none.states && !none.rewind && !none.cheatsAllowed() && !none.memoryWriteAllowed());
+    const RunRules r = parseRunRules({{"states", true}, {"rewind", false}, {"cheats", "logged"}, {"memory_write", "weird"}});
+    QVERIFY(r.states && !r.rewind && r.cheatsAllowed() && !r.memoryWriteAllowed());
+    QCOMPARE(parseRunRules(runRulesToJson(r)), r);
+  }
+
   void gatedByFeature() {
     connectHub({QStringLiteral("saves_v1")});
     startClient();

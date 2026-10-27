@@ -240,11 +240,11 @@ void SaveApi::putSave(const QString& gameId, const QString& slot, const QByteArr
     return;
   }
   const QByteArray sha = QCryptographicHash::hash(data, QCryptographicHash::Sha256).toHex();
-  QNetworkReply* reply = conn_ ? conn_->authorizedSend("PUT", slotPath(gameId, slot), data,
-                                                       {{"X-Uzume-Base-Revision", QByteArray::number(baseRevision)},
-                                                        {"X-Uzume-Content-SHA256", sha},
-                                                        {"X-Uzume-Sync-Reason", reason.toLatin1()}})
-                               : nullptr;
+  HttpHeaders headers{{"X-Uzume-Base-Revision", QByteArray::number(baseRevision)},
+                      {"X-Uzume-Content-SHA256", sha},
+                      {"X-Uzume-Sync-Reason", reason.toLatin1()}};
+  if (cheatsUsed_) headers.append(qMakePair(QByteArray("X-Uzume-Cheats-Used"), QByteArray("true")));
+  QNetworkReply* reply = conn_ ? conn_->authorizedSend("PUT", slotPath(gameId, slot), data, headers) : nullptr;
   if (reply == nullptr) {
     immediate(SaveApiResult::Kind::Offline, QStringLiteral("not_connected"), std::move(cb));
     return;

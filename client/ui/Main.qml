@@ -271,6 +271,25 @@ ApplicationWindow {
         }
     }
     Connections {
+        target: window.player.plugins
+        function onCloseRequested(pluginId, slot) {
+            if (slot === "screen" && window.screenSheetPlugin === pluginId) window.screenSheetPlugin = ""
+        }
+        function onPickFileRequested(pluginId, requestId, title, filters, maxBytes) {
+            pluginPick.active = true   // loaded on first use: QtQuick.Dialogs may be missing
+            if (pluginPick.status === Loader.Ready && pluginPick.item) pluginPick.item.ask(pluginId, requestId, title, filters)
+            else window.player.plugins.completePick(pluginId, requestId, "")   // no dialog available: same as cancel
+        }
+    }
+    // fb.ui.pick_file and the consent question of cheats / memory writes (0.20).
+    Loader {
+        id: pluginPick
+        active: false
+        source: "PluginPickDialog.qml"
+        onLoaded: item.plugins = window.player.plugins
+    }
+    PluginConsentDialog { plugins: window.player.plugins }
+    Connections {
         target: window.player
         function onPluginScreenRequested(pluginId) { window.screenSheetPlugin = pluginId }
         function onScreenChanged() { window.screenSheetPlugin = "" }

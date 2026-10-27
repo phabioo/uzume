@@ -77,10 +77,10 @@ class ManagerTest : public QObject {
     PluginManager m(root.path());
     QVERIFY(!m.installFromFolder(src.path() + "/nothing").ok);
     PluginSpec s;
-    s.permissions = {"memory.write"};
+    s.permissions = {"tool.exec"};
     const InstallResult r = m.installFromFolder(writePlugin(src.path(), s));
     QVERIFY(!r.ok);
-    QCOMPARE(r.error, QString("permission memory.write is not available yet"));
+    QCOMPARE(r.error, QString("permission tool.exec is not available yet"));
     QVERIFY(m.list().isEmpty());
   }
 

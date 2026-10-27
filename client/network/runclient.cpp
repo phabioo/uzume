@@ -704,12 +704,18 @@ QString RunClient::postEvent(const QString& runId, const QString& pluginId, cons
   if (!validEventType(type)) return QStringLiteral("type must match [a-z0-9_.-]{1,64}");
   if (text.size() > kRunMaxEventText) return QStringLiteral("text is longer than 280 characters");
   if (compact(payload).size() > kRunMaxEventPayloadBytes) return QStringLiteral("payload is larger than 4 KiB");
-  if (!d->info.hasPlugin(pluginId)) return QStringLiteral("plugin %1 is not part of this run").arg(pluginId);
+  // The events the app writes itself (cheats, memory writes, state loads; run_rules_v1) come without a plugin, or name the plugin
+  // that caused them when it is part of the run.
+  static const QSet<QString> coreTypes = {QStringLiteral("cheat.enabled"), QStringLiteral("cheat.disabled"), QStringLiteral("memory.write"),
+                                          QStringLiteral("state.loaded")};
+  const bool core = coreTypes.contains(type);
+  if (!core && !d->info.hasPlugin(pluginId)) return QStringLiteral("plugin %1 is not part of this run").arg(pluginId);
   if (d->queue.size() >= kMaxQueuedEvents) return QStringLiteral("too many events waiting to be sent");
   const QString clientId = clientIdOut != nullptr && !clientIdOut->isEmpty() ? *clientIdOut : QUuid::createUuid().toString(QUuid::WithoutBraces);
   PendingEvent pe;
-  pe.body = {{QStringLiteral("client_id"), clientId}, {QStringLiteral("plugin_id"), pluginId}, {QStringLiteral("source"), source},
-             {QStringLiteral("type"), type},           {QStringLiteral("text"), text},          {QStringLiteral("payload"), payload}};
+  pe.body = {{QStringLiteral("client_id"), clientId}, {QStringLiteral("source"), source}, {QStringLiteral("type"), type},
+             {QStringLiteral("text"), text},          {QStringLiteral("payload"), payload}};
+  if (!pluginId.isEmpty() && d->info.hasPlugin(pluginId)) pe.body.insert(QStringLiteral("plugin_id"), pluginId);
   d->queue.append(pe);
   if (clientIdOut != nullptr) *clientIdOut = clientId;
   flushEvents(runId);

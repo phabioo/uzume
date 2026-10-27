@@ -122,7 +122,8 @@ class McpToolsTest : public QObject {
     for (const char* n : {"status", "logs_tail", "logs_search", "settings_get", "collect_diagnostics", "connection_check", "plugins_list", "plugin_console", "plugin_ui",
                           "plugin_action", "plugin_reload", "plugin_call", "plugin_eval", "plugin_cache_list", "plugin_cache_read", "plugin_image", "game_state",
                           "memory_regions", "memory_read", "memory_search", "romfs_list", "romfs_read", "rom_read", "screenshot", "game_input", "game_pause",
-                          "game_resume", "game_frame_step", "game_state_save", "game_state_load", "game_memory_write"})
+                          "game_resume", "game_frame_step", "game_state_save", "game_state_load", "game_memory_write", "cheats_list", "cheats_apply",
+                          "cheats_clear", "store_get", "store_put", "consent_set"})
       QVERIFY2(names.contains(QLatin1String(n)), n);
   }
 
@@ -140,6 +141,30 @@ class McpToolsTest : public QObject {
     QCOMPARE(call("game_state_save").content.value(0).text, QStringLiteral("no_game"));
     QCOMPARE(call("game_state_load").content.value(0).text, QStringLiteral("no_game"));
     QCOMPARE(call("game_memory_write", {{"addr", 0}, {"hex", "00"}}).content.value(0).text, QStringLiteral("no_game"));
+  }
+
+  // 0.20 plugin API debug tools: without a game the cheat tools refuse, the plugin store and the consent answers work.
+  void pluginApiDebugTools() {
+    QCOMPARE(call("cheats_list").content.value(0).text, QStringLiteral("no_game"));
+    QCOMPARE(call("cheats_apply", {{"cheats", QJsonArray()}}).content.value(0).text, QStringLiteral("no_game"));
+    QCOMPARE(call("cheats_clear").content.value(0).text, QStringLiteral("no_game"));
+    QCOMPARE(call("consent_set", {{"kind", "cheats"}, {"allow", true}}).content.value(0).text, QStringLiteral("no_game"));
+    QVERIFY(call("consent_set", {{"kind", "bogus"}, {"allow", true}}).isError);
+    const QJsonObject c = jsonOf(call("consent_set", {{"kind", "memory_write"}, {"allow", true}, {"game", "g-mcp-test"}})).toObject();
+    QCOMPARE(c.value("consent").toString(), QStringLiteral("allowed"));
+    QCOMPARE(jsonOf(call("consent_set", {{"kind", "memory_write"}, {"forget", true}, {"game", "g-mcp-test"}})).toObject().value("consent").toString(), QStringLiteral("ask"));
+
+    QVERIFY(!jsonOf(call("store_get", {{"plugin_id", "uzume.cheats"}, {"key", "lists"}})).toObject().value("found").toBool());
+    QVERIFY(call("store_get", {{"plugin_id", "Bad Id"}, {"key", "lists"}}).isError);
+    const QJsonObject put = jsonOf(call("store_put", {{"plugin_id", "uzume.cheats"}, {"key", "lists"}, {"value", QJsonObject{{"a", 1}}}})).toObject();
+    QCOMPARE(put.value("result").toString(), QStringLiteral("ok"));
+    QCOMPARE(put.value("revision").toInt(), 1);
+    const QJsonObject got = jsonOf(call("store_get", {{"plugin_id", "uzume.cheats"}, {"key", "lists"}})).toObject();
+    QVERIFY(got.value("found").toBool());
+    QCOMPARE(got.value("value").toObject().value("a").toInt(), 1);
+    const QJsonObject stale = jsonOf(call("store_put", {{"plugin_id", "uzume.cheats"}, {"key", "lists"}, {"value", 2}, {"base_revision", 0}})).toObject();
+    QCOMPARE(stale.value("result").toString(), QStringLiteral("conflict"));
+    QCOMPARE(jsonOf(call("store_get", {{"plugin_id", "uzume.cheats"}, {"key", "lists"}})).toObject().value("conflicts").toArray().size(), 1);
   }
 
   void switchPersistsAndTokenStaysOutOfTheLog() {

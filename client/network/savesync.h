@@ -90,6 +90,10 @@ class SaveSync : public QObject {
   bool setSlot(const QString& gameId, const QString& slot);  // false: invalid name; refreshes the library state of the game
   QString slotDirFor(const QString& gameId, const QString& slot) const;  // empty without Hub/user or for an invalid slot
   SaveApi* api() { return &api_; }
+  // Cheats or memory writes were active in this play session (0.20): the uploads of the session carry X-Uzume-Cheats-Used.
+  // Cleared by beginSession().
+  void setCheatsUsed(bool used) { api_.setCheatsUsed(used); }
+  bool cheatsUsed() { return api_.cheatsUsed(); }
   // Hub advertises saves_v2 (restore, snapshots, save_updated).
   bool hubSupportsSavesV2() const;
   // Hub advertises saves_v3 (deleting manual snapshots).

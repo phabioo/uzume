@@ -38,6 +38,11 @@ class RunBridge {
   virtual QString postEvent(const QString& pluginId, const QString& source, const QString& type, const QString& text, const QJsonObject& payload,
                             QString* clientId) = 0;
   virtual QString setBoard(const QString& pluginId, const QJsonObject& tree) = 0;
+  // An event the app writes itself, without a plugin (cheat.enabled, cheat.disabled, memory.write; run_rules_v1). "" = accepted.
+  virtual QString postCoreEvent(const QString& type, const QString& text, const QJsonObject& payload) {
+    Q_UNUSED(type) Q_UNUSED(text) Q_UNUSED(payload)
+    return QStringLiteral("not supported");
+  }
 
   virtual QList<RunNotification> takeNotifications() = 0;
 };
@@ -58,6 +63,7 @@ class ReadOnlyRunBridge : public RunBridge {
   QString setState(const QString&, const QJsonObject&) override { return refusal(); }
   QString postEvent(const QString&, const QString&, const QString&, const QString&, const QJsonObject&, QString*) override { return refusal(); }
   QString setBoard(const QString&, const QJsonObject&) override { return refusal(); }
+  QString postCoreEvent(const QString&, const QString&, const QJsonObject&) override { return refusal(); }
   QList<RunNotification> takeNotifications() override { return inner_->takeNotifications(); }
 
  private:

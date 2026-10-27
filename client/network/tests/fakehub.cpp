@@ -889,6 +889,8 @@ void FakeHub::handle(QSslSocket* sock, const FakeRequest& req) {
     } else {
       respondError(sock, 404, QStringLiteral("not_found"));
     }
+  } else if (req.path.startsWith(QLatin1String("/api/v1/plugins/")) && req.path.contains(QLatin1String("/store")) && handlePluginStore(sock, req)) {
+    // answered
   } else if (req.method == "GET" && req.path == QLatin1String("/api/v1/plugins")) {
     ++pluginListRequests;
     if (pluginListFails) {
@@ -2375,6 +2377,50 @@ bool FakeHub::handleScreenshots(QSslSocket* sock, const FakeRequest& req) {
   } else if (!content && req.method == "DELETE") {
     screenshots.removeAt(at);
     respond(sock, 204, {});
+  } else {
+    respondError(sock, 405, QStringLiteral("method_not_allowed"));
+  }
+  return true;
+}
+
+// Plugin user store (Uzume 0.20, plugin_store_v1). The caller is the paired fake person.
+bool FakeHub::handlePluginStore(QSslSocket* sock, const FakeRequest& req) {
+  static const QString kBase = QStringLiteral("/api/v1/plugins/");
+  const QString rest = req.path.mid(kBase.size());
+  const qsizetype at = rest.indexOf(QLatin1String("/store"));
+  if (at <= 0) return false;
+  const QString plugin = QUrl::fromPercentEncoding(rest.left(at).toUtf8());
+  const QString tail = rest.mid(at + 6);
+  if (!tail.isEmpty() && !tail.startsWith(QLatin1Char('/'))) return false;
+  if (!features.contains(QStringLiteral("plugin_store_v1"))) {
+    respondError(sock, 404, QStringLiteral("not_found"));
+    return true;
+  }
+  const auto json = [](const QJsonObject& o) { return QJsonDocument(o).toJson(QJsonDocument::Compact); };
+  if (tail.isEmpty()) {
+    QJsonArray keys;
+    for (auto it = pluginStore.begin(); it != pluginStore.end(); ++it)
+      if (it.key().startsWith(plugin + QLatin1Char('/'))) keys.append(QJsonObject{{QStringLiteral("key"), it.key().mid(plugin.size() + 1)}, {QStringLiteral("revision"), static_cast<double>(it->revision)}});
+    respond(sock, 200, json({{QStringLiteral("keys"), keys}}));
+    return true;
+  }
+  const QString mapKey = plugin + QLatin1Char('/') + QUrl::fromPercentEncoding(tail.mid(1).toUtf8());
+  if (req.method == "GET") {
+    if (!pluginStore.contains(mapKey)) respondError(sock, 404, QStringLiteral("not_found"));
+    else respond(sock, 200, json({{QStringLiteral("revision"), static_cast<double>(pluginStore.value(mapKey).revision)}, {QStringLiteral("value"), pluginStore.value(mapKey).value}}));
+  } else if (req.method == "PUT") {
+    const QJsonObject body = QJsonDocument::fromJson(req.body).object();
+    const qint64 base = static_cast<qint64>(body.value(QStringLiteral("base_revision")).toDouble(0));
+    const qint64 cur = pluginStore.contains(mapKey) ? pluginStore.value(mapKey).revision : 0;
+    if (base != cur) {
+      respond(sock, 409, json({{QStringLiteral("error"), QStringLiteral("store_conflict")}, {QStringLiteral("revision"), static_cast<double>(cur)}, {QStringLiteral("value"), pluginStore.value(mapKey).value}}));
+    } else {
+      pluginStore[mapKey] = {cur + 1, body.value(QStringLiteral("value"))};
+      respond(sock, 200, json({{QStringLiteral("revision"), static_cast<double>(cur + 1)}}));
+    }
+  } else if (req.method == "DELETE") {
+    pluginStore.remove(mapKey);
+    respond(sock, 200, json({{QStringLiteral("ok"), true}}));
   } else {
     respondError(sock, 405, QStringLiteral("method_not_allowed"));
   }

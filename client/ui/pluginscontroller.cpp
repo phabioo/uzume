@@ -20,6 +20,7 @@
 #include "system_manifest.h"
 #include "semver.h"
 #include "plugin_language.h"
+#include "plugin_pick.h"
 #include "plugin_ui.h"
 
 namespace uzume::ui {
@@ -96,6 +97,8 @@ QString permissionLabel(const QString& p) {
   if (p == QLatin1String("run.state")) return PluginsController::tr("Share run progress with your server");
   if (p == QLatin1String("video.capture")) return PluginsController::tr("Capture the game picture");
   if (p == QLatin1String("memory.write")) return PluginsController::tr("Change game memory");
+  if (p == QLatin1String("cheats")) return PluginsController::tr("Turn cheats on and off");
+  if (p == QLatin1String("store")) return PluginsController::tr("Keep its data with your account");
   return p;
 }
 
@@ -136,7 +139,16 @@ int compareVersionText(const QString& a, const QString& b) {
 
 PluginsController::PluginsController(PlayerSettings* settings, const QString& dataDir, GameSession* session, HubConnection* connection,
                                      QObject* parent)
-    : QObject(parent), settings_(settings), session_(session) {
+    : QObject(parent), settings_(settings), session_(session), dataDir_(dataDir), conn_(connection) {
+  emulation_ = std::make_shared<PluginEmulationService>(session, dataDir);
+  emulation_->setConnection(connection);
+  emulation_->setPluginNameFn([this](const QString& id) {
+    const auto info = infoFor(id);
+    return info ? info->manifest.name : id;
+  });
+  connect(emulation_.get(), &PluginEmulationService::consentRequestChanged, this, &PluginsController::consentRequestChanged);
+  connect(emulation_.get(), &PluginEmulationService::cheatsOnChanged, this, &PluginsController::cheatsOnChanged);
+  connect(emulation_.get(), &PluginEmulationService::noticeRaised, this, &PluginsController::addAppNotice);
   manager_ = std::make_unique<plugins::PluginManager>(QDir(dataDir).filePath(QStringLiteral("plugins")));
   manager_->setDeveloperMode(settings_ != nullptr && settings_->developerMode());
   if (connection != nullptr) {
@@ -152,6 +164,9 @@ PluginsController::PluginsController(PlayerSettings* settings, const QString& da
     });
   }
   host_ = std::make_unique<plugins::PluginHost>();
+  emulation_->setAppEventSink([this](const QString& name, const QVariant& v) {
+    if (host_) host_->postAppEvent(name, v);
+  });
   adapter_ = std::make_shared<MemoryWatchAdapter>();
   if (settings_ != nullptr) {  // HUD placement and notice muting survive restarts
     hudCorner_ = settings_->pluginHudCorners();
@@ -618,6 +633,9 @@ void PluginsController::gameStarted(const QString& system, const QString& romPat
   ctx.gameId = launchGameId_;
   ctx.modDir = launchModDir_;
   ctx.variants = variants_;
+  ensureStore();
+  ctx.store = store_;
+  ctx.emulation = emulation_;
   const plugins::GameResolution res = run.bridge ? manager_->resolveForRun(run.pins) : manager_->resolveForGame(system, ctx.code);
   for (auto it = res.problems.begin(); it != res.problems.end(); ++it)
     qCInfo(lcPlugins) << "plugin" << it.key() << "not started:" << it.value().join(QStringLiteral("; "));
@@ -632,6 +650,11 @@ void PluginsController::gameStarted(const QString& system, const QString& romPat
   clearedAt_.clear();
   selected_ = runningIds_.value(0);
   running_ = true;
+  emulation_->gameStarted(gameInfo_, run.bridge);
+  if (storeSync_) {
+    for (const plugins::PluginInfo& p : res.start)
+      if (p.manifest.permissions.contains(QStringLiteral("store"))) storeSync_->pullPlugin(p.manifest.id);
+  }
   adapter_->bind(session_ != nullptr ? session_->memoryWatch() : nullptr);
   if (session_ != nullptr) {
     video_ = std::make_shared<VideoCaptureAdapter>(session_);
@@ -649,6 +672,7 @@ void PluginsController::gameStopped() { stopGame(true); }
 void PluginsController::stopGame(bool restartShell) {
   if (!inGame_ && !running_) return;
   if (running_) {
+    emulation_->gameStopped();
     host_->stop();
     video_.reset();
     adapter_->clear();
@@ -740,6 +764,8 @@ void PluginsController::updateShell() {
   plugins::GameContext ctx;
   ctx.shell = true;
   ctx.variants = variants_;
+  ensureStore();
+  ctx.store = store_;
   ctx.language = resolveLanguage();
   if (!rvOrder.isEmpty()) ctx.run = runViewBridge_;
   shellRunning_ = true;
@@ -989,6 +1015,20 @@ void PluginsController::onUiChanged(const QString& id, const QString& what) {
   if (previewUi_) return;
   if (what == QLatin1String("@toast")) {
     collectToasts();
+    return;
+  }
+  if (what == QLatin1String("@close")) {
+    for (const auto& r : host_->takeCloseRequests())
+      if (activeIds().contains(r.first) || runViewIds_.contains(r.first)) emit closeRequested(r.first, r.second);
+    return;
+  }
+  if (what == QLatin1String("@pick")) {
+    for (const auto& r : host_->takePickRequests())
+      if (activeIds().contains(r.pluginId) || runViewIds_.contains(r.pluginId)) {
+        pickLimits_.insert(r.pluginId + QLatin1Char('/') + QString::number(r.id), r.maxBytes);
+        emit pickFileRequested(r.pluginId, QString::number(r.id), r.title, r.filters, static_cast<double>(r.maxBytes));
+      } else
+        host_->deliverFile(r.pluginId, r.id, {}, {}, QStringLiteral("cancelled"));
     return;
   }
   if (what == QLatin1String("@open")) {
@@ -1354,6 +1394,66 @@ void PluginsController::collectToasts() {
     changed = true;
   }
   if (changed) emit toastsChanged();
+}
+
+void PluginsController::completePick(const QString& pluginId, const QString& requestId, const QString& pathOrUrl) {
+  bool ok = false;
+  const quint64 id = requestId.toULongLong(&ok);
+  if (!ok) return;
+  if (pathOrUrl.isEmpty()) {
+    host_->deliverFile(pluginId, id, {}, {}, QStringLiteral("cancelled"));
+    return;
+  }
+  const qint64 maxBytes = pickLimits_.value(pluginId + QLatin1Char('/') + requestId, 1024 * 1024);
+  pickLimits_.remove(pluginId + QLatin1Char('/') + requestId);
+  const plugins::PickedFile f = plugins::readPickedFile(localPath(pathOrUrl), maxBytes);
+  host_->deliverFile(pluginId, id, f.content, f.name, f.error);
+}
+
+void PluginsController::addAppNotice(const PluginEmulationService::Notice& n) {
+  if (previewUi_) return;
+  if (!n.pluginId.isEmpty()) {
+    if (mutedAlways_.contains(n.pluginId) || mutedSession_.contains(n.pluginId)) return;
+    if (mutedImportant_.contains(n.pluginId) && n.tone != QLatin1String("important")) return;
+  }
+  toasts_.append(QVariantMap{{QStringLiteral("toastId"), --hostToastId_},
+                             {QStringLiteral("host"), true},
+                             {QStringLiteral("pluginId"), n.pluginId},
+                             {QStringLiteral("pluginName"), n.pluginName.isEmpty() ? tr("Uzume") : n.pluginName},
+                             {QStringLiteral("tone"), n.tone},
+                             {QStringLiteral("title"), n.title},
+                             {QStringLiteral("text"), n.text},
+                             {QStringLiteral("actions"), QVariantList()},
+                             {QStringLiteral("origin"), QStringLiteral("official")}});
+  while (toasts_.size() > 10) toasts_.removeFirst();
+  emit toastsChanged();
+}
+
+// The local copy of the plugin data follows the connected server and user; without a profile it is the "local" one.
+void PluginsController::ensureStore() {
+  QString hub = conn_ != nullptr ? conn_->hubId() : QString();
+  QString user = conn_ != nullptr ? conn_->hubUserId() : QString();
+  if (hub.isEmpty() || user.isEmpty()) {
+    if (store_) return;  // keep the last one
+    hub = QStringLiteral("local");
+    user = QStringLiteral("local");
+  }
+  const QRegularExpression bad(QStringLiteral("[^A-Za-z0-9._-]"));
+  hub.replace(bad, QStringLiteral("_"));
+  user.replace(bad, QStringLiteral("_"));
+  const QString key = hub + QLatin1Char('/') + user;
+  if (store_ && key == storeKey_) return;
+  storeKey_ = key;
+  store_ = std::make_shared<plugins::PluginStore>(QDir(dataDir_).filePath(QStringLiteral("plugins/store/") + key));
+  storeSync_.reset();
+  if (conn_ != nullptr) {
+    storeSync_ = std::make_unique<plugins::PluginStoreSync>(store_, conn_);
+    store_->setChangedCallback([this](const QString&) { QMetaObject::invokeMethod(this, [this]() { if (storeSync_) storeSync_->pushSoon(); }, Qt::QueuedConnection); });
+    connect(storeSync_.get(), &plugins::PluginStoreSync::keyAdopted, this,
+            [this](const QString& pid, const QString& k) { if (host_) host_->postAppEvent(QStringLiteral("store.changed"), k, pid); });
+    connect(storeSync_.get(), &plugins::PluginStoreSync::keyConflicted, this,
+            [this](const QString& pid, const QString& k) { if (host_) host_->postAppEvent(QStringLiteral("store.conflict"), k, pid); });
+  }
 }
 
 // Host notice "Uzume · plugin paused" (not mutable: it is about the Player's own plugin handling).

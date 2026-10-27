@@ -72,6 +72,12 @@ Rectangle {
             }
         }
     }
+    Connections {
+        target: root.player.plugins
+        function onCloseRequested(pluginId, slot) {
+            if (slot === "screen" && root.screenSheetPlugin === pluginId) root.closePluginScreen()
+        }
+    }
     function focusLocal() {
         if (root.screenSheetPlugin !== "") { sheet.forceActiveFocus(); return }
         if (quickMenu.shown) { quickMenu.restoreFocus(); return }

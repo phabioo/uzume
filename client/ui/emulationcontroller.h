@@ -153,6 +153,8 @@ class EmulationController : public QObject {
   QString uzumeValue(const QString& key, const QString& systemId, const QString& gameId = QString()) const;
   // Explicit user values for the launch (merged game > system > global).
   QMap<QString, QString> launchOverrides(const QString& systemId, const QString& gameId) const;
+  // The core the game starts with (its own choice when served, else the system's core).
+  QString launchCoreId(const QString& systemId, const QString& gameId) const { return coreIdFor(systemId, gameId); }
 
   // Controller profiles offered by the "uzume.pad_profile" / "uzume.keyboard_profile" rows (owned by the ControllersController).
   void setControllerProfiles(const ControllerProfiles* profiles);
