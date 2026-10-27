@@ -93,6 +93,10 @@ type Options struct {
 	// PluginIndexURL is the signed plugin index (https or file://; empty = no index, the server binary passes "none" as empty), fetched with CoreHTTPClient and
 	// verified with CoreTrustKeys.
 	PluginIndexURL string
+	// ToolsSourceURL is the release list of the tools catalog (GitHub releases API of the randomizer engine; "none" or
+	// "" = off), fetched with CoreHTTPClient. ToolMaxZipBytes caps one downloaded or imported platform zip (default 400 MiB).
+	ToolsSourceURL  string
+	ToolMaxZipBytes int64
 	// BackupExtras are files outside the data directory that go into every backup (own TLS certificate and key, server.env).
 	BackupExtras []backup.Extra
 	// PlayTickInterval is how often the last_seen_at of open plays is refreshed (default 60 s; injectable for tests).
@@ -123,6 +127,7 @@ type Service struct {
 
 	scan   scanState
 	cores  coreState
+	tools  toolState
 	upd    updateState
 	plug   pluginState
 	updCfg updateConfig
@@ -175,6 +180,7 @@ func Open(ctx context.Context, db *sql.DB, o Options) (*Service, error) {
 	s.sess.init(o)
 	s.initPlay(o)
 	s.cores.init(o)
+	s.initTools(o)
 	s.child = o.Child
 	s.initUpdates(o)
 	s.initPlugins(o)

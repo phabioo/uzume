@@ -60,6 +60,10 @@ func (s *Server) CreateRun(ctx context.Context, req api.CreateRunRequestObject) 
 	if b.Settings != nil {
 		in.Settings = json.RawMessage(*b.Settings)
 	}
+	if rz := b.Randomizer; rz != nil {
+		in.Randomizer = &hub.RunRandomizerInput{Mode: string(rz.Mode), ToolID: deref(rz.ToolId), ToolVersion: deref(rz.ToolVersion),
+			PresetID: deref(rz.PresetId), Settings: deref(rz.Settings), AllowOwn: rz.AllowOwn != nil && *rz.AllowOwn}
+	}
 	run, err := s.svc.CreateRun(ctx, in)
 	if err != nil {
 		return nil, err
@@ -87,7 +91,14 @@ func (s *Server) JoinRun(ctx context.Context, req api.JoinRunRequestObject) (api
 	if req.Body == nil {
 		return nil, hub.ErrBadRequest
 	}
-	run, err := s.svc.JoinRun(ctx, principal(ctx).User.ID, req.RunId.String(), req.Body.GameId.String())
+	var jv *hub.JoinVariant
+	if v := req.Body.Variant; v != nil {
+		jv = &hub.JoinVariant{Kind: string(v.Kind)}
+		if v.VariantId != nil {
+			jv.VariantID = v.VariantId.String()
+		}
+	}
+	run, err := s.svc.JoinRunWith(ctx, principal(ctx).User.ID, req.RunId.String(), req.Body.GameId.String(), jv)
 	if err != nil {
 		return nil, err
 	}
@@ -227,4 +238,37 @@ func (s *Server) PutRunBoard(ctx context.Context, req api.PutRunBoardRequestObje
 		return nil, err
 	}
 	return api.PutRunBoard200JSONResponse{Rev: rev}, nil
+}
+
+func deref[T any](p *T) (v T) {
+	if p != nil {
+		v = *p
+	}
+	return v
+}
+
+// GetRunVariant gives a joined participant the recipe to build their variant; the run seed itself stays on the server.
+func (s *Server) GetRunVariant(ctx context.Context, req api.GetRunVariantRequestObject) (api.GetRunVariantResponseObject, error) {
+	v, err := s.svc.GetRunVariant(ctx, principal(ctx).User.ID, req.RunId.String())
+	if err != nil {
+		return nil, err
+	}
+	kind := api.RunVariantVariantKind(v.Kind)
+	return api.GetRunVariant200JSONResponse(api.RunVariant{Settings: v.Settings, Seed: v.Seed, ToolId: v.ToolID, ToolVersion: v.ToolVersion,
+		BaseSha256: strPtr(v.BaseSHA256), TitleId: strPtr(v.TitleID), Slot: v.Slot, VariantKind: &kind}), nil
+}
+
+func (s *Server) SetRunVariantState(ctx context.Context, req api.SetRunVariantStateRequestObject) (api.SetRunVariantStateResponseObject, error) {
+	if req.Body == nil {
+		return nil, hub.ErrBadRequest
+	}
+	run, err := s.svc.SetRunVariantState(ctx, principal(ctx).User.ID, req.RunId.String(), string(req.Body.State))
+	if err != nil {
+		return nil, err
+	}
+	ar, err := toAPIRun(run)
+	if err != nil {
+		return nil, err
+	}
+	return api.SetRunVariantState200JSONResponse(ar), nil
 }

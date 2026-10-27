@@ -14,6 +14,7 @@
 //	uzume-server renew-cert                   renew the self-generated TLS certificate now and exit
 //	uzume-server import-cores <dir>           import libretro buildbot core zips from a directory (offline) and exit
 //	uzume-server import-plugins <dir>         offer every *.fbplugin file of a directory to apps (offline) and exit
+//	uzume-server import-tools <zip>...        add randomizer engine release zips (UPR_FVX-v1_6_2-Windows.zip, ...) to the tools catalog (offline) and exit
 //	uzume-server diagnostics <out.zip>        write the diagnostics bundle (logs, configuration; no database access) and exit
 //	uzume-server backup [--out DIR]           make a backup now; also: backup list | config | verify <file>
 //	uzume-server restore <file>               restore a backup (the server must be stopped; makes a safety backup first)
@@ -151,6 +152,8 @@ func dispatch(args []string) error {
 		return runImportCores(rest, os.Stdout)
 	case "import-plugins":
 		return runImportPlugins(rest, os.Stdout)
+	case "import-tools":
+		return runImportTools(rest, os.Stdout)
 	case "import-data":
 		return runImportData(rest, os.Stdout)
 	case "diagnostics":
@@ -194,7 +197,7 @@ func openService(ctx context.Context, cfg *config.Config, serving bool) (*hub.Se
 	svc, err := hub.Open(ctx, db, hub.Options{CleanStaging: serving, DataDir: cfg.DataDir, Name: cfg.Name, HubVersion: version.String(), ICEServers: cfg.ICEServers,
 		CoreBuildbotURL: cfg.CoreBuildbotURL, CoreInfoURL: cfg.CoreInfoURL, CoreTrustKeys: keys,
 		SaveKeepRecent: cfg.SaveKeepRecent, SaveKeepDaily: cfg.SaveKeepDaily, SaveKeepWeekly: cfg.SaveKeepWeekly,
-		UpdateIndexURL: cfg.UpdateIndexURL, PluginIndexURL: cfg.PluginIndex(), UpdateRequestDir: cfg.UpdateRequestDir, UpdateChannel: version.Channel,
+		UpdateIndexURL: cfg.UpdateIndexURL, PluginIndexURL: cfg.PluginIndex(), ToolsSourceURL: cfg.ToolsSource(), UpdateRequestDir: cfg.UpdateRequestDir, UpdateChannel: version.Channel,
 		BackupExtras: backupExtras(cfg), Child: cfg.Child})
 	if err != nil {
 		db.Close()
@@ -391,6 +394,48 @@ func runImportPlugins(args []string, out io.Writer) error {
 	}
 	if len(sum.Problems) > 0 {
 		return fmt.Errorf("%d plugin file(s) could not be imported", len(sum.Problems))
+	}
+	return nil
+}
+
+// runImportTools adds randomizer engine release zips to the tools catalog (offline fallback, like import-cores). The
+// version and the platform come from the file name (UPR_FVX-v1_6_2-Windows.zip, -Linux_x86.zip, -Linux_ARM.zip), the
+// content is checked like a download and the SHA-256 is pinned. Whether apps may use the tool stays the admin's choice.
+func runImportTools(args []string, out io.Writer) error {
+	usage := errors.New("usage: uzume-server import-tools <zip>... [flags]")
+	var files []string
+	for len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		files, args = append(files, args[0]), args[1:]
+	}
+	fs := flag.NewFlagSet("import-tools", flag.ContinueOnError)
+	cfg := config.Register(fs, os.Getenv)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	files = append(files, fs.Args()...)
+	if len(files) == 0 {
+		return usage
+	}
+	if err := cfg.Validate(); err != nil {
+		return err
+	}
+	ctx := context.Background()
+	svc, closeFn, err := openService(ctx, cfg, false)
+	if err != nil {
+		return err
+	}
+	defer closeFn()
+	problems := 0
+	for _, r := range svc.ImportToolFiles(ctx, files) {
+		if r.Status == "rejected" {
+			problems++
+			fmt.Fprintf(out, "Rejected %s: %s\n", r.File, r.Err)
+			continue
+		}
+		fmt.Fprintf(out, "%s %s: %s %s %s\n", strings.ToUpper(r.Status[:1])+r.Status[1:], r.File, r.ToolID, r.Version, r.Platform)
+	}
+	if problems > 0 {
+		return fmt.Errorf("%d file(s) could not be imported", problems)
 	}
 	return nil
 }
@@ -693,7 +738,13 @@ func serve(ctx context.Context, cfg *config.Config, log *slog.Logger) error {
 		svc.RunBackupSchedule(ctx, func(msg string, args ...any) { log.Warn(msg, args...) })
 	}()
 	// Core source sync: in the background, never blocks or fails startup; ends with ctx on shutdown.
-	bg.Add(3)
+	bg.Add(4)
+	go func() {
+		defer bg.Done()
+		svc.RunToolSync(ctx, 24*time.Hour, func(toolID string, err error) {
+			log.Warn("tools catalog refresh failed", "tool", toolID, "err", err)
+		})
+	}()
 	go func() {
 		defer bg.Done()
 		svc.RunCoreSync(ctx, 24*time.Hour, func(r hub.CoreSyncReport, err error) {

@@ -478,7 +478,7 @@ func (s *Service) deleteGameRows(ctx context.Context, g Game) error {
 	}
 	urows.Close()
 	// Favorites and collection entries go with the game; play rows stay (the users' totals keep the time).
-	for _, q := range []string{`DELETE FROM favorites WHERE game_id = ?`, `DELETE FROM collection_games WHERE game_id = ?`, `DELETE FROM screenshots WHERE game_id = ?`, `DELETE FROM games WHERE id = ?`} {
+	for _, q := range []string{`DELETE FROM favorites WHERE game_id = ?`, `DELETE FROM collection_games WHERE game_id = ?`, `DELETE FROM screenshots WHERE game_id = ?`, `DELETE FROM game_variants WHERE game_id = ?`, `DELETE FROM games WHERE id = ?`} {
 		if _, err := tx.ExecContext(ctx, q, g.ID); err != nil {
 			return internal(err)
 		}

@@ -47,6 +47,8 @@ type Error struct {
 	RetryAfter int
 	// ExistingGameID is set on a duplicate ROM upload (conflict) and names the library entry that holds it.
 	ExistingGameID string
+	// UsedBy is set on tool_in_use answers: what still pins the tool version.
+	UsedBy *ToolUsage
 }
 
 func (e *Error) Error() string { return fmt.Sprintf("%s: %s", e.Code, e.Message) }
@@ -114,4 +116,13 @@ const (
 var (
 	ErrCorePackageNotFound  = &Error{Code: CodeCorePackageNotFound, Message: "Core package not found"}
 	ErrCoreFileNotAvailable = &Error{Code: CodeCoreFileNotAvailable, Message: "Core file not available"}
+)
+
+// Tools and variants (0.21, ADR 0031).
+const (
+	CodeToolInUse          Code = "tool_in_use"
+	CodeToolHashMismatch   Code = "tool_hash_mismatch"
+	CodeNameTaken          Code = "name_taken"
+	CodeOwnVariantMismatch Code = "own_variant_mismatch"
+	CodeOwnVariantsOff     Code = "own_variants_off"
 )
