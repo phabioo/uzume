@@ -34,6 +34,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Code must work with the Qt 6.4 API.
 find_package(OpenSSL REQUIRED)  # Ed25519 verification of the update index (Linux apt libssl-dev, Windows vcpkg)
 find_package(Qt6 6.4 REQUIRED COMPONENTS Core Concurrent Network Gui Quick QuickControls2 QuickTest Multimedia WebSockets Test)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  find_package(Qt6 6.4 REQUIRED COMPONENTS DBus)  # Secret Service credential store (qt6-base-dev)
+endif()
 qt_standard_project_setup()
 set(CMAKE_AUTOMOC ON)
 
