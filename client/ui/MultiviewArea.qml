@@ -193,7 +193,7 @@ Item {
             readonly property var info: root.ctl.surfaceInfo[modelData] || ({})
             readonly property var link: root.ctl.surfaceLinks[modelData] || null
             readonly property bool isLocal: modelData === "local"
-            readonly property bool audible: root.ctl.audioFocus === modelData
+            readonly property bool audible: root.ctl.audibleSurfaces.indexOf(modelData) >= 0
             readonly property bool picked: root.selected === modelData
             readonly property bool pipTile: root.layoutMode === "pip" && slot > 0
             readonly property bool multiple: root.count > 1

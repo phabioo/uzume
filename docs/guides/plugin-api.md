@@ -47,7 +47,7 @@ A plugin is a folder with a `manifest.json`, a Lua entry file and optional `i18n
 | `min_player` | Optional SemVer (`"0.16.4"`): the oldest Uzume that runs the plugin. A plugin that needs a newer app has the problem "Needs Player X", is not started and cannot be turned on; an enabled one stays enabled and runs again after the app is updated (also after "Go back" to an older app, see [updates](updates.md#rollback)). The server does not check it. |
 | `provides` | Interface names this plugin offers to others with `fb.provide`. |
 | `games` | List of `{ "system", "codes" }`. `codes` are globs (`*` any run, `?` one character, case-insensitive); no `codes` = every game of that system. An empty or missing list = all games. |
-| `permissions` | `memory.read`, `memory.write`, `rom.read`, `ui`, `run.state`, `video.capture`, `cheats`, `store`, `variants.build`. `tool.exec` is rejected ("permission `<p>` is not available yet"), unknown names are errors. |
+| `permissions` | `memory.read`, `memory.write`, `rom.read`, `ui`, `run.state`, `video.capture`, `cheats`, `store`, `variants.build`, `sound`. `tool.exec` is rejected ("permission `<p>` is not available yet"), unknown names are errors. |
 | `entry` | Relative path of the `.lua` entry file inside the plugin folder (no `..`, must exist). |
 | `assets` | Relative paths of bundled files or folders. |
 | `run_settings` | Optional run rules form, see [Run settings](#run-settings). |
@@ -67,6 +67,7 @@ A plugin is a folder with a `manifest.json`, a Lua entry file and optional `i18n
 | `cheats` | `fb.cheats.*`: hands cheat codes to the core's own cheat engine; per-game consent, safety copy "Before cheats", run log | available (0.20) |
 | `store` | `fb.store.*`: small private data per person and plugin, synced with the server | available (0.20) |
 | `variants.build` | `fb.variants.*` (register presets and games, ask Uzume to build a game variant) | available; signed official plugins, local and dev-linked plugins only while Developer mode is on |
+| `sound` | `fb.sound.*`: plays short WAV sounds from the plugin package into the "Plugin sounds" channel of the audio mixer | available (0.23) |
 
 Calling a function without its permission raises the Lua error `permission <p> not granted`. Everything else (`fb.log`, `fb.events`, `fb.provide`/`fb.call`, `fb.cache`, `fb.i18n`, `fb.clock`, `fb.on_tick`, `fb.save.snapshot`, `fb.game.hash`) needs no permission.
 
@@ -283,6 +284,14 @@ App events (subscribe with `fb.events.on("app", name, fn)`; `fn(value, "app", na
 ### Save snapshots (no permission)
 
 `fb.save.snapshot(reason)` takes a manual snapshot of the current save on the server, labelled "<plugin name>: <reason>" (`reason` 1 to 80 characters), e.g. before a risky step. It returns `true` (queued) or `nil, message` (`"reason is empty"`, `"reason is longer than 80 characters"`, `"no_game"`, `"rate_limited"`: at most one per minute and plugin). The person sees the toast "<plugin> saved a snapshot · <reason>" (or a notice that nothing could be saved, e.g. no save on the server yet). A snapshot can be restored in the save history like any other.
+
+### Sounds (`sound`)
+
+`fb.sound.play(path [, {volume = 0..1}])` plays a sound from the plugin package and returns a handle (a positive integer), or `nil, message`. `path` is relative to the plugin folder (no `..`, no drive or backslash). The file must be a 16-bit PCM WAV, mono or stereo, any sample rate from 8 kHz to 192 kHz (it is resampled), at most 10 seconds and 2 MiB. `volume` defaults to 1; a value outside 0..1 or not a number raises a Lua error. Sounds go to the "Plugin sounds" channel (its slider is in the Sound popover); at most 8 sounds per plugin play at once. `fb.sound.stop_all()` stops all sounds of the plugin and returns `true`; they also stop when the plugin stops or pauses. Failures are `nil` plus a code: `"invalid_path"`, `"not_found"`, `"too_large"`, `"unsupported_format"`, `"too_long"`, `"too_many_voices"`, `"unavailable"` (no audio output). Without the permission both functions raise `permission sound not granted`.
+
+```lua
+local id = fb.sound.play("sounds/ding.wav", { volume = 0.6 })
+```
 
 ### Plugin data (`store`)
 

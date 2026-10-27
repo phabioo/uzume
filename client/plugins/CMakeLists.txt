@@ -21,7 +21,7 @@ endif()
 set_target_properties(uzume_lua PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 add_library(uzume_plugins STATIC manifest.cpp plugin_value.cpp lua_sandbox.cpp plugin_engine.cpp plugin_ui.cpp plugin_api.cpp
-  plugin_host.cpp plugin_store.cpp plugin_store_sync.cpp plugin_pick.cpp plugin_manager.cpp uzplugin.cpp plugin_delivery.cpp run_bridge.cpp run_session_bridge.cpp plugin_language.cpp plugin_variants.cpp)
+  plugin_host.cpp plugin_store.cpp plugin_store_sync.cpp plugin_pick.cpp plugin_manager.cpp uzplugin.cpp plugin_delivery.cpp run_bridge.cpp run_session_bridge.cpp plugin_language.cpp plugin_variants.cpp plugin_sound.cpp)
 target_include_directories(uzume_plugins PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_features(uzume_plugins PUBLIC cxx_std_20)
 target_link_libraries(uzume_plugins PUBLIC uzume_lua uzume_core uzume_formats Qt6::Core)
@@ -54,3 +54,4 @@ target_compile_definitions(test_plugins_run PRIVATE FB_TEST_DATA_DIR="${FB_NETTE
 
 # fb.memory.write, fb.cheats, fb.save.snapshot, fb.store, textarea and fb.ui.pick_file (0.20 package 5), against fake bridges.
 uzume_add_test(plugins_emulation tests/emulation_test.cpp LIBS uzume_plugins)
+uzume_add_test(plugins_sound tests/sound_test.cpp LIBS uzume_plugins)

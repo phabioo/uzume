@@ -1278,6 +1278,76 @@ int storeConflicts(lua_State* L) {
   return 1;
 }
 
+// ------------------------------------------------------------------ fb.sound (permission sound)
+
+constexpr size_t kMaxSoundClips = 8;
+
+// Path inside the plugin package: relative, no "..", no backslash or drive letter.
+bool soundPathOk(const QString& rel) {
+  if (rel.isEmpty() || rel.startsWith(QLatin1Char('/')) || rel.contains(QLatin1Char('\\')) || rel.contains(QLatin1Char(':')) ||
+      rel.contains(QLatin1Char('\0')))
+    return false;
+  for (const QString& seg : rel.split(QLatin1Char('/')))
+    if (seg == QLatin1String("..")) return false;
+  return true;
+}
+
+// The file below the plugin folder: a regular file that is not a link and stays inside the package; empty otherwise.
+QString soundFile(const Plugin& p, const QString& rel) {
+  const QString root = QFileInfo(p.info.path).canonicalFilePath();
+  const QFileInfo fi(QDir(p.info.path).filePath(rel));
+  if (root.isEmpty() || fi.isSymLink() || !fi.isFile()) return {};
+  const QString real = fi.canonicalFilePath();
+  return real.startsWith(root + QLatin1Char('/')) ? real : QString();
+}
+
+int soundPlay(lua_State* L) {
+  need(L, "sound");
+  Plugin* p = self(L);
+  const QString rel = QString::fromStdString(checkStr(L, 1));
+  double volume = 1.0;
+  if (!lua_isnoneornil(L, 2)) {
+    luaL_checktype(L, 2, LUA_TTABLE);
+    lua_getfield(L, 2, "volume");
+    if (!lua_isnil(L, -1)) {
+      if (!lua_isnumber(L, -1)) luaL_error(L, "fb.sound.play: volume must be a number between 0 and 1");
+      volume = lua_tonumber(L, -1);
+      if (!(volume >= 0.0 && volume <= 1.0)) luaL_error(L, "fb.sound.play: volume must be between 0 and 1");
+    }
+    lua_pop(L, 1);
+  }
+  const auto& sink = p->engine->ctx.sound;
+  if (!sink) return pushNilMsg(L, QStringLiteral("unavailable"));
+  if (!soundPathOk(rel)) return pushNilMsg(L, QStringLiteral("invalid_path"));
+  const QString path = soundFile(*p, rel);
+  if (path.isEmpty()) return pushNilMsg(L, QStringLiteral("not_found"));
+  if (sink->activeVoices(p->id()) >= kMaxSoundVoices) return pushNilMsg(L, QStringLiteral("too_many_voices"));
+  std::shared_ptr<const SoundClip> clip;
+  if (auto it = p->soundClips.find(path); it != p->soundClips.end()) {
+    clip = it->second;
+  } else {
+    if (QFileInfo(path).size() > kMaxSoundFileBytes) return pushNilMsg(L, QStringLiteral("too_large"));
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) return pushNilMsg(L, QStringLiteral("not_found"));
+    QString err;
+    clip = decodeWav(f.readAll(), &err);
+    if (!clip) return pushNilMsg(L, err);
+    if (p->soundClips.size() >= kMaxSoundClips) p->soundClips.clear();
+    p->soundClips[path] = clip;
+  }
+  const quint64 h = sink->play(p->id(), clip, volume);
+  if (h == 0) return pushNilMsg(L, QStringLiteral("unavailable"));
+  lua_pushinteger(L, static_cast<lua_Integer>(h));
+  return 1;
+}
+
+int soundStopAll(lua_State* L) {
+  need(L, "sound");
+  if (const auto& sink = self(L)->engine->ctx.sound) sink->stopAll(self(L)->id());
+  lua_pushboolean(L, 1);
+  return 1;
+}
+
 // ------------------------------------------------------------------ fb.ui.pick_file (permission ui)
 
 constexpr lua_Integer kPickDefaultMax = 1024 * 1024;
@@ -1702,6 +1772,11 @@ void registerFbApi(PluginEngine& engine, Plugin& p) {
   setFn(L, "put", storePut);
   setFn(L, "conflicts", storeConflicts);
   lua_setfield(L, -2, "store");
+
+  lua_newtable(L);  // fb.sound (permission sound)
+  setFn(L, "play", soundPlay);
+  setFn(L, "stop_all", soundStopAll);
+  lua_setfield(L, -2, "sound");
 
   lua_newtable(L);  // fb.codec (pure functions, no permission)
   setFn(L, "lz_decompress", codecLz);

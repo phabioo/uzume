@@ -239,6 +239,74 @@ void installTogetherTools(McpToolRegistry& registry, ui::PlayerController& playe
   };
   registry.add(std::move(act));
 
+  // audio_mixer / audio_set (0.23 audio stage 2, ADR 0033 D6): the one AudioMixer. Gains are 0..1.
+  ToolDef mix;
+  mix.name = QStringLiteral("audio_mixer");
+  mix.description = QStringLiteral(
+      "The audio mixer: master gain, muted, ducking, mix_all (Mix all tiles), channels{game,tiles,voice,plugin} gains, inputs "
+      "(channel, key = user id, gain, audible, queued_frames) and tiles (one per watched Session: session_id, user_id, who, gain, audible).");
+  mix.inputSchema = schema();
+  mix.handler = [pc](const QJsonObject&, ToolReply reply) {
+    if (!pc) return reply(ToolResult::error(QStringLiteral("app_closing")));
+    ui::AudioMixer* m = pc->audioMixer();
+    const QVariantMap st = m->state();
+    QJsonObject o = QJsonObject::fromVariantMap(st);
+    QJsonArray tiles;
+    const QStringList audible = pc->sessions()->audibleSurfaces();
+    for (const QVariant& v : pc->sessions()->mixerTiles()) {
+      const QVariantMap t = v.toMap();
+      const QString sid = t.value(QStringLiteral("sid")).toString();
+      tiles.append(QJsonObject{{QStringLiteral("session_id"), sid},
+                               {QStringLiteral("user_id"), t.value(QStringLiteral("userId")).toString()},
+                               {QStringLiteral("who"), t.value(QStringLiteral("who")).toString()},
+                               {QStringLiteral("gain"), t.value(QStringLiteral("gain")).toInt() / 100.0},
+                               {QStringLiteral("audible"), audible.contains(sid)}});
+    }
+    o.insert(QStringLiteral("tiles"), tiles);
+    o.insert(QStringLiteral("audible_surfaces"), QJsonArray::fromStringList(audible));
+    o.insert(QStringLiteral("focus"), pc->sessions()->audioFocus());
+    reply(ToolResult::json(o));
+  };
+  registry.add(std::move(mix));
+
+  ToolDef aset;
+  aset.name = QStringLiteral("audio_set");
+  aset.description = QStringLiteral(
+      "Sets a mixer gain (0..1) like the sliders do: channel master | game (alias of master, the My game slider) | voice | plugin, or "
+      "tiles with user_id (that person's tile in the Mixer). Optional mix_all (bool) sets Mix all tiles. Persisted on this PC.");
+  aset.inputSchema = schema({{QStringLiteral("channel"), typeStr(QStringLiteral("master | game | voice | plugin | tiles."))},
+                             {QStringLiteral("gain"), typeAny(QStringLiteral("Gain 0..1."))},
+                             {QStringLiteral("user_id"), typeStr(QStringLiteral("Person for channel tiles."))},
+                             {QStringLiteral("mix_all"), typeBool(QStringLiteral("Mix all tiles."))}});
+  aset.handler = [pc](const QJsonObject& a, ToolReply reply) {
+    if (!pc) return reply(ToolResult::error(QStringLiteral("app_closing")));
+    if (a.contains(QStringLiteral("mix_all"))) pc->sessions()->setMixAllTiles(a.value(QStringLiteral("mix_all")).toBool());
+    if (a.contains(QStringLiteral("channel")) || a.contains(QStringLiteral("gain"))) {
+      const QString ch = a.value(QStringLiteral("channel")).toString();
+      const QJsonValue g = a.value(QStringLiteral("gain"));
+      if (!g.isDouble()) return reply(ToolResult::error(QStringLiteral("gain is required (a number 0..1)")));
+      const int pct = qRound(std::clamp(g.toDouble(), 0.0, 1.0) * 100.0);
+      if (ch == QLatin1String("master") || ch == QLatin1String("game")) {
+        pc->audio()->setVolume(pct);
+      } else if (ch == QLatin1String("voice")) {
+        pc->audio()->setVoiceGain(pct);
+      } else if (ch == QLatin1String("plugin")) {
+        pc->audio()->setPluginGain(pct);
+      } else if (ch == QLatin1String("tiles")) {
+        const QString uid = a.value(QStringLiteral("user_id")).toString();
+        QString sid;
+        for (const QVariant& v : pc->sessions()->mixerTiles())
+          if (v.toMap().value(QStringLiteral("userId")).toString() == uid) sid = v.toMap().value(QStringLiteral("sid")).toString();
+        if (uid.isEmpty() || sid.isEmpty()) return reply(ToolResult::error(QStringLiteral("unknown_user: no watched tile of %1").arg(uid)));
+        pc->sessions()->setTileGain(sid, pct);
+      } else {
+        return reply(ToolResult::error(QStringLiteral("unknown channel: %1 (master|game|voice|plugin|tiles)").arg(ch)));
+      }
+    }
+    reply(ToolResult::json(QJsonObject{{QStringLiteral("ok"), true}}));
+  };
+  registry.add(std::move(aset));
+
   // session_share / session_stop_sharing (0.23, ADR 0032 D4 amendment): the Share button's path for the running game's Session. The
   // server-level "Share with others" of the local server stays person-only.
   ToolDef share;

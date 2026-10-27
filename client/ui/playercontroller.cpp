@@ -58,6 +58,8 @@ int coreUpdateNoticeMs() {
 PlayerController::PlayerController(const Options& options, QObject* parent)
     : QObject(parent), options_(options), locator_() {
   qRegisterMetaType<uzume::RomStatus>("uzume::RomStatus");
+  session_.audioOutput().setMixer(&mixer_, AudioMixer::Game);  // the local game is the game channel of the one mixer
+  soundBus_ = std::make_shared<PluginSoundBus>(&mixer_);
 
   profiles_ = std::make_unique<ProfileStore>(options.dataDir);
   if (options.credentialStore) {
@@ -148,6 +150,7 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
     reloadLibrary();
   });
   plugins_ = std::make_unique<PluginsController>(settings_.get(), profiles_->baseDir(), &session_, conn_.get());
+  plugins_->setSoundSink(soundBus_);
   // Plugin API emulation (0.20): the safety copy goes through the save sync, later uploads carry the cheats-used marker.
   plugins_->emulation()->setSnapshotFn([this](const QString& label, PluginEmulationService::SnapshotDone done) {
     if (!saves_ || !gameActive_) {
@@ -403,13 +406,15 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
   // Master volume and mute: one software gain for the local game and one for watched sessions (the share is unaffected).
   audio_ = std::make_unique<AudioController>(settings_.get());
   const auto syncAudio = [this]() {
-    session_.setMasterGain(audio_->localGain());
-    sessions_->setRemoteGain(audio_->remoteGain());
+    // One mixer: master volume and mute for everything, the background mute for the local game only, Voice and Plugin sounds
+    // as channel gains (the Game and Tiles channels stay at 1; watched tiles have their own per-person gains).
+    mixer_.setMaster(audio_->volume() / 100.0);
+    mixer_.setMuted(audio_->muted());
+    mixer_.setGameSilenced(audio_->gameSilenced());
+    mixer_.setChannelGain(AudioMixer::Voice, audio_->voiceGain() / 100.0);
+    mixer_.setChannelGain(AudioMixer::Plugin, audio_->pluginGain() / 100.0);
   };
-  const auto syncAudioDevice = [this]() {
-    session_.setAudioDevice(audio_->deviceIdBytes());
-    sessions_->setRemoteAudioDevice(audio_->deviceIdBytes());
-  };
+  const auto syncAudioDevice = [this]() { mixer_.setDeviceId(audio_->deviceIdBytes()); };
   connect(audio_.get(), &AudioController::gainsChanged, this, syncAudio);
   connect(audio_.get(), &AudioController::changed, this, syncAudioDevice);
   syncAudio();

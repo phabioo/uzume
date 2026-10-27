@@ -17,6 +17,7 @@
 #include <QtQml/qqmlregistration.h>
 #include <memory>
 
+#include "audiomixer.h"
 #include "audiooutput.h"
 #include "diagnosticsmodel.h"
 #include "gamesession.h"
@@ -89,6 +90,11 @@ class SessionController : public QObject {
   Q_PROPERTY(QString tab READ tab WRITE setTab NOTIFY viewChanged)
   Q_PROPERTY(QString multiviewMode READ multiviewMode WRITE setMultiviewMode NOTIFY viewChanged)
   Q_PROPERTY(QString audioFocus READ audioFocus NOTIFY viewChanged)  // effective surface id: "local" | Session id
+  // 0.23 mixer: "Mix all tiles" (off = only audioFocus is audible), the surfaces that are mixed in (the AUDIO tag), and the
+  // watched people for the Mixer popover: [{sid, userId, who, person, gain 0..100}].
+  Q_PROPERTY(bool mixAllTiles READ mixAllTiles WRITE setMixAllTiles NOTIFY audioMixChanged)
+  Q_PROPERTY(QStringList audibleSurfaces READ audibleSurfaces NOTIFY audioMixChanged)
+  Q_PROPERTY(QVariantList mixerTiles READ mixerTiles NOTIFY audioMixChanged)
   // Multiview: the selected tile (surface id) the side panel follows; your game's tile unless another one was chosen.
   // Selecting a remote tile does not route input: input always goes to your game.
   Q_PROPERTY(QString selectedSurface READ selectedSurface NOTIFY selectionChanged)
@@ -249,8 +255,12 @@ class SessionController : public QObject {
   Q_INVOKABLE void removeSurface(const QString& sessionId);  // "Remove": leaves that Session only
   Q_INVOKABLE void makeMain(const QString& surface);    // "Swap": the surface takes the main position
   // Master volume (AudioController) for watched sessions: software gain 0..1; the output device applies on the next start.
-  void setRemoteGain(double gain) { remoteAudio_.setVolume(gain); }
-  void setRemoteAudioDevice(const QByteArray& id) { remoteAudio_.setDeviceId(id); }
+  AudioMixer* audioMixer() const { return mixer_; }
+  bool mixAllTiles() const { return mixer_->mixAll(); }
+  void setMixAllTiles(bool on);
+  QStringList audibleSurfaces() const;
+  QVariantList mixerTiles() const;
+  Q_INVOKABLE void setTileGain(const QString& surface, int percent);  // per person (user id), remembered on this PC
   Q_INVOKABLE void audioHere(const QString& surface);   // "local" | Session id
   Q_INVOKABLE void selectSurface(const QString& surface);  // "local" | Session id; the side panel follows
   Q_INVOKABLE void dismissMessage();
@@ -272,6 +282,7 @@ class SessionController : public QObject {
   void watchChanged();
   void gameChanged();
   void viewChanged();
+  void audioMixChanged();
   void surfacesChanged();
   void remoteFrameChanged(const QString& sessionId);
   void surfaceLinksChanged();
@@ -314,7 +325,8 @@ class SessionController : public QObject {
   SessionApi api_;
   HubSocket socket_;
   SessionHost host_;
-  AudioOutput remoteAudio_;
+  AudioMixer ownMixer_;         // fallback when the GameSession has no shared mixer (tests)
+  AudioMixer* mixer_ = nullptr;
 
   QHash<QString, SessionInfo> sessions_;  // visible Sessions (not own)
   OnlineRoster roster_;
@@ -359,6 +371,7 @@ class SessionController : public QObject {
     bool paused = false;  // the host paused its game (fb-diag state signal, ADR 0026 D3)
     QString pausedBy;     // name from the signal; empty = the Session owner
     qint64 pausedAtMs = 0;
+    AudioOutput audio;  // this tile's input of the mixer (48 kHz stereo from the viewer)
   };
   std::vector<std::unique_ptr<Remote>> remotes_;  // creation order
   QStringList order_;                             // display order of the surfaces; first = main

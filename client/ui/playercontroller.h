@@ -17,6 +17,8 @@
 #include <memory>
 
 #include "audiocontroller.h"
+#include "audiomixer.h"
+#include "pluginsoundbus.h"
 #include "connectioncheckcontroller.h"
 #include "controllerscontroller.h"
 #include "core_locator.h"
@@ -320,6 +322,7 @@ class PlayerController : public QObject {
   EmulationController* emulation() { return emulation_.get(); }
   ControllersController* controllers() { return controllers_.get(); }
   AudioController* audio() { return audio_.get(); }
+  AudioMixer* audioMixer() { return &mixer_; }
   bool fullscreenOnStart() const;
   QString currentSystemId() const;
   QString appearance() const;
@@ -603,6 +606,8 @@ class PlayerController : public QObject {
   QList<CoreInfo> coreList_;
   QMap<QString, QString> coreVersions_;  // core_id -> version from the core info
   QMap<QString, QString> coreNames_;  // core_id -> name from the core info (only if probed)
+  AudioMixer mixer_;                          // the one output sink of the app (0.23); before session_ and sessions_
+  std::shared_ptr<PluginSoundBus> soundBus_;  // fb.sound; before plugins_
   LibraryModel model_;
   GameSession session_;
   std::unique_ptr<SessionController> sessions_;

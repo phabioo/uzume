@@ -38,6 +38,12 @@ SessionController::SessionController(HubConnection* conn, ProfileStore* profiles
   qRegisterMetaType<uzume::SessionInfo>();
   qRegisterMetaType<uzume::SessionSignal>();
   diagnostics_ = new DiagnosticsModel(this);
+  mixer_ = game_->audioOutput().mixer();
+  if (!mixer_) {
+    mixer_ = &ownMixer_;
+    game_->audioOutput().setMixer(mixer_, AudioMixer::Game);
+  }
+  connect(mixer_, &AudioMixer::routingChanged, this, &SessionController::audioMixChanged);
   connect(this, &SessionController::surfacesChanged, this, &SessionController::selectionChanged);
   connect(diagnostics_, &DiagnosticsModel::statesChanged, this, [this]() {
     if (diagnostics_->isOpen()) {
@@ -133,6 +139,8 @@ void SessionController::setPlayerSettings(PlayerSettings* settings) {
   if (settings_ == nullptr) {
     return;
   }
+  mixer_->setMixAll(settings_->audioMixAll());
+  applyAudioRouting();
   if (!settings_->sessionVisibility().isEmpty()) {
     visibility_ = settings_->sessionVisibility();
     return;
@@ -867,13 +875,16 @@ void SessionController::watch(const QString& sessionId) {
     });
     connect(v, &SessionViewer::errorOccurred, this, [this](const QString& m) { say(m, true); });
     const bool first = remotes_.empty();
+    rem->audio.setMixer(mixer_, AudioMixer::Tiles, rem->info.owner.userId);
+    if (settings_ && !rem->info.owner.userId.isEmpty())
+      mixer_->setPersonGain(AudioMixer::Tiles, rem->info.owner.userId, settings_->audioTileGain(rem->info.owner.userId) / 100.0);
+    rem->audio.start(48000);
     remotes_.push_back(std::move(rem));
     order_.append(sessionId);
     v->open(sessionId, r.join->viewerId, r.join->iceServers.isEmpty() ? socket_.helloAck().iceServers : r.join->iceServers,
             r.join->turnServers.isEmpty() ? socket_.helloAck().turnServers : r.join->turnServers);
     tab_ = QStringLiteral("multiview");
     if (first) {
-      remoteAudio_.start(48000);
       audioClock_.restart();
       audioDueFrames_ = 0;
       audioTimer_.start();
@@ -938,7 +949,6 @@ void SessionController::closeRemote(const QString& sessionId, const QString& not
   }
   if (remotes_.empty()) {
     audioTimer_.stop();
-    remoteAudio_.stop();
   }
   emit remoteFrameChanged(sessionId);
   applyAudioRouting();
@@ -1099,8 +1109,52 @@ void SessionController::audioHere(const QString& surface) {
   emit viewChanged();
 }
 
+// Exclusive (default): exactly one audible surface, the focused one. "Mix all tiles": every surface, each with its own gain.
 void SessionController::applyAudioRouting() {
-  game_->setAudioMuted(audioFocus() != QLatin1String("local"));  // exactly one audible surface
+  const QString focus = audioFocus();
+  const Remote* fr = focus == QLatin1String("local") ? nullptr : remote(focus);
+  mixer_->setFocus(fr ? fr->audio.mixerInput() : game_->audio().mixerInput());
+  game_->setAudioMuted(!mixer_->isRouted(game_->audio().mixerInput()));
+  emit audioMixChanged();
+}
+
+void SessionController::setMixAllTiles(bool on) {
+  if (on == mixer_->mixAll()) return;
+  if (settings_) settings_->setAudioMixAll(on);
+  mixer_->setMixAll(on);
+  applyAudioRouting();
+}
+
+QStringList SessionController::audibleSurfaces() const {
+  QStringList out;
+  for (const QString& s : order_) {
+    const Remote* r = s == QLatin1String("local") ? nullptr : remote(s);
+    const AudioMixer::InputId in = r ? r->audio.mixerInput() : game_->audio().mixerInput();
+    if ((r || hasLocalGame()) && mixer_->isRouted(in)) out.append(s);
+  }
+  return out;
+}
+
+QVariantList SessionController::mixerTiles() const {
+  QVariantList out;
+  for (int i = 0; i < order_.size(); ++i) {
+    const Remote* r = remote(order_.at(i));
+    if (!r) continue;
+    out.append(QVariantMap{{QStringLiteral("sid"), r->info.sessionId},
+                           {QStringLiteral("userId"), r->info.owner.userId},
+                           {QStringLiteral("who"), r->info.owner.displayName},
+                           {QStringLiteral("person"), i + 1},
+                           {QStringLiteral("gain"), qRound(mixer_->personGain(AudioMixer::Tiles, r->info.owner.userId) * 100.0)}});
+  }
+  return out;
+}
+
+void SessionController::setTileGain(const QString& surface, int percent) {
+  const Remote* r = remote(surface);
+  if (!r || r->info.owner.userId.isEmpty()) return;
+  percent = std::clamp(percent, 0, 100);
+  if (settings_) settings_->setAudioTileGain(r->info.owner.userId, percent);
+  mixer_->setPersonGain(AudioMixer::Tiles, r->info.owner.userId, percent / 100.0);
 }
 
 void SessionController::pumpAudio() {
@@ -1110,12 +1164,11 @@ void SessionController::pumpAudio() {
     return;
   }
   audioDueFrames_ += n;
-  const QString focus = audioFocus();
   for (const auto& r : remotes_) {
-    const QByteArray pcm = r->viewer->pullAudio(static_cast<int>(n));  // always drained, only the focused one is played
-    if (r->info.sessionId == focus) {
-      remoteAudio_.push(pcm);
-      fedFrames_[focus] += n;
+    const QByteArray pcm = r->viewer->pullAudio(static_cast<int>(n));  // always drained, only the routed ones are played
+    if (mixer_->isRouted(r->audio.mixerInput())) {
+      r->audio.push(pcm);
+      fedFrames_[r->info.sessionId] += n;
     }
   }
 }

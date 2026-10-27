@@ -111,6 +111,7 @@ struct Plugin {
   uint64_t captureNextId = 1;                 // fb.video.capture request ids
   std::optional<PendingCapture> capture;      // at most one pending capture
   std::optional<std::chrono::steady_clock::time_point> captureLast;  // last accepted request (1 per second)
+  std::map<QString, std::shared_ptr<const SoundClip>> soundClips;  // fb.sound.play: decoded files by path (at most 8)
   std::optional<std::chrono::steady_clock::time_point> snapshotLast;  // fb.save.snapshot: last accepted call (1 per minute)
   std::map<uint64_t, int> pickRefs;           // fb.ui.pick_file: request id -> registry ref of the callback
   uint64_t pickNextId = 1;

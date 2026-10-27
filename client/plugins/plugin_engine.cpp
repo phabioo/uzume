@@ -205,6 +205,8 @@ void PluginEngine::releaseState(Plugin& p) {
   p.hasBoardPending = false;
   p.capture.reset();
   p.uiTrees.clear();
+  p.soundClips.clear();
+  if (ctx.sound) ctx.sound->stopAll(p.id());
   syncWatches(p);
 }
 
