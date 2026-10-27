@@ -5,9 +5,10 @@
 #include <mutex>
 
 #include "envvar.h"
-#include "secretservicetypes.h"
 
 #ifdef Q_OS_LINUX
+#include "secretservicetypes.h"
+
 #include <QDBusConnection>
 #include <QDBusConnectionInterface>
 #include <QDBusError>
