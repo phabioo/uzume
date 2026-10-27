@@ -35,10 +35,8 @@ UzDialog {
     busy: root.awaiting
 
     readonly property var eng: root.vc.engine
-    readonly property var presets: {
-        const _rev = root.vc.registryRevision
-        return root.gameId === "" ? [] : root.vc.presets(root.gameId)
-    }
+    // registryRevision is part of the result on purpose (see GamePage.qml: an unused bare read is dropped by compiled bindings).
+    readonly property var presets: root.vc.registryRevision < 0 || root.gameId === "" ? [] : root.vc.presets(root.gameId)
     readonly property bool custom: root.presetId === "custom"
     property string presetId: ""
     readonly property var presetOptions: root.presets.map(p => ({ value: p.id, label: p.custom ? qsTr("Custom") : p.label }))
@@ -47,20 +45,14 @@ UzDialog {
         return null
     }
     readonly property string nameText: nameField.text.trim()
-    readonly property bool nameTaken: {
-        const _dep = root.vc.variants
-        return root.nameText !== "" && root.vc.nameTaken(root.gameId, root.nameText)
-    }
+    readonly property bool nameTaken: root.vc.variants === undefined ? false : root.nameText !== "" && root.vc.nameTaken(root.gameId, root.nameText)
     readonly property string nameError: root.nameTaken ? qsTr("You already have a variant called %1.").arg(root.nameText)
                                        : root.nameText.length > 60 ? qsTr("Names can have up to 60 characters.") : ""
     readonly property var check: root.custom ? root.vc.checkSettings(root.gameId, settingsField.text) : ({ state: "ok", valid: true, prefix: "" })
     readonly property bool seedOk: !seedBox.checked || /^[0-9]{1,18}$/.test(seedField.text)
     readonly property bool engineBlocked: root.eng.state === "not_offered" || root.eng.state === "no_server"
     readonly property bool engineMissing: root.eng.state === "not_on_pc" || root.eng.state === "failed"
-    readonly property var file: {
-        const _dep = root.vc.variants
-        return root.gameId === "" ? ({ onPc: true, sizeText: "" }) : root.vc.gameFile(root.gameId)
-    }
+    readonly property var file: root.vc.variants === undefined || root.gameId === "" ? ({ onPc: true, sizeText: "" }) : root.vc.gameFile(root.gameId)
     readonly property bool canBuild: root.nameText !== "" && root.nameError === "" && root.check.valid && root.seedOk && !root.engineBlocked && root.presetId !== ""
 
     function openFor(id: string, gameTitle: string, system: string) {

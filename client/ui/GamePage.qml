@@ -37,10 +37,9 @@ Rectangle {
 
     // Variants (0.21, design sheet 5): Randomize… in the header, the Variants section and its dialogs.
     readonly property VariantsController vc: player.variants
-    readonly property string randomizeState: {
-        const _rev = root.vc.registryRevision
-        return root.hasGame ? root.vc.randomizeState(root.gameId) : "none"
-    }
+    // registryRevision is part of the result on purpose: a bare read whose value is unused is dropped by the compiled (qmlsc) bindings,
+    // and the binding would then never re-evaluate when a plugin registers or leaves.
+    readonly property string randomizeState: root.vc.registryRevision < 0 || !root.hasGame ? "none" : root.vc.randomizeState(root.gameId)
     // A build of a small game (GB, GBC, GBA) shows no dialog: the Randomize… button reads Building… until it is done (10c-3a).
     readonly property bool smallBuilding: root.vc.building && root.vc.current.gameId === root.gameId && root.vc.smallGame(root.gameId)
     property bool cancelEngineBuild: false

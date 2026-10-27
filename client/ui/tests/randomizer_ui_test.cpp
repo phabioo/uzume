@@ -7,6 +7,7 @@
 #include <QJsonObject>
 #include <QtTest>
 
+#include "corecache.h"
 #include "fakehub.h"
 #include "keyedrowsmodel.h"
 #include "runscontroller.h"
@@ -85,7 +86,7 @@ class RandomizerUiTest : public QObject {
     hub.customRoute = [](const FakeRequest& req, int& status, QByteArray& body, QByteArray&) {
       Q_UNUSED(status)
       if (req.method == "GET" && req.path == QLatin1String("/api/v1/tools")) {
-        const QJsonObject p{{"platform", "linux-x64"}, {"size", 38000000}, {"sha256", QString(64, QLatin1Char('a'))}, {"cached", true}, {"root", ""}};
+        const QJsonObject p{{"platform", CoreCache::currentPlatform()}, {"size", 38000000}, {"sha256", QString(64, QLatin1Char('a'))}, {"cached", true}, {"root", ""}};
         const QJsonObject v{{"version", "2.3.1"}, {"used_by", QJsonObject{{"variants", 0}, {"runs", 0}}}, {"platforms", QJsonArray{p}}};
         const QJsonObject t{{"id", "randomizer"}, {"name", "Randomizer engine"}, {"offered", true}, {"version", "2.3.1"}, {"license", "GPL-3.0"},
                             {"source_url", "https://example.org/engine"}, {"versions", QJsonArray{v}}};

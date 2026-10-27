@@ -21,17 +21,13 @@ ColumnLayout {
     property bool playEnabled: true          // the game is not starting or running (variant Play follows Play of the page)
     readonly property VariantsController vc: root.player.variants
     readonly property var rows: root.vc.gameId === root.gameId ? root.vc.variants : []
-    readonly property string randomize: {
-        const _rev = root.vc.registryRevision
-        return root.gameId === "" ? "none" : root.vc.randomizeState(root.gameId)
-    }
-    readonly property bool pluginAvailable: {
-        const _rev = root.vc.registryRevision
-        return root.vc.pluginAvailable()
-    }
+    // registryRevision is part of each result on purpose: a bare read whose value is unused is dropped by the compiled (qmlsc) bindings,
+    // and the binding would then never re-evaluate when a plugin registers or leaves.
+    readonly property string randomize: root.vc.registryRevision < 0 || root.gameId === "" ? "none" : root.vc.randomizeState(root.gameId)
+    readonly property bool pluginAvailable: root.vc.registryRevision >= 0 && root.vc.pluginAvailable()
     readonly property var presetLabels: {
-        const _rev = root.vc.registryRevision
         const m = ({})
+        if (root.vc.registryRevision < 0) return m
         for (const p of (root.gameId === "" ? [] : root.vc.presets(root.gameId))) m[p.id] = p.custom ? qsTr("Custom") : p.label
         return m
     }
