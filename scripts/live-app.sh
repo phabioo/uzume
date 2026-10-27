@@ -43,7 +43,7 @@ summary() {
 }
 
 cmd_down() {
-  local f p
+  local f p i
   if [ -d "$PIDS" ]; then
     local files=("$PIDS"/*)
     for ((i = ${#files[@]} - 1; i >= 0; i--)); do
