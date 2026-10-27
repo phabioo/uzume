@@ -65,6 +65,18 @@ class FakeRunBridge : public uzume::plugins::RunBridge {
   std::atomic<int> writes{0};
 };
 
+// A run game: the rules of the run can change while the game runs (run_updated).
+class RulesRunBridge : public FakeRunBridge {
+ public:
+  QJsonObject current() const override {
+    QJsonObject o = FakeRunBridge::current();
+    o.insert("rules", QJsonObject{{"states", "on"}, {"rewind", "off"}, {"cheats", cheats.load() ? "logged" : "off"}, {"memory_write", memory.load() ? "logged" : "off"}});
+    return o;
+  }
+  std::atomic<bool> cheats{false};
+  std::atomic<bool> memory{false};
+};
+
 const char* kRunViewLua = R"LUA(
   fb.log.info('boot')
   local c = fb.run.current()
@@ -310,6 +322,52 @@ class PluginsRuntimeUiTest : public QObject {
     m_pc->gameStopped();
     QVERIFY(m_pc->runSections().isEmpty());
     QCOMPARE(m_pc->shellPluginIds(), (QStringList{"net.test.both", "net.test.shell"}));
+  }
+
+  // 0.20 final live check, P1: in a run the plugins pinned to the run start, plus the person's own enabled plugins that change the
+  // game (cheats / memory.write) while the run's rules allow that; they stop again when the rule goes back to off.
+  void runGameStartsCheatsPluginByRules() {
+    writePlugin(m_src.path(), "net.test.cheater", {}, "fb.log.info('cheater boot')", {"cheats"});
+    writePlugin(m_src.path(), "net.test.editor", {{"requires", QJsonObject{{"net.test.core", "*"}}}}, "fb.log.info('editor boot')", {"memory.write"});
+    writePlugin(m_src.path(), "net.test.core", {{"provides", QJsonArray{"core.api"}}}, "fb.log.info('core boot')", {});
+    writePlugin(m_src.path(), "net.test.harmless", {}, "fb.log.info('harmless')", {"ui"});
+    for (const char* id : {"net.test.cheater", "net.test.editor", "net.test.core", "net.test.harmless"}) install(id);
+    m_pc->setDeveloperMode(true);
+    for (const char* id : {"net.test.cheater", "net.test.editor", "net.test.core", "net.test.harmless"}) m_pc->setPluginEnabled(id, true);
+    QString shaPlain;
+    installHubCopy("net.test.pinned", "1.0.0", QJsonObject{}, {"run.state"}, "fb.log.info('pinned')", &shaPlain);
+
+    auto bridge = std::make_shared<RulesRunBridge>();
+    RunLaunch launch;
+    launch.bridge = bridge;
+    launch.pins = {{"net.test.pinned", "1.0.0", shaPlain}};
+    m_pc->gameStarted("nds", m_src.path() + "/missing.nds", "abc", "Homebrew", QString(), launch);
+    // Rules off: only the pinned plugin runs (run.state pinning unchanged).
+    QTRY_VERIFY_WITH_TIMEOUT(m_pc->host()->pluginIds().contains("net.test.pinned"), 10000);
+    QCOMPARE(m_pc->host()->pluginIds(), QStringList{"net.test.pinned"});
+
+    // Cheats allowed: the cheats plugin joins; the editor needs memory changes, the harmless one is never part of a run.
+    bridge->cheats = true;
+    QTRY_VERIFY_WITH_TIMEOUT(m_pc->host()->pluginIds().contains("net.test.cheater"), 10000);
+    QVERIFY(m_pc->host()->pluginIds().contains("net.test.pinned"));
+    QVERIFY(!m_pc->host()->pluginIds().contains("net.test.editor"));
+    QVERIFY(!m_pc->host()->pluginIds().contains("net.test.harmless"));
+
+    // Memory changes allowed too: the editor joins with what it needs.
+    bridge->memory = true;
+    QTRY_VERIFY_WITH_TIMEOUT(m_pc->host()->pluginIds().contains("net.test.editor"), 10000);
+    QVERIFY(m_pc->host()->pluginIds().contains("net.test.core"));
+
+    // Back to off: both stop, the pinned plugin stays.
+    bridge->cheats = false;
+    bridge->memory = false;
+    QTRY_COMPARE_WITH_TIMEOUT(m_pc->host()->pluginIds(), QStringList{"net.test.pinned"}, 10000);
+    m_pc->gameStopped();
+
+    // Without a run nothing of this applies: the game's own plugins start by their game match.
+    m_pc->gameStarted("nds", m_src.path() + "/missing.nds", "abc", "Homebrew");
+    QTRY_VERIFY_WITH_TIMEOUT(m_pc->host()->pluginIds().contains("net.test.cheater"), 10000);
+    m_pc->gameStopped();
   }
 
   void toastMuting() {

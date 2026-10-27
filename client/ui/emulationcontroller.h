@@ -179,6 +179,10 @@ class EmulationController : public QObject {
   Q_INVOKABLE void selectSystem(const QString& id);
   Q_INVOKABLE void setOption(const QString& key, const QString& value);
   Q_INVOKABLE void resetOption(const QString& key);
+  // The rewind length options with the real memory and seconds for a system: lengths the buffer cap cannot hold are left out, the longest
+  // that fits is offered instead (kRewindMaxBytes); "High memory" only above half a GB. Systems with an unknown state size keep the list.
+  static QList<emu::CoreOptionValue> rewindValues(QList<emu::CoreOptionValue> vals, const QString& systemId);
+  QString setUzumeOption(const QString& key, const QString& value, const QString& systemId = QString(), const QString& gameId = QString());
   Q_INVOKABLE void resetAllChanged();  // "Reset N changed": every explicit value of the current scope
 
  signals:

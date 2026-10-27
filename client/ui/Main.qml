@@ -280,7 +280,8 @@ ApplicationWindow {
             if (slot === "screen" && window.screenSheetPlugin === pluginId) window.screenSheetPlugin = ""
         }
         function onPickFileRequested(pluginId, requestId, title, filters, maxBytes) {
-            if (dialogsGate.usable) {
+            // Linux: the Qt fallback of FileDialog is a white basic dialog that ignores the app theme, so the themed path field is the default.
+            if (dialogsGate.usable && Qt.platform.os !== "linux") {
                 pluginPick.active = true   // loaded on first use
                 if (pluginPick.status === Loader.Ready && pluginPick.item) {
                     pluginPick.item.ask(pluginId, requestId, title, filters)

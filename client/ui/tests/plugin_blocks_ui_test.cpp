@@ -282,6 +282,29 @@ class PluginBlocksUiTest : public QObject {
     shot(dark ? QStringLiteral("plugin-blocks-dark") : QStringLiteral("plugin-blocks-light"));
   }
 
+  // 0.20 final live check: a chip is as wide as its text ("Edit list", "Turn all off" were cut to "E…" and "All …"), also in a full row.
+  void chipsFollowTheirText() {
+    show(json(R"({"type":"column","gap":8,"children":[
+      {"type":"textfield","id":"q","text":"","placeholder":"Search cheats","action":"q"},
+      {"type":"row","gap":8,"align":"center","children":[
+        {"type":"chip","id":"chipEdit","text":"Edit list","action":"edit"},
+        {"type":"chip","id":"chipAllOff","text":"Turn all off","action":"off"}]},
+      {"type":"row","gap":8,"children":[
+        {"type":"chip","id":"chipFull","text":"Open routes","action":"x"},
+        {"type":"text","text":"A long line of text that has to give way before the chip does, in a narrow panel like the game side panel"},
+        {"type":"chip","id":"chipFull2","text":"Only me","action":"y"}]}]})"),
+         true, 300);
+    for (const char* id : {"plugin_chipEdit", "plugin_chipAllOff", "plugin_chipFull", "plugin_chipFull2"}) {
+      QQuickItem* chip = mustFind(id);
+      QVERIFY2(chip != nullptr, id);
+      QQuickItem* label = Harness::findVisual(chip, QStringLiteral("pluginChipLabel"));
+      QVERIFY2(label != nullptr, id);
+      QVERIFY2(!label->property("truncated").toBool(), id);
+      QVERIFY2(chip->width() >= label->implicitWidth() + 2, id);
+    }
+    QVERIFY(sheet_->width() <= 300);
+  }
+
   // PI-5: strings from plugins and peers are text, never HTML: no <img> fetch, no <b>/<font> restyling.
   void hostileStringsRenderLiterally() {
     const QString evil = QStringLiteral("<img src=\"https://hostile.example/p.png?ip\"><b>Official</b><font size=40>x</font>");

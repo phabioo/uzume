@@ -124,7 +124,7 @@ class McpToolsTest : public QObject {
                           "memory_regions", "memory_read", "memory_search", "romfs_list", "romfs_read", "rom_read", "screenshot", "game_input", "game_pause",
                           "game_resume", "game_frame_step", "game_state_save", "game_state_load", "game_memory_write", "cheats_list", "cheats_apply",
                           "cheats_clear", "store_get", "store_put", "consent_set", "server_sign_in", "states_list", "states_save", "states_load",
-                          "states_delete", "rewind", "runs_list", "run_set_rules", "run_events", "plugin_link", "developer_mode", "file_dialog_pick"})
+                          "states_delete", "rewind", "runs_list", "run_set_rules", "run_events", "plugin_link", "developer_mode", "file_dialog_pick", "settings_set", "saves_history", "toasts_list"})
       QVERIFY2(names.contains(QLatin1String(n)), n);
   }
 
@@ -189,6 +189,37 @@ class McpToolsTest : public QObject {
     QCOMPARE(call("file_dialog_pick", {{"path", ""}}).content.value(0).text, QStringLiteral("no_pick_request"));
     QCOMPARE(jsonOf(call("developer_mode", {{"enabled", false}})).toObject().value("developer_mode").toBool(), false);
     QCOMPARE(call("plugin_link", {{"path", dir.path()}}).content.value(0).text, QStringLiteral("developer_mode_off"));
+  }
+
+  // 0.20 final live check: settings_set, saves_history, toasts_list, plugin id under both names, hold_ms and confirm in the schema.
+  void liveCheckGapTools() {
+    QCOMPARE(call("settings_set", {{"key", "uzume.nope"}, {"value", "1"}}).content.value(0).text, QStringLiteral("unknown_key"));
+    QCOMPARE(call("settings_set", {{"key", "uzume.run_ahead"}, {"value", "7"}}).content.value(0).text, QStringLiteral("invalid_value"));
+    QCOMPARE(call("settings_set", {{"key", "uzume.rewind_seconds"}, {"value", "601"}}).content.value(0).text, QStringLiteral("invalid_value"));
+    const QJsonObject set = jsonOf(call("settings_set", {{"key", "uzume.rewind_seconds"}, {"value", 13}})).toObject();
+    QCOMPARE(set.value("value").toString(), QStringLiteral("13"));
+    QCOMPARE(pc->emulation()->uzumeValue(QStringLiteral("uzume.rewind_seconds"), QStringLiteral("nds")), QStringLiteral("13"));
+    QCOMPARE(jsonOf(call("settings_set", {{"key", "uzume.run_ahead"}, {"value", "1"}, {"system", "gba"}})).toObject().value("value").toString(), QStringLiteral("1"));
+    QCOMPARE(pc->emulation()->uzumeValue(QStringLiteral("uzume.run_ahead"), QStringLiteral("nds")), QStringLiteral("0"));
+    QCOMPARE(jsonOf(call("settings_set", {{"key", "uzume.rewind_seconds"}, {"value", "0"}})).toObject().value("value").toString(), QStringLiteral("0"));
+
+    QVERIFY(!call("saves_history").isError);
+    QVERIFY(jsonOf(call("saves_history")).toObject().contains("versions"));
+    QVERIFY(jsonOf(call("toasts_list")).toObject().contains("toasts"));
+
+    // The plugin is `id` for most tools and `plugin_id` for others: both spellings reach the handler.
+    call("store_put", {{"plugin_id", "uzume.cheats"}, {"key", "k"}, {"value", 1}});
+    QVERIFY(jsonOf(call("store_get", {{"id", "uzume.cheats"}, {"key", "k"}})).toObject().value("found").toBool());
+    QCOMPARE(call("plugin_console", {{"plugin_id", "uzume.nothing"}}).content.value(0).text, QStringLiteral("plugin_not_running"));
+    QCOMPARE(call("file_dialog_pick", {{"id", "uzume.cheats"}, {"path", ""}}).content.value(0).text, QStringLiteral("no_pick_request"));
+
+    for (const ToolDef& t : pc->mcp()->registry()->tools()) {
+      if (t.name == QLatin1String("ui_key")) {
+        QVERIFY(t.inputSchema.value("properties").toObject().contains("hold_ms"));
+        QVERIFY(t.inputSchema.value("properties").toObject().contains("confirm"));
+      }
+      if (t.name == QLatin1String("ui_click")) QVERIFY(t.inputSchema.value("properties").toObject().contains("confirm"));
+    }
   }
 
   void serverSignInValidatesArguments() {

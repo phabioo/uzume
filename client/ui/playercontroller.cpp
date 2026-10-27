@@ -2685,6 +2685,8 @@ void PlayerController::quitGame() {
   session_.stop();  // core unloaded (save flushed), then the final upload
   saves_->finalSync(true);
   gameActive_ = false;
+  if (states_) states_->gameStopped();  // the game page must not offer Save/Load for a stopped game
+  stateRunId_.clear();
   phase_ = PlayPhase::None;
   finishRunStart();
   updateScreen();

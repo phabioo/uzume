@@ -62,7 +62,7 @@ ComboBox {
         required property var modelData
         required property int index
         readonly property bool selected: item.modelData.value === control.current
-        width: control.width - 2
+        width: control.popup.width - 2
         height: Theme.row32
         enabled: item.modelData.disabled !== true
         padding: 0
@@ -94,9 +94,28 @@ ComboBox {
             UzFocusRing { inset: true; visible: item.highlighted }
         }
     }
+    // Measures the longest line so a label is never cut off in the list (the list may be wider than the field).
+    Text {
+        id: probe
+        visible: false
+        font: control.font
+        textFormat: Text.PlainText
+    }
     popup: Popup {
+        id: pop
+        property real wide: control.width
         y: control.height + Theme.space05
-        width: control.width
+        width: pop.wide
+        onAboutToShow: {
+            let w = control.width
+            for (let i = 0; i < control.count; ++i) {
+                const m = control.model[i]
+                if (!m || m.label === undefined) continue
+                probe.text = m.hint ? m.label + "  ·  " + m.hint : m.label
+                w = Math.max(w, Math.ceil(probe.implicitWidth) + 14 + Theme.space1 + 2 * Theme.space15 + 6)
+            }
+            pop.wide = Math.min(w, 480)
+        }
         implicitHeight: Math.min(contentItem.implicitHeight + 2 + 2 * Theme.space05, 8 * Theme.row32 + 2 + 2 * Theme.space05)
         padding: 1
         topPadding: 1 + Theme.space05

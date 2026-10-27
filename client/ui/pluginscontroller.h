@@ -140,6 +140,7 @@ class PluginsController : public QObject {
   bool hudAllHidden() const { return hudAllHidden_; }
   void setHudAllHidden(bool hidden);
   QVariantList toasts() const { return toasts_; }
+  QVariantList toastLog() const { return toastLog_; }  // the last 20 toasts, oldest first (debug MCP toasts_list)
   QVariantList sidebarEntries() const { return sidebarEntries_; }
   QVariantList detailSections() const { return detailSections_; }
   QVariantList hotkeys() const { return hotkeys_; }
@@ -324,6 +325,11 @@ class PluginsController : public QObject {
  private:
   void updateShell();
   void stopGame(bool restartShell);
+  plugins::GameResolution resolveGameSet() const;
+  void startGameSet(const plugins::GameResolution& res);
+  void stopGameSet();
+  void refreshRunExtras();
+  void logToast(const QVariantMap& t);
   void postInitialEvents();
   void onUiChanged(const QString& id, const QString& what);
   void rebuildUiModels();
@@ -380,6 +386,9 @@ class PluginsController : public QObject {
   QList<QPair<QString, QString>> installQueue_;  // (id, version) still to install after the current one
   std::shared_ptr<MemoryWatchAdapter> adapter_;
   std::shared_ptr<plugins::VariantsProvider> variants_;  // fb.variants of every context (shell and game)
+  plugins::GameContext gameCtx_;  // of the running game (restarts when the rules of a run change)
+  QString gameSystem_, gameCode_;
+  RunLaunch runLaunch_;
   QString launchGameId_;
   QString launchModDir_;
   std::shared_ptr<VideoCaptureAdapter> video_;  // fb.video of the running game; released on the GUI thread after host_->stop()
@@ -406,6 +415,7 @@ class PluginsController : public QObject {
   int hostToastId_ = 0;                       // host notices count down from -1
   bool previewUi_ = false;
   QVariantMap previewUiData_;
+  QVariantList toastLog_;
   QVariantList panelTabs_, hudWidgets_, toasts_, sidebarEntries_, detailSections_, hotkeys_, hotkeyGroups_;
   QSet<int> activeCombos_;
   QHash<int, QStringList> takenBy_;          // combo -> ["<pluginId>/<hotkeyId>", plugin name] (no conflict)

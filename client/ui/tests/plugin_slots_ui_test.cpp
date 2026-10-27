@@ -879,6 +879,42 @@ class PluginSlotsUiTest : public QObject {
     QTRY_VERIFY(!h_.item("pluginScreenSheet")->isVisible());
   }
 
+  // 0.20 final live check: a screen with width "dialog" is a centered dialog over the scrim; the game stays visible around it.
+  void screenSheetWithDialogWidthIsACenteredDialog() {
+    h_.controller->sessions()->leaveWatch();
+    h_.controller->sessions()->setTab(QStringLiteral("session"));
+    QQuickItem* screen = gameScreen();
+    QVERIFY(screen != nullptr);
+    QTRY_VERIFY(screen->isVisible());
+    QVariantMap trees{{"net.test.a|screen", json(R"({"type":"column","gap":8,"width":"dialog","children":[
+        {"type":"text","style":"title","text":"Add cheats"},
+        {"type":"button","id":"btnAdd","label":"Add cheat","variant":"primary","action":"add"}]})")},
+                      {"net.test.a|panel", json(R"({"type":"text","text":"panel"})")}};
+    const QVariantMap entry{{"pluginId", "net.test.a"}, {"name", "Cheats"}, {"title", "Add cheats"}, {"icon", QString()}, {"badge", 0}, {"origin", "local"}};
+    pc()->setPreviewUi({{"panelTabs", QVariantList{tabEntry("net.test.a", "Cheats")}}, {"sidebarEntries", QVariantList{entry}}, {"trees", trees}});
+    QTRY_VERIFY(h_.item("panelTab_plugin:net.test.a") != nullptr);
+    emit pc()->openRequested(QStringLiteral("net.test.a"), QStringLiteral("screen"));
+    QTRY_VERIFY(h_.item("pluginScreenSheet")->isVisible());
+    QTRY_VERIFY(h_.item("plugin_btnAdd") != nullptr && h_.item("plugin_btnAdd")->isVisible());
+    QQuickItem* sheet = h_.item("pluginScreenSheet");
+    QQuickItem* panel = h_.item("pluginScreenPanel");
+    QVERIFY(panel != nullptr);
+    // The scrim fills the body; the dialog is narrower and shorter than it, centered, so the game shows around it.
+    QVERIFY(panel->width() < sheet->width() - 100);
+    QVERIFY(panel->width() <= 560 + 2 * 24 + 1);
+    QVERIFY(panel->height() < sheet->height() - 60);
+    QVERIFY(qAbs((panel->x() + panel->width() / 2) - sheet->width() / 2) < 2);
+    QVERIFY(qAbs((panel->y() + panel->height() / 2) - sheet->height() / 2) < 2);
+    // A full-width screen is still a full sheet.
+    QVariantMap full = trees;
+    full["net.test.a|screen"] = json(R"({"type":"column","gap":8,"children":[{"type":"text","text":"Run screen"}]})");
+    pc()->setPreviewUi({{"panelTabs", QVariantList{tabEntry("net.test.a", "Cheats")}}, {"sidebarEntries", QVariantList{entry}}, {"trees", full}});
+    QTRY_VERIFY(qAbs(h_.item("pluginScreenPanel")->width() - h_.item("pluginScreenSheet")->width()) < 2);
+    QTest::keyClick(h_.window, Qt::Key_Escape);
+    QTRY_VERIFY(!h_.item("pluginScreenSheet")->isVisible());
+    pc()->setPreviewUi({});
+  }
+
   // ---------------------------------------------------------------- plugin hotkeys (Controllers > Hotkeys, keys in game)
 
   QVariantMap hotkeyUi() {

@@ -263,14 +263,14 @@ Hands cheat codes to the core's own cheat engine (`retro_cheat_set`; for the 3DS
 | `fb.cheats.allowed()` | `true`, or `false, "run_rule"` when the run's rule forbids cheats. |
 | `fb.cheats.apply(list)` | Replaces the active list. Items are `{ id (required, up to 64), name?, format (required), code (required, up to 4096), enabled? (default true) }`, at most 2000. Returns `{ applied = n, rejected = {{ id, reason }, ...} }` with the reasons `unsupported_format`, `invalid_code`, `invalid`; or `nil, code` with `no_game`, `blocked_by_run_rule`, `consent_required` (the question is shown; the app applies the list itself once the person agrees, and `cheats.blocked` follows if not), `consent_denied`. |
 | `fb.cheats.clear()` | Turns everything off. Always allowed. `true` or `nil, "no_game"`. |
-| `fb.cheats.database()` | The server's cheat list for this game, `{ source, updated_at, cheats = {{ name, code, format_guess }, ...} }`, from the local cache. On failure `nil, code`: `"off"` (the server has the cheat database turned off), `"offline"`, `"not_found"` (the server does not know the game), `"error: <text>"`; `"error: loading"` while the first fetch is under way (the event `cheats.database` follows). The cache refreshes in the background. |
+| `fb.cheats.database()` | The server's cheat list for this game, `{ source, updated_at, cheats = {{ name, code, format_guess }, ...} }`, from the local cache. On failure `nil, code`: `"off"` (the server has the cheat database turned off), `"unavailable"` (it is turned on, but the server holds no lists yet: not loaded, or the last update failed; ask an admin to check Server › Settings › Cheat database), `"offline"`, `"not_found"` (the server does not know the game), `"error: <text>"`; `"error: loading"` while the first fetch is under way (the event `cheats.database` follows). The cache refreshes in the background. |
 
 App events (subscribe with `fb.events.on("app", name, fn)`; `fn(value, "app", name)`):
 
 | Event | Value |
 |---|---|
 | `cheats.blocked` | `{ reason }`: `"run_rule"` (the rule turned cheats off; all active cheats were cleared at once, live when the run is updated), `"consent_denied"`, or `"snapshot_failed"` (the safety copy failed, so no cheat was turned on). |
-| `cheats.allowed` | `nil`, when a run rule switches cheats back on. |
+| `cheats.allowed` | `nil`, when a run rule switches cheats back on, and when the person answered the consent question with "Turn on cheats" (the app then applies the pending list itself). |
 | `cheats.database` | `nil`, when `fb.cheats.database()` has new data. |
 
 ### Save snapshots (no permission)
@@ -367,6 +367,7 @@ Needs the permission `ui` and the matching manifest field `ui`. A plugin ships n
 #### When plugins run
 
 - In a game: as before, the plugins for the game start with it.
+- **In a run game:** the run's pinned plugins (the exact server copies) start. In addition the person's own installed, enabled plugins that fit the game and declare the permission `cheats` start while the run's rule `rules.cheats` is `logged`, and those with `memory.write` while `rules.memory_write` is `logged` (plus what they require; a pinned copy with the same id wins). When the rule goes back to `off` (live, on `run_updated`) they stop again and the app has already cleared their cheats; when it is switched on they start. A rule change that alters the set restarts the game's plugins once; one that does not leaves them running.
 - **Shell context:** while no game runs, every enabled plugin that declares `ui.screen` or `ui.detail` runs with an empty game: `fb.game` has no `language` and its other fields are empty, memory reads return `nil`, `fb.rom.*` returns `nil`. Plugins it requires run too. Starting a game stops the shell set and starts the game set; ending the game restarts the shell set. Turning a plugin or Developer mode on or off re-evaluates the shell set.
 - **Run view:** while a run is open in the detail of the Runs screen, the user is its creator or has joined, and no game runs, the run's plugins that declare `ui.run` or `ui.screen` (plus the plugins they require) run in the shell context as the exact server copies pinned by the run; missing copies are fetched like for "Play run". They get a read-only `fb.run` for that run (see [Run state](#run-state)). A plugin that is in both the shell set and the run view set runs once, as the run view instance. Opening or closing the run view restarts the shell plugins; while it is open, the other shell plugins with `run.state` also see that read-only `fb.run`. Starting a game stops the run view set; it comes back when the game ends and the detail is still open.
 - A paused plugin keeps its last trees, shown dimmed.

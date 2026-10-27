@@ -283,6 +283,28 @@ class EmulationControllersTest : public QObject {
   }
 
  private slots:
+  // 0.20 final live check: the rewind lengths reflect the buffer cap and say what they really cost.
+  void rewindLengthsFitTheBufferCap() {
+    const QList<emu::CoreOptionValue> all = {{"0", "Off"}, {"10", "10 seconds"}, {"30", "30 seconds"}, {"60", "60 seconds"}, {"120", "2 minutes"}};
+    // DS: 7.5 MB per state, so the 1.5 GB cap holds about 13 seconds: longer steps are replaced by the real maximum.
+    const QList<emu::CoreOptionValue> nds = EmulationController::rewindValues(all, QStringLiteral("nds"));
+    QStringList values;
+    for (const auto& v : nds) values << v.value;
+    QCOMPARE(values, (QStringList{"0", "10", "13"}));
+    QCOMPARE(nds.value(0).label, QStringLiteral("Off"));
+    QCOMPARE(nds.value(1).label, QStringLiteral("10 seconds · 1.1 GB · High memory"));
+    QCOMPARE(nds.value(2).label, QStringLiteral("13 seconds · 1.5 GB · High memory"));
+    for (const auto& v : nds) QVERIFY2(!v.label.contains(QStringLiteral("about")), qPrintable(v.label));
+    // GBA: everything fits; "High memory" only where it is true (above half a GB).
+    const QList<emu::CoreOptionValue> gba = EmulationController::rewindValues(all, QStringLiteral("gba"));
+    QCOMPARE(gba.size(), all.size());
+    QVERIFY2(!gba.value(1).label.contains(QStringLiteral("High memory")), qPrintable(gba.value(1).label));
+    QVERIFY2(!gba.value(3).label.contains(QStringLiteral("High memory")), qPrintable(gba.value(3).label));
+    QVERIFY2(gba.value(4).label.contains(QStringLiteral("High memory")), qPrintable(gba.value(4).label));
+    // Unknown state size (3DS, unknown systems): the list stays as it is.
+    QCOMPARE(EmulationController::rewindValues(all, QStringLiteral("3ds")).size(), all.size());
+  }
+
   void initTestCase() {
     savedCoreEnv_ = qgetenv("UZUME_MELONDS_DS_CORE");
     uitest::installWarningCounter();
