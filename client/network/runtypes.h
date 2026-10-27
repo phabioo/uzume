@@ -14,7 +14,7 @@ namespace uzume {
 struct RunPluginRef {
   QString pluginId;
   QString version;
-  QString sha256;  // lowercase hex of the .fbplugin the Hub offered when the run was created
+  QString sha256;  // lowercase hex of the .uzplugin the Hub offered when the run was created
 };
 
 // One plugin's state object of one participant, with its own revision (addendum: per-plugin run state).

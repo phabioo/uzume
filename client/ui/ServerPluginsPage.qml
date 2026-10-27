@@ -269,7 +269,7 @@ AdminPage {
         }
         onLoaded: {
             item.title = qsTr("Plugin file to upload")
-            item.nameFilters = [qsTr("Uzume plugins (*.fbplugin)"), qsTr("All files (*)")]
+            item.nameFilters = [qsTr("Uzume plugins (*.uzplugin *.fbplugin)"), qsTr("All files (*)")]
             item.chosen.connect(root.uploadPlugin)
             item.open()
         }

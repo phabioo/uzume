@@ -162,7 +162,7 @@ func TestPluginRemoveAndInUseHook(t *testing.T) {
 	if err := svc.RemovePlugin(ctx, "net.example.rm", "1.2.0"); !errors.Is(err, hub.ErrConflict) {
 		t.Fatalf("in use: %v", err)
 	}
-	file := filepath.Join(svc.DataDir(), "plugins", "net.example.rm", "1.2.0.fbplugin")
+	file := filepath.Join(svc.DataDir(), "plugins", "net.example.rm", "1.2.0.uzplugin")
 	if _, err := os.Stat(file); err != nil {
 		t.Fatal("file removed although in use")
 	}
@@ -190,12 +190,12 @@ func TestImportPlugins(t *testing.T) {
 	svc := pluginHub(t, nil)
 	dir := t.TempDir()
 	write := func(name string, data []byte) { os.WriteFile(filepath.Join(dir, name), data, 0o644) }
-	write("a.fbplugin", hubtest.SignPlugin(t, hubtest.PluginZip(t, "net.example.a", "1.0.0", []string{"ui"}, nil)))
+	write("a.uzplugin", hubtest.SignPlugin(t, hubtest.PluginZip(t, "net.example.a", "1.0.0", []string{"ui"}, nil)))
 	write("b.FBPLUGIN", hubtest.PluginZip(t, "net.example.b", "1.0.0", nil, nil))
-	write("broken.fbplugin", []byte("nope"))
+	write("broken.uzplugin", []byte("nope"))
 	write("notes.txt", []byte("ignored"))
 	sum, err := svc.ImportPlugins(ctx, dir)
-	if err != nil || sum.Added != 2 || sum.Unchanged != 0 || len(sum.Problems) != 1 || !strings.HasPrefix(sum.Problems[0], "broken.fbplugin") {
+	if err != nil || sum.Added != 2 || sum.Unchanged != 0 || len(sum.Problems) != 1 || !strings.HasPrefix(sum.Problems[0], "broken.uzplugin") {
 		t.Fatalf("%v %+v", err, sum)
 	}
 	ps, _ := svc.ListPlugins(ctx)
@@ -207,7 +207,7 @@ func TestImportPlugins(t *testing.T) {
 		t.Fatalf("repeat %+v", sum)
 	}
 	// A different file with an offered version is a problem, not an overwrite.
-	write("a.fbplugin", hubtest.SignPlugin(t, hubtest.PluginZip(t, "net.example.a", "1.0.0", []string{"ui"}, map[string]string{"x": "y"})))
+	write("a.uzplugin", hubtest.SignPlugin(t, hubtest.PluginZip(t, "net.example.a", "1.0.0", []string{"ui"}, map[string]string{"x": "y"})))
 	sum, _ = svc.ImportPlugins(ctx, dir)
 	if len(sum.Problems) != 2 || !strings.Contains(strings.Join(sum.Problems, "\n"), "different file") {
 		t.Fatalf("conflict %+v", sum)
@@ -314,7 +314,7 @@ func TestPluginIndexRejections(t *testing.T) {
 		if err := svc.RefreshPluginIndex(ctx); err != nil {
 			t.Fatal(err)
 		}
-		file := filepath.Join(dir, "plugin-0.fbplugin")
+		file := filepath.Join(dir, "plugin-0.uzplugin")
 		// Same size, other content: SHA-256 pin fails.
 		changed := bytes.Replace(good, []byte("manifest.json"), []byte("manifesT.json"), 1)
 		os.WriteFile(file, changed, 0o644)
@@ -352,4 +352,65 @@ func TestPluginIndexRejections(t *testing.T) {
 			t.Fatal("index signed by an untrusted key accepted")
 		}
 	})
+}
+
+// A mix of .uzplugin and legacy .fbplugin (any case) in one folder is imported; the stored name is .uzplugin.
+func TestImportPluginsBothExtensions(t *testing.T) {
+	svc := pluginHub(t, nil)
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "new.UZPLUGIN"), hubtest.PluginZip(t, "net.example.new", "1.0.0", nil, nil), 0o644)
+	os.WriteFile(filepath.Join(dir, "old.fbplugin"), hubtest.PluginZip(t, "net.example.old", "1.0.0", nil, nil), 0o644)
+	sum, err := svc.ImportPlugins(ctx, dir)
+	if err != nil || sum.Added != 2 || len(sum.Problems) != 0 {
+		t.Fatalf("%v %+v", err, sum)
+	}
+	for _, id := range []string{"net.example.new", "net.example.old"} {
+		if _, err := os.Stat(filepath.Join(svc.DataDir(), "plugins", id, "1.0.0.uzplugin")); err != nil {
+			t.Fatalf("%s: %v", id, err)
+		}
+	}
+}
+
+// Files stored by an older server (<version>.fbplugin) are renamed at start, once; an existing new name wins.
+func TestLegacyPluginFilesMigrated(t *testing.T) {
+	dir := t.TempDir()
+	mod := func(o *hub.Options) { o.CoreTrustKeys = hubtest.PluginKeys() }
+	svc, _, _ := hubtest.OpenIn(t, dir, mod)
+	src := t.TempDir()
+	for _, id := range []string{"net.example.mig", "net.example.both"} {
+		os.WriteFile(filepath.Join(src, id+".uzplugin"), hubtest.PluginZip(t, id, "1.0.0", nil, nil), 0o644)
+	}
+	if sum, err := svc.ImportPlugins(ctx, src); err != nil || sum.Added != 2 {
+		t.Fatalf("%v %+v", err, sum)
+	}
+	mig, both := filepath.Join(dir, "plugins", "net.example.mig"), filepath.Join(dir, "plugins", "net.example.both")
+	// mig: only the legacy name; both: both names (the new one must not be overwritten).
+	if err := os.Rename(filepath.Join(mig, "1.0.0.uzplugin"), filepath.Join(mig, "1.0.0.fbplugin")); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(both, "1.0.0.fbplugin"), []byte("stale"), 0o644)
+	for i := 0; i < 2; i++ { // second start: idempotent
+		svc, _, _ = hubtest.OpenIn(t, dir, mod)
+		if _, err := os.Stat(filepath.Join(mig, "1.0.0.uzplugin")); err != nil {
+			t.Fatalf("start %d: %v", i, err)
+		}
+		if _, err := os.Stat(filepath.Join(mig, "1.0.0.fbplugin")); err == nil {
+			t.Fatalf("start %d: legacy file left", i)
+		}
+		if b, _ := os.ReadFile(filepath.Join(both, "1.0.0.uzplugin")); string(b) == "stale" || len(b) == 0 {
+			t.Fatal("existing new file overwritten")
+		}
+	}
+	f, _, err := svc.OpenPluginFile(ctx, "net.example.mig", "1.0.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+	// Removing a version removes both names.
+	if err := svc.RemovePlugin(ctx, "net.example.both", "1.0.0"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(both, "1.0.0.fbplugin")); err == nil {
+		t.Fatal("legacy file of a removed version left")
+	}
 }

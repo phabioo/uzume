@@ -7,7 +7,7 @@
 #include <QTimer>
 #include <functional>
 
-#include "fbplugin.h"
+#include "uzplugin.h"
 #include "manifest.h"
 
 namespace uzume::plugins {
@@ -22,7 +22,7 @@ struct InstallResult {
   QStringList addedPermissions;   // an update asks for permissions the replaced copy did not have: the plugin was turned off
 };
 
-// A plugin version of a run (the Hub's pin: id, version, SHA-256 of the .fbplugin).
+// A plugin version of a run (the Hub's pin: id, version, SHA-256 of the .uzplugin).
 struct RunPluginPin {
   QString id;
   QString version;
@@ -35,7 +35,7 @@ struct GameResolution {
   QMap<QString, QStringList> problems;  // plugin id -> reasons it is not started
 };
 
-// Installed plugins on disk: <root>/installed/<id>/ (installed from a folder or a .fbplugin file on this device),
+// Installed plugins on disk: <root>/installed/<id>/ (installed from a folder or a .uzplugin file on this device),
 // <root>/hub/<id>/<version>/ (copies delivered by the Hub, several versions side by side), <root>/cache/<id>/,
 // <root>/state.json (enabled flags, linked dev folders). Every installed folder carries an origin.json written by the
 // Player after the checks ("official": valid Uzume signature, wherever it came from; "unverified": unsigned copy
@@ -56,15 +56,15 @@ class PluginManager : public QObject {
   // Validates the manifest in `srcDir`, then copies the folder to installed/<id> (replacing a local copy of that id).
   // A new install is turned off. A folder is always "local" (a SIGNATURE.json inside it is not looked at).
   InstallResult installFromFolder(const QString& srcDir);
-  // Installs a .fbplugin file from this device to installed/<id>: signed by a trusted key -> "official", otherwise
+  // Installs a .uzplugin file from this device to installed/<id>: signed by a trusted key -> "official", otherwise
   // "local". A new install is turned off.
-  InstallResult installFromFile(const QString& fbpluginPath);
-  // Folder or .fbplugin file, by what `path` is.
+  InstallResult installFromFile(const QString& packagePath);
+  // Folder or .uzplugin file, by what `path` is.
   InstallResult installFromPath(const QString& path);
-  // Installs the bytes of a .fbplugin downloaded from the Hub as hub/<id>/<version>/. Rejected (nothing changes) when
-  // the SHA-256 of `fbplugin` differs from `sha256` or the file is not plugin `pluginId` at `version`. Valid
+  // Installs the bytes of a .uzplugin downloaded from the Hub as hub/<id>/<version>/. Rejected (nothing changes) when
+  // the SHA-256 of `packageBytes` differs from `sha256` or the file is not plugin `pluginId` at `version`. Valid
   // signature -> "official", otherwise "unverified". An existing copy of that version is replaced only after success.
-  InstallResult installHubCopy(const QByteArray& fbplugin, const QString& pluginId, const QString& version, const QString& sha256);
+  InstallResult installHubCopy(const QByteArray& packageBytes, const QString& pluginId, const QString& version, const QString& sha256);
   // Directory of the Hub copy (id, version) that was installed from exactly the file with `sha256`; empty if absent.
   QString hubCopyDir(const QString& pluginId, const QString& version, const QString& sha256) const;
   // Every Hub copy on disk (all versions), sorted by id and version.
@@ -115,7 +115,7 @@ class PluginManager : public QObject {
   void onWatchTriggered(const QString& path);
   void flushChanged();
   Entry makeEntry(const QString& dir, const QString& fallbackId, bool devLinked) const;
-  InstallResult installPackage(const FbPluginPackage& pkg, const QString& dest, const QString& tmp, const QString& origin,
+  InstallResult installPackage(const UzPluginPackage& pkg, const QString& dest, const QString& tmp, const QString& origin,
                                const QString& sourceSha, const QString& signatureNote);
   void scanHub();
   GameResolution resolveWhere(const std::function<bool(const Manifest&)>& wanted) const;

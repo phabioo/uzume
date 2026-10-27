@@ -611,17 +611,17 @@ A plugin reaches the app in three ways, and the app always shows where it came f
 
 | Origin | Pill | How | Runs |
 |---|---|---|---|
-| `official` | "✓ Official" | signed by the Uzume release key, from the server, a `.fbplugin` file or the plugin index | always |
+| `official` | "✓ Official" | signed by the Uzume release key, from the server, a `.uzplugin` file or the plugin index | always |
 | `unverified` | "! Hub upload · unverified" | unsigned, offered by the server (an admin uploaded it) | always; the app warns before it is turned on |
-| `local` | "Local file" | unsigned `.fbplugin` file or plugin folder on this device | only while Developer mode is on |
+| `local` | "Local file" | unsigned `.uzplugin` file or plugin folder on this device | only while Developer mode is on |
 
-- **From the server:** "Browse plugins on your Hub" lists what the server offers (REST `GET /plugins`, handshake feature `plugins_v1`). Install or Update downloads the file with the SHA-256 from the list as a pin: a file that does not match is rejected and nothing is installed; a network error leaves the previous state. The file is checked like any `.fbplugin` (below) and stored as a server copy under `<data>/plugins/hub/<id>/<version>/` (several versions side by side, `origin.json` written by the app). A new install is turned off. An update that asks for permissions the previous version did not have is turned off.
-- **From a file:** "Install from file..." takes a `.fbplugin` (or a plugin folder). A valid Uzume signature makes it Official, otherwise it is Local. It is copied to `<data>/plugins/installed/<id>/`. A SIGNATURE.json or `origin.json` inside a folder is never trusted.
+- **From the server:** "Browse plugins on your Hub" lists what the server offers (REST `GET /plugins`, handshake feature `plugins_v1`). Install or Update downloads the file with the SHA-256 from the list as a pin: a file that does not match is rejected and nothing is installed; a network error leaves the previous state. The file is checked like any `.uzplugin` (below) and stored as a server copy under `<data>/plugins/hub/<id>/<version>/` (several versions side by side, `origin.json` written by the app). A new install is turned off. An update that asks for permissions the previous version did not have is turned off.
+- **From a file:** "Install from file..." takes a `.uzplugin` (or a plugin folder). A valid Uzume signature makes it Official, otherwise it is Local. It is copied to `<data>/plugins/installed/<id>/`. A SIGNATURE.json or `origin.json` inside a folder is never trusted.
 - **Outside runs** one copy per plugin id is active: a linked developer folder, else the installed file/folder, else the newest server copy. A run uses exactly the server version of the run (`PluginDelivery::ensureHubCopy(id, version, sha256)` downloads it when missing); a local copy never replaces it.
 
-### `.fbplugin` file
+### `.uzplugin` file
 
-A zip (stored or deflated) with `manifest.json` at the root, the entry file, assets and i18n as in a plugin folder, and an optional `SIGNATURE.json`. Limits, identical in server and app: file <= 32 MiB, sum of unpacked sizes <= 64 MiB, <= 2000 entries; names are relative paths with `/`, no leading `/`, no `\`, no drive letter or `:`, no `.` or `..` or empty segment, <= 255 bytes, no duplicates ignoring case, no symbolic links (directory entries are ignored); `manifest.json` valid, `api` 1, entry file present. Not a valid zip, encrypted entries, zip64 and multi-part archives are rejected.
+A zip (stored or deflated; extension `.uzplugin`, the legacy `.fbplugin` is still read as input) with `manifest.json` at the root, the entry file, assets and i18n as in a plugin folder, and an optional `SIGNATURE.json`. Limits, identical in server and app: file <= 32 MiB, sum of unpacked sizes <= 64 MiB, <= 2000 entries; names are relative paths with `/`, no leading `/`, no `\`, no drive letter or `:`, no `.` or `..` or empty segment, <= 255 bytes, no duplicates ignoring case, no symbolic links (directory entries are ignored); `manifest.json` valid, `api` 1, entry file present. Not a valid zip, encrypted entries, zip64 and multi-part archives are rejected.
 
 ```json
 { "format": 1, "files": { "<path>": "<sha256 hex>", ... }, "signature": "<base64 Ed25519 signature>" }

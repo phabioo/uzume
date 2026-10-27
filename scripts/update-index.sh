@@ -65,6 +65,10 @@ if [ "$release_exists" != true ]; then
   gh release create updates-index --title "Uzume update index" \
     --notes "Signed index of Uzume server and app releases (updates-index.json + .sig + .signed). Read by Uzume servers and apps; updated by the release and promote workflows." \
     --latest=false
+else
+  # An existing release keeps its old title and notes ("FrameBeam update index"); set the current ones.
+  gh release edit updates-index --title "Uzume update index" \
+    --notes "Signed index of Uzume server and app releases (updates-index.json + .sig + .signed). Read by Uzume servers and apps; updated by the release and promote workflows."
 fi
 gh release upload updates-index "$idx/updates-index.json.signed" --clobber
 gh release upload updates-index "$idx/updates-index.json" "$idx/updates-index.json.sig" --clobber

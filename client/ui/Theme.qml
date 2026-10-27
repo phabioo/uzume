@@ -271,7 +271,7 @@ QtObject {
     function pluginImageUrl(pluginId: string, src: string): string {
         if (!src) return ""
         const m = /^(cache|asset):(.+)$/.exec(src)
-        return m ? "image://fbplugin/" + pluginId + "/" + m[1] + "/" + m[2] : ""
+        return m ? "image://uzplugin/" + pluginId + "/" + m[1] + "/" + m[2] : ""
     }
     // Neutral colors of the blocks by role, for the given theme.
     function blockColor(role: string, dark: bool): color {

@@ -58,7 +58,7 @@ var moreCommands = []commandHelp{
 	{"renew-cert", "renew the self-generated TLS certificate now (changes the security code)"},
 	{"import-cores <dir>", "import libretro buildbot core zips from a folder (offline)"},
 	{"import-cheats <zip>", "import a libretro-database archive as the cheat database (offline)"},
-	{"import-plugins <dir>", "offer every *.fbplugin file of a folder to apps (offline)"},
+	{"import-plugins <dir>", "offer every *.uzplugin file of a folder to apps (offline; legacy .fbplugin accepted)"},
 	{"import-tools <zip>...", "add randomizer engine release zips to the tools catalog (offline)"},
 	{"diagnostics <out.zip>", "write the diagnostics bundle (logs, configuration; no database access)"},
 	{"import-data --from DIR", "copy the data folder of a stopped server (the app's \"On this PC\" server) into this server's data folder"},

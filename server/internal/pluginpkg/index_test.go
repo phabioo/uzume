@@ -8,14 +8,14 @@ import (
 
 func goodEntry() IndexEntry {
 	return IndexEntry{ID: "net.example.tracker", Name: "Tracker", Version: "1.2.0", API: 1, Description: "d", Permissions: []string{"ui"},
-		URL: "https://example.org/t.fbplugin", SHA256: strings.Repeat("ab", 32), Size: 100}
+		URL: "https://example.org/t.uzplugin", SHA256: strings.Repeat("ab", 32), Size: 100}
 }
 
 func TestIndexRoundTripAndSkips(t *testing.T) {
 	good := goodEntry()
 	bad := goodEntry()
 	bad.Version = "1.3.0"
-	bad.URL = "http://example.org/x.fbplugin"
+	bad.URL = "http://example.org/x.uzplugin"
 	idx := Index{Format: 1, GeneratedAt: time.Date(2026, 10, 12, 1, 2, 3, 0, time.UTC), Plugins: []IndexEntry{good, bad}}
 	b, err := MarshalIndex(idx)
 	if err != nil {
@@ -57,14 +57,14 @@ func TestValidateEntry(t *testing.T) {
 		"size0":    mut(func(e *IndexEntry) { e.Size = 0 }),
 		"size big": mut(func(e *IndexEntry) { e.Size = MaxCompressedBytes + 1 }),
 		"http":     mut(func(e *IndexEntry) { e.URL = "http://e.org/a" }),
-		"file":     mut(func(e *IndexEntry) { e.URL = "file:///tmp/a.fbplugin" }),
+		"file":     mut(func(e *IndexEntry) { e.URL = "file:///tmp/a.uzplugin" }),
 		"user":     mut(func(e *IndexEntry) { e.URL = "https://u:p@e.org/a" }),
 	} {
 		if err := ValidateEntry(e, false); err == nil {
 			t.Errorf("%s accepted", name)
 		}
 	}
-	f := mut(func(e *IndexEntry) { e.URL = "file:///tmp/a.fbplugin" })
+	f := mut(func(e *IndexEntry) { e.URL = "file:///tmp/a.uzplugin" })
 	if err := ValidateEntry(f, true); err != nil {
 		t.Errorf("file url with allowFile: %v", err)
 	}

@@ -624,7 +624,7 @@ class AdminUiTest : public QObject {
     AdminController* a = h.controller->admin();
     QTemporaryDir in;
     QVERIFY(in.isValid());
-    QFile f(in.filePath(QStringLiteral("plugin.fbplugin")));
+    QFile f(in.filePath(QStringLiteral("plugin.uzplugin")));
     QVERIFY(f.open(QIODevice::WriteOnly));
     const QByteArray payload = QByteArray("PK\x03\x04", 4) + QByteArray(70000, 'p');
     f.write(payload);

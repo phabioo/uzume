@@ -2,7 +2,7 @@
 
 At a glance: Schema 1 of the signed release feed (`updates-index.json`) that the server and app updaters read. Use of it: [updates.md](../guides/updates.md).
 
-Release feed of the updater ([ADR 0011](../adr/0011-automatic-updates.md)). No change to `protocol_version` (stays 1) or OpenAPI. Release `updates-index` holds `updates-index.json` and `updates-index.json.sig` (default URL `https://github.com/phabioo/uzume/releases/download/updates-index/updates-index.json`; signature URL = index URL + `.sig`). Signature as for the core index: Ed25519 over the exact bytes, one line `ed25519 <key_id> <base64 sig>`, same release key.
+Release feed of the updater ([ADR 0011](../adr/0011-automatic-updates.md)). No change to `protocol_version` (stays 1) or OpenAPI. Release `updates-index` (titled "Uzume update index") holds `updates-index.json` and `updates-index.json.sig` (default URL `https://github.com/phabioo/uzume/releases/download/updates-index/updates-index.json`; signature URL = index URL + `.sig`). Signature as for the core index: Ed25519 over the exact bytes, one line `ed25519 <key_id> <base64 sig>`, same release key.
 
 Schema 1:
 

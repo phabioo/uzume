@@ -1,4 +1,4 @@
-// .fbplugin reading (contract section 1): zip validation with synthetic archives built in the test, limits, manifest,
+// .uzplugin reading (contract section 1): zip validation with synthetic archives built in the test, limits, manifest,
 // entry and api checks, SIGNATURE.json with a test key (never the release key), extraction.
 #include <QFile>
 #include <QJsonArray>
@@ -7,8 +7,8 @@
 #include <QTemporaryDir>
 #include <QtTest>
 
-#include "fbplugin.h"
-#include "fbplugin_testutil.h"
+#include "uzplugin.h"
+#include "uzplugin_testutil.h"
 
 using namespace uzume::plugins;
 using namespace uzume::plugins::testutil;
@@ -23,15 +23,15 @@ QList<QByteArray> keys(const TestKey& k) { return {k.pub}; }
 
 }  // namespace
 
-class FbPluginTest : public QObject {
+class UzPluginTest : public QObject {
   Q_OBJECT
 
-  static FbPluginResult read(const QList<ZipEntrySpec>& e, const QList<QByteArray>& trusted = {}) { return readFbPlugin(buildZip(e), trusted); }
+  static UzPluginResult read(const QList<ZipEntrySpec>& e, const QList<QByteArray>& trusted = {}) { return readUzPlugin(buildZip(e), trusted); }
 
  private slots:
   void validUnsigned() {
     const QByteArray file = buildZip(base() + QList<ZipEntrySpec>{{"i18n/de-\xC3\xBC.json", "{}"}, {"assets/", ""}});
-    const FbPluginResult r = readFbPlugin(file, {});
+    const UzPluginResult r = readUzPlugin(file, {});
     QVERIFY2(r.ok, qPrintable(r.error));
     QCOMPARE(r.package.manifest.id, QString("net.test.plugin"));
     QCOMPARE(r.package.files.size(), 3);  // directory entry ignored
@@ -44,25 +44,25 @@ class FbPluginTest : public QObject {
   void deflateAndStore() {
     ZipEntrySpec big{"data/big.bin", QByteArray(100000, 'a'), true};
     ZipEntrySpec stored{"data/small.bin", "xyz", false};
-    const FbPluginResult r = read(base() + QList<ZipEntrySpec>{big, stored});
+    const UzPluginResult r = read(base() + QList<ZipEntrySpec>{big, stored});
     QVERIFY2(r.ok, qPrintable(r.error));
     QCOMPARE(r.package.files["data/big.bin"], QByteArray(100000, 'a'));
     QCOMPARE(r.package.files["data/small.bin"], QByteArray("xyz"));
   }
 
   void zipCommentIsAllowed() {
-    const FbPluginResult r = readFbPlugin(buildZip(base(), "built by a test"), {});
+    const UzPluginResult r = readUzPlugin(buildZip(base(), "built by a test"), {});
     QVERIFY2(r.ok, qPrintable(r.error));
   }
 
   void notAZip() {
-    QVERIFY(!readFbPlugin(QByteArray("this is not a zip"), {}).ok);
-    QVERIFY(!readFbPlugin(QByteArray(), {}).ok);
+    QVERIFY(!readUzPlugin(QByteArray("this is not a zip"), {}).ok);
+    QVERIFY(!readUzPlugin(QByteArray(), {}).ok);
     const QByteArray good = buildZip(base());
-    QVERIFY(!readFbPlugin(good.left(good.size() - 5), {}).ok);  // truncated: no end record
+    QVERIFY(!readUzPlugin(good.left(good.size() - 5), {}).ok);  // truncated: no end record
     QByteArray damaged = good;
     damaged[0] = 'X';  // local header of the first entry
-    QVERIFY(!readFbPlugin(damaged, {}).ok);
+    QVERIFY(!readUzPlugin(damaged, {}).ok);
   }
 
   void badNames_data() {
@@ -91,7 +91,7 @@ class FbPluginTest : public QObject {
   }
   void badNames() {
     QFETCH(QString, name);
-    const FbPluginResult r = read(base() + QList<ZipEntrySpec>{{name, "x"}});
+    const UzPluginResult r = read(base() + QList<ZipEntrySpec>{{name, "x"}});
     QVERIFY2(!r.ok, qPrintable(name));
     QVERIFY(!r.error.isEmpty());
   }
@@ -105,14 +105,14 @@ class FbPluginTest : public QObject {
   void directoryEntriesAreIgnored() {
     // Directory entries are ignored, but their names are checked like file names (as the Hub does).
     QVERIFY(!read(base() + QList<ZipEntrySpec>{{"../", ""}}).ok);
-    const FbPluginResult r = read(base() + QList<ZipEntrySpec>{{"a/b/", ""}, {"a/b/c.txt", "1"}});
+    const UzPluginResult r = read(base() + QList<ZipEntrySpec>{{"a/b/", ""}, {"a/b/c.txt", "1"}});
     QVERIFY2(r.ok, qPrintable(r.error));
     QCOMPARE(r.package.files.size(), 3);
   }
 
   void duplicates() {
     QVERIFY(!read(base() + QList<ZipEntrySpec>{{"a.txt", "1"}, {"a.txt", "2"}}).ok);
-    const FbPluginResult ci = read(base() + QList<ZipEntrySpec>{{"Main.lua", "x"}});  // differs from main.lua only in case
+    const UzPluginResult ci = read(base() + QList<ZipEntrySpec>{{"Main.lua", "x"}});  // differs from main.lua only in case
     QVERIFY(!ci.ok);
     QVERIFY(ci.error.contains("duplicate"));
     QVERIFY(!read(base() + QList<ZipEntrySpec>{{"data/A.bin", "1"}, {"DATA/a.bin", "2"}}).ok);
@@ -124,7 +124,7 @@ class FbPluginTest : public QObject {
 
   void symlinkIsRejected() {
     ZipEntrySpec link{"link.lua", "main.lua", false, true};
-    const FbPluginResult r = read(base() + QList<ZipEntrySpec>{link});
+    const UzPluginResult r = read(base() + QList<ZipEntrySpec>{link});
     QVERIFY(!r.ok);
     QVERIFY(r.error.contains("symbolic link"));
   }
@@ -135,7 +135,7 @@ class FbPluginTest : public QObject {
     QCOMPARE(e.size(), 2000);
     QVERIFY2(read(e).ok, "2000 entries are allowed");
     e.append(ZipEntrySpec{"f/over.txt", "x"});
-    const FbPluginResult r = read(e);
+    const UzPluginResult r = read(e);
     QVERIFY(!r.ok);
     QVERIFY(r.error.contains("2000"));
   }
@@ -150,22 +150,22 @@ class FbPluginTest : public QObject {
     // The headers are checked before any data is touched: two entries that claim 40 MiB each.
     ZipEntrySpec a{"a.bin", "x", false, false, 40ll << 20};
     ZipEntrySpec b{"b.bin", "x", false, false, 40ll << 20};
-    const FbPluginResult r = read(base() + QList<ZipEntrySpec>{a, b});
+    const UzPluginResult r = read(base() + QList<ZipEntrySpec>{a, b});
     QVERIFY(!r.ok);
     QVERIFY2(r.error.contains("64 MiB"), qPrintable(r.error));
   }
 
   void exactlyAtTheUnpackedLimit() {
     // 64 MiB of real data in one stored entry is fine (the manifest and entry file are tiny and count too).
-    const qint64 rest = kFbPluginMaxUnpackedBytes - kManifest.size() - 7;
+    const qint64 rest = kUzPluginMaxUnpackedBytes - kManifest.size() - 7;
     ZipEntrySpec big{"big.bin", QByteArray(static_cast<qsizetype>(rest), 'z'), true};
-    const FbPluginResult r = read(base() + QList<ZipEntrySpec>{big});
+    const UzPluginResult r = read(base() + QList<ZipEntrySpec>{big});
     QVERIFY2(r.ok, qPrintable(r.error));
   }
 
   void fileSizeLimit() {
-    const QByteArray huge(static_cast<qsizetype>(kFbPluginMaxFileBytes) + 1, 'x');
-    const FbPluginResult r = readFbPlugin(huge, {});
+    const QByteArray huge(static_cast<qsizetype>(kUzPluginMaxFileBytes) + 1, 'x');
+    const UzPluginResult r = readUzPlugin(huge, {});
     QVERIFY(!r.ok);
     QVERIFY(r.error.contains("32 MiB"));
   }
@@ -173,7 +173,7 @@ class FbPluginTest : public QObject {
   void lyingSizeIsCaught() {
     // Declares 10 bytes, inflates to 100000: the inflater stops at the declared size, the entry is rejected.
     ZipEntrySpec bomb{"bomb.bin", QByteArray(100000, 'a'), true, false, 10};
-    const FbPluginResult r = read(base() + QList<ZipEntrySpec>{bomb});
+    const UzPluginResult r = read(base() + QList<ZipEntrySpec>{bomb});
     QVERIFY(!r.ok);
     // Stored entry whose data is longer than declared.
     ZipEntrySpec lie{"lie.bin", QByteArray(500, 'a'), false, false, 10};
@@ -182,7 +182,7 @@ class FbPluginTest : public QObject {
 
   void crcMismatch() {
     ZipEntrySpec bad{"bad.bin", "hello", false, false, -1, 0x12345678u, true};
-    const FbPluginResult r = read(base() + QList<ZipEntrySpec>{bad});
+    const UzPluginResult r = read(base() + QList<ZipEntrySpec>{bad});
     QVERIFY(!r.ok);
     QVERIFY(r.error.contains("checksum"));
   }
@@ -192,13 +192,13 @@ class FbPluginTest : public QObject {
     QVERIFY(!read({{"manifest.json", "{not json"}, {"main.lua", "x"}}).ok);
     // entry file missing
     QVERIFY(!read({{"manifest.json", kManifest}}).ok);
-    const FbPluginResult noEntry = read({{"manifest.json", kManifest}, {"other.lua", "x"}});
+    const UzPluginResult noEntry = read({{"manifest.json", kManifest}, {"other.lua", "x"}});
     QVERIFY(!noEntry.ok);
     QVERIFY(noEntry.error.contains("main.lua"));
     // api 2
     QByteArray api2 = kManifest;
     api2.replace("\"api\":1", "\"api\":2");
-    const FbPluginResult r2 = read({{"manifest.json", api2}, {"main.lua", "x"}});
+    const UzPluginResult r2 = read({{"manifest.json", api2}, {"main.lua", "x"}});
     QVERIFY(!r2.ok);
     QVERIFY(r2.error.contains("API"));
     // invalid id, version, entry
@@ -238,14 +238,14 @@ class FbPluginTest : public QObject {
     FbSpec s;
     s.sign = true;
     s.extra["i18n/en.json"] = "{}";
-    const FbPluginResult r = readFbPlugin(makeFbPlugin(s), keys(key));
+    const UzPluginResult r = readUzPlugin(makeUzPlugin(s), keys(key));
     QVERIFY2(r.ok, qPrintable(r.error));
     QVERIFY2(r.package.signature == SignatureState::Valid, qPrintable(r.package.signatureError));
     QVERIFY(r.package.official());
   }
 
   void unsignedIsNotOfficial() {
-    const FbPluginResult r = readFbPlugin(makeFbPlugin(FbSpec{}), keys(fixedTestKey()));
+    const UzPluginResult r = readUzPlugin(makeUzPlugin(FbSpec{}), keys(fixedTestKey()));
     QVERIFY(r.ok);
     QVERIFY(r.package.signature == SignatureState::None);
     QVERIFY(!r.package.official());
@@ -255,7 +255,7 @@ class FbPluginTest : public QObject {
     FbSpec s;
     s.sign = true;
     s.key = fixedTestKey(1);  // signed with another key
-    const FbPluginResult r = readFbPlugin(makeFbPlugin(s), keys(fixedTestKey()));
+    const UzPluginResult r = readUzPlugin(makeUzPlugin(s), keys(fixedTestKey()));
     QVERIFY(r.ok);  // an invalid signature is reported, the file itself is still a valid plugin
     QVERIFY(r.package.signature == SignatureState::Invalid);
     QVERIFY(!r.package.official());
@@ -263,7 +263,7 @@ class FbPluginTest : public QObject {
     // No trusted keys at all
     FbSpec s2;
     s2.sign = true;
-    QVERIFY(readFbPlugin(makeFbPlugin(s2), {}).package.signature == SignatureState::Invalid);
+    QVERIFY(readUzPlugin(makeUzPlugin(s2), {}).package.signature == SignatureState::Invalid);
   }
 
   void tamperedFileIsInvalid() {
@@ -275,7 +275,7 @@ class FbPluginTest : public QObject {
     files["SIGNATURE.json"] = sig;
     QList<ZipEntrySpec> e;
     for (auto it = files.begin(); it != files.end(); ++it) e.append(ZipEntrySpec{it.key(), it.value()});
-    const FbPluginResult r = read(e, keys(key));
+    const UzPluginResult r = read(e, keys(key));
     QVERIFY(r.ok);
     QVERIFY(r.package.signature == SignatureState::Invalid);
     QVERIFY(r.package.signatureError.contains("main.lua"));
@@ -293,7 +293,7 @@ class FbPluginTest : public QObject {
       f["SIGNATURE.json"] = sig;
       QList<ZipEntrySpec> e;
       for (auto it = f.begin(); it != f.end(); ++it) e.append(ZipEntrySpec{it.key(), it.value()});
-      const FbPluginResult r = read(e, keys(key));
+      const UzPluginResult r = read(e, keys(key));
       QVERIFY(r.ok);
       QVERIFY(r.package.signature == SignatureState::Invalid);
     }
@@ -306,7 +306,7 @@ class FbPluginTest : public QObject {
       f["SIGNATURE.json"] = sig;
       QList<ZipEntrySpec> e;
       for (auto it = f.begin(); it != f.end(); ++it) e.append(ZipEntrySpec{it.key(), it.value()});
-      const FbPluginResult r = read(e, keys(key));
+      const UzPluginResult r = read(e, keys(key));
       QVERIFY(r.ok);
       QVERIFY(r.package.signature == SignatureState::Invalid);
       QVERIFY(r.package.signatureError.contains("gone.txt"));
@@ -325,7 +325,7 @@ class FbPluginTest : public QObject {
   }
   void brokenSignatureFilesAreInvalid() {
     QFETCH(QByteArray, json);
-    const FbPluginResult r = read(base() + QList<ZipEntrySpec>{{"SIGNATURE.json", json}}, keys(fixedTestKey()));
+    const UzPluginResult r = read(base() + QList<ZipEntrySpec>{{"SIGNATURE.json", json}}, keys(fixedTestKey()));
     QVERIFY(r.ok);
     QVERIFY(r.package.signature == SignatureState::Invalid);
     QVERIFY(!r.package.official());
@@ -360,7 +360,7 @@ class FbPluginTest : public QObject {
 
   // Vector written by the Hub (server/internal/pluginpkg/testdata): same message, same signature, same file.
   void hubVector() {
-    QFile vf(QString(FB_PLUGIN_TESTDATA) + "/signature-vector.json");
+    QFile vf(QString(UZ_PLUGIN_TESTDATA) + "/signature-vector.json");
     QVERIFY(vf.open(QIODevice::ReadOnly));
     const QJsonObject v = QJsonDocument::fromJson(vf.readAll()).object();
     const QByteArray pub = QByteArray::fromBase64(v["public_key_base64"].toString().toLatin1());
@@ -373,13 +373,13 @@ class FbPluginTest : public QObject {
     const QByteArray msg = pluginSignatureMessage(h);
     QCOMPARE(msg, v["signed_message"].toString().toUtf8());
     QCOMPARE(ed25519Sign(fixedTestKey(), msg).toBase64(), v["signature_base64"].toString().toLatin1());
-    QFile pf(QString(FB_PLUGIN_TESTDATA) + "/vector.fbplugin");
+    QFile pf(QString(UZ_PLUGIN_TESTDATA) + "/vector.uzplugin");
     QVERIFY(pf.open(QIODevice::ReadOnly));
     const QByteArray vfile = pf.readAll();
-    const FbPluginResult r = readFbPlugin(vfile, {pub});
+    const UzPluginResult r = readUzPlugin(vfile, {pub});
     QVERIFY2(r.ok, qPrintable(r.error));
     QVERIFY2(r.package.signature == SignatureState::Valid, qPrintable(r.package.signatureError));
-    QVERIFY(readFbPlugin(vfile, {fixedTestKey(1).pub}).package.signature == SignatureState::Invalid);
+    QVERIFY(readUzPlugin(vfile, {fixedTestKey(1).pub}).package.signature == SignatureState::Invalid);
   }
 
   // ---- extraction
@@ -388,20 +388,20 @@ class FbPluginTest : public QObject {
     FbSpec s;
     s.extra["i18n/en.json"] = "{\"a\":1}";
     s.extra["assets/img/x.png"] = "png";
-    const FbPluginResult r = readFbPlugin(makeFbPlugin(s), {});
+    const UzPluginResult r = readUzPlugin(makeUzPlugin(s), {});
     QVERIFY(r.ok);
     QTemporaryDir dir;
     const QString dest = dir.filePath("out");
     QString err;
-    QVERIFY2(extractFbPlugin(r.package, dest, &err), qPrintable(err));
+    QVERIFY2(extractUzPlugin(r.package, dest, &err), qPrintable(err));
     QVERIFY(QFileInfo(dest + "/manifest.json").isFile());
     QVERIFY(QFileInfo(dest + "/main.lua").isFile());
     QFile f(dest + "/assets/img/x.png");
     QVERIFY(f.open(QIODevice::ReadOnly));
     QCOMPARE(f.readAll(), QByteArray("png"));
-    QVERIFY(!extractFbPlugin(r.package, dest, &err));  // refuses to write over existing files
+    QVERIFY(!extractUzPlugin(r.package, dest, &err));  // refuses to write over existing files
   }
 };
 
-QTEST_APPLESS_MAIN(FbPluginTest)
-#include "fbplugin_test.moc"
+QTEST_APPLESS_MAIN(UzPluginTest)
+#include "uzplugin_test.moc"

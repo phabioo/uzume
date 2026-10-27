@@ -22,5 +22,5 @@
   ],
   "signed_message": "uzume-plugin-v1\ndd5d25b7ee6f5aa87b8eb1ab5cb4cbc4c5effd2f74ef69e74eab1c204274fa7d  i18n/en.json\n24ae97fac5c846cc9d225af711611ce322a5b206c00cc3317334e0d3b428ad56  main.lua\n5b38f5a3ba88ef492bc0b48124f7bbde067bccab058a3dcc2295ad5fdafe32e8  manifest.json\n",
   "signature_base64": "PtLQbfoiScvCTPwEZ4l0ma58jMJoE/eAPnulGBn0/o9tDIrGDhu4mXDX9vZILW6tc1Gb6ADTe11yRM6xbhrKDA==",
-  "plugin_file": "vector.fbplugin"
+  "plugin_file": "vector.uzplugin"
 }

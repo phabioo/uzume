@@ -1,5 +1,5 @@
 // Plugin UI runtime in the PluginsController (shell context, UI models, actions, toasts, host events) and the
-// image://fbplugin provider safety rules. Homebrew plugin folders and generated PNGs only; no QML.
+// image://uzplugin provider safety rules. Homebrew plugin folders and generated PNGs only; no QML.
 #include <QDir>
 #include <QFile>
 #include <QImage>
@@ -10,7 +10,7 @@
 #include <QTemporaryDir>
 #include <QtTest>
 
-#include "fbplugin_testutil.h"
+#include "uzplugin_testutil.h"
 #include "pluginimageprovider.h"
 #include "pluginscontroller.h"
 
@@ -227,7 +227,7 @@ class PluginsRuntimeUiTest : public QObject {
     spec.permissions = perms;
     spec.ui = ui;
     spec.lua = lua;
-    const QByteArray file = uzume::plugins::testutil::makeFbPlugin(spec);
+    const QByteArray file = uzume::plugins::testutil::makeUzPlugin(spec);
     *sha = uzume::plugins::testutil::sha256Hex(file);
     const auto r = m_pc->manager()->installHubCopy(file, id, version, *sha);
     QVERIFY2(r.ok, qPrintable(r.error));

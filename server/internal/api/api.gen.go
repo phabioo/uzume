@@ -4258,7 +4258,7 @@ type RunParticipantVariantState string
 type RunPlugin struct {
 	PluginId string `json:"plugin_id"`
 
-	// Sha256 SHA-256 of the .fbplugin the server offered when the run was created
+	// Sha256 SHA-256 of the .uzplugin the server offered when the run was created
 	Sha256  string `json:"sha256"`
 	Version string `json:"version"`
 }
@@ -6504,7 +6504,7 @@ type ServerInterface interface {
 	// Write a value against a base revision (`plugin_store_v1`)
 	// (PUT /api/v1/plugins/{plugin_id}/store/{key})
 	PutPluginStoreValue(w http.ResponseWriter, r *http.Request, pluginId PluginId, key PluginStoreKey)
-	// Download the `.fbplugin` file of an offered plugin version (`plugins_v1`, any trusted device)
+	// Download the `.uzplugin` file of an offered plugin version (`plugins_v1`, any trusted device)
 	// (GET /api/v1/plugins/{plugin_id}/{version}/file)
 	GetPluginFile(w http.ResponseWriter, r *http.Request, pluginId PluginId, version PluginVersion, params GetPluginFileParams)
 	// Send a problem report to the server (`reports_v1`)
@@ -31031,7 +31031,7 @@ type StrictServerInterface interface {
 	// Write a value against a base revision (`plugin_store_v1`)
 	// (PUT /api/v1/plugins/{plugin_id}/store/{key})
 	PutPluginStoreValue(ctx context.Context, request PutPluginStoreValueRequestObject) (PutPluginStoreValueResponseObject, error)
-	// Download the `.fbplugin` file of an offered plugin version (`plugins_v1`, any trusted device)
+	// Download the `.uzplugin` file of an offered plugin version (`plugins_v1`, any trusted device)
 	// (GET /api/v1/plugins/{plugin_id}/{version}/file)
 	GetPluginFile(ctx context.Context, request GetPluginFileRequestObject) (GetPluginFileResponseObject, error)
 	// Send a problem report to the server (`reports_v1`)

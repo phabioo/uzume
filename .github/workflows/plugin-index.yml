@@ -1,7 +1,7 @@
 name: Publish plugin
 
-# Publishes the official signed plugin index (release "plugin-index" of this repo): optionally takes the *.fbplugin
-# file(s) of a release of an official plugin repo, signs them with the release key, adds them to plugin-index.json,
+# Publishes the official signed plugin index (release "plugin-index" of this repo): optionally takes the *.uzplugin
+# (legacy: *.fbplugin) file(s) of a release of an official plugin repo, signs them with the release key, adds them to plugin-index.json,
 # signs the index and uploads everything. Without inputs it only re-signs and publishes the existing (or an empty)
 # index. Servers read https://github.com/phabioo/uzume/releases/download/plugin-index/plugin-index.json by default.
 # The signing seed is the signing-key secret of the environment `release` (dispatch from main); it is only in
@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       repo:
-        description: 'Plugin repo, e.g. phabioo/uzume-plugin-pokemon-core (empty = only re-sign the index)'
+        description: 'Plugin repo, e.g. phabioo/uzume-plugin-soullink-core (empty = only re-sign the index)'
         required: false
         default: ''
         type: string
@@ -23,7 +23,7 @@ on:
         default: ''
         type: string
       remove_ids:
-        description: 'Plugin ids to remove from the index, space- or comma-separated (e.g. net.framebeam.soullink); their files are deleted after the new index is published'
+        description: 'Plugin ids to remove from the index, space- or comma-separated (e.g. uzume.soullink); their files are deleted after the new index is published'
         required: false
         default: ''
         type: string
@@ -116,6 +116,8 @@ jobs:
           jq -r --argjson ids "$ids" '.plugins[] | select(.id as $i | $ids | index($i)) | "\(.id)\t\(.version)"' "$work/plugin-index.json" > "$RUNNER_TEMP/removed.tsv"
           while IFS=$'\t' read -r id version; do
             echo "::notice::removing $id $version from the plugin index"
+            # New name and the legacy name of releases published before the rename.
+            echo "$id-$version.uzplugin" >> "$RUNNER_TEMP/remove-assets.txt"
             echo "$id-$version.fbplugin" >> "$RUNNER_TEMP/remove-assets.txt"
           done < "$RUNNER_TEMP/removed.tsv"
           while read -r rid; do
@@ -129,8 +131,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create plugin-index --title "Uzume plugin index" \
-            --notes 'Signed index of official Uzume plugins (plugin-index.json + .sig) and the signed .fbplugin files. Read by Uzume servers; updated by the workflow "Publish plugin".' \
+            --notes 'Signed index of official Uzume plugins (plugin-index.json + .sig) and the signed .uzplugin files. Read by Uzume servers; updated by the workflow "Publish plugin".' \
             --prerelease --latest=false
+      # An existing release keeps its old title and notes ("FrameBeam plugin index"); set the current ones.
+      - name: Update the index release title and notes
+        if: env.RELEASE_EXISTS == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release edit plugin-index --title "Uzume plugin index" \
+            --notes 'Signed index of official Uzume plugins (plugin-index.json + .sig) and the signed .uzplugin files. Read by Uzume servers; updated by the workflow "Publish plugin".'
       # No signing key in this step: it handles the untrusted downloaded zip (unzip, jq) and only writes the validated
       # list of plugin files for the signing step.
       - name: Download and validate the plugin
@@ -144,10 +154,11 @@ jobs:
           src="$RUNNER_TEMP/plugin-src"
           rm -rf "$src"; mkdir -p "$src"
           # The token for the plugin repo: the PAT when set, else the workflow token.
-          GH_TOKEN="${SRC_TOKEN:-$GH_TOKEN}" gh release download "$INPUT_TAG" --repo "$INPUT_REPO" --pattern '*.fbplugin' --dir "$src"
+          GH_TOKEN="${SRC_TOKEN:-$GH_TOKEN}" gh release download "$INPUT_TAG" --repo "$INPUT_REPO" --pattern '*.uzplugin' --pattern '*.fbplugin' --dir "$src"
           shopt -s nullglob
-          files=("$src"/*.fbplugin)
-          [ "${#files[@]}" -gt 0 ] || { echo "::error::release $INPUT_TAG of $INPUT_REPO has no .fbplugin asset"; exit 1; }
+          # .uzplugin first: when a release carries both names of one plugin version, the .uzplugin wins (.fbplugin is legacy).
+          files=("$src"/*.uzplugin "$src"/*.fbplugin)
+          [ "${#files[@]}" -gt 0 ] || { echo "::error::release $INPUT_TAG of $INPUT_REPO has no .uzplugin asset"; exit 1; }
           : > "$work/pending.tsv"
           for f in "${files[@]}"; do
             id="$(unzip -p "$f" manifest.json | jq -r '.id')"
@@ -156,6 +167,10 @@ jobs:
             [[ "$version" =~ ^[0-9A-Za-z.+-]+$ ]] || { echo "::error::unexpected plugin version in $(basename "$f")"; exit 1; }
             if grep -qxF "$id" "$RUNNER_TEMP/remove-ids.txt"; then
               echo "::error::$id is both added and listed in remove_ids"; exit 1
+            fi
+            if grep -qxF "$id"$'\t'"$version" <(cut -f1,2 "$work/pending.tsv"); then
+              echo "::notice::$id $version appears twice in the release; using the first file, skipping $(basename "$f")"
+              continue
             fi
             printf '%s\t%s\t%s\n' "$id" "$version" "$f" >> "$work/pending.tsv"
           done
@@ -169,15 +184,15 @@ jobs:
           work="$RUNNER_TEMP/plugin-index"
           sign="$RUNNER_TEMP/bin/uzume-sign"
           while IFS=$'\t' read -r id version f; do
-            out="$work/$id-$version.fbplugin"
+            out="$work/$id-$version.uzplugin"
             # A published version is immutable: never replace its file (Hubs keep the old one and run pins name its sha256).
-            if gh release view plugin-index --json assets -q '.assets[].name' | grep -qxF "$id-$version.fbplugin"; then
+            if gh release view plugin-index --json assets -q '.assets[].name' | grep -qxF -e "$id-$version.uzplugin" -e "$id-$version.fbplugin"; then
               echo "::notice::$id $version is already published; skipped (publish a new version instead)"
               continue
             fi
             "$sign" plugin-sign -in "$f" -out "$out"
             "$sign" plugin-add -index "$work/plugin-index.json" -plugin "$out" \
-              -url "https://github.com/$GH_REPO/releases/download/plugin-index/$id-$version.fbplugin"
+              -url "https://github.com/$GH_REPO/releases/download/plugin-index/$id-$version.uzplugin"
             gh release upload plugin-index "$out"
           done < "$work/pending.tsv"
       - name: Sign and publish the index

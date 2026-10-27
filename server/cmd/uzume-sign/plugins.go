@@ -13,7 +13,7 @@ import (
 	"github.com/phabioo/uzume/server/internal/pluginpkg"
 )
 
-// pluginSign validates a .fbplugin file and writes it with SIGNATURE.json added or replaced.
+// pluginSign validates a .uzplugin file and writes it with SIGNATURE.json added or replaced.
 func pluginSign(in, out string, getenv func(string) string) error {
 	if in == "" || out == "" {
 		return errors.New("-in and -out are required")

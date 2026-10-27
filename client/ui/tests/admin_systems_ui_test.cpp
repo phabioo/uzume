@@ -343,7 +343,7 @@ class AdminSystemsUiTest : public QObject {
     QTRY_VERIFY(h.item("pluginUpload") != nullptr);
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
-    QFile f(dir.filePath(QStringLiteral("tool.fbplugin")));
+    QFile f(dir.filePath(QStringLiteral("tool.uzplugin")));
     QVERIFY(f.open(QIODevice::WriteOnly));
     const QByteArray payload = QByteArray("PK\x03\x04", 4) + QByteArray(2000, 'z');
     f.write(payload);

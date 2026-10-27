@@ -50,7 +50,7 @@ func TestPluginSignAddAndIndexSign(t *testing.T) {
 		out.Reset()
 		return run(args, func(k string) string { return env[k] }, &out, now)
 	}
-	raw, signed := filepath.Join(dir, "raw.fbplugin"), filepath.Join(dir, "signed.fbplugin")
+	raw, signed := filepath.Join(dir, "raw.uzplugin"), filepath.Join(dir, "signed.uzplugin")
 	os.WriteFile(raw, pluginZip(t, "1.2.0", nil), 0o644)
 
 	if err := runE(nil, "plugin-sign", "-in", raw, "-out", signed); err == nil {
@@ -71,23 +71,23 @@ func TestPluginSignAddAndIndexSign(t *testing.T) {
 	}
 	// An invalid input is refused and no output is written.
 	os.WriteFile(raw, []byte("not a zip"), 0o644)
-	if err := runE(env, "plugin-sign", "-in", raw, "-out", filepath.Join(dir, "bad.fbplugin")); err == nil {
+	if err := runE(env, "plugin-sign", "-in", raw, "-out", filepath.Join(dir, "bad.uzplugin")); err == nil {
 		t.Fatal("invalid plugin signed")
 	}
-	if _, err := os.Stat(filepath.Join(dir, "bad.fbplugin")); err == nil {
+	if _, err := os.Stat(filepath.Join(dir, "bad.uzplugin")); err == nil {
 		t.Fatal("output written for an invalid plugin")
 	}
 
 	idxFile := filepath.Join(dir, "plugin-index.json")
-	url := "https://example.org/tracker-1.2.0.fbplugin"
+	url := "https://example.org/tracker-1.2.0.uzplugin"
 	// plugin-add refuses an unsigned plugin ...
-	unsigned := filepath.Join(dir, "unsigned.fbplugin")
+	unsigned := filepath.Join(dir, "unsigned.uzplugin")
 	os.WriteFile(unsigned, pluginZip(t, "1.2.0", nil), 0o644)
 	if err := runE(env, "plugin-add", "-index", idxFile, "-plugin", unsigned, "-url", url); err == nil || !strings.Contains(err.Error(), "not signed") {
 		t.Fatalf("unsigned accepted: %v", err)
 	}
 	// ... a plugin whose content changed after signing ...
-	tampered := filepath.Join(dir, "tampered.fbplugin")
+	tampered := filepath.Join(dir, "tampered.uzplugin")
 	os.WriteFile(tampered, tamper(t, data), 0o644)
 	if err := runE(env, "plugin-add", "-index", idxFile, "-plugin", tampered, "-url", url); err == nil || !strings.Contains(err.Error(), "invalid") {
 		t.Fatalf("tampered accepted: %v", err)
@@ -107,20 +107,20 @@ func TestPluginSignAddAndIndexSign(t *testing.T) {
 		t.Fatal(err)
 	}
 	// A second version is added, the first stays; the same version again replaces its entry.
-	signed2 := filepath.Join(dir, "signed2.fbplugin")
+	signed2 := filepath.Join(dir, "signed2.uzplugin")
 	os.WriteFile(raw, pluginZip(t, "1.10.0", nil), 0o644)
 	if err := runE(env, "plugin-sign", "-in", raw, "-out", signed2); err != nil {
 		t.Fatal(err)
 	}
-	if err := runE(env, "plugin-add", "-index", idxFile, "-plugin", signed2, "-url", "https://example.org/tracker-1.10.0.fbplugin"); err != nil {
+	if err := runE(env, "plugin-add", "-index", idxFile, "-plugin", signed2, "-url", "https://example.org/tracker-1.10.0.uzplugin"); err != nil {
 		t.Fatal(err)
 	}
-	if err := runE(env, "plugin-add", "-index", idxFile, "-plugin", signed, "-url", "https://example.org/moved.fbplugin"); err != nil {
+	if err := runE(env, "plugin-add", "-index", idxFile, "-plugin", signed, "-url", "https://example.org/moved.uzplugin"); err != nil {
 		t.Fatal(err)
 	}
 	b1, _ := os.ReadFile(idxFile)
 	idx, errs := pluginpkg.ParseIndex(b1, false)
-	if len(errs) != 0 || len(idx.Plugins) != 2 || idx.Plugins[0].Version != "1.2.0" || idx.Plugins[0].URL != "https://example.org/moved.fbplugin" ||
+	if len(errs) != 0 || len(idx.Plugins) != 2 || idx.Plugins[0].Version != "1.2.0" || idx.Plugins[0].URL != "https://example.org/moved.uzplugin" ||
 		idx.Plugins[1].Version != "1.10.0" || !idx.GeneratedAt.Equal(fixed) {
 		t.Fatalf("index %+v %v", idx, errs)
 	}

@@ -160,7 +160,7 @@ class PluginsController : public QObject {
   QSet<int> activeHotkeyCombos() const { return activeCombos_; }
   // Uzume keys that always win: combination (Qt::Key | modifiers) -> label of the owner. Set by the PlayerController.
   void setReservedKeys(const QMap<int, QString>& reserved);
-  // Registry behind image://fbplugin (see pluginimageprovider.h).
+  // Registry behind image://uzplugin (see pluginimageprovider.h).
   std::shared_ptr<PluginImageSources> imageSources() const { return imageSources_; }
   // Plugins running in the shell context (no game), in start order.
   QStringList shellPluginIds() const { return shellIds_; }
@@ -226,7 +226,7 @@ class PluginsController : public QObject {
 
   // Settings -> Plugins. Paths may be file:// URLs (file or folder dialog).
   Q_INVOKABLE void installFromFolder(const QString& pathOrUrl);
-  // A .fbplugin file or a plugin folder, whichever the path is. Signed (valid Uzume key) = Official, otherwise a local
+  // A .uzplugin file or a plugin folder, whichever the path is. Signed (valid Uzume key) = Official, otherwise a local
   // plugin that needs Developer mode.
   Q_INVOKABLE void installFromPath(const QString& pathOrUrl);
   // Same, but returns the result (debug MCP server).

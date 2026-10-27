@@ -232,7 +232,7 @@ class McpVariantsTest : public QObject {
     const ToolResult tl = call(reg, QStringLiteral("tools_list"));
     QVERIFY(!tl.isError);
     QCOMPARE(json(tl).value(QStringLiteral("engine")).toObject().value(QStringLiteral("state")).toString(), QStringLiteral("no_server"));
-    QVERIFY(call(reg, QStringLiteral("plugin_install_file"), {{"path", "/nonexistent/x.fbplugin"}}).isError);
+    QVERIFY(call(reg, QStringLiteral("plugin_install_file"), {{"path", "/nonexistent/x.uzplugin"}}).isError);
     QVERIFY(call(reg, QStringLiteral("plugin_set_enabled"), {{"id", "no.such"}, {"enabled", true}}).isError);
     QVERIFY(call(reg, QStringLiteral("variant_start"), {{"id", "nope"}}).isError);
   }

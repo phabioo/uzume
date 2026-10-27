@@ -34,7 +34,7 @@ uzume-server setup-admin -username <name>     # password as a single line from s
 uzume-server renew-cert [-data-dir <dir>]     # renew the self-generated certificate now (refused with own cert/key; changes the security code)
 uzume-server import-cores <dir>               # import libretro buildbot core zips offline
 uzume-server import-cheats <zip>              # import a libretro-database archive as the cheat database offline (see "Cheat database")
-uzume-server import-plugins <dir>             # offer every *.fbplugin file of a folder to Players (offline, see "Plugins")
+uzume-server import-plugins <dir>             # offer every *.uzplugin file of a folder to Players (offline, see "Plugins")
 uzume-server import-tools <zip>...            # add randomizer engine release zips to the tools catalog (offline, see "Tools")
 uzume-server import-data --from DIR [-data-dir DEST]  # copy the data folder of a stopped server (the app's "On this PC" server) into DEST (see "Windows")
 uzume-server sharing stop|start               # Windows, administrator: stop (disable) or start the server service (see "Windows")
@@ -312,13 +312,13 @@ Plugin store: each person may keep up to 16 MiB and 1024 keys per plugin (values
 
 ## Plugins
 
-Plugins (0.11, [ADR 0023](../adr/0023-plugins.md)) are `.fbplugin` files (zip with `manifest.json`, Lua code and assets, at most 32 MiB packed, 64 MiB unpacked, 2000 entries; optional `SIGNATURE.json`). The server stores them under `<data-dir>/plugins/<plugin_id>/<version>.fbplugin` (metadata in the database) and offers every stored version to all apps (`GET /api/v1/plugins`, handshake feature `plugins_v1`). The server never runs plugin code.
+Plugins (0.11, [ADR 0023](../adr/0023-plugins.md)) are `.uzplugin` files (zip with `manifest.json`, Lua code and assets, at most 32 MiB packed, 64 MiB unpacked, 2000 entries; optional `SIGNATURE.json`). Legacy `.fbplugin` files are still accepted for upload and import. The server stores them under `<data-dir>/plugins/<plugin_id>/<version>.uzplugin` (metadata in the database) and offers every stored version to all apps (`GET /api/v1/plugins`, handshake feature `plugins_v1`). The server never runs plugin code.
 
 - Origin: `official` when `SIGNATURE.json` lists exactly the files of the zip and carries a valid Ed25519 signature of a trusted key (the Uzume release key plus `-core-trust-key`); otherwise `unverified` (a present but invalid signature is reported as such and never counts as official).
 - Plugins page (admin): table of the offered versions, detail with permissions, download and remove. Upload shows name, version, origin and one tick per requested permission; "Offer to Players" works only with every tick set (checked on the server). The same id and version with a different file is refused; remove the old version first. A newer version replaces the older ones of the same id (index update, upload or import); an older version stays while a run that is not finished or abandoned uses it and is removed when the run ends or is deleted (also checked at server start). Uploading a version older than the newest removes nothing. Removal keeps the copies apps already installed and is refused (409) while a run that is not finished or abandoned uses the version.
 - Official catalog: the page lists the signed official plugin index (default, `-plugin-index-url`; `none` disables it) with Install / Update. Install downloads the file, checks size and SHA-256 against the signed index and the embedded signature against the trusted keys, and stores it as `official` (source `index`).
-- Offline: `uzume-server import-plugins <dir>` offers every `*.fbplugin` file directly in `<dir>` (source `import`; running the command is the confirmation of the permissions; unsigned files become `unverified`). Run it as the service user with the service's `-data-dir`.
-- Publishing (see [plugin-publishing.md](plugin-publishing.md)): `uzume-sign plugin-sign -in x.fbplugin -out signed.fbplugin` (seed from `UZUME_SIGNING_KEY`), `uzume-sign plugin-add -index plugin-index.json -plugin signed.fbplugin -url https://.../signed.fbplugin` (refuses unsigned plugins), then `uzume-sign sign -index plugin-index.json` writes `plugin-index.json.sig`.
+- Offline: `uzume-server import-plugins <dir>` offers every `*.uzplugin` file directly in `<dir>` (source `import`; running the command is the confirmation of the permissions; unsigned files become `unverified`). Run it as the service user with the service's `-data-dir`.
+- Publishing (see [plugin-publishing.md](plugin-publishing.md)): `uzume-sign plugin-sign -in x.uzplugin -out signed.uzplugin` (seed from `UZUME_SIGNING_KEY`), `uzume-sign plugin-add -index plugin-index.json -plugin signed.uzplugin -url https://.../signed.uzplugin` (refuses unsigned plugins), then `uzume-sign sign -index plugin-index.json` writes `plugin-index.json.sig`.
 
 ## Tools
 

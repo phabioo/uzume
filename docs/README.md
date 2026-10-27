@@ -20,7 +20,7 @@ Every document starts with a short overview; detail follows further down or in l
 - [Adding a system](guides/adding-a-system.md): server JSON, app manifest, core profile, input map, identity
 - [Local ROMs](guides/local-roms.md): library folders, upload to the server, what others see
 - [Plugin API](guides/plugin-api.md): Lua API for app plugins (0.11 runtime), developer mode
-- [Publishing an official plugin](guides/plugin-publishing.md): sign a `.fbplugin`, add it to the plugin index
+- [Publishing an official plugin](guides/plugin-publishing.md): sign a `.uzplugin`, add it to the plugin index
 
 ## Reference
 

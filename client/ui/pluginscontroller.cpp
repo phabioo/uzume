@@ -1079,7 +1079,7 @@ QVariantMap PluginsController::slotTree(const QString& pluginId, const QString& 
 
 QString PluginsController::pluginIconUrl(const QString& id) const {
   const auto info = infoFor(id);
-  if (info && info->manifest.assets.contains(QStringLiteral("icon.png"))) return QStringLiteral("image://fbplugin/%1/asset/icon.png").arg(id);
+  if (info && info->manifest.assets.contains(QStringLiteral("icon.png"))) return QStringLiteral("image://uzplugin/%1/asset/icon.png").arg(id);
   return {};
 }
 

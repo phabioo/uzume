@@ -278,7 +278,7 @@ target_include_directories(test_plugins_e2e_testcore PRIVATE ${CMAKE_CURRENT_SOU
 # Developer console model (0.22): fake sources, log filters and counts, reload and pause signals, memory viewer.
 uzume_add_test(ui_devconsole devconsole_test.cpp LIBS uzume_ui uzume_core uzume_emulation uzume_plugins)
 
-# Plugin UI runtime in the PluginsController (shell context, models, actions, toasts) and the image://fbplugin rules.
+# Plugin UI runtime in the PluginsController (shell context, models, actions, toasts) and the image://uzplugin rules.
 uzume_add_test(ui_plugins_runtime plugins_runtime_ui_test.cpp LIBS uzume_ui uzume_core uzume_emulation uzume_plugins Qt6::Quick)
 target_include_directories(test_ui_plugins_runtime PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../plugins/tests)
 
