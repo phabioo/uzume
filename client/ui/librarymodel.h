@@ -158,6 +158,9 @@ class LibraryModel : public QAbstractListModel {
   // Last played on this device (Unix ms per game id of the active Hub); never played = missing.
   void setLastPlayed(const QHash<QString, qint64>& byGameId);
   void noteLastPlayed(const QString& gameId, qint64 msecs);
+  // Variants of the games (0.21 Randomizer, 10g-1): gameId -> {count, buildPercent (-1 none), buildName, lastId, lastName, lastPlayedMs}.
+  // The status of a ready game shows the count; a running build shows "Building n %"; Continue resumes the variant played last.
+  void setVariantBadges(const QVariantMap& byGameId);
   QVariantList continueEntries() const { return continueEntriesAt(QDate::currentDate()); }
   QVariantList continueEntriesAt(const QDate& today) const;
   // "TODAY" | "YESTERDAY" | "16 OCT" (uppercase, for the Mono meta line).
@@ -178,6 +181,8 @@ class LibraryModel : public QAbstractListModel {
   void setSyncKinds(const QHash<QString, QString>& kinds);
   QString syncKind(const QString& gameId) const;
   static QString syncText(const QString& kind);
+  QVariantMap variantBadge(const QString& gameId) const;
+  static QString variantCountText(int count);
 
   Q_INVOKABLE int rowOfGame(const QString& gameId) const;
   std::optional<GameEntry> game(const QString& gameId) const;
@@ -229,6 +234,7 @@ class LibraryModel : public QAbstractListModel {
   QString sortKey_ = QStringLiteral("played");
   bool readyFirst_ = false;
   QHash<QString, qint64> lastPlayed_;
+  QVariantMap variantBadges_;
   QString systemLabel_;
   QCollator collator_;
   int readyGroupCount_ = 0;

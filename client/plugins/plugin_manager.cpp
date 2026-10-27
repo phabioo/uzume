@@ -232,10 +232,11 @@ void PluginManager::computeDependencyProblems(QMap<QString, QStringList>& out) c
       const auto player = SemVer::parse(m_playerVersion);
       if (player && SemVer::compare(*player, *m.minPlayer) < 0) out[m.id] << QStringLiteral("Needs Player %1").arg(m.minPlayer->toString());
     }
-    // variants.build starts a program on this PC: signed official plugins only (ADR 0031 D5); a plugin linked from a developer folder
-    // may use it while Developer mode is on.
-    if (m.hasPermission(QStringLiteral("variants.build")) && it->info.origin != QLatin1String("official") && !(it->info.devLinked && m_devMode))
-      out[m.id] << QStringLiteral("permission variants.build needs a signed official plugin");
+    // variants.build starts a program on this PC: signed official plugins only (ADR 0031 D5); a local plugin (installed from a folder or
+    // an unsigned package, or linked from a developer folder) may use it while Developer mode is on.
+    if (m.hasPermission(QStringLiteral("variants.build")) && it->info.origin != QLatin1String("official") &&
+        !(m_devMode && (it->info.origin == QLatin1String("local") || it->info.devLinked)))
+      out[m.id] << QStringLiteral("permission variants.build needs a signed official plugin or Developer mode");
     for (const Dependency& d : m.dependencies) {
       auto dep = m_entries.constFind(d.id);
       if (dep == m_entries.constEnd() || !dep->valid) {

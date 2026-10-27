@@ -11,6 +11,7 @@ void installTools(McpToolRegistry& registry, ui::PlayerController& player) {
   installReportTools(registry, player);
   installUiTools(registry, player);
   installVariantTools(registry, player);
+  installTogetherTools(registry, player);
 }
 
 }  // namespace uzume::mcp

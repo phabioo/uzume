@@ -102,7 +102,8 @@ class SaveHistoryController : public QObject {
     std::function<bool(const QString&)> gameBusy;         // game is starting/running on this Player
     std::function<QString(const QString&)> gameTitle;      // library title of a game (may be empty)
     std::function<QString(const QString&)> localFileName;  // expected local save file name of a game (may be empty)
-    std::function<QString(const QString&)> slotDisplayName;  // "Run: <name>" for the save slot of a known run, else empty
+    std::function<QString(const QString&)> slotDisplayName;  // "Run: <name>" for the save slot of a known run, the name of a variant's slot, else empty
+    std::function<QString(const QString&)> slotKind;         // "run" | "variant" | "" for a slot (slotOptions: kind, hint)
   };
   explicit SaveHistoryController(const Env& env, QObject* parent = nullptr);
 

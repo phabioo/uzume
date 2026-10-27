@@ -13,6 +13,7 @@ namespace uzume {
 // What the app keeps on this PC (Settings > This PC > Storage, design 6l-1). Pure file logic, no GUI; measure() blocks and belongs
 // on a worker thread. Every folder comes from the class that owns it:
 //   Downloaded games     RomCache (<data>/cache/roms, finished files and unfinished downloads)
+//   Variants             VariantCache (<data>/cache/variants, built randomizer variants and unfinished builds)
 //   Save cache           SaveStore layout: <data>/hubs/<hub>/users/<user>/saves, legacy <data>/hubs/<hub>/saves and the short core
 //                        folders <data>/c (the local copies of saves; they are never offered for clean-up)
 //   Save states          StateStore layout: <data>/hubs/<hub>/users/<user>/states (the local cache of the states; the server keeps the originals)
@@ -21,6 +22,7 @@ namespace uzume {
 struct LocalStorageInput {
   QString dataDir;      // ProfileStore::baseDir()
   QString firmwareDir;  // FirmwareCache::dir()
+  QString variantsDir;  // VariantCache::root() (game variants built on this PC, 0.21)
   RomCache roms{QString()};
   CoreCache cores{QString()};
   QString platform;               // CoreCache::currentPlatform()
@@ -42,6 +44,7 @@ struct LocalStorageReport {
   qint64 freeBytes = -1;
   qint64 gamesBytes = 0;
   int gamesCount = 0;
+  qint64 variantsBytes = 0;  // built game variants (VariantCache)
   qint64 savesBytes = 0;
   qint64 statesBytes = 0;
   qint64 orphanStatesBytes = 0;  // states of games that are not in the library any more (current server and person only)
@@ -54,7 +57,7 @@ struct LocalStorageReport {
   int oldGamesCount = 0;
   qint64 staleCoresBytes = 0;  // cached core versions that are not the newest of their core and not in use
   int staleCoresCount = 0;
-  qint64 usedBytes() const { return gamesBytes + savesBytes + statesBytes + screenshotsBytes + coresBytes; }
+  qint64 usedBytes() const { return gamesBytes + variantsBytes + savesBytes + statesBytes + screenshotsBytes + coresBytes; }
 };
 
 class LocalStorage {

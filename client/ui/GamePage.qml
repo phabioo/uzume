@@ -35,7 +35,31 @@ Rectangle {
     readonly property EmulationController emu: player.emulation
     color: "transparent"
 
+    // Variants (0.21, design sheet 5): Randomize… in the header, the Variants section and its dialogs.
+    readonly property VariantsController vc: player.variants
+    // registryRevision is part of the result on purpose: a bare read whose value is unused is dropped by the compiled (qmlsc) bindings,
+    // and the binding would then never re-evaluate when a plugin registers or leaves.
+    readonly property string randomizeState: root.vc.registryRevision < 0 || !root.hasGame ? "none" : root.vc.randomizeState(root.gameId)
+    // A build of a small game (GB, GBC, GBA) shows no dialog: the Randomize… button reads Building… until it is done (10c-3a).
+    readonly property bool smallBuilding: root.vc.building && root.vc.current.gameId === root.gameId && root.vc.smallGame(root.gameId)
+    property bool cancelEngineBuild: false
+    function openRandomize() { randomizeDialog.openFor(root.gameId, root.game.title || "", root.game.system || "") }
+    function watchBuild(id: string) {
+        const v = root.vc.variantMap(id)
+        if (v.name === undefined || root.vc.smallGame(root.gameId)) return
+        const f = root.vc.gameFile(root.gameId)
+        buildDialog.watch(id, v.name, root.game.title || "", f.sizeText !== "" ? qsTr("%1 · checked").arg(f.sizeText) : "")
+    }
+    Connections {
+        target: root.vc
+        function onNeedsBuild(id: string) { if (root.vc.gameOf(id) === root.gameId) root.watchBuild(id) }
+        function onBuildFinished(id: string, ok: bool, error: string) {
+            if (ok || error === "cancelled" || root.vc.gameOf(id) !== root.gameId) return
+            variantDialogs.showProblem(root.vc.variantMap(id))
+        }
+    }
     onGameIdChanged: {
+        root.vc.setGame(root.gameId)
         root.leaveSaves()
         root.mode = "overview"
         root.reloadInfo()
@@ -59,6 +83,7 @@ Rectangle {
     onGameChanged: syncPluginGame()
     onPluginCodeChanged: syncPluginGame()
     Component.onCompleted: {
+        root.vc.setGame(root.gameId)
         syncPluginGame()
         root.reloadInfo()
         root.applyTab(root.player.gamePageTab)
@@ -331,6 +356,30 @@ Rectangle {
                     enabled: !root.player.quitting
                     onClicked: root.player.requestQuit()
                 }
+                // Randomize… (design 10a-1): shown when a plugin offers variants for this game's system; off, with its reason as the
+                // tooltip, when the game itself is not on the plugin's list (10a-3a).
+                Item {
+                    id: randomizeWrap
+                    objectName: "randomizeWrap"
+                    visible: !root.running && root.randomizeState !== "none" && root.game.onHub !== false
+                    implicitWidth: randomizeButton.implicitWidth
+                    implicitHeight: randomizeButton.implicitHeight
+                    readonly property string reason: root.randomizeState === "unsupported" ? qsTr("%1 can’t be randomized.").arg(root.game.title || "") : ""
+                    HoverHandler { id: randomizeHover }
+                    ToolTip.visible: randomizeHover.hovered && randomizeWrap.reason !== ""
+                    ToolTip.text: randomizeWrap.reason
+                    ToolTip.delay: 400
+                    UzButton {
+                        id: randomizeButton
+                        objectName: "randomizeButton"
+                        anchors.fill: parent
+                        text: root.smallBuilding ? qsTr("Building…") : qsTr("Randomize…")
+                        busy: root.smallBuilding
+                        enabled: root.randomizeState === "ok" && !root.confirming && !root.smallBuilding
+                        Accessible.description: randomizeWrap.reason
+                        onClicked: root.openRandomize()
+                    }
+                }
                 UzButton {
                     id: favoriteButton
                     objectName: "favoriteButton"
@@ -586,6 +635,19 @@ Rectangle {
                     }
                 }
 
+                VariantsSection {
+                    id: variantsSection
+                    player: root.player
+                    gameId: root.gameId
+                    playEnabled: !root.running && root.game.busy !== true && !root.confirming
+                    onRandomizeRequested: root.openRandomize()
+                    onAskDelete: (v, versions) => variantDialogs.askDelete(v, versions)
+                    onAskRename: (v) => variantDialogs.askRename(v)
+                    onAskSpoiler: (v) => variantDialogs.askSpoiler(v)
+                    onShowProblem: (v) => variantDialogs.showProblem(v)
+                    onShowBuild: (v) => root.watchBuild(v.id)
+                }
+
                 ScreenshotStrip {
                     placed: root.mode === "overview"
                     player: root.player
@@ -766,7 +828,11 @@ Rectangle {
                             { label: qsTr("Size"), text: root.game.fileSizeText || "–", tone: "neutral", hint: "" },
                             { label: qsTr("Core"), text: root.game.coreText, tone: root.game.coreTone, hint: root.game.coreHint },
                             { label: qsTr("Firmware"), text: root.game.firmwareText, tone: root.game.firmwareTone, hint: root.game.firmwareHint }
-                        ].concat(root.gamePlugins.length > 0 ? [
+                        ].concat(root.randomizeState === "ok" ? [
+                            { label: qsTr("Randomizer"), text: qsTr("Supported"), tone: "neutral", hint: "", objName: "detailRandomizerRow" }
+                        ] : root.randomizeState === "unsupported" ? [
+                            { label: qsTr("Randomizer"), text: qsTr("Not supported"), tone: "neutral", hint: "", objName: "detailRandomizerRow" }
+                        ] : []).concat(root.gamePlugins.length > 0 ? [
                             { label: qsTr("Plugins"), text: qsTr("%1 on · %2").arg(root.gamePlugins.length).arg(root.gamePlugins.map(p => p.name).join(", ")), tone: "neutral", hint: "", objName: "detailPluginsRow" }
                         ] : [])
                         delegate: Item {
@@ -998,12 +1064,39 @@ Rectangle {
         sourceComponent: RunStartDialog {
             objectName: "detailRunStartDialog"
             runs: root.player.runs
+            serverName: root.player.hubName
             pcOnly: root.player.localHub.onThisPcOnly
         }
         function openFor(gameId) {
             active = true
             if (item !== null) item.openStartFor(gameId)
         }
+    }
+    RandomizeDialog {
+        id: randomizeDialog
+        player: root.player
+        onEngineNeeded: { root.cancelEngineBuild = false; engineDialog.openFor(randomizeDialog.nameText) }
+        onCreated: (id, small) => {
+            if (root.cancelEngineBuild) { root.cancelEngineBuild = false; root.vc.cancel(id); return }
+            if (!small) root.watchBuild(id)
+        }
+    }
+    VariantEngineDialog {
+        id: engineDialog
+        player: root.player
+        onConfirmed: randomizeDialog.startBuild()
+        onCancelled: {
+            if (root.vc.current.variantId !== undefined && root.vc.current.variantId !== "") root.vc.cancel(root.vc.current.variantId)
+            else root.cancelEngineBuild = randomizeDialog.awaiting
+        }
+    }
+    VariantBuildDialog { id: buildDialog; player: root.player }
+    VariantDialogs {
+        id: variantDialogs
+        anchors.fill: parent
+        player: root.player
+        gameTitle: root.game.title || ""
+        onRebuilding: (id) => root.watchBuild(id)
     }
     ScreenshotViewer { id: screenshotViewer; player: root.player; parent: Window.contentItem }
 }

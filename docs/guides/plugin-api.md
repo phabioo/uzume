@@ -43,7 +43,7 @@ A plugin is a folder with a `manifest.json`, a Lua entry file and optional `i18n
 | `min_player` | Optional SemVer (`"0.16.4"`): the oldest Uzume that runs the plugin. A plugin that needs a newer app has the problem "Needs Player X", is not started and cannot be turned on; an enabled one stays enabled and runs again after the app is updated (also after "Go back" to an older app, see [updates](updates.md#rollback)). The server does not check it. |
 | `provides` | Interface names this plugin offers to others with `fb.provide`. |
 | `games` | List of `{ "system", "codes" }`. `codes` are globs (`*` any run, `?` one character, case-insensitive); no `codes` = every game of that system. An empty or missing list = all games. |
-| `permissions` | `memory.read`, `memory.write`, `rom.read`, `ui`, `run.state`, `video.capture`, `cheats`, `store`. `tool.exec` is rejected ("permission `<p>` is not available yet"), unknown names are errors. |
+| `permissions` | `memory.read`, `memory.write`, `rom.read`, `ui`, `run.state`, `video.capture`, `cheats`, `store`, `variants.build`. `tool.exec` is rejected ("permission `<p>` is not available yet"), unknown names are errors. |
 | `entry` | Relative path of the `.lua` entry file inside the plugin folder (no `..`, must exist). |
 | `assets` | Relative paths of bundled files or folders. |
 | `run_settings` | Optional run rules form, see [Run settings](#run-settings). |
@@ -61,6 +61,7 @@ A plugin is a folder with a `manifest.json`, a Lua entry file and optional `i18n
 | `memory.write` | `fb.memory.write*`: changes game memory through the one write queue; per-game consent "Change game memory", safety copy "Before memory changes", run log | available (0.20) |
 | `cheats` | `fb.cheats.*`: hands cheat codes to the core's own cheat engine; per-game consent, safety copy "Before cheats", run log | available (0.20) |
 | `store` | `fb.store.*`: small private data per person and plugin, synced with the server | available (0.20) |
+| `variants.build` | `fb.variants.*` (register presets and games, ask Uzume to build a game variant) | available; signed official plugins, local and dev-linked plugins only while Developer mode is on |
 
 Calling a function without its permission raises the Lua error `permission <p> not granted`. Everything else (`fb.log`, `fb.events`, `fb.provide`/`fb.call`, `fb.cache`, `fb.i18n`, `fb.clock`, `fb.on_tick`, `fb.save.snapshot`, `fb.game.hash`) needs no permission.
 
@@ -291,6 +292,28 @@ Nothing is overwritten silently: when the server has a newer value for a key tha
 ### Debug tools (MCP)
 
 The debug MCP server (Settings › Diagnostics › Claude debugging, see the [app guide](app.md#claude-debugging-mcp)) has tools for the new APIs: `cheats_list` (active list, core formats, why cheats are blocked, consent state), `cheats_apply` (a JSON list as plugin `mcp`; `bypass_consent: true` skips only the per-game question, the run rule, the safety copy and the run log still apply), `cheats_clear`, `store_get` / `store_put` (any plugin id, local copy of the connected user) and `consent_set { kind: "cheats" | "memory_write", allow, forget?, game? }`. They change the running game or the person's plugin data, like `game_memory_write`.
+
+### Variants (`variants.build`)
+
+For the official Randomizer plugin ([ADR 0031](../adr/0031-game-variants-and-randomizer.md), Uzume 0.21). A plugin never starts a program: it tells Uzume which presets and games it supports and may ask Uzume to build a variant of a game from a recipe; Uzume draws the dialogs, the variant list and the progress itself and runs the engine from the server's tools catalog on the user's PC. The permission is granted to signed official plugins; a local plugin (unsigned package or folder) or a plugin linked from a developer folder can use it only while Developer mode is on, otherwise the manifest shows the problem "permission variants.build needs a signed official plugin or Developer mode" and the plugin cannot be turned on. A plugin with this permission also runs in the shell context (no game), because it registers there. Without the permission `fb.variants` does not exist.
+
+- `fb.variants.register{ engine, presets, games }` stores what the plugin offers (call it again to replace it; the registration ends when the plugin is disabled, reloaded or removed). Returns `true`; errors raise a Lua error.
+  - `engine`: `"randomizer"` (default; the only engine).
+  - `presets`: up to 32 of `{ id, label, hint, settings }`. `id` is 1 to 32 characters of `a-z 0-9 _ -` and not `"custom"` (Uzume adds the "Custom" entry itself); `label` up to 60 and `hint` up to 200 characters; `settings` maps an engine settings version (three digits, `"428"` for FVX 1.6.2) to a settings string of 1 to 4096 characters, up to 8 versions. Uzume uses the string of the highest version; the engine upgrades older ones itself.
+  - `games`: up to 64 of `{ system, codes }` with the system id (`nds`, `3ds`, `gba`, ...) and up to 512 game codes as `fb.game.code` carries them (globs as in the manifest `games` field: `*` any run, `?` one character, ignoring case; no `codes` = the whole system). Randomize… appears on the game page for these games only, and the New run section offers the presets for them.
+- `fb.variants.engine()` returns `{ offered, version, on_pc }`: whether the server offers the engine, the version it offers (absent if none) and whether it is already on this PC.
+- `fb.variants.list([game_id])` returns the user's variants of the current game as `{ id, name, slot, preset_id?, state, tool_version? }`; `state` is `not_built`, `building`, `ready`, `needs_rebuild` or `failed`. In the shell context pass `game_id`. It never returns the seed or the settings.
+- `fb.variants.build{ name, preset_id | settings, seed, spoiler_log, game_id }` asks Uzume to create and build a variant and returns a request id at once. `name` is 1 to 60 characters; give exactly one of `preset_id` (a registered preset) and `settings` (up to 4096 characters); `seed` is a non-negative integer (or a string of digits) below 2^63, absent = Uzume picks one; `spoiler_log` defaults to false; `game_id` is required in the shell context and ignored in a game. Argument errors raise a Lua error; everything that depends on the PC or the server (engine not offered or not downloaded, name taken, base file missing or different, not enough memory or disk space, engine failure) is reported through the event below, never as a Lua error.
+- Host event `variants.state` (`fb.events.on("fb", "variants.state", fn)`): `{ id, state, progress, error? }` for the request id; `state` is `building` (with `progress` 0 to 1), `ready`, `failed` (with `error`, a short code such as `engine_missing`, `base_mismatch`, `not_enough_memory`, `disk_full`, `engine_failed`, `timed_out`) or `cancelled`. Errors carry no game data.
+
+```lua
+fb.variants.register{
+  presets = { { id = "classic", label = "Classic", hint = "Everything shuffled", settings = { ["428"] = "428..." } } },
+  games = { { system = "nds", codes = { "IPKE", "IPKD" } } },
+}
+fb.events.on("fb", "variants.state", function(ev) fb.log.info(ev.id, ev.state, ev.progress) end)
+local id = fb.variants.build{ name = "My run", preset_id = "classic", seed = 123 }
+```
 
 ### Cache
 
@@ -523,7 +546,7 @@ Permission `run.state`. `fb.run` exists only when the game was started with "Pla
 
 | Function | Meaning |
 |---|---|
-| `fb.run.current()` | `{id, name, status, me, settings, rules = {states, rewind, cheats, memory_write}, plugins = {...}, participants = {{user_id, name, color, status, game_id}, ...}}` from the app's cache. |
+| `fb.run.current()` | `{id, name, status, me, settings, rules = {states, rewind, cheats, memory_write}, plugins = {...}, participants = {{user_id, name, color, status, game_id, variant_kind?}, ...}, randomizer?}` from the app's cache; `randomizer = {mode = "each"|"same", preset_id, tool_version, allow_own}` exists only for a randomized run (never seed or settings), `variant_kind` (`"run"`|`"own"`) only when the server sends it. |
 | `fb.run.state([user_id [, plugin_id]])` / `fb.run.states([plugin_id])` | One participant's state object for a plugin of the run (defaults: the own user and the calling plugin; `nil` if none yet) / table `user_id -> state` for that plugin (default: the calling plugin). Another plugin's state of the same run may be read (read-only), for example state published by another run plugin. Updated live; no network call. |
 | `fb.run.setState(tbl)` | Replaces the calling plugin's state object of the own participant (JSON-able table, at most 64 KiB per plugin). Coalesced per plugin to at most 4 sends per second: the latest value wins. On `409 state_conflict` the app adopts the server revision of that plugin and sends the latest value again. |
 | `fb.run.event{type=, text=, payload=, source=}` | Posts a run event (`type` required, `text` at most 280 characters, `payload` an object of at most 4 KiB, `source` `"automatic"` (default) or `"manual"`). Returns the `client_id` (a UUID); the app queues the event and retries it idempotently until the server confirms it (at most 2 per second). |

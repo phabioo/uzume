@@ -1008,7 +1008,7 @@ void installUiTools(McpToolRegistry& registry, ui::PlayerController& player) {
     t.name = QStringLiteral("navigate");
     t.description = QStringLiteral(
         "Opens a screen through the controller calls the sidebar uses (no clicks). to: library | game (the game page of gameId, screen stays library) | settings "
-        "(page: account|appearance|audio|controllers|hotkeys|emulation|storage|hubs|plugins|updates|diagnostics; library = storage) | server (page = tab: overview|people|games|systems|plugins|reports|settings; status = overview and users = people still work) "
+        "(page: account|appearance|audio|controllers|hotkeys|emulation|storage|hubs|plugins|updates|diagnostics; library = storage) | server (page = tab: overview|people|games|systems|tools|plugins|reports|settings; status = overview and users = people still work) "
         "| emulation | controllers (both open that section of Settings) | runs | plugin (page = plugin id) | plugin_settings (page = plugin id) | setup. Returns the screen reached; "
         "screens that need a connected server are refused while none is, and while a game is in front.");
     t.inputSchema = schema({{QStringLiteral("to"), typeStr(QStringLiteral("Target screen, see description."))},
@@ -1024,7 +1024,7 @@ void installUiTools(McpToolRegistry& registry, ui::PlayerController& player) {
       static const QStringList settingsPages{q("account"),  q("appearance"), q("audio"),   q("controllers"), q("hotkeys"),
                                              q("emulation"), q("storage"),    q("library"), q("hubs"),        q("plugins"),
                                              q("updates"),   q("diagnostics")};
-      static const QStringList serverPages{q("overview"), q("people"), q("games"),   q("systems"), q("plugins"),
+      static const QStringList serverPages{q("overview"), q("people"), q("games"),   q("systems"), q("tools"), q("plugins"),
                                            q("reports"),  q("settings"), q("status"), q("users")};
       if (!gameId.isEmpty()) {
         if (!selectKnownGame(*pc, gameId)) return reply(ToolResult::error(QStringLiteral("unknown_game: %1").arg(gameId)));

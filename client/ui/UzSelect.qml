@@ -3,7 +3,8 @@ import QtQuick.Controls.Basic
 import Uzume.App
 
 // Select field (design-system.md "Select"): 36 px, `rule` frame, chevron; the list is a menu on `surface` with a `rule` frame
-// (selected item: check + 2 px Yamabuki marker). options [{ value, label }], current = selected value; picked(value) on user choice.
+// (selected item: check + 2 px Yamabuki marker). options [{ value, label, hint?, disabled? }], current = selected value; picked(value) on user
+// choice. hint is a muted second part of the line ("Nuzlocke friendly · same engine"); a disabled option is dimmed and cannot be picked.
 ComboBox {
     id: control
     property string accessibleName: ""   // spoken name of the field (the label next to it)
@@ -63,6 +64,7 @@ ComboBox {
         readonly property bool selected: item.modelData.value === control.current
         width: control.width - 2
         height: Theme.row32
+        enabled: item.modelData.disabled !== true
         padding: 0
         leftPadding: Theme.space15
         rightPadding: Theme.space15
@@ -77,12 +79,12 @@ ComboBox {
             Text {
                 width: parent.width - 14 - parent.spacing
                 anchors.verticalCenter: parent.verticalCenter
-                text: item.modelData.label
+                text: item.modelData.hint ? item.modelData.label + "  ·  " + item.modelData.hint : item.modelData.label
                 textFormat: Text.PlainText
                 font.family: control.font.family
                 font.pixelSize: control.font.pixelSize
                 font.weight: item.selected ? Font.Medium : Font.Normal
-                color: Theme.ink
+                color: item.enabled ? Theme.ink : Theme.disabledInk
                 elide: Text.ElideRight
             }
         }
