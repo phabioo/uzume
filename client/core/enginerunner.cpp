@@ -157,8 +157,8 @@ void EngineRunner::tick() {
   if (!running_) return;
   EngineProgress p;
   p.elapsedMs = clock_.elapsed();
-  const qint64 est = std::max<qint64>(1, estimateMs(job_.isMod, job_.baseBytes));
-  p.fraction = std::min(0.95, static_cast<double>(p.elapsedMs) / static_cast<double>(est));
+  const qint64 est = (std::max<qint64>)(1, estimateMs(job_.isMod, job_.baseBytes));
+  p.fraction = (std::min)(0.95, static_cast<double>(p.elapsedMs) / static_cast<double>(est));
   p.step = p.fraction < 0.8 ? QStringLiteral("randomizing") : QStringLiteral("writing");
   p.etaMs = est > p.elapsedMs ? est - p.elapsedMs : 0;
   emit progress(p);
