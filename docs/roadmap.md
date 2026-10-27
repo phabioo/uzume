@@ -40,7 +40,8 @@ Decided by Fabio on 2026-10-11: 1.0 is reached when a group of friends completes
 | 0.19 | App comfort and library | [ADR 0030](adr/0030-one-app-one-server-uzume.md) D8 |
 | 0.19.x | Readable UI pass (design system r6) | [decisions](design/uzume/decisions.md#sheet-6--readable-pass-2026-10-26) |
 | 0.19.x | In-game redesign (sheet 7): control bar, Quick menu, Game tab | [decisions](design/uzume/decisions.md#sheet-7--in-game-redesign-2026-10-26) |
-| 0.20 to 0.24, 1.0 | Planned, see below | |
+| 0.24 | Platforms: Linux AppImage, Secret Service, Vulkan | [ADR 0034](adr/0034-linux-app-and-vulkan.md) |
+| 0.20 to 0.23, 1.0 | Planned, see below | |
 
 Not all items of the finished milestones are closed. Open leftovers are recorded in their [history](history.md) sections, among them: the 0.11 plugin open points (non-admin plugin upload, Azahar memory maps), the 0.16 "What's new" screen and plugin repository PR templates, the 0.10.x library speed with many games.
 
@@ -61,6 +62,15 @@ Tests only Fabio can do at the end: "Play on this PC" on a fresh Windows user (n
 
 Tests only Fabio can do at the end: audio on Windows (volume, mute, mute in background); screenshots: real capture with GPU cores, Save as dialog on Windows, Select + Y on a gamepad; screen layouts: bottom window on a second monitor, Windows zero-copy with the window open, touch in that window, Select + Right on a pad; per-game overrides: hold-Select hotkey sheet on a pad, per-game pad and keyboard profiles in a real game, the dialog in dark and light; both Storage pages visually and clean-ups on real data; integer scaling and the Continue block visually.
 
+## 0.24 leftovers
+
+- Vulkan has no zero-copy display or GPU-direct encode; frames are read back.
+- A core that requires a Vulkan API version above the loader's fails the game start instead of falling back.
+- The debug MCP `settings_get` does not list emulation settings.
+- The AppImage is unsigned and needs glibc 2.38 or newer.
+
+Tests only Fabio can do at the end: Azahar with Vulkan on a real GPU (and the Renderer row switching it); OpenGL unchanged on NVIDIA, AMD and Intel; the AppImage on a desktop (X11 and Wayland); audio through PipeWire and PulseAudio; gamepads; the Steam Deck in desktop mode and as a non-Steam game in game mode; GNOME Keyring and KWallet (sign-in survives a restart); the AppImage self-update and its restore of `.previous`; "Only on this PC" with the bundled server on Linux.
+
 ## Open milestones
 
 Planned, in this order. Each section is the work list; check an item off here and, when the milestone is finished, move the section to [history](history.md) and add a row above.
@@ -71,7 +81,6 @@ Planned, in this order. Each section is the work list; check an item off here an
 | [0.21](#021-randomizer) | Randomizer: game variants, tools catalog, plugin, runs with their own randomized game |
 | [0.22](#022-plugins) | Plugins: developer console, run recap, Discord Rich Presence, tracker plugins |
 | [0.23](#023-together) | Together: online status, notifications, ready check, chat, viewer role, audio mixer, voice chat, controller hand-over |
-| [0.24](#024-platforms) | Platforms: Linux app package, Vulkan |
 | [1.0](#10-test-phase) | Test phase and the SoulLink run |
 
 ## 0.20 Emulation
@@ -131,15 +140,6 @@ Decided by Fabio on 2026-10-21 (as 0.20; renumbered on 2026-10-22 and 2026-10-23
 - [ ] Audio mixer stage 2: channels game, tiles and plugin sounds; mixing in Multiview optional (M)
 - [ ] Voice chat: spike first, then microphone, push-to-talk, volume per person, ducking (L)
 - [ ] Controller hand-over: a viewer controls P2 or takes over P1, the host confirms (M-L)
-
-## 0.24 Platforms
-
-Decided by Fabio on 2026-10-21 (as 0.22; renumbered on 2026-10-22 and 2026-10-23). May be split into 0.24 and 0.25, one milestone per topic. Spike first for Vulkan (which cores offer the libretro Vulkan path: melonDS DS, Azahar?). Browser watching was dropped on 2026-10-22. The UI follows the Uzume boards ([ADR 0030](adr/0030-one-app-one-server-uzume.md) D8). Decisions: [ADR 0034](adr/0034-linux-app-and-vulkan.md).
-
-- Moved to 0.18: the Hub setup assistant is built as the setup assistant in the app (0.18 package 8).
-- [ ] Linux app package (Flatpak or AppImage): Secret Service instead of in-memory credentials, updater and core distribution for Linux (buildbot platform mapping, [ADR 0020](adr/0020-cores-from-the-libretro-buildbot.md)), check gamepads and audio, check the Steam Deck (L)
-- Dropped on 2026-10-22 (Fabio): watching a Session in the browser; Uzume keeps no browser components ([ADR 0030](adr/0030-one-app-one-server-uzume.md) D2).
-- [ ] Vulkan next to OpenGL: libretro Vulkan hardware interface, display and encode path; spike first, switchable per core option in the Emulation settings (L)
 
 ## 1.0 Test phase
 
