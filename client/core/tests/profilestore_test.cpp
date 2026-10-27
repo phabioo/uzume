@@ -81,6 +81,55 @@ class ProfileStoreTest : public QObject {
     QVERIFY(s2.lastHubId().isEmpty());
   }
 
+  // Automatic connection: off until a server was connected once, then on by default; an explicit choice always wins.
+  void autoConnectDefaultFollowsFirstSuccessfulConnection() {
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    {
+      ProfileStore s(dir.path());
+      QVERIFY(!s.autoConnect());
+      QVERIFY(!s.autoConnectIsExplicit());
+      QVERIFY(s.markConnectedOnce());
+      QVERIFY(s.autoConnect());
+      QVERIFY(!s.autoConnectIsExplicit());
+    }
+    ProfileStore s2(dir.path());
+    QVERIFY(s2.connectedOnce());
+    QVERIFY(s2.autoConnect());  // the default survives a restart
+    QVERIFY(s2.setAutoConnect(false));
+    QVERIFY(s2.markConnectedOnce());
+    QVERIFY(!s2.autoConnect());  // explicit off is respected
+    ProfileStore s3(dir.path());
+    QVERIFY(s3.autoConnectIsExplicit());
+    QVERIFY(!s3.autoConnect());
+  }
+
+  void legacyProfileFileTurnsAutoConnectOn() {
+    for (const bool legacyValue : {false, true}) {
+      QTemporaryDir dir;
+      QVERIFY(dir.isValid());
+      QFile f(QDir(dir.path()).filePath(QStringLiteral("profiles.json")));
+      QVERIFY(f.open(QIODevice::WriteOnly));
+      const QByteArray json = QByteArray(R"({"version":1,"settings":{"auto_connect":)") + (legacyValue ? "true" : "false") +
+                              R"(,"last_hub_id":"hub-1"},"profiles":[{"hub_id":"hub-1","name":"Home","address":"https://192.0.2.10:8443"}]})";
+      f.write(json);
+      f.close();
+      {
+        ProfileStore s(dir.path());
+        QVERIFY(s.profile(QStringLiteral("hub-1")).has_value());
+        QVERIFY(s.autoConnect());  // a legacy false is "not set" and the saved server counts as connected once
+        QCOMPARE(s.autoConnectIsExplicit(), legacyValue);  // a legacy true stays explicit
+        QVERIFY(s.setLastHubId(QStringLiteral("hub-1")));  // rewrites the file in the new format
+      }
+      ProfileStore s2(dir.path());
+      QVERIFY(s2.autoConnect());
+      QCOMPARE(s2.autoConnectIsExplicit(), legacyValue);
+      QVERIFY(s2.setAutoConnect(false));
+      ProfileStore s3(dir.path());
+      QVERIFY(!s3.autoConnect());  // an explicit off written now is respected
+    }
+  }
+
   void hubDirsAreSeparatedAndSafe() {
     QTemporaryDir dir;
     ProfileStore s(dir.path());

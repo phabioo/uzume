@@ -7,12 +7,13 @@ StartPage {
     id: root
     required property PlayerController player
     readonly property var ob: player.onboarding
-    screenLabel: qsTr("Join a server · 3 of 3")
+    screenLabel: qsTr("Step 3 of 3 · %1").arg(ob.serverName)
     openLabel: qsTr("UZUME · SIGN IN · %1").arg(ob.serverName)
     hints: [{ kbd: "Esc", pad: "B", label: root.ob.phase === "approval_wait" ? qsTr("Cancel request") : qsTr("Back") }]
     onBackRequested: root.ob.phase === "approval_wait" ? ob.cancelApproval() : ob.back()
 
     StartHead {
+        step: root.screenLabel
         number: 1
         label: root.ob.serverName
         meta: qsTr("3 of 3")

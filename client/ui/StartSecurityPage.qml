@@ -10,13 +10,15 @@ StartPage {
     required property PlayerController player
     readonly property var ob: player.onboarding
     readonly property bool setup: ob.flow === "setup"
-    screenLabel: setup ? qsTr("Set up a server · 3 of 4") : qsTr("Join a server · 2 of 3")
+    screenLabel: setup ? qsTr("Step 3 of 4 · Security check") : qsTr("Step 2 of 3 · Security check")
     openLabel: setup ? qsTr("UZUME · SET UP A SERVER") : qsTr("UZUME · JOIN A SERVER")
     initialFocus: matches
     hints: [{ kbd: "Enter", pad: "A", label: qsTr("Choose") }, { kbd: "Esc", pad: "B", label: qsTr("Back") }]
+    helpItems: [{ title: qsTr("Why this check?"), text: qsTr("The code proves that you reached the right server and nobody is in between. If it does not match, nothing is sent.") }]
     onBackRequested: ob.back()
 
     StartHead {
+        step: root.screenLabel
         number: 1
         label: qsTr("Security check")
         meta: root.setup ? qsTr("Step 3 of 4") : qsTr("2 of 3")

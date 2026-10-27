@@ -152,7 +152,9 @@ Rectangle {
         anchors.fill: parent
         screenLabel: root.currentPage ? root.currentPage.screenLabel : ""
         openLabel: root.currentPage ? root.currentPage.openLabel : "UZUME"
-        openLines: ["GB · GBC · GBA · NDS · 3DS", qsTr("Version %1").arg(root.player.playerVersion), root.player.deviceName]
+        grid: true
+        helpItems: root.currentPage ? root.currentPage.helpItems : []
+        helpLines: [qsTr("Uzume %1").arg(root.player.playerVersion)]
         hints: root.currentPage ? root.currentPage.hints : []
         contentMaxWidth: root.currentPage ? root.currentPage.maxWidth : 520
         Loader {

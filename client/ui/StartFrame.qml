@@ -9,6 +9,9 @@ import Uzume.App
 // `contentMaxWidth` wide, scrolls when the window is low). `hints` follow the last input device (`device`): the app has no
 // gamepad navigation in these screens yet, so the keyboard keys are shown.
 //   hints: [{ kbd: "Enter", pad: "A", label: qsTr("Choose") }, ...]
+// `grid` (the start and connect screens, usability pass 6): a centred 880 px grid instead of the open column: the page on the
+// left, a 260 px help column (`helpItems` [{ title?, text }], `helpLines` at its foot) on the right, the Lockup at the left
+// edge of the grid, no screen label in the top bar and no vertical text (the page shows its own step line).
 Item {
     id: root
     property string screenLabel: ""
@@ -18,6 +21,11 @@ Item {
     property string device: "keyboard"      // keyboard | gamepad
     property real contentMaxWidth: 520
     property real contentSpacing: 28
+    property bool grid: false
+    property var helpItems: []
+    property var helpLines: []
+    readonly property real gridWidth: Math.min(880, width - 2 * Theme.space7)
+    readonly property bool helpShown: grid && helpItems.length > 0 && gridWidth >= 720
     default property alias content: contentCol.data
     readonly property alias flick: flick
     readonly property alias column: contentCol
@@ -29,9 +37,10 @@ Item {
         y: 0
         width: parent.width
         height: 84
-        UzLockup { objectName: "startLockup"; x: 28; y: 32 }
+        UzLockup { objectName: "startLockup"; x: root.grid ? Math.max(Theme.space7, (root.width - root.gridWidth) / 2) : 28; y: 32 }
         Text {
             objectName: "startScreenLabel"
+            visible: !root.grid
             anchors.right: parent.right
             anchors.rightMargin: Theme.space7
             y: 34
@@ -46,9 +55,9 @@ Item {
     }
 
     RowLayout {   // content | open column
-        x: Theme.space7
+        x: root.grid ? (parent.width - root.gridWidth) / 2 : Theme.space7
         y: topBar.height
-        width: parent.width - 2 * Theme.space7
+        width: root.grid ? root.gridWidth : parent.width - 2 * Theme.space7
         height: parent.height - topBar.height - hintBar.height
         spacing: Theme.space7
 
@@ -80,10 +89,22 @@ Item {
             }
         }
         UzOpenColumn {
+            visible: !root.grid
             Layout.fillHeight: true
             Layout.preferredWidth: Theme.openColumn
             label: root.openLabel
             lines: root.openLines
+        }
+        UzHelpColumn {
+            objectName: "startHelpColumn"
+            visible: root.helpShown
+            Layout.fillHeight: true
+            Layout.preferredWidth: 260
+            Layout.maximumWidth: 260
+            Layout.topMargin: 34
+            width: 260
+            items: root.helpItems
+            lines: root.helpLines
         }
     }
 

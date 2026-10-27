@@ -70,6 +70,7 @@ QVariantMap HubPresenter::hubCard(const HubProfile& p) const {
   const QString last = !p.lastConnected.isValid() ? tr("never connected")
                        : connectedNow ? tr("since %1").arg(lastWhen) : tr("last %1").arg(lastWhen);
   m.insert(QStringLiteral("detail"), trimmedScheme(p.address) + QStringLiteral(" · ") + last);
+  m.insert(QStringLiteral("addressText"), trimmedScheme(p.address));
 
   const bool current = conn_->state() != S::Disconnected &&
                        (conn_->address() == p.address || (conn_->profile() && conn_->profile()->hubId == p.hubId));

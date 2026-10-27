@@ -16,7 +16,7 @@ StartPage {
     property bool added: false          // a folder was added on this page
     property bool noAccess: false
     readonly property string view: noAccess ? "noaccess" : !added ? "pick" : scanning ? "scanning" : games > 0 ? "found" : "empty"
-    screenLabel: qsTr("Play on this PC · 1 of 1")
+    screenLabel: qsTr("Play on this PC")
     openLabel: qsTr("UZUME · PLAY ON THIS PC")
     initialFocus: folderField.field
     hints: [{ kbd: "Enter", pad: "A", label: qsTr("Choose") }, { kbd: "Esc", pad: "B", label: qsTr("Back") }]
@@ -47,6 +47,7 @@ StartPage {
     }
 
     StartHead {
+        step: root.screenLabel
         number: 1
         label: qsTr("Play on this PC")
         meta: qsTr("No account")

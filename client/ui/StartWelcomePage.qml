@@ -18,6 +18,7 @@ StartPage {
             { pad: "B", label: qsTr("Back") }]
 
     StartHead {
+        step: root.screenLabel
         number: 1
         label: qsTr("Welcome")
         meta: qsTr("3 ways to start")
@@ -45,7 +46,7 @@ StartPage {
             objectName: "startJoin"
             number: "02"
             title: qsTr("Join a server")
-            text: qsTr("A friend runs Uzume for a group. You need their address or an invite code.")
+            text: qsTr("A friend runs Uzume for a group. You need their address or an invite link.")
             meta: qsTr("Most people in a SoulLink run start here")
             KeyNavigation.up: playRow
             KeyNavigation.down: setupRow

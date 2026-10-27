@@ -15,6 +15,7 @@ StartPage {
     onBackRequested: ob.cancel()
 
     StartHead {
+        step: root.screenLabel
         number: 1
         label: qsTr("Invite link")
         title: qsTr("You're invited to %1").arg(root.ob.serverName)

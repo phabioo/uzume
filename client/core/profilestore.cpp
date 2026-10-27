@@ -341,7 +341,14 @@ void ProfileStore::load() {
 
   const QJsonObject root = readJsonFile(profilesFilePath());
   const QJsonObject settings = root.value(QStringLiteral("settings")).toObject();
-  autoConnect_ = settings.value(QStringLiteral("auto_connect")).toBool(false);
+  autoConnectChoice_.reset();
+  const bool legacy = !settings.contains(QStringLiteral("connected_once"));  // written before the default existed
+  if (settings.value(QStringLiteral("auto_connect")).isBool()) {
+    const bool value = settings.value(QStringLiteral("auto_connect")).toBool();
+    // A legacy "false" was only the old default, not a choice; every other stored value is explicit.
+    if (!legacy || value) autoConnectChoice_ = value;
+  }
+  connectedOnce_ = settings.value(QStringLiteral("connected_once")).toBool(false);
   lastHubId_ = settings.value(QStringLiteral("last_hub_id")).toString();
   profiles_.clear();
   const QJsonArray arr = root.value(QStringLiteral("profiles")).toArray();
@@ -351,6 +358,9 @@ void ProfileStore::load() {
       profiles_.append(p);
     }
   }
+  if (legacy && !profiles_.isEmpty()) {
+    connectedOnce_ = true;  // such a file exists only because a connection happened
+  }
 }
 
 bool ProfileStore::save() const {
@@ -359,7 +369,10 @@ bool ProfileStore::save() const {
     arr.append(toJson(p));
   }
   QJsonObject settings;
-  settings.insert(QStringLiteral("auto_connect"), autoConnect_);
+  if (autoConnectChoice_.has_value()) {
+    settings.insert(QStringLiteral("auto_connect"), *autoConnectChoice_);
+  }
+  settings.insert(QStringLiteral("connected_once"), connectedOnce_);
   settings.insert(QStringLiteral("last_hub_id"), lastHubId_);
   QJsonObject root;
   root.insert(QStringLiteral("version"), 1);
@@ -623,7 +636,15 @@ bool ProfileStore::removeProfile(const QString& hubId) {
 }
 
 bool ProfileStore::setAutoConnect(bool on) {
-  autoConnect_ = on;
+  autoConnectChoice_ = on;
+  return save();
+}
+
+bool ProfileStore::markConnectedOnce() {
+  if (connectedOnce_) {
+    return true;
+  }
+  connectedOnce_ = true;
   return save();
 }
 

@@ -7,7 +7,7 @@ StartPage {
     id: root
     required property PlayerController player
     readonly property var ob: player.onboarding
-    screenLabel: ob.flow === "link" ? qsTr("Invite link") : qsTr("Join a server · 3 of 3")
+    screenLabel: ob.flow === "link" ? qsTr("Invite link") : qsTr("Step 3 of 3 · %1").arg(ob.serverName)
     openLabel: qsTr("UZUME · JOIN A SERVER")
     initialFocus: form.codeText !== "" ? form.nameField.field : form.codeField.field
     hints: [{ kbd: "Tab", label: qsTr("Next") }, { kbd: "Enter", label: qsTr("Join") },
@@ -16,6 +16,7 @@ StartPage {
     onBackRequested: ob.back()
 
     StartHead {
+        step: root.screenLabel
         number: 1
         label: root.ob.serverName
         meta: qsTr("3 of 3")

@@ -10,7 +10,7 @@ StartPage {
     signal chose(string where)
     signal leave()
     readonly property bool localAvailable: player.localHub.available
-    screenLabel: qsTr("Set up a server · 1–3 of 4")
+    screenLabel: qsTr("Step 1 of 4 · Where it runs")
     openLabel: qsTr("UZUME · SET UP A SERVER")
     maxWidth: 880
     spacing: 32
@@ -21,6 +21,7 @@ StartPage {
     onBackRequested: root.leave()
 
     StartHead {
+        step: root.screenLabel
         number: 1
         label: qsTr("Set up a server")
         meta: qsTr("Step 1 of 4")

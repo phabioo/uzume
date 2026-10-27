@@ -114,8 +114,15 @@ class ProfileStore {
   // "host" and "port" of a stored address (scheme://host[:port]); port 0 = none. Used to fill the edit row.
   static void splitAddress(const QString& address, QString* host, int* port);
 
-  bool autoConnect() const { return autoConnect_; }
+  // Automatic connection at startup. An explicit choice of the user (setAutoConnect, stored as "auto_connect") always wins;
+  // without one the default is on as soon as a server was connected successfully once (markConnectedOnce), so a second
+  // start needs no extra click. Profile files written before that default carry an explicit value and keep it.
+  bool autoConnect() const { return autoConnectChoice_.value_or(connectedOnce_); }
+  bool autoConnectIsExplicit() const { return autoConnectChoice_.has_value(); }
   bool setAutoConnect(bool on);
+  bool connectedOnce() const { return connectedOnce_; }
+  // Called when a connection reached "connected"; stored as "connected_once". True when it is stored (or was already).
+  bool markConnectedOnce();
   QString lastHubId() const { return lastHubId_; }
   bool setLastHubId(const QString& hubId);
 
@@ -128,7 +135,8 @@ class ProfileStore {
   QString deviceId_;
   QString deviceName_;
   QList<HubProfile> profiles_;
-  bool autoConnect_ = false;
+  std::optional<bool> autoConnectChoice_;
+  bool connectedOnce_ = false;
   QString lastHubId_;
 };
 

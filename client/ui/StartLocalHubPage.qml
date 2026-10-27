@@ -11,7 +11,7 @@ StartPage {
     readonly property var local: player.localHub
     readonly property bool form: local.phase === "needsSetup" || local.phase === "needsSignIn" || local.phase === "working"
     signal leave()
-    screenLabel: qsTr("Set up a server · on this PC")
+    screenLabel: qsTr("Set up a server on this PC")
     openLabel: qsTr("UZUME · SET UP A SERVER")
     initialFocus: form ? null : cancelButton
     hints: [{ kbd: "Enter", pad: "A", label: qsTr("Choose") }, { kbd: "Esc", pad: "B", label: qsTr("Cancel") }]
@@ -23,6 +23,7 @@ StartPage {
     }
 
     StartHead {
+        step: root.screenLabel
         number: 1
         label: qsTr("Set up a server")
         meta: qsTr("On this PC")
