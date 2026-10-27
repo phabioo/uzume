@@ -125,7 +125,8 @@ class McpToolsTest : public QObject {
                           "game_resume", "game_frame_step", "game_state_save", "game_state_load", "game_memory_write", "cheats_list", "cheats_apply",
                           "cheats_clear", "store_get", "store_put", "consent_set", "server_sign_in", "states_list", "states_save", "states_load",
                           "states_delete", "rewind", "runs_list", "run_set_rules", "run_events", "plugin_link", "developer_mode", "file_dialog_pick", "settings_set", "saves_history", "toasts_list",
-                          "run_recap"})
+                          "run_recap", "together_state", "notifications_act", "session_share",
+                          "session_stop_sharing"})
       QVERIFY2(names.contains(QLatin1String(n)), n);
   }
 
@@ -225,6 +226,30 @@ class McpToolsTest : public QObject {
       }
       if (t.name == QLatin1String("ui_click")) QVERIFY(t.inputSchema.value("properties").toObject().contains("confirm"));
     }
+  }
+
+  void togetherToolsReadAndActOnNotifications() {
+    QJsonObject st = jsonOf(call("together_state")).toObject();
+    QCOMPARE(st.value("unread").toInt(), 0);
+    QVERIFY(st.value("roster").toArray().isEmpty());
+    QVERIFY(call("notifications_act", {{"index", 0}}).isError);  // nothing there yet
+    QVERIFY(call("notifications_act").isError);
+    pc->notifications()->notify(QStringLiteral("update"), QStringLiteral("Uzume 9.9.9 is available"), QStringLiteral("WHAT'S NEW"), QStringLiteral("settings:updates"));
+    st = jsonOf(call("together_state")).toObject();
+    QCOMPARE(st.value("unread").toInt(), 1);
+    const QJsonObject n = st.value("notifications").toArray().at(0).toObject();
+    QCOMPARE(n.value("kind").toString(), QStringLiteral("update"));
+    QCOMPARE(n.value("action").toString(), QStringLiteral("WHAT'S NEW"));
+    QVERIFY(!n.value("read").toBool());
+    QVERIFY(!call("notifications_act", {{"index", 0}}).isError);
+    QCOMPARE(jsonOf(call("together_state")).toObject().value("unread").toInt(), 0);
+  }
+
+  void sessionShareToolsNeedAGame() {
+    QCOMPARE(call("session_share", {{"visibility", "home_server"}}).content.value(0).text, QStringLiteral("no_game"));
+    QVERIFY(call("session_share", {{"visibility", "everyone"}}).isError);
+    QVERIFY(call("session_share").isError);
+    QVERIFY(!jsonOf(call("session_stop_sharing")).toObject().value("was_shared").toBool());
   }
 
   void serverSignInValidatesArguments() {

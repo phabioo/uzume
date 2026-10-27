@@ -653,6 +653,7 @@ func (s *Service) endLocked(ctx context.Context, d *sessionData, reason string) 
 			c.sendMsg("session_ended", "", map[string]string{"session_id": d.id, "reason": reason})
 		}
 	}
+	s.resendPresence(d.ownerDeviceID, func(c *Client) bool { return d.allows(c.userID, c.deviceID) }) // session_id disappears
 	return nil
 }
 
@@ -671,6 +672,10 @@ func (s *Service) broadcastSession(before, after *sessionData, inviteUser string
 			c.sendMsg("session_update", "", map[string]any{"session": after.render(c.userID, c.deviceID, s.userOnline)})
 		}
 	}
+	// session_id in the owner's presence appears or disappears for the devices whose access changed
+	s.resendPresence(after.ownerDeviceID, func(c *Client) bool {
+		return after.allows(c.userID, c.deviceID) != (before != nil && before.allows(c.userID, c.deviceID))
+	})
 }
 
 // onDeviceRevoked ends the device's Session, removes its viewers and closes its WSS connection.

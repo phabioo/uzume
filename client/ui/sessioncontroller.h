@@ -24,6 +24,7 @@
 #include "hubconnection.h"
 #include "hubsocket.h"
 #include "mediastats.h"
+#include "onlineroster.h"
 #include "playersettings.h"
 #include "profilestore.h"
 #include "sessionapi.h"
@@ -111,6 +112,11 @@ class SessionController : public QObject {
   QString hubLink() const;
   bool available() const;
   QVariantList sessions() const;
+  // Online roster (ADR 0033 D1): people who are online on the server, from the presence updates.
+  OnlineRoster* roster() { return &roster_; }
+  QString localRunId() const { return hasLocalGame() ? runId_ : QString(); }  // run of the running game, "" = not a run game
+  // "Invite" in the online list: my Session is shared and this person is not invited to it yet.
+  bool canInvite(const QString& userId) const;
   bool shared() const { return shared_; }
   bool shareBusy() const { return shareBusy_; }
   QString visibility() const { return visibility_; }
@@ -209,8 +215,14 @@ class SessionController : public QObject {
   Q_INVOKABLE void audioHere(const QString& surface);   // "local" | Session id
   Q_INVOKABLE void selectSurface(const QString& surface);  // "local" | Session id; the side panel follows
   Q_INVOKABLE void dismissMessage();
+  // "Watch" from the online roster: the Session id comes from a presence update, so the Session list may not know it yet (it is then
+  // refreshed first).
+  Q_INVOKABLE void watchFromRoster(const QString& sessionId);
 
  signals:
+  // A notification for the bell (kind, text, action label, action data), see NotificationCenter. Only live events: the first list after a
+  // (re)connect does not produce any.
+  void notice(const QString& kind, const QString& text, const QString& actionLabel, const QString& actionData);
   void layoutNotice(const QString& text);  // toast text after a layout, swap or bottom-window choice of the user
   void linkChanged();
   void sessionsChanged();
@@ -264,6 +276,9 @@ class SessionController : public QObject {
   AudioOutput remoteAudio_;
 
   QHash<QString, SessionInfo> sessions_;  // visible Sessions (not own)
+  OnlineRoster roster_;
+  bool sessionsLoaded_ = false;  // the Session list of this connection arrived: later new Sessions are news
+  QString pendingWatch_;         // watchFromRoster waits for the refreshed list
   int visInFlight_ = 0;          // visibility PATCHes not answered yet (a session_update meanwhile must not revert the choice)
   quint64 visGen_ = 0;           // bumped by every local visibility change (stale REST answers keep the newer one)
   quint64 sessionEventGen_ = 0;  // bumped by every live session event; stale GET /sessions results are dropped

@@ -869,7 +869,7 @@ func TestWSHandshakeRules(t *testing.T) {
 	}
 	json.Unmarshal(ack.Payload, &p)
 	if p.ProtocolVersion != hub.ProtocolVersion || p.HubVersion == "" || len(p.IceServers) != 1 || p.IceServers[0] != "stun:stun.example.org:3478" ||
-		strings.Join(p.Features, ",") != "saves_v1,saves_v2,sessions_v1,ice_update_v1,runs_v1,runs_v2,local_roms_v1" || ack.ID != "x" {
+		strings.Join(p.Features, ",") != "saves_v1,saves_v2,sessions_v1,ice_update_v1,runs_v1,runs_v2,local_roms_v1,together_v1" || ack.ID != "x" {
 		t.Fatalf("%+v id=%q", p, ack.ID)
 	}
 	sess := s.publish(a1, "hub_users")

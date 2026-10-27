@@ -69,6 +69,10 @@ Long reads are bounded (memory 1 MiB per call, RomFS 4 MiB per call, logs 2000 l
 | `id` and `plugin_id` | every tool that takes a plugin accepts both names |
 | `ui_type` on `plugin_*` blocks | the keys go to the text field inside a plugin `textarea` / `textfield` block, not to the block |
 
+#### Amendment (0.23, 2026-10-27): session sharing tools
+
+`session_share` and `session_stop_sharing` start and stop the Session of the running game through the same path as the Share button. Sharing a running game's Session is reversible, visible in the app (share pill, the person can stop it) and needed for live tests of 0.23 (online list, Watch, Invite). The tools only share the running game and never change the sharing of the local server; "Share with others" stays a destructive control that UI control refuses.
+
 ## Consequences
 
 - The developer console of 0.22 can use the same data sources; the MCP server does not replace it.

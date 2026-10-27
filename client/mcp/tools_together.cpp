@@ -1,16 +1,21 @@
 // server_sign_in (ADR 0032, live tests): adds a server and signs in with a password through the same onboarding flow as the
 // "Join a server" screen (security check, then "sign in on a new device"). The password is neither logged nor returned.
 #include <QCoreApplication>
+#include <QDateTime>
+#include <QJsonArray>
 #include <QJsonObject>
 #include <QPointer>
 #include <QTimer>
+#include <functional>
 #include <memory>
 
 #include "hubconnection.h"
 #include "hubhttp.h"
 #include "mcp_tools.h"
+#include "notificationcenter.h"
 #include "onboardingcontroller.h"
 #include "playercontroller.h"
+#include "sessioncontroller.h"
 #include "tools_util.h"
 
 namespace uzume::mcp {
@@ -155,6 +160,106 @@ void installTogetherTools(McpToolRegistry& registry, ui::PlayerController& playe
     QTimer::singleShot(kStepMs, qApp, [f] { step(f); });
   };
   registry.add(std::move(t));
+
+  // together_state (0.23): what the app shows in the ONLINE list and the bell.
+  ToolDef state;
+  state.name = QStringLiteral("together_state");
+  state.description = QStringLiteral(
+      "The online list and the notifications of the current server as the app shows them: roster (people other than me: name, state "
+      "online|in_game, game title, system, session_id when watchable, invite_kind session|run|none), notifications (newest first: index, "
+      "kind, text, time, action label, read) and the unread count. Read-only; opening the bell is what marks entries read, this does not.");
+  state.inputSchema = schema();
+  state.handler = [pc](const QJsonObject&, ToolReply reply) {
+    if (!pc) return reply(ToolResult::error(QStringLiteral("app_closing")));
+    QJsonArray roster;
+    for (const QVariant& v : pc->onlinePeople()) {
+      const QVariantMap m = v.toMap();
+      roster.append(QJsonObject{{QStringLiteral("user_id"), m.value(QStringLiteral("userId")).toString()},
+                                {QStringLiteral("name"), m.value(QStringLiteral("name")).toString()},
+                                {QStringLiteral("state"), m.value(QStringLiteral("state")).toString()},
+                                {QStringLiteral("game_title"), m.value(QStringLiteral("gameTitle")).toString()},
+                                {QStringLiteral("system"), m.value(QStringLiteral("system")).toString()},
+                                {QStringLiteral("session_id"), m.value(QStringLiteral("sessionId")).toString()},
+                                {QStringLiteral("invite_kind"), m.value(QStringLiteral("inviteKind")).toString().isEmpty() ? QStringLiteral("none") : m.value(QStringLiteral("inviteKind")).toString()}});
+    }
+    QJsonArray notes;
+    for (const QVariant& v : pc->notifications()->entries()) {
+      const QVariantMap m = v.toMap();
+      notes.append(QJsonObject{{QStringLiteral("index"), m.value(QStringLiteral("index")).toInt()},
+                               {QStringLiteral("kind"), m.value(QStringLiteral("kind")).toString()},
+                               {QStringLiteral("text"), m.value(QStringLiteral("text")).toString()},
+                               {QStringLiteral("time"), QDateTime::fromMSecsSinceEpoch(m.value(QStringLiteral("atMs")).toLongLong(), Qt::UTC).toString(Qt::ISODate)},
+                               {QStringLiteral("action"), m.value(QStringLiteral("actionLabel")).toString()},
+                               {QStringLiteral("read"), m.value(QStringLiteral("read")).toBool()}});
+    }
+    reply(ToolResult::json(QJsonObject{{QStringLiteral("roster"), roster},
+                                       {QStringLiteral("notifications"), notes},
+                                       {QStringLiteral("unread"), pc->notifications()->unread()}}));
+  };
+  registry.add(std::move(state));
+
+  // notifications_act {index}: the click on an entry of the bell (WATCH, OPEN RUN, WHAT'S NEW, OPEN STATUS).
+  ToolDef act;
+  act.name = QStringLiteral("notifications_act");
+  act.description = QStringLiteral("Runs the action of a notification (index from together_state, 0 = newest), as a click in the bell does: marks it read and "
+                                   "watches the Session, opens the run, Settings > Updates or the server status.");
+  act.inputSchema = schema({{QStringLiteral("index"), typeInt(QStringLiteral("Index of the notification, 0 = newest."))}}, {QStringLiteral("index")});
+  act.handler = [pc](const QJsonObject& a, ToolReply reply) {
+    if (!pc) return reply(ToolResult::error(QStringLiteral("app_closing")));
+    const QJsonValue idx = a.value(QStringLiteral("index"));
+    if (!idx.isDouble()) return reply(ToolResult::error(QStringLiteral("index is required (an integer)")));
+    if (!pc->notifications()->act(idx.toInt())) return reply(ToolResult::error(QStringLiteral("no_such_notification")));
+    reply(ToolResult::json(QJsonObject{{QStringLiteral("ok"), true}}));
+  };
+  registry.add(std::move(act));
+
+  // session_share / session_stop_sharing (0.23, ADR 0032 D4 amendment): the Share button's path for the running game's Session. The
+  // server-level "Share with others" of the local server stays person-only.
+  ToolDef share;
+  share.name = QStringLiteral("session_share");
+  share.description = QStringLiteral(
+      "Shares the running game as a Session like the Share button (visibility private | home_server = everyone on the server | invite_only), "
+      "or changes the visibility of the Session that is already shared. Answers no_game without a running game. Never touches the sharing "
+      "of the local server (\"Share with others\").");
+  share.inputSchema = schema({{QStringLiteral("visibility"), typeStr(QStringLiteral("private | home_server | invite_only"))}}, {QStringLiteral("visibility")});
+  share.timeoutMs = 10000;
+  share.handler = [pc](const QJsonObject& a, ToolReply reply) {
+    if (!pc) return reply(ToolResult::error(QStringLiteral("app_closing")));
+    const QString given = a.value(QStringLiteral("visibility")).toString();
+    const QString vis = given == QLatin1String("home_server") ? QStringLiteral("hub_users") : given;
+    if (vis != QLatin1String("private") && vis != QLatin1String("hub_users") && vis != QLatin1String("invite_only"))
+      return reply(ToolResult::error(QStringLiteral("visibility must be private, home_server or invite_only")));
+    ui::SessionController* sc = pc->sessions();
+    if (!sc->hasLocalGame()) return reply(ToolResult::error(QStringLiteral("no_game")));
+    sc->setVisibility(vis);
+    if (!sc->shared()) sc->shareSession();
+    auto elapsed = std::make_shared<int>(0);
+    auto poll = std::make_shared<std::function<void()>>();
+    QPointer<ui::SessionController> scp(sc);
+    auto shared = std::make_shared<ToolReply>(std::move(reply));
+    *poll = [scp, elapsed, poll, shared, given]() {
+      if (!scp) return (*shared)(ToolResult::error(QStringLiteral("app_closing")));
+      if (scp->shared() && !scp->shareBusy())
+        return (*shared)(ToolResult::json(QJsonObject{{QStringLiteral("shared"), true}, {QStringLiteral("visibility"), given}}));
+      *elapsed += 100;
+      if (*elapsed > 8000) return (*shared)(ToolResult::error(scp->message().isEmpty() ? QStringLiteral("share_timeout") : scp->message()));
+      QTimer::singleShot(100, qApp, [poll] { (*poll)(); });
+    };
+    (*poll)();
+  };
+  registry.add(std::move(share));
+
+  ToolDef stop;
+  stop.name = QStringLiteral("session_stop_sharing");
+  stop.description = QStringLiteral("Stops sharing the running game's Session (the Stop sharing button). Does nothing when nothing is shared.");
+  stop.inputSchema = schema();
+  stop.handler = [pc](const QJsonObject&, ToolReply reply) {
+    if (!pc) return reply(ToolResult::error(QStringLiteral("app_closing")));
+    const bool was = pc->sessions()->shared();
+    pc->sessions()->stopSharing();
+    reply(ToolResult::json(QJsonObject{{QStringLiteral("was_shared"), was}}));
+  };
+  registry.add(std::move(stop));
 }
 
 }  // namespace uzume::mcp

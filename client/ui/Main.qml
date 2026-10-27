@@ -143,6 +143,19 @@ ApplicationWindow {
         StartScreen { player: window.player }
     }
 
+    // Toasts of the notifications (bottom left); in the game view the stage has its own host.
+    ToastHost {
+        player: window.player
+        visible: window.player.screen !== "game"
+        anchors.left: parent.left
+        anchors.bottom: stack.bottom
+        anchors.margins: Theme.space3
+        // Next to the AppNav, not over the person at its foot.
+        anchors.leftMargin: (["library", "settings", "runs", "server"].indexOf(window.player.screen) >= 0 ? Theme.sidebarWidth : 0) + Theme.space3
+        maxToastWidth: Math.max(240, window.width - 2 * Theme.space3)
+        z: 400
+    }
+
     // "Change hotkeys" of the in-game hotkey sheet (GameScreen): Settings at the Hotkeys section.
     function openControllersHotkeys() {
         window.player.showSettingsSection("hotkeys")

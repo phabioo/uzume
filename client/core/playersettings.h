@@ -107,6 +107,17 @@ class PlayerSettings {
   QStringList libraryFolders() const { return libraryFolders_; }
   bool setLibraryFolders(const QStringList& folders);  // false: invalid entry or not writable (nothing changes)
 
+  // Notifications (0.23, ADR 0033 D2), per this PC: how each kind shows. Kinds: invite | session_started | run_event | update |
+  // server_problem. Mode "toast" (default) shows a toast and keeps the entry in the bell, "list" only keeps it in the bell.
+  // "Quiet in fullscreen" (default on): in fullscreen only @mentions toast. "Sound for toasts" (default off).
+  static bool isNotificationKind(const QString& kind);
+  QString notificationMode(const QString& kind) const;  // "toast" | "list"; unknown kinds read as "toast"
+  bool setNotificationMode(const QString& kind, const QString& mode);  // false: unknown kind or mode
+  bool notifyQuietFullscreen() const;
+  bool setNotifyQuietFullscreen(bool on);
+  bool notifySound() const;
+  bool setNotifySound(bool on);
+
   // Plugin developer mode (settings -> Plugins): allows unsigned local plugins, shows the Plugin console in game. Default off.
   bool developerMode() const { return developerMode_; }
   bool setDeveloperMode(bool on);

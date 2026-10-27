@@ -317,7 +317,8 @@ void HubSocket::onTextMessage(const QString& text) {
     qCInfo(lcSocket).noquote() << QStringLiteral("ICE servers updated: %1 stun, %2 turn").arg(hello_.iceServers.size()).arg(hello_.turnServers.size());
     emit iceUpdated(hello_);
   } else if (type == QLatin1String("presence_update")) {
-    emit presenceUpdated({str(p, "user_id"), str(p, "device_id"), str(p, "state"), str(p, "game_id")});
+    emit presenceUpdated({str(p, "user_id"), str(p, "device_id"), str(p, "state"), str(p, "game_id"), str(p, "display_name"), str(p, "game_title"),
+                          str(p, "system"), str(p, "session_id")});
   } else if (type == QLatin1String("session_update") || type == QLatin1String("session_invite")) {
     if (const auto s = parseSession(p.value(QStringLiteral("session")).toObject())) {
       if (type == QLatin1String("session_update")) {
