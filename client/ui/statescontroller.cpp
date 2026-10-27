@@ -95,7 +95,7 @@ void StatesController::gameStopped() {
 }
 
 void StatesController::applyOptions(int rewindSeconds, int runAhead) {
-  wantedRewindSeconds_ = std::max(0, rewindSeconds);
+  wantedRewindSeconds_ = (std::max)(0, rewindSeconds);
   wantedRunAhead_ = std::clamp(runAhead, 0, 2);
   applyRewind();
 }
