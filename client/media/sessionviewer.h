@@ -14,6 +14,7 @@
 #include "bitratecontroller.h"
 #include "mediastats.h"
 #include "opuscodec.h"
+#include "qualitytier.h"
 #include "rtcutil.h"
 #include "sessiontypes.h"
 #include "videodecoder.h"
@@ -78,6 +79,16 @@ class SessionViewer : public QObject {
   bool hostPaused() const { return hostPaused_; }
   QString hostPausedBy() const { return hostPausedBy_; }
   void requestKeyframe();  // sends a PLI now (rate-limited to one per 500 ms)
+  // Quality (ADR 0033 D5): the pick goes to the host over fb-diag now, and again whenever the channel (re)opens. Valid before
+  // open(): the pick of a new Session starts from the user's default. Old hosts ignore the message.
+  void setQuality(Quality pick);
+  Quality quality() const { return pick_; }
+  // What the host says it serves this viewer ("tier" message); hasServedTier is false until the first one (old hosts never).
+  bool hasServedTier() const { return hasTier_; }
+  Quality servedTier() const { return servedTier_; }
+  int servedKbps() const { return servedKbps_; }
+  // Latency measured with the fb-diag ping/pong (nullopt until the first pong).
+  std::optional<double> latencyMs() const { return latencyMs_; }
 
  public slots:
   void handleSignal(const uzume::SessionSignal& signal);  // offer / candidate from the owner
@@ -89,10 +100,15 @@ class SessionViewer : public QObject {
   void closed(const QString& reason);  // the PeerConnection failed or closed on its own
   void errorOccurred(const QString& message);
   void hostStateChanged(bool paused, const QString& by);  // UI thread
+  void qualityChanged();  // served tier, pick or latency changed (UI thread)
 
  private:
   void onPcState(int state);
   void onHostState(bool paused, const QString& by);
+  void onTier(const TierMessage& m);
+  void onPingPong(const PingMessage& m);
+  void sendDiag(const QByteArray& msg);
+  void sendPing();
   void onGatheringComplete();
   struct MediaPipe;
   // Receive side (PN-6): the libdatachannel threads only fill a bounded mailbox; a worker thread decodes (H.264, Opus) and hands
@@ -135,6 +151,14 @@ class SessionViewer : public QObject {
   bool pliSent_ = false;
   bool hostPaused_ = false;
   QString hostPausedBy_;
+  Quality pick_ = Quality::Auto;
+  Quality servedTier_ = Quality::Auto;
+  bool hasTier_ = false;
+  int servedKbps_ = 0;
+  std::optional<double> latencyMs_;
+  int pingN_ = 0;
+  QElapsedTimer pingClock_;
+  QTimer pingTimer_;
 
   mutable QMutex audioMutex_;
   QByteArray audioBuf_;

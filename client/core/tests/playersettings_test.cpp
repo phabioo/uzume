@@ -176,6 +176,19 @@ class PlayerSettingsTest : public QObject {
     QCOMPARE(PlayerSettings(dir.path()).sessionVisibility(), QStringLiteral("invite_only"));
   }
 
+  void viewerQualityRoundTrip() {
+    QTemporaryDir dir;
+    {
+      PlayerSettings s(dir.path());
+      QCOMPARE(s.viewerQuality(), QStringLiteral("auto"));
+      QVERIFY(!s.setViewerQuality(QStringLiteral("ultra")));
+      QVERIFY(!s.setViewerQuality(QString()));
+      QCOMPARE(s.viewerQuality(), QStringLiteral("auto"));
+      QVERIFY(s.setViewerQuality(QStringLiteral("low")));
+    }
+    QCOMPARE(PlayerSettings(dir.path()).viewerQuality(), QStringLiteral("low"));
+  }
+
   void bottomWindowGeometryRoundTrip() {
     QTemporaryDir dir;
     {

@@ -126,7 +126,7 @@ class McpToolsTest : public QObject {
                           "cheats_clear", "store_get", "store_put", "consent_set", "server_sign_in", "states_list", "states_save", "states_load",
                           "states_delete", "rewind", "runs_list", "run_set_rules", "run_events", "plugin_link", "developer_mode", "file_dialog_pick", "settings_set", "saves_history", "toasts_list",
                           "run_recap", "together_state", "notifications_act", "session_share",
-                          "session_stop_sharing", "together_ready_check", "together_pause", "chat_send", "chat_history"})
+                          "session_stop_sharing", "together_ready_check", "together_pause", "chat_send", "chat_history", "session_quality", "session_viewers"})
       QVERIFY2(names.contains(QLatin1String(n)), n);
   }
 
@@ -250,6 +250,17 @@ class McpToolsTest : public QObject {
     QVERIFY(call("session_share", {{"visibility", "everyone"}}).isError);
     QVERIFY(call("session_share").isError);
     QVERIFY(!jsonOf(call("session_stop_sharing")).toObject().value("was_shared").toBool());
+  }
+
+  void sessionQualityNeedsAWatchedSession() {
+    QCOMPARE(call("session_quality", {{"pick", "low"}}).content.value(0).text, QStringLiteral("not_watching"));
+    QVERIFY(call("session_quality", {{"pick", "ultra"}}).isError);
+    QVERIFY(call("session_quality").isError);
+    const QJsonObject v = jsonOf(call("session_viewers")).toObject();
+    QVERIFY(!v.value("hosting").toBool());
+    QVERIFY(v.value("viewers").toArray().isEmpty());
+    QVERIFY(v.value("watching").toArray().isEmpty());
+    QCOMPARE(v.value("default_quality").toString(), QStringLiteral("auto"));
   }
 
   void togetherToolsNeedAScope() {

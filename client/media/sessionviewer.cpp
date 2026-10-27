@@ -86,6 +86,9 @@ class LossReceivingSession : public rtc::RtcpReceivingSession {
 SessionViewer::SessionViewer(QObject* parent) : QObject(parent), forceRelay_(forceRelayFromEnv()), bridge_(std::make_shared<ThreadBridge>(this)) {
   statsTimer_.setInterval(1000);
   connect(&statsTimer_, &QTimer::timeout, this, &SessionViewer::updateStats);
+  pingTimer_.setInterval(2000);
+  connect(&pingTimer_, &QTimer::timeout, this, &SessionViewer::sendPing);
+  pingClock_.start();
 }
 
 SessionViewer::~SessionViewer() {
@@ -114,7 +117,9 @@ void SessionViewer::open(const QString& sessionId, const QString& viewerId, cons
   audioPeak_ = 0;
   pliSent_ = false;
   stats_ = SessionStats();
-  link_ = ViewerLinkStats{viewerId, QStringLiteral("new"), std::nullopt, QString()};
+  link_ = ViewerLinkStats();
+  link_.viewerId = viewerId;
+  link_.state = QStringLiteral("new");
   {
     QMutexLocker lock(&audioMutex_);
     audioBuf_.clear();
@@ -136,6 +141,43 @@ void SessionViewer::onHostState(bool paused, const QString& by) {
   emit hostStateChanged(paused, by);
 }
 
+void SessionViewer::sendDiag(const QByteArray& msg) {
+  if (!diag_) return;
+  try {
+    if (diag_->isOpen()) diag_->send(std::string(msg.constData(), static_cast<size_t>(msg.size())));
+  } catch (const std::exception& e) {
+    qCWarning(lcViewer) << "diag send:" << e.what();
+  }
+}
+
+void SessionViewer::setQuality(Quality pick) {
+  if (pick == pick_) return;
+  pick_ = pick;
+  sendDiag(makeQualityPick(pick));
+  emit qualityChanged();
+}
+
+void SessionViewer::sendPing() { sendDiag(makePing(++pingN_, pingClock_.elapsed())); }
+
+void SessionViewer::onPingPong(const PingMessage& m) {
+  if (!m.pong) {
+    sendDiag(makePong(m.n, m.ts));  // the host measures its own latency
+    return;
+  }
+  if (const auto rtt = rttFromPong(pingClock_.elapsed(), m.ts)) {
+    latencyMs_ = *rtt;
+    emit qualityChanged();
+  }
+}
+
+void SessionViewer::onTier(const TierMessage& m) {
+  if (hasTier_ && servedTier_ == m.tier && servedKbps_ == m.kbps) return;
+  hasTier_ = true;
+  servedTier_ = m.tier;
+  servedKbps_ = m.kbps;
+  emit qualityChanged();
+}
+
 void SessionViewer::teardown() {
   ++pcGen_;
   if (hostPaused_) {
@@ -144,6 +186,14 @@ void SessionViewer::teardown() {
     emit hostStateChanged(false, QString());
   }  // invalidates queued frames of this connection before the codecs are closed
   statsTimer_.stop();
+  pingTimer_.stop();
+  if (hasTier_ || latencyMs_) {
+    hasTier_ = false;
+    servedTier_ = Quality::Auto;
+    servedKbps_ = 0;
+    latencyMs_.reset();
+    emit qualityChanged();
+  }
   if (pc_) {
     try {
       pc_->resetCallbacks();
@@ -325,9 +375,22 @@ void SessionViewer::handleSignal(const SessionSignal& s) {
       diag_->onMessage(guarded("diag onMessage", [this, bridge](rtc::message_variant m) {
         const auto* text = std::get_if<rtc::string>(&m);
         if (text == nullptr) return;
-        const auto state = parseHostState(QByteArray(text->data(), static_cast<qsizetype>(text->size())));
-        if (!state) return;
-        bridge->post([this, st = *state]() { onHostState(st.paused, st.by); });
+        const QByteArray raw(text->data(), static_cast<qsizetype>(text->size()));
+        if (const auto state = parseHostState(raw)) {
+          bridge->post([this, st = *state]() { onHostState(st.paused, st.by); });
+        } else if (const auto tier = parseTier(raw)) {
+          bridge->post([this, t = *tier]() { onTier(t); });
+        } else if (const auto ping = parsePingPong(raw)) {
+          bridge->post([this, p = *ping]() { onPingPong(p); });
+        }  // anything else is ignored
+      }));
+      // Pick (when not the default) and the first ping go out as soon as the channel is open.
+      diag_->onOpen(guarded("diag onOpen", [this, bridge]() {
+        bridge->post([this]() {
+          if (pick_ != Quality::Auto) sendDiag(makeQualityPick(pick_));
+          sendPing();
+          pingTimer_.start();
+        });
       }));
       const QList<SessionSignal> pending = std::exchange(pendingCandidates_, {});
       for (const SessionSignal& c : pending) {
@@ -604,6 +667,11 @@ SessionStats SessionViewer::stats() const {
   s.width = width_;
   s.height = height_;
   s.codec = QStringLiteral("H264 + Opus");
+  s.hasServedTier = hasTier_;
+  s.servedTier = servedTier_;
+  s.servedKbps = servedKbps_;
+  s.pick = pick_;
+  s.latencyMs = latencyMs_;
   return s;
 }
 

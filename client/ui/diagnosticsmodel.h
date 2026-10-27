@@ -84,7 +84,7 @@ class DiagnosticsModel : public QObject {
   // Host line 2: "Encoder h264_nvenc · H.264 · 6.0 / target 6.5 Mbit/s · 60.0 fps" (D8, D11).
   static QString hostLine(const SessionStats& s);
   // Host line 3: "Sending to 1 viewer · adaptive bitrate".
-  static QString hostSendingLine(int viewers);
+  static QString hostSendingLine(int viewers, int encoders = 1);
   // Viewer line 2: "Decoder h264 · H.264 · 3.9 Mbit/s · 59.7 fps"; missing values show "—" (older Players).
   static QString decoderLine(const QString& decoder, std::optional<double> kbps, std::optional<double> fps);
   // Line 3 of a viewer or remote host: "RTT 48 ms · Loss 0.4 % · via hub.example.com:3478" (via only when relayed).

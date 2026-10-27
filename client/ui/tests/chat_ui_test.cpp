@@ -102,6 +102,147 @@ class ChatUiTest : public QObject {
     uitest::saveShot(h.window, QStringLiteral("chat-people-tab"));
   }
 
+  static QJsonObject remoteSession(const QString& id, const QString& who) {
+    return {{"session_id", id}, {"game_id", "g1"}, {"game_title", "Harbor Rally"},
+            {"owner", QJsonObject{{"user_id", "u_x"}, {"display_name", who}, {"device_name", "PC"}}},
+            {"visibility", "hub_users"}, {"created_at", QDateTime::currentDateTimeUtc().addSecs(-300).toString(Qt::ISODate)},
+            {"viewer_count", 0}, {"is_owner", false}, {"invited", false}};
+  }
+  static QQuickItem* row(Harness& h, const QString& person) { return h.item(qPrintable(QStringLiteral("person_") + person)); }
+  static QString line(Harness& h, const QString& person) {
+    QQuickItem* r = row(h, person);
+    return r ? text(r->findChild<QQuickItem*>("personConnection")) : QString();
+  }
+
+  // ADR 0033 D5, viewer side: the host row reads "Direct · 18 ms", my own row "gets High" with the Quality segmented, one click
+  // picks Low ("picked Low"), is sent to the viewer object and kept as this PC's default.
+  void viewerQualitySegmentedAndRows() {
+    FakeHub hub(QStringLiteral("a"));
+    hub.sessions.insert(QStringLiteral("s1"), remoteSession(QStringLiteral("s1"), QStringLiteral("Lena")));
+    Harness h;
+    QVERIFY(h.start());
+    pair(h, hub);
+    startPreviewGame(h);
+    SessionController* ctl = h.controller->sessions();
+    QTRY_COMPARE(ctl->sessions().size(), 1);
+    ctl->watch(QStringLiteral("s1"));
+    QTRY_VERIFY(ctl->watching());
+    const auto scope = []() { return TogetherController::Scope{QStringLiteral("session"), QStringLiteral("s1"), true}; };
+    h.controller->together()->setScopeProvider(scope);
+    h.controller->chat()->setScopeProvider(scope);
+    h.controller->together()->refresh();
+    QCOMPARE(ctl->role(QStringLiteral("s1")), QStringLiteral("viewer"));
+    QCOMPARE(ctl->quality(QStringLiteral("s1")), QStringLiteral("auto"));
+    SessionStats st;
+    st.active = true;
+    st.connectionType = QStringLiteral("direct (host)");
+    st.rttMs = 40.0;
+    st.latencyMs = 18.0;  // the ping/pong wins over the SCTP RTT
+    st.hasServedTier = true;
+    st.servedTier = Quality::Auto;
+    st.servedKbps = 4000;
+    ctl->setStatsOverride(nullptr, {{QStringLiteral("s1"), st}});
+    QVERIFY(h.click("panelTab_people"));
+    QTRY_VERIFY(shown(h.item("gamePanelPeople")));
+    const QString me = h.controller->connection()->hubUserId();
+    QTRY_VERIFY(row(h, QStringLiteral("u_x")) != nullptr && row(h, me) != nullptr);
+    QTRY_COMPARE(line(h, QStringLiteral("u_x")), QStringLiteral("Direct · 18 ms"));
+    QTRY_COMPARE(line(h, me), QStringLiteral("gets High"));
+    QCOMPARE(text(row(h, QStringLiteral("u_x"))->findChild<QQuickItem*>("personRole")), QStringLiteral("HOST"));
+    QCOMPARE(text(row(h, me)->findChild<QQuickItem*>("personRole")), QStringLiteral("VIEWER"));
+    QVERIFY(!shown(row(h, QStringLiteral("u_x"))->findChild<QQuickItem*>("qualitySegmented")));  // only on my own row
+    QQuickItem* seg = row(h, me)->findChild<QQuickItem*>("qualitySegmented");
+    QVERIFY(seg != nullptr && shown(seg));
+    QCOMPARE(seg->property("current").toString(), QStringLiteral("auto"));
+    for (const char* n : {"qualityAuto", "qualityHigh", "qualityMedium", "qualityLow"}) QVERIFY2(shown(h.item(n)), n);
+    uitest::saveShot(h.window, QStringLiteral("together-quality-viewer"));
+    QVERIFY(h.click("qualityLow"));
+    QCOMPARE(ctl->quality(QStringLiteral("s1")), QStringLiteral("low"));
+    QCOMPARE(ctl->viewer(QStringLiteral("s1"))->quality(), Quality::Low);
+    QTRY_COMPARE(line(h, me), QStringLiteral("picked Low · gets High"));  // until the host answers with its tier message
+    st.servedTier = Quality::Low;
+    st.servedKbps = 600;
+    ctl->setStatsOverride(nullptr, {{QStringLiteral("s1"), st}});
+    QTRY_COMPARE(line(h, me), QStringLiteral("picked Low"));
+    QTRY_COMPARE(row(h, me)->findChild<QQuickItem*>("qualitySegmented")->property("current").toString(), QStringLiteral("low"));
+    QCOMPARE(ctl->defaultQuality(), QStringLiteral("low"));
+    QCOMPARE(PlayerSettings(h.dir.path()).viewerQuality(), QStringLiteral("low"));
+    // The host serves Medium although Low was picked (three encoders busy): both are said
+    st.servedTier = Quality::Medium;
+    st.servedKbps = 1500;
+    st.pick = Quality::Low;
+    ctl->setStatsOverride(nullptr, {{QStringLiteral("s1"), st}});
+    QTRY_COMPARE(line(h, me), QStringLiteral("picked Low · gets Medium"));
+    QVERIFY(QTest::qWaitFor([&]() { return h.click("qualityAuto"); }, 2000));
+    QCOMPARE(ctl->quality(QStringLiteral("s1")), QStringLiteral("auto"));
+    QCOMPARE(PlayerSettings(h.dir.path()).viewerQuality(), QStringLiteral("auto"));
+  }
+
+  // Host side: viewer rows "Direct · 18 ms · gets High" / "Relayed · 60 ms · picked Medium" and "Sending 2 streams · 3.1 Mbit/s".
+  void hostPeopleRowsShowLatencyAndQuality() {
+    FakeHub hub(QStringLiteral("a"));
+    Harness h;
+    QVERIFY(h.start());
+    pair(h, hub);
+    startPreviewGame(h);
+    SessionController* ctl = h.controller->sessions();
+    QJsonObject own = remoteSession(QStringLiteral("own1"), QStringLiteral("Tester"));
+    own.insert("is_owner", true);
+    own.insert("viewers", QJsonArray{QJsonObject{{"viewer_id", "v1"}, {"display_name", "Lena"}, {"device_name", "PC"}},
+                                     QJsonObject{{"viewer_id", "v2"}, {"display_name", "Sam"}, {"device_name", "PC"}}});
+    const auto info = parseSession(own);
+    QVERIFY(info.has_value());
+    ctl->adoptSharedSessionForTest(*info);
+    QVERIFY(ctl->shared());
+    const QString sid = ctl->ownSessionId();
+    QCOMPARE(sid, QStringLiteral("own1"));
+    QCOMPARE(ctl->role(sid), QStringLiteral("host"));
+    QCOMPARE(ctl->viewerCount(), 2);
+    ViewerLinkStats l1, l2;
+    l1.viewerId = QStringLiteral("v1");
+    l1.state = QStringLiteral("connected");
+    l1.connectionType = QStringLiteral("direct (host)");
+    l1.latencyMs = 18.0;
+    l1.tier = Quality::Auto;
+    l1.tierKbps = 4000;
+    l2.viewerId = QStringLiteral("v2");
+    l2.state = QStringLiteral("connected");
+    l2.connectionType = QStringLiteral("relay (udp)");
+    l2.latencyMs = 60.0;
+    l2.pick = Quality::Medium;
+    l2.tier = Quality::Medium;
+    l2.tierKbps = 1500;
+    ctl->setLinksOverride(true, {l1, l2});
+    SessionStats local;
+    local.active = true;
+    local.encoders = 2;
+    local.viewers = 2;
+    local.videoBitrateKbps = 3100;
+    local.encoderName = QStringLiteral("libx264");
+    ctl->setStatsOverride(&local, {});
+    const auto scope = [sid]() { return TogetherController::Scope{QStringLiteral("session"), sid, true}; };
+    h.controller->together()->setScopeProvider(scope);
+    h.controller->chat()->setScopeProvider(scope);
+    h.controller->together()->refresh();
+    QVERIFY(h.click("panelTab_people"));
+    QTRY_VERIFY(shown(h.item("gamePanelPeople")));
+    QTRY_VERIFY(row(h, QStringLiteral("Lena")) != nullptr && row(h, QStringLiteral("Sam")) != nullptr);
+    QTRY_COMPARE(line(h, QStringLiteral("Lena")), QStringLiteral("Direct · 18 ms · gets High"));
+    QTRY_COMPARE(line(h, QStringLiteral("Sam")), QStringLiteral("Relayed · 60 ms · picked Medium"));
+    QCOMPARE(text(row(h, QStringLiteral("Sam"))->findChild<QQuickItem*>("personRole")), QStringLiteral("VIEWER"));
+    QTRY_COMPARE(text(h.item("peopleSending")), QStringLiteral("Sending 2 streams · 3.1 Mbit/s"));
+    QVERIFY(!shown(row(h, QStringLiteral("Sam"))->findChild<QQuickItem*>("qualitySegmented")));  // the host picks nothing for viewers
+    const QVariantList states = ctl->viewerStates();
+    QCOMPARE(states.size(), 2);
+    QCOMPARE(states.at(1).toMap().value("role").toString(), QStringLiteral("viewer"));
+    QCOMPARE(states.at(1).toMap().value("tier").toString(), QStringLiteral("medium"));
+    QCOMPARE(states.at(1).toMap().value("kbps").toInt(), 1500);
+    QCOMPARE(states.at(1).toMap().value("rtt_ms").toInt(), 60);
+    uitest::saveShot(h.window, QStringLiteral("together-people-host"));
+    ctl->setLinksOverride(false, {});
+    ctl->setStatsOverride(nullptr, {});
+  }
+
   void chatTabShowsHistorySendsWithEnterAndConfirmsTheEcho() {
     FakeHub hub(QStringLiteral("a"));
     Harness h;

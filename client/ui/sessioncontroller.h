@@ -33,6 +33,13 @@
 
 namespace uzume::ui {
 
+// Role of this app in a Session (ADR 0033 D5/D8): the host emulates and shares; a viewer watches, chats and talks but never sends
+// input or host commands; a player is a viewer with a granted controller (the hand-over package; no code path yet).
+enum class SessionRole { Host, Viewer, Player };
+inline QString sessionRoleToken(SessionRole r) {
+  return r == SessionRole::Host ? QStringLiteral("host") : (r == SessionRole::Player ? QStringLiteral("player") : QStringLiteral("viewer"));
+}
+
 class SessionController : public QObject {
   Q_OBJECT
   QML_ELEMENT
@@ -104,6 +111,10 @@ class SessionController : public QObject {
   Q_PROPERTY(uzume::ui::DiagnosticsModel* diagnostics READ diagnostics CONSTANT)
   // 3g: "Lena is relayed via the hub (TURN) · may lag slightly." (empty when nobody is relayed)
   Q_PROPERTY(QString relayHint READ relayHint NOTIFY shareChanged)
+  // 3g-12: "Sending 2 streams · 3.1 Mbit/s" (empty without a running encoder); the host's People tab shows it under the list.
+  Q_PROPERTY(QString sendingLine READ sendingLine NOTIFY shareChanged)
+  // Quality (ADR 0033 D5) a new watched Session starts with on this PC: "auto" | "high" | "medium" | "low".
+  Q_PROPERTY(QString defaultQuality READ defaultQuality NOTIFY qualityDefaultChanged)
 
  public:
   SessionController(HubConnection* conn, ProfileStore* profiles, GameSession* game, QObject* parent = nullptr);
@@ -199,13 +210,31 @@ class SessionController : public QObject {
   SessionViewer* viewer(const QString& sessionId);  // nullptr if the Session is not shown
   // Fake statistics: local (nullptr keeps the real ones) and remote per Session id (missing ids keep the real ones).
   void setStatsOverride(const SessionStats* local, const QHash<QString, SessionStats>& remotes);
+  // Tests/screenshots: acts as if this Session were shared (no Hub request, no game needed), with the viewers the info lists.
+  void adoptSharedSessionForTest(const SessionInfo& info) {
+    shared_ = true;
+    applyOwnSession(info);
+    updateLinks();
+  }
   // Fake host-side viewer links (tests/screenshots); an empty list with `on` = true means "no viewer links".
   void refreshDiagnostics();  // also runs every 500 ms while the overlay is open; tests and screenshots call it directly
   void setLinksOverride(bool on, const QList<ViewerLinkStats>& links);
 
   // People of a Session for the People tab and the chat header: [{userId, name, role: "HOST" | "VIEWER", me, color, connection, tone}].
   // My own Session: me as host and the viewers; a watched Session: its owner and me (the other viewers are not known to a viewer).
+  // Each entry also has roleKey ("host" | "viewer"), and on my own row of a watched Session qualityPick ("auto" | "high" | "medium" | "low")
+  // and sessionId for the Quality segmented.
   Q_INVOKABLE QVariantList sessionPeople(const QString& sessionId) const;
+  // My role in a Session: "host" for my shared Session, "viewer" for a watched one, "" otherwise.
+  Q_INVOKABLE QString role(const QString& sessionId) const;
+  // Quality of a watched Session: the pick token, "" if the Session is not watched. setQuality sends it to the host and keeps it as the
+  // default of this PC for new Sessions.
+  Q_INVOKABLE QString quality(const QString& sessionId) const;
+  Q_INVOKABLE void setQuality(const QString& sessionId, const QString& pick);
+  QString defaultQuality() const;
+  QString sendingLine() const { return sendingLine_; }
+  // The rows of the own Session's viewers for tools and tests: [{viewer_id, name, role, rtt_ms, tier, pick, kbps, connection}].
+  QVariantList viewerStates() const;
   Q_INVOKABLE void refreshSessions();
   Q_INVOKABLE void shareSession();
   Q_INVOKABLE void stopSharing();
@@ -235,6 +264,7 @@ class SessionController : public QObject {
   void notice(const QString& kind, const QString& text, const QString& actionLabel, const QString& actionData);
   void layoutNotice(const QString& text);  // toast text after a layout, swap or bottom-window choice of the user
   void linkChanged();
+  void qualityDefaultChanged();
   void sessionsChanged();
   void shareChanged();
   void userResultsChanged();
@@ -352,6 +382,7 @@ class SessionController : public QObject {
   QString aspectRatio_ = QStringLiteral("core");
   DiagnosticsModel* diagnostics_ = nullptr;  // owned (parent: this)
   QString relayHint_;
+  QString sendingLine_;
   QVariantMap linkByViewer_;  // viewerId -> {text, tone}
   QVariantMap surfaceLinks_;  // remote Session id -> {text, tone}
   bool linksOverrideOn_ = false;
