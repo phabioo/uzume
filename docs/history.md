@@ -1,6 +1,6 @@
 # History
 
-Finished work, in order: the milestones 0.1.1 to 0.19 as they were planned and built, the PoC phases and the decisions taken along the way. Open work lives in the [roadmap](roadmap.md); what the product does today in [features](features.md); the reasons in the [ADRs](adr/README.md).
+Finished work, in order: the milestones 0.1.1 to 0.24 as they were planned and built, the PoC phases and the decisions taken along the way. Open work lives in the [roadmap](roadmap.md); what the product does today in [features](features.md); the reasons in the [ADRs](adr/README.md).
 
 Contents: [Renumbering history](#renumbering-history), [PoC phases](#poc-phases), [Finished milestones](#finished-milestones), [Decisions from the roadmap](#decisions-from-the-roadmap).
 
@@ -58,6 +58,7 @@ Milestone sections in order. Names of the products in old text (FrameBeam Hub, P
 - [0.18 Uzume: one app, one server, new name](#018-uzume-one-app-one-server-new-name)
 - [0.19 Player comfort and library](#019-player-comfort-and-library)
 - [0.19.x Readable UI pass](#019x-readable-ui-pass)
+- [0.24 Platforms](#024-platforms)
 
 ### 0.1.1 Finish the PoC
 
@@ -452,6 +453,17 @@ Decided by Fabio on 2026-10-26 (package B of the UI scan after 0.19): the app ta
 Not built: the panel tabs Run · Chat · Saves of board 3g-1-r6 (Chat comes with 0.23; the first tab stays Session). Qt has no system "reduce motion" hint, so Reduce motion is off until the user turns it on.
 
 Tests only Fabio can do: the gamepad on the shell pages with a real pad, Text size TV on a TV, the wide Windows font, Kinari and Sumi visually.
+
+### 0.24 Platforms
+
+Decided by Fabio on 2026-10-21 (as 0.22; renumbered on 2026-10-22 and 2026-10-23). Decisions: [ADR 0034](adr/0034-linux-app-and-vulkan.md). Finished while 0.20 to 0.23 were still open; leftovers and Fabio's tests are in the [roadmap](roadmap.md#024-leftovers). Browser watching was dropped on 2026-10-22 ([ADR 0030](adr/0030-one-app-one-server-uzume.md) D2).
+
+- [x] Done (PR #252): Linux credential store in the freedesktop Secret Service over QtDBus (GNOME Keyring, KWallet), memory only without a session bus; ADR 0034 (S-M)
+- [x] Done (PR #255): Vulkan hardware rendering next to OpenGL: libretro Vulkan hardware interface with readback display and encode (Azahar offers it; melonDS DS stays OpenGL) (L)
+- [x] Done (PR #258): "Renderer" row (OpenGL | Vulkan) in Settings › Emulation for cores that offer both (S)
+- [x] Done (PR #260): Linux AppImage with self-update (`linux-x64` / `appimage` in the signed update index, `.previous` restore), CI job `app-appimage`, AppImage attached to the release (M)
+
+Core distribution needed no change: the server already serves the `linux-x64` buildbot builds ([ADR 0020](adr/0020-cores-from-the-libretro-buildbot.md)).
 
 ## Decisions from the roadmap
 

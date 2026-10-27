@@ -63,3 +63,8 @@ One Renderer row (OpenGL | Vulkan, tag "Next start") in Settings › Emulation f
 
 - New CI job for the AppImage; the update index and `server/internal/updates` accept `appimage`; the app gets a Vulkan backend next to the OpenGL one.
 - Open, Fabio-only checks: real GPUs with Vulkan, an Azahar Vulkan run, Steam Deck desktop and game mode, gamepads, audio through PipeWire and PulseAudio, KWallet and GNOME Keyring, the AppImage self-update and its restore on a real desktop, Wayland.
+
+### Amendment (2026-10-27)
+
+- A core that requires a Vulkan API version above the loader's fails the game start; there is no fallback to OpenGL.
+- The Renderer row in Settings › Emulation needed no MCP extension: `navigate`, `ui_click`, `ui_tree` and `app_screenshot` suffice.
