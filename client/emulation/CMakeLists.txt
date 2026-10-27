@@ -166,4 +166,8 @@ if(BUILD_TESTING)
   target_include_directories(test_emulation_memory_snapshot_testcore PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
   target_compile_definitions(test_emulation_memory_snapshot_testcore PRIVATE FB_TEST_ROM_PATH="${FB_TEST_ROM}")
   add_dependencies(test_emulation_memory_snapshot_testcore uzume_test_rom)
+
+  uzume_add_test(emulation_rewind_testcore tests/rewind_test.cpp LIBS uzume_emulation TEST_CORE)
+  target_compile_definitions(test_emulation_rewind_testcore PRIVATE FB_TEST_ROM_PATH="${FB_TEST_ROM}")
+  add_dependencies(test_emulation_rewind_testcore uzume_test_rom)
 endif()

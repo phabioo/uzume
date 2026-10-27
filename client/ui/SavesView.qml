@@ -428,8 +428,9 @@ FocusScope {
                             elide: Text.ElideRight
                             text: {
                                 let count = 0
-                                for (const o of root.hist.slotOptions) if (o.value === root.hist.slot) count = o.count
-                                return root.hist.slotLabel + (count > 0 ? " · " + count : "")
+                                let hint = ""
+                                for (const o of root.hist.slotOptions) if (o.value === root.hist.slot) { count = o.count; hint = (o.kind === "variant" || o.kind === "run") ? o.hint : "" }
+                                return root.hist.slotLabel + (hint !== "" ? " · " + hint : (count > 0 ? " · " + count : ""))
                             }
                             font.pixelSize: Theme.roles.input.size
                             font.weight: Font.DemiBold
@@ -470,7 +471,9 @@ FocusScope {
                                                 anchors.verticalCenter: parent.verticalCenter
                                                 width: slotItem.width - 16 - 4 - 16
                                                 elide: Text.ElideRight
-                                                text: slotItem.modelData.label + (slotItem.modelData.count > 0 ? " · " + slotItem.modelData.count : "")
+                                                // Variant and run slots read "Randomizer #1 · Variant · v6" / "Run: Name · Run · v44" (10g-2).
+                                text: slotItem.modelData.label + (slotItem.modelData.kind === "variant" || slotItem.modelData.kind === "run" ? " · " + slotItem.modelData.hint
+                                                                  : (slotItem.modelData.count > 0 ? " · " + slotItem.modelData.count : ""))
                                                 textFormat: Text.PlainText
                                                 font.pixelSize: Theme.roles.input.size
                                                 color: Theme.ink
@@ -607,6 +610,21 @@ FocusScope {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
                     text: root.hist.slotManageBlockReason
+                    color: Theme.dim
+                    font.pixelSize: Theme.roles.small.size
+                }
+
+                // 10g-2: variants and runs each have their own slot.
+                UzLabel {
+                    objectName: "slotPickNote"
+                    visible: {
+                        for (const o of root.hist.slotOptions) if (o.kind === "variant" || o.kind === "run") return true
+                        return false
+                    }
+                    Layout.fillWidth: true
+                    Layout.minimumWidth: 0
+                    wrapMode: Text.WordWrap
+                    text: qsTr("Pick a slot. Variants and runs each have their own; restoring in one never changes another.")
                     color: Theme.dim
                     font.pixelSize: Theme.roles.small.size
                 }
@@ -1335,6 +1353,9 @@ FocusScope {
                     color: Theme.muted
                     font.pixelSize: Theme.roles.small.size
                 }
+
+                // STATES (0.20): preview, time and core per slot, Save to N / Load N / Delete; the game page shows it read-only
+                StatesSection { player: root.player }
 
                 // HISTORY
                 RowLayout {

@@ -251,6 +251,10 @@ ApplicationWindow {
         function onLinkAdded(serverName: string) { linkAddedToast.serverName = serverName }
     }
 
+    // Variants (0.21): the "<name> is ready" toast with Play and the confirm before quitting while a build runs (design 10c).
+    VariantNotices { id: variantNotices; player: window.player }
+    onClosing: (close) => { if (!variantNotices.allowClose()) close.accepted = false }
+
     // Connection check (6e): modal over every screen; "Edit Hub address…" opens the inline edit of the Hub in Settings.
     ConnectionCheckDialog { player: window.player }
     Connections {
@@ -352,6 +356,7 @@ ApplicationWindow {
     ConflictDialog { player: window.player }
     UzConfirmDialog { controller: window.player.admin; parent: Window.contentItem; z: 200 }   // "Confirm it's you": opens for any admin request that needs it
     ShareDialogs { player: window.player; parent: Window.contentItem; z: 190 }
+    RunVariantBuildDialog { player: window.player }  // Play run of a randomized run builds the person's variant first (10f-3)
     ReportProblemDialog { player: window.player }  // Settings > Diagnostics and the game "⋯" menu open it
     WhatsNewDialog { player: window.player }   // once per new app version (release notes of the signed updates index)
     SetupAssistant { player: window.player }   // player.showSetupAssistant()

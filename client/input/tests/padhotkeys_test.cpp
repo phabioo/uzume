@@ -51,6 +51,28 @@ struct VirtualPad {
 class PadHotkeysTest : public QObject {
   Q_OBJECT
  private slots:
+  void releasedReportsTheLetGoOfAHoldHotkey() {
+    const QString kLt = QStringLiteral("pad:lefttrigger");
+    PadHotkeyDetector d;
+    d.setBindings(kBack, {{QStringLiteral("rewind"), kLt, false}});
+    QVERIFY(d.update({kBack}).isEmpty());
+    QVERIFY(d.released().isEmpty());
+    QCOMPARE(d.update({kBack, kLt}), QStringList{QStringLiteral("rewind")});
+    QVERIFY(d.released().isEmpty());
+    QVERIFY(d.update({kBack, kLt}).isEmpty());   // held
+    QVERIFY(d.released().isEmpty());
+    d.update({kBack});                           // the trigger is let go: rewind stops
+    QCOMPARE(d.released(), QStringList{QStringLiteral("rewind")});
+    d.update({kBack});
+    QVERIFY(d.released().isEmpty());             // reported once
+    // letting go of the modifier first: the trigger stays the rewind button until it is let go too
+    d.update({kBack, kLt});
+    d.update({kLt});
+    QVERIFY(d.released().isEmpty());
+    d.update({});
+    QCOMPARE(d.released(), QStringList{QStringLiteral("rewind")});
+  }
+
   void comboFiresOncePerPress() {
     PadHotkeyDetector d;
     d.setBindings(kBack, defaults());

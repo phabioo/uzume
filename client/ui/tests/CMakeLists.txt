@@ -285,11 +285,18 @@ uzume_add_test(ui_runs runs_ui_test.cpp ${FB_NETTEST_DIR}/fakehub.cpp ${FB_NETTE
 target_include_directories(test_ui_runs PRIVATE ${FB_NETTEST_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/../../plugins/tests)
 target_compile_definitions(test_ui_runs PRIVATE FB_TEST_DATA_DIR="${FB_NETTEST_DIR}/testdata")
 
+# Randomizer screens (0.21, randomizer.md 10e, 10f, 10h): Server > Tools, the Randomizer section of Start a run, joining with an own variant,
+# the run board (fake Hub with fixed tools and run answers; no game files, no engine).
+uzume_add_test(ui_randomizer randomizer_ui_test.cpp ${FB_NETTEST_DIR}/fakehub.cpp ${FB_NETTEST_DIR}/fakehub.h
+  LIBS ${FB_UI_TEST_LIBS})
+target_include_directories(test_ui_randomizer PRIVATE ${FB_NETTEST_DIR})
+target_compile_definitions(test_ui_randomizer PRIVATE FB_TEST_DATA_DIR="${FB_NETTEST_DIR}/testdata")
+
 # Same layout tests with a noticeably wider application font (UZUME_TEST_WIDE_FONT, testsupport.h): catches items
 # that only fit with Linux font metrics (Windows CI renders wider; 18 px letter spacing is about the Windows fallback font).
 # Not on Windows: its fonts are already the wide case, extra spacing there tests something no user sees.
 if(NOT WIN32)
-  foreach(t ui_shell_layout ui_library_saves ui_library_overview ui_game_page ui_ingame ui_plugin_slots ui_settings_row ui_design_system ui_screens ui_plugins ui_connection_check ui_report ui_admin ui_admin_users ui_admin_systems ui_admin_settings ui_admin_library ui_runs)
+  foreach(t ui_shell_layout ui_library_saves ui_library_overview ui_game_page ui_ingame ui_plugin_slots ui_settings_row ui_design_system ui_screens ui_plugins ui_connection_check ui_report ui_admin ui_admin_users ui_admin_systems ui_admin_settings ui_admin_library ui_runs ui_randomizer)
     add_test(NAME ${t}_widefont COMMAND test_${t})
     set_tests_properties(${t}_widefont PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;UZUME_TEST_WIDE_FONT=18")
   endforeach()
@@ -345,8 +352,24 @@ uzume_add_test(ui_screenshots screenshots_ui_test.cpp ${FB_NETTEST_DIR}/fakehub.
 target_include_directories(test_ui_screenshots PRIVATE ${FB_NETTEST_DIR})
 target_compile_definitions(test_ui_screenshots PRIVATE FB_TEST_DATA_DIR="${FB_NETTEST_DIR}/testdata")
 
+# Randomizer variants on the game page, in the Library and in Storage (0.21, design sheet 5): Randomize… visible / disabled / hidden, the
+# build through the dialog with the test engine, Delete keeping the saves, the Storage section. Offscreen, FakeHub, no core needed.
+uzume_add_test(ui_variants variants_ui_test.cpp ${FB_NETTEST_DIR}/fakehub.cpp ${FB_NETTEST_DIR}/fakehub.h
+  LIBS ${FB_UI_TEST_LIBS})
+target_include_directories(test_ui_variants PRIVATE ${FB_NETTEST_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/../../testutil)
+target_compile_definitions(test_ui_variants PRIVATE FB_TEST_DATA_DIR="${FB_NETTEST_DIR}/testdata" FB_TEST_ENGINE_PATH="$<TARGET_FILE:uzume_test_engine>")
+add_dependencies(test_ui_variants uzume_test_engine)
+
 # PluginEmulationService (fb.cheats, fb.memory.write, fb.save.snapshot: run rule, consent, safety copy, run log) against the test core.
 uzume_add_test(ui_plugin_emulation_testcore plugin_emulation_test.cpp LIBS uzume_ui uzume_core uzume_emulation uzume_plugins TEST_CORE)
 target_compile_definitions(test_ui_plugin_emulation_testcore PRIVATE FB_TEST_ROM_PATH="${FB_ROM_DIR}/uzume_test.nds")
 add_dependencies(test_ui_plugin_emulation_testcore uzume_test_rom)
 target_include_directories(test_ui_plugin_emulation_testcore PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../emulation/tests)
+
+# StatesController (save states, Auto and Undo, run rules, server upload/download) against the test core and the fake server.
+uzume_add_test(ui_states_controller_testcore states_controller_test.cpp ${FB_NETTEST_DIR}/fakehub.cpp ${FB_NETTEST_DIR}/fakehub.h
+  LIBS ${FB_UI_TEST_LIBS} TEST_CORE)
+target_compile_definitions(test_ui_states_controller_testcore PRIVATE FB_TEST_ROM_PATH="${FB_ROM_DIR}/uzume_test.nds"
+  FB_TEST_DATA_DIR="${FB_NETTEST_DIR}/testdata")
+add_dependencies(test_ui_states_controller_testcore uzume_test_rom)
+target_include_directories(test_ui_states_controller_testcore PRIVATE ${FB_NETTEST_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/../../emulation/tests)

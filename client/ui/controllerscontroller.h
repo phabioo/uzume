@@ -209,6 +209,7 @@ class ControllersController : public QObject {
   void padCommand(const QString& command);   // search | filterPrev | filterNext
   void holdSheetChanged();
   void padHotkeyTriggered(const QString& action);  // P1 gamepad hotkey pressed (combo or lone button)
+  void padHotkeyReleased(const QString& action);   // ... and its button let go (hold hotkeys: rewind)
   void libretroMaskChanged(quint32 mask);  // P1 gamepad, nds system profile
 
  private:

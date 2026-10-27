@@ -1,5 +1,7 @@
 #include "localstoragecontroller.h"
 
+#include "statestore.h"
+
 #include <QDateTime>
 #include <algorithm>
 #include <QLocale>
@@ -57,6 +59,12 @@ QVariantMap LocalStorageController::cleanUp(const QString& id) {
     const CoreCache::PruneResult r = in.cores.removeStaleVersions(in.platform, LocalStorage::inUseResolver(in));
     freed = r.freedBytes;
     removed = r.removed;
+  } else if (id == QLatin1String("deleted_game_states")) {
+    // Only the local cache of states of games the library no longer lists (the server cleans its own copies); never the save.
+    if (!in.libraryKnown || in.statesDir.isEmpty()) return out;
+    const StateStore::Orphans o = StateStore(in.statesDir).removeOrphans(in.libraryGameIds);
+    freed = o.bytes;
+    removed = o.games;
   } else {
     return out;  // nothing else is ever offered, saves least of all
   }
@@ -75,7 +83,7 @@ QVariantMap LocalStorageController::toMap(const LocalStorageReport& r) {
     return QVariantMap{{QStringLiteral("id"), QLatin1String(id)}, {QStringLiteral("bytes"), static_cast<double>(bytes)},
                        {QStringLiteral("text"), formatBytes(bytes)}, {QStringLiteral("fraction"), frac(bytes)}};
   };
-  QVariantList kinds{kind("games", r.gamesBytes), kind("saves", r.savesBytes), kind("states", r.statesBytes),
+  QVariantList kinds{kind("games", r.gamesBytes), kind("variants", r.variantsBytes), kind("saves", r.savesBytes), kind("states", r.statesBytes),
                      kind("screenshots", r.screenshotsBytes), kind("cores", r.coresBytes)};
   QVariantList cleanup;
   const auto suggestion = [&](const char* id, qint64 bytes, int count) {
@@ -85,6 +93,7 @@ QVariantMap LocalStorageController::toMap(const LocalStorageReport& r) {
     }
   };
   suggestion("old_games", r.oldGamesBytes, r.oldGamesCount);
+  suggestion("deleted_game_states", r.orphanStatesBytes, r.orphanStatesGames);
   suggestion("unused_cores", r.staleCoresBytes, r.staleCoresCount);
   return {{QStringLiteral("dataPath"), r.dataPath},
           {QStringLiteral("measuredAt"), static_cast<double>(r.measuredAtMs)},

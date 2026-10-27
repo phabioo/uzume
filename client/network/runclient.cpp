@@ -362,13 +362,13 @@ void RunClient::refresh() {
 static QString enc(const QString& s) { return QString::fromLatin1(QUrl::toPercentEncoding(s)); }
 
 void RunClient::createRun(const QString& name, const QList<RunPluginRef>& plugins, const QString& gameId, const QStringList& inviteUserIds,
-                          const QJsonObject& settings, RunCallback cb) {
-  createRunBody(name, plugins, gameId, inviteUserIds, settings, nullptr, std::move(cb));
+                          const QJsonObject& settings, RunCallback cb, const QJsonObject& randomizer) {
+  createRunBody(name, plugins, gameId, inviteUserIds, settings, nullptr, std::move(cb), randomizer);
 }
 
 void RunClient::createRun(const QString& name, const QList<RunPluginRef>& plugins, const QString& gameId, const QStringList& inviteUserIds,
-                          const QJsonObject& settings, const RunRules& rules, RunCallback cb) {
-  createRunBody(name, plugins, gameId, inviteUserIds, settings, &rules, std::move(cb));
+                          const QJsonObject& settings, const RunRules& rules, RunCallback cb, const QJsonObject& randomizer) {
+  createRunBody(name, plugins, gameId, inviteUserIds, settings, &rules, std::move(cb), randomizer);
 }
 
 void RunClient::setRules(const QString& runId, const RunRules& rules, RunCallback cb) {
@@ -376,17 +376,20 @@ void RunClient::setRules(const QString& runId, const RunRules& rules, RunCallbac
 }
 
 void RunClient::createRunBody(const QString& name, const QList<RunPluginRef>& plugins, const QString& gameId, const QStringList& inviteUserIds,
-                              const QJsonObject& settings, const RunRules* rules, RunCallback cb) {
+                              const QJsonObject& settings, const RunRules* rules, RunCallback cb, const QJsonObject& randomizer) {
   QJsonArray pl;
   for (const RunPluginRef& p : plugins) pl.append(QJsonObject{{QStringLiteral("plugin_id"), p.pluginId}, {QStringLiteral("version"), p.version}});
   QJsonObject body{{QStringLiteral("name"), name}, {QStringLiteral("plugins"), pl}, {QStringLiteral("game_id"), gameId}, {QStringLiteral("settings"), settings}};
   if (!inviteUserIds.isEmpty()) body.insert(QStringLiteral("invite_user_ids"), QJsonArray::fromStringList(inviteUserIds));
   if (rules != nullptr && supportsRules()) body.insert(QStringLiteral("rules"), runRulesToJson(*rules));
+  if (!randomizer.isEmpty()) body.insert(QStringLiteral("randomizer"), randomizer);
   sendRun("POST", QStringLiteral("/runs"), body, std::move(cb));
 }
 
-void RunClient::joinRun(const QString& runId, const QString& gameId, RunCallback cb) {
-  sendRun("POST", QStringLiteral("/runs/%1/join").arg(enc(runId)), QJsonObject{{QStringLiteral("game_id"), gameId}}, std::move(cb));
+void RunClient::joinRun(const QString& runId, const QString& gameId, RunCallback cb, const QJsonObject& variant) {
+  QJsonObject body{{QStringLiteral("game_id"), gameId}};
+  if (!variant.isEmpty()) body.insert(QStringLiteral("variant"), variant);
+  sendRun("POST", QStringLiteral("/runs/%1/join").arg(enc(runId)), body, std::move(cb));
 }
 void RunClient::declineRun(const QString& runId, RunCallback cb) {
   sendRun("POST", QStringLiteral("/runs/%1/decline").arg(enc(runId)), QJsonObject(), std::move(cb));

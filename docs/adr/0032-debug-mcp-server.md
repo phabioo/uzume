@@ -49,6 +49,8 @@ Long reads are bounded (memory 1 MiB per call, RomFS 4 MiB per call, logs 2000 l
 
 `game_state_save`, `game_state_load` and `game_memory_write` exist since 0.20. They are available only with the same opt-in as every other tool (`--mcp` / developer switch and token), nothing changes about who can call them. Writes go through the same between-frames command queue as plugin memory writes (one queue, applied on the emulation thread); states stay in app memory under a name, never on disk or on a server, so the rule that saves are never overwritten or sent elsewhere holds. The per-game consent and the run rules of `memory.write` apply to plugins; the debug tools are developer tools behind the opt-in and are not run-ruled.
 
+`states_list`, `states_save`, `states_load`, `states_delete` and `rewind` exist since 0.20 package 4. Unlike `game_state_save` (raw, in app memory, named) they are the real save states of the app: the same slots (Auto and 1 to 4), local cache and server sync (`states_v1`) as the F6 and F8 keys, and the run rules `rules.states` and `rules.rewind` apply to them like to a person; `states_load` skips only the confirmation dialog. `rewind` steps back through the rewind buffer by seconds or frames and needs the "Rewind length" setting. They never touch the game's save.
+
 `cheats_list`, `cheats_apply`, `cheats_clear`, `store_get`, `store_put` and `consent_set` follow in 0.20 package 5. Only the debug MCP can skip the per-game consent (`cheats_apply` with `bypass_consent`, or `consent_set`); the run rule, the safety copy and the run log still apply, and plugins have no such path.
 
 #### Amendment (0.20 package 6, 2026-10-27): run and plugin helper tools

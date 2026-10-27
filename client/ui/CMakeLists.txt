@@ -49,6 +49,7 @@ qt_add_qml_module(uzume_ui
     personalcontroller.h personalcontroller.cpp
     screenshotcontroller.h screenshotcontroller.cpp
     localstoragecontroller.h localstoragecontroller.cpp
+    statescontroller.h statescontroller.cpp
     variantscontroller.h variantscontroller.cpp
     screenshotimageprovider.h screenshotimageprovider.cpp
     connectioncheckcontroller.h connectioncheckcontroller.cpp
@@ -157,6 +158,7 @@ qt_add_qml_module(uzume_ui
     UploadFileDialog.qml
     SaveSummary.qml
     SavesView.qml
+    StatesSection.qml
     SaveRow.qml
     SortControl.qml
     SaveFileDialog.qml
@@ -179,6 +181,8 @@ qt_add_qml_module(uzume_ui
     UnverifiedNote.qml
     GamePickList.qml
     RunJoinDialog.qml
+    RunVariantBuildDialog.qml
+    RunRandomizerSection.qml
     ConnectionCheckDialog.qml
     RunStartDialog.qml
     RunRulesDialog.qml
@@ -269,6 +273,12 @@ qt_add_qml_module(uzume_ui
     ScreenshotSaveDialog.qml
     LibraryAdminBar.qml
     LibraryContinue.qml
+    RandomizeDialog.qml
+    VariantEngineDialog.qml
+    VariantBuildDialog.qml
+    VariantDialogs.qml
+    VariantsSection.qml
+    VariantNotices.qml
     LibraryNotices.qml
     LibraryAdminDetails.qml
     SavesAdminSwitch.qml
@@ -290,6 +300,7 @@ qt_add_qml_module(uzume_ui
     ServerSystemsPage.qml
     ServerSystemsFileDialog.qml
     ServerPluginsPage.qml
+    ServerToolsPage.qml
     ServerSettingsPane.qml
     ServerGamesPage.qml
     ServerSettingsGames.qml

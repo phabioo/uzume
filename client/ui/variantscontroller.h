@@ -87,6 +87,13 @@ class VariantsController : public QObject {
   Q_PROPERTY(QString gameId READ gameId NOTIFY variantsChanged)
   // The variant cache: {bytes, text, limitBytes, limitText, unplayedDays}.
   Q_PROPERTY(QVariantMap cache READ cache NOTIFY cacheChanged)
+  // Counts up whenever the plugins' variants registrations change; bind to it to re-ask randomizeState() / presets().
+  Q_PROPERTY(int registryRevision READ registryRevision NOTIFY registryChanged)
+  // Settings > This PC > Storage (10g-3): one row per variant known on this PC (recipes stay when the files are removed), most
+  // recently played first: [{id, name, subtitle, isRun, removed, lastPlayedMs, lastPlayedText, bytes, sizeText}].
+  Q_PROPERTY(QVariantList storage READ storage NOTIFY cacheChanged)
+  // Library (10g-1): gameId -> {count, buildPercent (-1 none), buildName, lastId, lastName, lastPlayedMs}; own variants only.
+  Q_PROPERTY(QVariantMap summary READ summary NOTIFY variantsChanged)
  public:
   struct Deps {
     HubConnection* conn = nullptr;
@@ -118,6 +125,9 @@ class VariantsController : public QObject {
   QVariantList variants() const { return variantList_; }
   QString gameId() const { return gameId_; }
   QVariantMap cache() const;
+  int registryRevision() const { return registryRevision_; }
+  QVariantList storage() const;
+  QVariantMap summary() const;
   std::shared_ptr<VariantsPluginBridge> bridge() const { return bridge_; }
   plugins::VariantRegistry* registry() { return bridge_->registry().get(); }
 
@@ -126,13 +136,39 @@ class VariantsController : public QObject {
   Q_INVOKABLE void refresh();
   // A plugin registered this game (RANDOMIZER Supported).
   Q_INVOKABLE bool supported(const QString& gameId) const;
+  // Some plugin registered games at all (the Randomizer plugin is on): New run shows its Randomizer section.
+  Q_INVOKABLE bool pluginRegistered() const;
   // [{id, label, hint, custom}] of the registered presets for the game plus Uzume's own "custom" entry last; empty when unsupported.
   Q_INVOKABLE QVariantList presets(const QString& gameId) const;
+  // The settings string of a registered preset (highest settings version) and its label; "" / the id when the preset is unknown (New run).
+  Q_INVOKABLE QString presetSettings(const QString& presetId) const;
+  Q_INVOKABLE QString presetLabel(const QString& presetId) const;
   Q_INVOKABLE QVariantMap variantMap(const QString& variantId) const;
   Q_INVOKABLE QVariantList variantsOf(const QString& gameId) const;
 
+  // Randomize on the game page (10a-1, 10a-3a/c): "ok" (a plugin registered this game), "unsupported" (a plugin handles this system
+  // but not this game: the button is off), "none" (no plugin: the button is hidden).
+  Q_INVOKABLE QString randomizeState(const QString& gameId) const;
+  // Any plugin registered variants support (the Variants section shows the "plugin off" line when variants exist but this is false).
+  Q_INVOKABLE bool pluginAvailable() const;
+  // The game file on this PC: {onPc, sizeText} (10d-1c).
+  Q_INVOKABLE QVariantMap gameFile(const QString& gameId) const;
+  // "Randomizer #n" for the next variant of the game, and whether a name is taken by another variant of the game (case-insensitive).
+  Q_INVOKABLE QString defaultName(const QString& gameId) const;
+  Q_INVOKABLE bool nameTaken(const QString& gameId, const QString& name, const QString& exceptVariantId = QString()) const;
+  // A build of this game finishes in seconds (GB, GBC, GBA): the UI shows no dialog for it (10c-3a).
+  Q_INVOKABLE bool smallGame(const QString& gameId) const;
+  // Settings string check of the Custom preset (10b-2, 10b-3b): {state: empty | invalid | ok | other_version, valid, prefix, text}.
+  Q_INVOKABLE QVariantMap checkSettings(const QString& gameId, const QString& text) const;
+  // Name of the variant that owns a save slot ("var-xxxxxxxx"), empty if none (10g-2); the SaveHistory slot list uses it.
+  Q_INVOKABLE QString slotDisplayName(const QString& slot) const;
+  // The variants of every game, newest first (used by the Library status and the Storage page).
+  Q_INVOKABLE void reloadAll();
+
   // ---- the engine
-  Q_INVOKABLE void prepareEngine();  // downloads the offered engine (10d-2); a pending build continues after it
+  // Downloads the offered engine (10d-2); a pending build continues after it. With no offered version the tools list is read again first
+  // (the admin may have turned the engine on since the connect); engineChanged() follows in every outcome.
+  Q_INVOKABLE void prepareEngine();
   // ---- variants
   // Creates the variant on the server and builds it. Returns {ok, requestId} or {ok:false, error}. seed: digits, used when useSeed.
   // Server answers that come later (name_taken, ...) arrive as createFailed().
@@ -152,6 +188,9 @@ class VariantsController : public QObject {
   // ---- storage (Settings > This PC > Storage)
   Q_INVOKABLE void setCacheLimit(double bytes);
   Q_INVOKABLE void setUnplayedDays(int days);
+  // "Free X…" of the Storage page: drops the built files of every variant that is not building or running; recipes and saves stay.
+  // {freedBytes, removed}
+  Q_INVOKABLE QVariantMap freeCache();
   Q_INVOKABLE QVariantMap trimCache();  // applies the limit and the age rule now: {freedBytes, removed}
   // ---- runs
   // Fetches the participant's recipe of the run (GET /runs/{id}/variant) and builds the run variant "run-<id>" into the run slot; reports
@@ -166,7 +205,7 @@ class VariantsController : public QObject {
   // ---- for the game start and the plugins
   VariantLaunch launchInfo(const QString& variantId) const;
   void touch(const QString& variantId) { if (deps_.cache) deps_.cache->touch(variantId); }
-  QString gameOf(const QString& variantId) const;
+  Q_INVOKABLE QString gameOf(const QString& variantId) const;
   std::optional<VariantInfo> info(const QString& variantId) const;
   // Used by the plugin bridge and the MCP server (GUI thread).
   void buildForPlugin(const QString& pluginId, const plugins::VariantBuildRequest& req, quint64 requestId);
@@ -174,6 +213,7 @@ class VariantsController : public QObject {
 
  signals:
   void engineChanged();
+  void registryChanged();  // a plugin registered or dropped variants support (Randomize… shows or hides)
   void progressChanged();
   void variantsChanged();
   void cacheChanged();
@@ -234,6 +274,7 @@ class VariantsController : public QObject {
   void publishPluginState();
   void postPlugin(const Job& j, const QString& state, double progress, const QString& error = QString());
   void refreshEngine();
+  void onToolsRefreshed();
   void applyLocalRecipe(Job& j, const VariantInfo& v) const;
   VariantRecipe recipeFor(const VariantInfo& v, const GameEntry& game) const;
   QString stateOf(const QString& variantId) const;
@@ -266,11 +307,13 @@ class VariantsController : public QObject {
   double engineReceived_ = 0, engineTotal_ = 0;
   QString engineError_;
   bool engineBusy_ = false;
+  bool engineRefreshing_ = false;  // prepareEngine() waits for GET /tools
   quint64 listGen_ = 0;
   bool activeWaitingEngine_ = false;
   bool activeWaitingBase_ = false;
   QString activeBaseSha_;
   int lastPosted_ = -1;
+  int registryRevision_ = 0;
 };
 
 }  // namespace uzume::ui

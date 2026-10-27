@@ -52,6 +52,7 @@ ControllersController::ControllersController(const QString& dataDir, QObject* pa
     notePadInput();
     emit padHotkeyTriggered(action);
   });
+  connect(&pads_, &input::GamepadService::hotkeyReleased, this, [this](const QString& action) { emit padHotkeyReleased(action); });
   connect(&pads_, &input::GamepadService::stateChanged, this, [this]() {
     const auto devs = pads_.devices();
     if (!padActive_ && !devs.isEmpty() && !pads_.pressedTokens(devs.first().id).isEmpty()) {
@@ -628,6 +629,7 @@ QMap<int, QString> ControllersController::reservedKeyOwners() const {
     if (const int k = profiles_.hotkey(d.id); k > 0) {
       m.insert(k, d.label);
       if (d.id == QLatin1String("layout")) m.insert(k | int(Qt::ShiftModifier), tr("Swap screens"));  // Shift + the layout key
+      if (d.id == QLatin1String("saveState")) m.insert(k | int(Qt::ShiftModifier), tr("Next state slot"));  // Shift + the save-state key
     }
   }
   m.insert(Qt::Key_Escape, tr("Leave fullscreen / pause"));

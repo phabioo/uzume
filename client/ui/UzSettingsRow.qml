@@ -34,6 +34,7 @@ Item {
 
     // ---- state
     property bool changed: false
+    property real separatorInset: 0        // the row sticks out past its column by the reset slot: keeps the hairline ending at the column
     property string resetMode: "reset"     // reset | none
     property bool expanded: false
 
@@ -151,7 +152,7 @@ Item {
         color: hover.hovered ? Theme.hover : "transparent"
     }
     HoverHandler { id: hover }
-    Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; height: 1; color: Theme.rule2 }
+    Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.rightMargin: root.separatorInset; anchors.bottom: parent.bottom; height: 1; color: Theme.rule2 }
 
     // Dot slot (14): the label never shifts, the dot is centered on the first (32 high) label line.
     Item {

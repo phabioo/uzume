@@ -4,8 +4,8 @@ import Uzume.App
 
 // Server (usability pass, board "6 Server: one entry, tabs, overview first"): the one place of the admin area. AppNav at the
 // left (SERVER group with the single item Server), at the right the page header (server name, address · state · version) and
-// the tabs Overview · People · Games · Systems & cores · Plugins · Reports · Settings. The tab is `player.serverPage`
-// (overview | people | games | systems | plugins | reports | settings; showServerPage also takes the old ids status and users). Tab
+// the tabs Overview · People · Games · Systems & cores · Tools · Plugins · Reports · Settings. The tab is `player.serverPage`
+// (overview | people | games | systems | tools | plugins | reports | settings; showServerPage also takes the old ids status and users). Tab
 // pages are built on AdminPage (frame without a page header), UzTable, UzTableRow and UzMetric and talk to the server through
 // `player.admin`. Settings holds the pages of ServerSettingsPane. Members (and admins of a server without `admin_v1`) see a
 // short block with a way back.
@@ -33,6 +33,7 @@ Rectangle {
         { id: "people", label: qsTr("People"), count: root.admin.pendingDevices, needsServer: true },
         { id: "games", label: qsTr("Games"), count: 0, needsServer: false },
         { id: "systems", label: qsTr("Systems & cores"), count: root.player.coreProblemCount, needsServer: false },
+        { id: "tools", label: qsTr("Tools"), count: 0, needsServer: false },
         { id: "plugins", label: qsTr("Plugins"), count: 0, needsServer: false },
         { id: "reports", label: qsTr("Reports"), count: root.admin.newReports, needsServer: true },
         { id: "settings", label: qsTr("Settings"), count: 0, needsServer: false }
@@ -61,6 +62,7 @@ Rectangle {
         case "people": return usersPage
         case "games": return gamesPage
         case "systems": return systemsPage
+        case "tools": return toolsPage
         case "plugins": return pluginsPage
         case "reports": return reportsPage
         case "settings": return settingsPage
@@ -88,6 +90,7 @@ Rectangle {
     Component { id: gamesPage; ServerGamesPage { player: root.player } }
     Component { id: reportsPage; ServerReportsPage { player: root.player } }
     Component { id: systemsPage; ServerSystemsPage { player: root.player } }
+    Component { id: toolsPage; ServerToolsPage { player: root.player } }
     Component { id: pluginsPage; ServerPluginsPage { player: root.player } }
     Component { id: settingsPage; ServerSettingsPage { player: root.player } }
 

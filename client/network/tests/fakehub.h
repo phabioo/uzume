@@ -158,6 +158,16 @@ class FakeHub : public QTcpServer {
   };
   QMap<QString, FakeStoreEntry> pluginStore;
   bool handlePluginStore(QSslSocket* sock, const FakeRequest& req);
+  // Save states (states_v1): GET /games/{id}/states[?slot=], GET/PUT/DELETE /games/{id}/states/{slot}/{n}, GET .../preview. Key
+  // "<game>/<slot>/<n>". A PUT parses the multipart body (meta, state, preview); stateQuotaBytes caps the sum of the blobs (413).
+  struct FakeState {
+    QByteArray state, preview;
+    QString coreId, coreVersion, deviceName = QStringLiteral("Test PC"), createdAt;
+  };
+  QMap<QString, FakeState> states;
+  qint64 stateQuotaBytes = 1ll << 30;
+  int statePuts = 0, stateGets = 0, stateDeletes = 0;
+  bool handleStates(QSslSocket* sock, const FakeRequest& req);
   int count(const QString& pathPrefix, const QByteArray& method) const;
 
   // Local ROMs (local_roms_v1): POST /games/register, DELETE /games/{id}/registration, resumable /uploads.

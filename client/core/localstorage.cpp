@@ -5,6 +5,8 @@
 #include <QFileInfo>
 #include <QStorageInfo>
 
+#include "statestore.h"
+
 namespace uzume {
 
 qint64 LocalStorage::folderBytes(const QString& dir, int* files) {
@@ -46,6 +48,7 @@ LocalStorageReport LocalStorage::measure(const LocalStorageInput& in) {
   }
   r.gamesBytes = in.roms.totalSize();
   r.gamesCount = static_cast<int>(in.roms.entries().size());
+  r.variantsBytes = folderBytes(in.variantsDir);
   // Save cache: every server's local save folders.
   const QDir hubs(QDir(in.dataDir).filePath(QStringLiteral("hubs")));
   for (const QString& hub : hubs.entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
@@ -57,6 +60,12 @@ LocalStorageReport LocalStorage::measure(const LocalStorageInput& in) {
     }
   }
   r.savesBytes += folderBytes(QDir(in.dataDir).filePath(QStringLiteral("c")));
+  r.statesBytes = StateStore::measureAll(in.dataDir);
+  if (in.libraryKnown && !in.statesDir.isEmpty()) {
+    const StateStore::Orphans o = StateStore(in.statesDir).orphans(in.libraryGameIds);
+    r.orphanStatesBytes = o.bytes;
+    r.orphanStatesGames = o.games;
+  }
   r.screenshotsBytes = folderBytes(screenshotsPendingDir(in.dataDir), &r.screenshotsCount);
   r.coresBytes = folderBytes(in.cores.root()) + folderBytes(in.firmwareDir);
   for (const RomCache::Entry& e : in.roms.unusedSince(unusedGamesCutoffMs(in.nowMs), in.protectedHashes)) {

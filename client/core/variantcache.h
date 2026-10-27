@@ -68,6 +68,7 @@ class VariantCache {
     qint64 bytes = 0;
     qint64 lastPlayedMs = 0;
     qint64 builtMs = 0;
+    bool played = false;  // started at least once (lastPlayedMs alone starts at the build time, for the LRU)
   };
   QList<Entry> entries() const;  // built variants, least recently played first
   qint64 totalBytes() const;     // built variants and unfinished temp folders

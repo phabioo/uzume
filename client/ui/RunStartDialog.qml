@@ -4,7 +4,7 @@ import QtQuick.Layouts
 import Uzume.App
 
 // "Start a run" (runs-and-server.md 4j-app-3; mode "start": name, game, rules = None or an installed run plugin with its rule
-// settings, people to invite) and "Invite players" into an open run (mode "invite"). A UzDialog lg (design-system.md "Dialog").
+// settings, people to invite, the Randomizer section of randomizer.md 10e) and "Invite players" into an open run (mode "invite"). A UzDialog lg (design-system.md "Dialog").
 UzDialog {
     id: root
     objectName: "runStartDialog"
@@ -13,6 +13,7 @@ UzDialog {
     property string inviteRunId: ""
     property bool inviteWasSent: false
     readonly property bool inviting: mode === "invite"
+    property string serverName: ""      // shown in the Randomizer section when the server offers no engine
     property bool pcOnly: false         // the server of this PC only: nobody to invite (8j-4)
 
     size: "lg"
@@ -25,6 +26,7 @@ UzDialog {
         root.inviteWasSent = false
         nameField.text = ""
         game.selectedId = ""
+        randomizer.reset()
         root.runs.beginStart()
         root.open()
         nameField.forceActiveFocus()
@@ -307,6 +309,21 @@ UzDialog {
                 }
                 Hint { text: qsTr("1–8 people. Each plays their own copy. You are always in your own run.") }
             }
+
+            // Randomizer (10e): only when the Randomizer plugin registered games.
+            RunRandomizerSection {
+                id: randomizer
+                hidden: root.inviting
+                variants: root.runs.variants
+                serverName: root.serverName
+                gameId: game.selectedId
+                gameTitle: {
+                    const g = root.runs.games
+                    for (let i = 0; i < g.count; ++i) if (g.get(i).id === game.selectedId) return g.get(i).title
+                    return ""
+                }
+                runName: nameField.text.trim()
+            }
         }
     }
 
@@ -324,8 +341,10 @@ UzDialog {
             Layout.bottomMargin: Theme.space05
             wrapMode: Text.Wrap
             textFormat: Text.PlainText
-            text: nameField.text.trim() !== "" ? qsTr("Each person gets Run: %1. Main is not touched.").arg(nameField.text.trim())
-                                               : qsTr("Each person gets their own save slot for this run. Main is not touched.")
+            text: randomizer.on ? (nameField.text.trim() !== "" ? qsTr("Each person gets Run: %1. Main and their own variants are not touched.").arg(nameField.text.trim())
+                                                                 : qsTr("Each person gets their own save slot for this run. Main and their own variants are not touched."))
+                                : (nameField.text.trim() !== "" ? qsTr("Each person gets Run: %1. Main is not touched.").arg(nameField.text.trim())
+                                                                 : qsTr("Each person gets their own save slot for this run. Main is not touched."))
             font.family: Theme.sans
             font.pixelSize: Theme.roles.input.size
             lineHeight: Theme.roles.small.line
@@ -351,7 +370,7 @@ UzDialog {
                     root.inviteWasSent = true
                     root.runs.inviteSelected(root.inviteRunId)
                 } else {
-                    root.runs.startRun(nameField.text, game.selectedId)
+                    root.runs.startRun(nameField.text, game.selectedId, randomizer.payload)
                 }
             }
         }

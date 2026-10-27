@@ -219,11 +219,14 @@ class RunsUiTest : public QObject {
     QCOMPARE(launch.first().at(0).toString(), runId);
     QCOMPARE(launch.first().at(1).toString(), kGameId);
     QVERIFY(!pc->manager()->hubCopyDir(spec.id, spec.version, sha).isEmpty());
-    QCOMPARE(h.controller->saveSync()->slotFor(kGameId), runSaveSlot(runId));
+    // The test host has no core for the game: Play says so and does not leave the run's slot selected.
+    QTRY_VERIFY(!runs->message().isEmpty());
+    QVERIFY(h.controller->saveSync()->slotFor(kGameId) != runSaveSlot(runId));
     QVERIFY(runSaveSlot(runId).startsWith(QStringLiteral("run-")) && runSaveSlot(runId).size() == 12);
     // Wherever a slot name is shown, the run's slot reads "Run: <name>" (Main stays "Main", other slots keep their name).
     {
       SaveHistoryController* hist = h.controller->saveHistory();
+      QVERIFY(h.controller->saveSync()->setSlot(kGameId, runSaveSlot(runId)));  // what a run start selects when the game can start
       QCOMPARE(hist->slot(), runSaveSlot(runId));
       QCOMPARE(hist->slotLabel(), QStringLiteral("Run: Tide Hardcore"));
       QCOMPARE(hist->slotName(QStringLiteral("default")), QStringLiteral("Main"));
@@ -243,7 +246,8 @@ class RunsUiTest : public QObject {
     QVERIFY(ctx.bridge != nullptr);
     QCOMPARE(ctx.pins.size(), 1);
     QCOMPARE(ctx.pins.first().sha256, sha);
-    // The game did not get going (no core in this test): a normal start selects the game's own slot again.
+    // A normal start selects the game's own slot again.
+    QVERIFY(h.controller->saveSync()->setSlot(kGameId, QStringLiteral("default")));
     h.controller->playSelected();
     QCOMPARE(h.controller->saveSync()->slotFor(kGameId), QStringLiteral("default"));
 
@@ -579,7 +583,8 @@ class RunsUiTest : public QObject {
     QTRY_VERIFY(h.item("runPlay") != nullptr && h.item("runPlay")->isVisible());
     QVERIFY(h.click("runPlay"));
     QTRY_COMPARE_WITH_TIMEOUT(launch.size(), 1, 8000);
-    QCOMPARE(h.controller->saveSync()->slotFor(kGameId), runSaveSlot(runId));
+    QTRY_VERIFY(!runs->message().isEmpty());  // no core for the game in the test host: the reason shows, the run's slot is not left selected
+    QVERIFY(h.controller->saveSync()->slotFor(kGameId) != runSaveSlot(runId));
     QCOMPARE(runs->launchFor(runId).pins.size(), 0);
   }
 

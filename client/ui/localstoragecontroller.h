@@ -3,8 +3,8 @@
 // worker thread (never on the UI thread) and runs the clean-up suggestions after the person confirmed them in QML:
 //   old_games     downloaded games not played for 60 days (never the running game or a download in progress; they download again)
 //   unused_cores  cached core versions that are not the newest of their core and not the running game's core
-// Saves are never measured as clean-up and never removed. "Save states of games no longer in the library" is not offered: the app has
-// no local save states yet, so there is nothing that could say which game a state belongs to.
+//   deleted_game_states  the local copies of save states of games that are no longer in the library (0.20; the saves are never touched)
+// Saves are never measured as clean-up and never removed.
 #include <QFutureWatcher>
 #include <QObject>
 #include <QVariantMap>
@@ -22,7 +22,7 @@ class LocalStorageController : public QObject {
   Q_PROPERTY(bool measuring READ measuring NOTIFY measuringChanged)
   // Empty until the first measurement ended. Otherwise: {dataPath, measuredAt (ms), measuredText ("hh:mm"), totalBytes, totalText, freeBytes,
   // freeText, usedBytes, usedText, kinds: [{id: games|saves|states|screenshots|cores, bytes, text, fraction (of the volume, 0..1)}],
-  // cleanup: [{id: old_games|unused_cores, bytes, text, count}] (only suggestions with something to clean)}.
+  // cleanup: [{id: old_games|deleted_game_states|unused_cores, bytes, text, count}] (only suggestions with something to clean)}.
   Q_PROPERTY(QVariantMap report READ report NOTIFY reportChanged)
  public:
   // Called on the UI thread for every measurement and clean-up: the folders, the protected hashes and the running core of that moment.

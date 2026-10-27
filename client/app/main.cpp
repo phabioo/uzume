@@ -174,6 +174,8 @@ int main(int argc, char* argv[]) {
           "  --collect-logs <out.zip>  Write the diagnostics bundle (logs, system info; no passwords or tokens) and exit.\n"
           "  --data-dir <path>    Data directory (profiles, cache, saves) instead of the default.\n"
           "  --mcp                Allow Claude to control this app (debug MCP server on 127.0.0.1) for this start only.\n"
+          "  --mcp-port <n>       Port of the debug MCP server for this start (default: the setting, 47615).\n"
+          "                       With --mcp, the token UZUME_MCP_TOKEN (if set) replaces the stored one for this start.\n"
           "  --dev-allow-http     Development only: also allow HTTP hubs outside localhost.\n"
           "  --setup-local-hub    Continue \"Set up a server on this PC\" (the installer starts the app with it).\n");
       return 0;
@@ -210,7 +212,10 @@ int main(int argc, char* argv[]) {
   const QCommandLineOption setupLocalHub(QStringLiteral("setup-local-hub"),
                                          QStringLiteral("Continue \"Set up a server on this PC\" after the server was installed."));
   const QCommandLineOption mcpOpt(QStringLiteral("mcp"), QStringLiteral("Debug MCP server on 127.0.0.1 for this start only (ADR 0032)."));
+  const QCommandLineOption mcpPortOpt(QStringLiteral("mcp-port"), QStringLiteral("Port of the debug MCP server for this start only."),
+                                       QStringLiteral("port"));
   parser.addOption(mcpOpt);
+  parser.addOption(mcpPortOpt);
   parser.addOption(setupLocalHub);
   parser.addOption(smoke);
   parser.addOption(dataDir);
@@ -279,7 +284,21 @@ int main(int argc, char* argv[]) {
     return g_qmlWarnings.load() > 0 ? 1 : rc;
   }
   controller.mcp()->setToolInstaller([&controller](uzume::mcp::McpToolRegistry& r) { uzume::mcp::installTools(r, controller); });
-  if (parser.isSet(mcpOpt)) controller.mcp()->enableForThisStart();
+  if (parser.isSet(mcpPortOpt)) {
+    bool portOk = false;
+    const int port = parser.value(mcpPortOpt).toInt(&portOk);
+    if (!portOk || !controller.mcp()->setPortForThisStart(port)) {
+      printToStdout("uzume: --mcp-port must be a number from 1024 to 65535\n");
+      return 2;
+    }
+  }
+  if (parser.isSet(mcpOpt)) {
+    const QByteArray envToken = uzume::ui::McpController::tokenFromEnvironment(true);  // only together with --mcp
+    if (!envToken.isEmpty() && !controller.mcp()->setTokenForThisStart(envToken)) {
+      printToStdout("uzume: UZUME_MCP_TOKEN ignored (needs 32 to 256 characters of A-Z a-z 0-9 - _)\n");
+    }
+    controller.mcp()->enableForThisStart();
+  }
   controller.startup();
   QObject::connect(&instance, &uzume::app::SingleInstance::activateRequested, &app, [] {
     for (QWindow* w : QGuiApplication::topLevelWindows()) {
