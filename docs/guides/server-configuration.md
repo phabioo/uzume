@@ -173,7 +173,7 @@ When the server's HTTPS port is forwarded too, the sign-in and the app API are r
 
 ## Settings in the app
 
-Library (admin, in the app): a game has Rename (display title only, up to 200 bytes of UTF-8) and Delete (with confirmation); Saves tab › All users has the save upload. Deleting removes the entry and the ROM file; saves of the game are kept and stay under Saves tab › All users.
+Library (admin, in the app): the game page's Manage tab has Rename (display title only, up to 200 bytes of UTF-8) and Delete (with confirmation); Saves tab › All users has the save upload. Deleting removes the entry and the ROM file; saves of the game are kept and stay under Saves tab › All users.
 
 Server › Settings › Network & sharing edits port, embedded TURN, public host, TURN port, relay range and IP, STUN servers and save retention. These values live in the server database and win over flags and `server.env`, which only give the initial values (reset per field to return to the `server.env` value). Changes that need it are applied by a restart the server triggers itself (no root). The app refuses ports below 1024; set those with `install-server.sh --port` (a port saved in the app still wins until reset). Startup fallbacks keep the server reachable after a bad setting. Decisions: [ADR 0015](../adr/0015-hub-ui-pass.md).
 

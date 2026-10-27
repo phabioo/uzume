@@ -251,6 +251,19 @@ struct Harness {
     controller.reset();
   }
 
+  // Opens the game page (the Library column shows one game instead of the list); an empty id takes the selected game, `tab` is
+  // "overview" | "saves" | "settings" | "manage". True once the page is shown.
+  bool openGame(const QString& id = QString(), const QString& tab = QString()) {
+    if (id.isEmpty()) QTest::qWaitFor([&]() { return !controller->selectedGameId().isEmpty(); }, 5000);
+    controller->openGamePage(id, tab);
+    return QTest::qWaitFor(
+        [&]() {
+          QQuickItem* page = item("gamePage");
+          return page != nullptr && page->isVisible() && page->width() > 0 && !controller->selectedGameId().isEmpty();
+        },
+        5000);
+  }
+
   // By objectName; falls back to the visual tree (Repeater/Loader delegates are not QObject children of the window).
   // Several items may share a name (Repeater delegates that are not yet deleted, per-layout copies): prefer one
   // that is visible, enabled and in a window; fall back to the first of any kind.

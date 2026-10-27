@@ -104,6 +104,8 @@ class RunsController : public QObject {
   QString startRulesCurrent() const { return startRulesCurrent_; }
   // "Run: <run name>" for the save slot of a known run, else empty (the raw slot name is then shown).
   QString slotDisplayName(const QString& slot) const;
+  // Id of the run whose save slot this is ("" = a plain slot): the game page's "Open run" link.
+  Q_INVOKABLE QString runIdForSlot(const QString& slot) const;
   // Save slot of a run: the Hub's save_slot, else "run-" + 8 hex.
   QString saveSlotFor(const QString& runId) const;
   QAbstractItemModel* joinPlugins() { return &joinPlugins_; }

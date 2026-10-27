@@ -98,7 +98,7 @@ class ShotsPlayerATest : public QObject {
     h.controller->selectGame({});
     resize(h, 3840, 1400);
     shot(h, QStringLiteral("3c-6-3840"));
-    h.controller->selectGame(QStringLiteral("g2"));
+    QVERIFY(h.openGame(QStringLiteral("g2")));
     shot(h, QStringLiteral("3c-6-3840-detail"));
   }
 
@@ -123,7 +123,7 @@ class ShotsPlayerATest : public QObject {
     pair(h, *hub);
     resize(h, 1440);
 
-    h.controller->selectGame(QStringLiteral("g1"));
+    QVERIFY(h.openGame(QStringLiteral("g1"), QStringLiteral("manage")));
     shot(h, QStringLiteral("3c-7-hub-game"));
 
     h.controller->addLibraryFolder(folder.path());
@@ -131,6 +131,7 @@ class ShotsPlayerATest : public QObject {
     h.controller->selectGame(QStringLiteral("g2"));
     QTRY_VERIFY_WITH_TIMEOUT(h.controller->selectedGame().value("localFile").toBool(), 8000);  // tile pill shows "Core missing" without a core
     QVERIFY(!h.controller->selectedGame().value("localOnly").toBool());
+    QVERIFY(h.openGame(QStringLiteral("g2"), QStringLiteral("manage")));
     shot(h, QStringLiteral("3c-7-local-on-hub"));
 
     QTRY_VERIFY_WITH_TIMEOUT(!hub->registerBodies.isEmpty(), 8000);  // the file that only exists locally is registered
@@ -141,6 +142,7 @@ class ShotsPlayerATest : public QObject {
       if (h.controller->selectedGame().value("localFile").toBool()) localId = QStringLiteral("reg-1");
     }
     QVERIFY(!localId.isEmpty());
+    QVERIFY(h.openGame(localId, QStringLiteral("manage")));
     shot(h, QStringLiteral("3c-7-local-file"));
 
     // 3p-3: Settings with the library folder row, hubs, updates.

@@ -288,7 +288,7 @@ target_compile_definitions(test_ui_runs PRIVATE FB_TEST_DATA_DIR="${FB_NETTEST_D
 # that only fit with Linux font metrics (Windows CI renders wider; 18 px letter spacing is about the Windows fallback font).
 # Not on Windows: its fonts are already the wide case, extra spacing there tests something no user sees.
 if(NOT WIN32)
-  foreach(t ui_shell_layout ui_library_saves ui_library_overview ui_ingame ui_plugin_slots ui_settings_row ui_design_system ui_screens ui_plugins ui_connection_check ui_report ui_admin ui_admin_users ui_admin_systems ui_admin_settings ui_admin_library ui_runs)
+  foreach(t ui_shell_layout ui_library_saves ui_library_overview ui_game_page ui_ingame ui_plugin_slots ui_settings_row ui_design_system ui_screens ui_plugins ui_connection_check ui_report ui_admin ui_admin_users ui_admin_systems ui_admin_settings ui_admin_library ui_runs)
     add_test(NAME ${t}_widefont COMMAND test_${t})
     set_tests_properties(${t}_widefont PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;UZUME_TEST_WIDE_FONT=18")
   endforeach()
@@ -331,6 +331,12 @@ uzume_add_test(ui_library_overview library_overview_ui_test.cpp ${FB_NETTEST_DIR
   LIBS ${FB_UI_TEST_LIBS})
 target_include_directories(test_ui_library_overview PRIVATE ${FB_NETTEST_DIR})
 target_compile_definitions(test_ui_library_overview PRIVATE FB_TEST_DATA_DIR="${FB_NETTEST_DIR}/testdata")
+
+# The game page (usability pass 5): a row opens it, Esc returns to the same row, four tabs, header actions, admin under Manage.
+uzume_add_test(ui_game_page game_page_ui_test.cpp ${FB_NETTEST_DIR}/fakehub.cpp ${FB_NETTEST_DIR}/fakehub.h
+  LIBS ${FB_UI_TEST_LIBS})
+target_include_directories(test_ui_game_page PRIVATE ${FB_NETTEST_DIR})
+target_compile_definitions(test_ui_game_page PRIVATE FB_TEST_DATA_DIR="${FB_NETTEST_DIR}/testdata")
 
 # Screenshots: the strip and viewer of the game page, the capture path with its pending queue (Uzume 0.19, no core needed).
 uzume_add_test(ui_screenshots screenshots_ui_test.cpp ${FB_NETTEST_DIR}/fakehub.cpp ${FB_NETTEST_DIR}/fakehub.h

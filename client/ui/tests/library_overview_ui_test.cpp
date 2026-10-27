@@ -233,9 +233,14 @@ class LibraryOverviewUiTest : public QObject {
     QCOMPARE(int(std::count(ys.begin(), ys.end(), firstY)), 5);
     QVERIFY(!shown(h, "playButton"));
 
-    // Choosing a tile opens the detail column; Esc closes it.
+    // Choosing a tile opens the game page; Esc returns to the grid with the tile still selected.
     QVERIFY(h.click("gameTile_g2"));
     QTRY_VERIFY(shown(h, "playButton"));
+    QCOMPARE(h.controller->selectedGameId(), QStringLiteral("g2"));
+    QVERIFY(!shown(h, "libraryViewSwitch"));
+    QTest::keyClick(h.window, Qt::Key_Escape);
+    QTRY_VERIFY(!shown(h, "playButton"));
+    QTRY_VERIFY(shown(h, "libraryViewSwitch"));
     QCOMPARE(h.controller->selectedGameId(), QStringLiteral("g2"));
 
     // The choice is stored in the profile settings.
@@ -243,7 +248,7 @@ class LibraryOverviewUiTest : public QObject {
     QVERIFY(h.click("viewList"));
     QTRY_COMPARE(h.controller->libraryView(), QStringLiteral("list"));
     QCOMPARE(PlayerSettings(h.controller->profileStore()->baseDir()).libraryView(), QStringLiteral("list"));
-    QTRY_VERIFY(shown(h, "playButton"));
+    QVERIFY(!shown(h, "playButton"));
   }
 
   void oneProblemSentenceWithTheFixAsPrimary() {
@@ -254,7 +259,7 @@ class LibraryOverviewUiTest : public QObject {
     Harness h;
     QVERIFY(h.start());
     pair(h, hub, 1400);
-    h.controller->selectGame(QStringLiteral("g1"));
+    QVERIFY(h.openGame(QStringLiteral("g1")));
     QTRY_COMPARE_WITH_TIMEOUT(h.controller->selectedGameId(), QStringLiteral("g1"), 3000);
     QTRY_VERIFY_WITH_TIMEOUT(shown(h, "playButton"), 5000);
     const QVariantMap g = h.controller->selectedGame();
@@ -267,13 +272,15 @@ class LibraryOverviewUiTest : public QObject {
     QCOMPARE(textOf(h, "playButton"), QStringLiteral("Ask an admin"));
     QVERIFY(h.item("playButton")->property("enabled").toBool());
     QVERIFY(!shown(h, "startChecklist"));
-    // The Saves tab keeps the same primary while the game cannot start; Overview / Saves / Details are one tab row.
+    // The Saves tab keeps the same primary while the game cannot start; Overview / Saves / Settings / Manage are one tab row.
     QVERIFY(h.click("tab_Saves"));
     QCOMPARE(textOf(h, "playButton"), QStringLiteral("Ask an admin"));
     QVERIFY(!shown(h, "startChecklist"));
     // File details stay closed by default.
     QVERIFY(!shown(h, "fileDetails") || !h.item("fileDetails")->property("visible").toBool());
     QVERIFY(h.click("tab_Overview"));
+    QVERIFY(shown(h, "problemFixButton"));   // the box carries the fix and "Copy details"
+    QVERIFY(shown(h, "problemCopyDetails"));
 
   }
 
@@ -302,12 +309,12 @@ class LibraryOverviewUiTest : public QObject {
           return !localId.isEmpty();
         }(),
         10000);
-    QTRY_VERIFY_WITH_TIMEOUT(shown(h, "detailMoreButton"), 5000);
+    QVERIFY(h.openGame(localId, QStringLiteral("manage")));
+    QTRY_VERIFY_WITH_TIMEOUT(shown(h, "removeFromLibrary"), 5000);   // the file actions are on the Manage tab
     const int registered = hub.registerBodies.size();
 
-    QVERIFY(h.click("detailMoreButton"));
-    QTRY_VERIFY(shown(h, "menuItem_removeFromLibrary"));
-    QVERIFY(h.click("menuItem_removeFromLibrary"));
+    QVERIFY(h.click("removeFromLibrary"));
+    QTRY_VERIFY_WITH_TIMEOUT(!shown(h, "gamePage"), 5000);   // the game is gone: back to the list
     QTRY_VERIFY_WITH_TIMEOUT(shown(h, "removedToast"), 8000);
     QVERIFY(textOf(h, "toastText").contains(QStringLiteral("Removed from library")));
     QVERIFY(textOf(h, "toastText").contains(QStringLiteral("the file stays on this PC")));

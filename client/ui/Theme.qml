@@ -187,7 +187,6 @@ QtObject {
     // ---- Layout and motion -----------------------------------------------------------------------------------------
     readonly property int sidebarWidth: sidebar
     readonly property int columnWidth: 300       // second column of 3e / 3f / 3p
-    readonly property int detailWidth: 340       // Library detail column
     readonly property int contentMaxWidth: 880   // Settings, Runs and plugin screens: left-aligned, never wider
     readonly property int gridMaxWidth: 1680     // Library grid
     readonly property int inputTestWidth: 340    // Controllers input test

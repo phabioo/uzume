@@ -18,7 +18,8 @@ ColumnLayout {
         return all.filter(w => w.tone !== "info").concat(all.filter(w => w.tone === "info"))
     }
     readonly property var shown: root.expanded ? notices : notices.slice(0, 1)
-    visible: notices.length > 0
+    property bool suppressed: false   // the game page is open
+    visible: notices.length > 0 && !suppressed
     spacing: 0
     onNoticesChanged: if (notices.length < 2) root.expanded = false
 

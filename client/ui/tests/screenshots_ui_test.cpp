@@ -77,7 +77,7 @@ class ScreenshotsUiTest : public QObject {
     return it != nullptr ? it->property("text").toString() : QString();
   }
   static void selectGame(Harness& h, const QString& id) {
-    h.controller->selectGame(id);
+    QVERIFY(h.openGame(id));   // the screenshots section belongs to the overview of the game page
     QTRY_COMPARE_WITH_TIMEOUT(h.controller->selectedGameId(), id, 3000);
   }
   // The Image inside a frame (thumbnail) or the viewer's Image: its status.

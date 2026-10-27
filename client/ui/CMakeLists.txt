@@ -117,7 +117,6 @@ qt_add_qml_module(uzume_ui
     UzNavGroupHead.qml
     GameTile.qml
     GameCard.qml
-    DetailPane.qml
     LibraryScreen.qml
     GameGrid.qml
     GameScreen.qml
@@ -128,6 +127,7 @@ qt_add_qml_module(uzume_ui
     RollbackDialog.qml
     UzSegmented.qml
     SessionsSection.qml
+    GamePage.qml
     GamePanel.qml
     GameHeader.qml
     GameButton.qml

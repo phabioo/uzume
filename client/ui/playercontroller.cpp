@@ -1447,8 +1447,28 @@ bool PlayerController::eventFilter(QObject* watched, QEvent* event) {
 }
 
 void PlayerController::showLibrary() {
+  // The Library entry again while the game page is open leads to the list; coming back from another screen keeps the page.
+  if (screen_ == QLatin1String("library")) closeGamePage();
   page_ = QStringLiteral("library");
   updateScreen();
+}
+
+void PlayerController::openGamePage(const QString& gameId, const QString& tab) {
+  if (!gameId.isEmpty()) selectGame(gameId);
+  if (selectedId_.isEmpty()) return;
+  static const QStringList tabs{QStringLiteral("overview"), QStringLiteral("saves"), QStringLiteral("settings"), QStringLiteral("manage")};
+  const QString want = tabs.contains(tab) ? tab : QStringLiteral("overview");
+  gamePageOpen_ = true;
+  gamePageTab_ = want;
+  if (page_ != QLatin1String("library")) showLibrary();
+  emit gamePageChanged();
+}
+
+void PlayerController::closeGamePage() {
+  if (!gamePageOpen_) return;
+  gamePageOpen_ = false;
+  gamePageTab_ = QStringLiteral("overview");
+  emit gamePageChanged();
 }
 
 void PlayerController::showSettings() {

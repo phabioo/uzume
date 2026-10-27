@@ -2,9 +2,9 @@ import QtQuick
 import QtQuick.Layouts
 import Uzume.App
 
-// Compact SAVE block of the detail column (3c-2): slot, current version, meta, sync pill and the slot/version counts.
-// "Manage saves →" ("View saves →" offline) opens the saves view. States: normal, sync pending, Hub offline,
-// save conflict, no saves yet, Hub without save sync.
+// "Continue from" block of the game page overview: the save slots as 44 px rows (slot name, version, mono meta, sync pill, Play and
+// for a run's slot "Open run"), then "All saves and versions" (the Saves tab; "Upload save file…" while there is no save yet).
+// States: normal, sync pending, server offline, save conflict, no saves yet, server without save sync.
 Rectangle {
     id: root
     required property PlayerController player
@@ -28,57 +28,38 @@ Rectangle {
     onRunningChanged: nowMs = Date.now()
     signal manage()
     signal uploadRequested()
+    // Starts the game from a slot: the slot becomes the selected one, then the game starts like the Play button.
+    function playSlot(slot: string) {
+        if (slot !== root.hist.slot) root.hist.selectSlot(slot)
+        root.player.playSelected()
+    }
+    function openRun(slot: string) {
+        const id = root.player.runs.runIdForSlot(slot)
+        if (id === "") return
+        root.player.showRuns()
+        root.player.runs.openRun(id)
+    }
 
     objectName: "saveSummary"
     Layout.fillWidth: true
     Layout.minimumWidth: 0
     Layout.preferredWidth: 1
-    implicitHeight: col.implicitHeight + 2 * Theme.space1 + 1
-    // An open block (no card): a `rule` hairline above, the content on the ground.
+    implicitHeight: col.implicitHeight
     color: "transparent"
-    Rectangle { width: parent.width; height: 1; color: Theme.rule }
 
     ColumnLayout {
         id: col
-        anchors.fill: parent
-        anchors.topMargin: Theme.space1 + 1
-        anchors.bottomMargin: Theme.space1
-        anchors.leftMargin: 0
-        anchors.rightMargin: 0
+        width: root.width
         spacing: Theme.space1
 
-        // Header: eyebrow + link
-        Item {
+        UzSectionLabel {
+            objectName: "saveSummaryLabel"
             Layout.fillWidth: true
-            Layout.minimumWidth: 0
-            implicitHeight: Theme.row28
-            Eyebrow {
-                anchors.left: parent.left
-                anchors.right: link.left
-                anchors.rightMargin: Theme.space1
-                anchors.verticalCenter: parent.verticalCenter
-                text: root.conflict ? qsTr("▲ Save conflict") : qsTr("Save")
-                color: root.conflict ? Theme.accentText : Theme.dim
-            }
-            UzButton {
-                id: link
-                objectName: "manageSavesLink"
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                // Never wider than the card (the label elides): the eyebrow keeps at least 60 px.
-                width: Math.max(0, Math.min(implicitWidth, parent.width - 68))
-                visible: !root.unsupported
-                kind: "link"
-                implicitHeight: Theme.row28
-                font.pixelSize: Theme.roles.input.size
-                font.weight: Font.Medium
-                text: root.noSaves ? (root.hist.canUploadFile && root.hist.uploadBlockReason === "" ? qsTr("Upload save file…") : qsTr("Manage saves →"))
-                      : root.offline ? qsTr("View saves →") : qsTr("Manage saves →")
-                onClicked: root.noSaves && root.hist.canUploadFile && root.hist.uploadBlockReason === "" ? root.uploadRequested() : root.manage()
-            }
+            number: 1
+            text: root.conflict ? qsTr("▲ Save conflict") : qsTr("Continue from")
         }
 
-        // Hub without save sync (or user unknown): the old "Save" row text
+        // Server without save sync (or user unknown): the old "Save" row text
         UzLabel {
             objectName: "saveUnsupported"
             visible: root.unsupported
@@ -105,6 +86,7 @@ Rectangle {
             }
             UzButton {
                 objectName: "resolveConflictButton"
+                Layout.fillWidth: false
                 implicitHeight: Theme.row32
                 font.pixelSize: Theme.roles.input.size
                 text: qsTr("Resolve conflict")
@@ -147,73 +129,101 @@ Rectangle {
             font.pixelSize: Theme.roles.small.size
         }
 
-        // Current version row: dot | slot + version + meta | pill
-        RowLayout {
-            objectName: "saveCurrentRow"
+        // The slots: 44 px rows. The selected slot carries the version, the sync state and where the save is; the others their
+        // number of versions.
+        ColumnLayout {
+            objectName: "saveSlotRows"
             visible: !root.unsupported && !root.conflict && root.hist.current.revision !== undefined
             Layout.fillWidth: true
             Layout.minimumWidth: 0
-            spacing: Theme.space15
-            Item {
-                Layout.preferredWidth: 16
-                Layout.preferredHeight: 16
-                Layout.alignment: Qt.AlignTop
-                Rectangle {
-                    anchors.centerIn: parent
-                    width: 16; height: 16;
-                    color: "transparent"; border.width: 1; border.color: Theme.accent
-                }
-                Rectangle { anchors.centerIn: parent; width: 10; height: 10; color: Theme.accent }
-            }
-            ColumnLayout {
-                Layout.fillWidth: true
-                Layout.minimumWidth: 0
-                Layout.preferredWidth: 1
-                spacing: 2
-                RowLayout {
+            spacing: 0
+            Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Theme.rule }
+            Repeater {
+                model: root.hist.slotOptions
+                delegate: Item {
+                    id: slotRow
+                    required property var modelData
+                    readonly property bool selected: modelData.value === root.hist.slot
+                    readonly property bool isRun: root.player.runs.runIdForSlot(modelData.value) !== ""
+                    objectName: selected ? "saveCurrentRow" : "saveSlotRow"
                     Layout.fillWidth: true
                     Layout.minimumWidth: 0
-                    spacing: Theme.space1
-                    UzLabel {
-                        objectName: "saveSlotName"
-                        text: root.hist.slotLabel
-                        font.pixelSize: Theme.roles.body.size
-                        font.weight: Font.DemiBold
-                        elide: Text.ElideRight
-                        Layout.maximumWidth: 160
+                    implicitHeight: Theme.row44
+                    Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.rule2 }
+                    RowLayout {
+                        anchors.fill: parent
+                        spacing: Theme.space1
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            Layout.minimumWidth: 0
+                            Layout.alignment: Qt.AlignVCenter
+                            spacing: 0
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Layout.minimumWidth: 0
+                                spacing: Theme.space1
+                                UzLabel {
+                                    objectName: slotRow.selected ? "saveSlotName" : ""
+                                    text: slotRow.modelData.label
+                                    font.pixelSize: Theme.roles.body.size
+                                    font.weight: Font.DemiBold
+                                    elide: Text.ElideRight
+                                    Layout.maximumWidth: 200
+                                }
+                                UzMono {
+                                    objectName: slotRow.selected ? "saveVersion" : ""
+                                    visible: slotRow.selected
+                                    text: root.hist.current.revisionText || ""
+                                    color: Theme.muted
+                                    font.pixelSize: Theme.roles.input.size
+                                }
+                                Item { Layout.fillWidth: true }
+                            }
+                            UzMono {
+                                objectName: slotRow.selected ? "saveMeta" : ""
+                                Layout.fillWidth: true
+                                elide: Text.ElideRight
+                                color: Theme.dim
+                                font.pixelSize: Theme.roles.meta11.size
+                                font.capitalization: Font.AllUppercase
+                                text: slotRow.selected ? (
+                                      root.running && root.bg.pausedMs ? qsTr("checkpoint %1 ago · this device").arg(root.ago(root.bg.pausedMs))
+                                      : root.offline ? qsTr("last synced %1").arg(root.hist.lastSynced)
+                                      : root.syncKind === "pending" ? qsTr("local changes not uploaded yet · this device")
+                                      : (root.hist.current.device ? qsTr("%1 · %2").arg(root.hist.current.when).arg(root.hist.current.device)
+                                                                  : (root.hist.current.when || "")
+                                                                    + (root.syncKind === "synced" ? qsTr(" · on server") : "")))
+                                      : (slotRow.modelData.count > 0 ? Theme.plural(slotRow.modelData.count, qsTr("version"), qsTr("versions")) : "")
+                            }
+                        }
+                        UzTag {
+                            objectName: slotRow.selected ? "saveSyncPill" : ""
+                            visible: slotRow.selected && text !== ""
+                            small: true
+                            tone: root.running || root.offline ? "neutral" : (root.syncKind === "pending" ? "warn" : "ok")
+                            text: root.running ? qsTr("Syncs on quit")
+                                  : root.offline ? qsTr("Offline")
+                                  : root.syncKind === "pending" ? qsTr("⟳ Sync pending")
+                                  : root.syncKind === "synced" ? qsTr("✓ Synced") : ""
+                        }
+                        UzButton {
+                            objectName: slotRow.selected ? "saveOpenRun" : ""
+                            visible: slotRow.isRun
+                            kind: "link"
+                            Layout.fillWidth: false
+                            text: qsTr("Open run")
+                            onClicked: root.openRun(slotRow.modelData.value)
+                        }
+                        UzButton {
+                            objectName: slotRow.selected ? "savePlaySlot" : ""
+                            kind: "link"
+                            Layout.fillWidth: false
+                            text: qsTr("Play")
+                            enabled: root.game.canPlay === true && !root.hist.confirmationOpen
+                            onClicked: root.playSlot(slotRow.modelData.value)
+                        }
                     }
-                    UzMono {
-                        objectName: "saveVersion"
-                        text: root.hist.current.revisionText || ""
-                        color: Theme.muted
-                        font.pixelSize: Theme.roles.input.size
-                    }
-                    Item { Layout.fillWidth: true }
                 }
-                UzLabel {
-                    objectName: "saveMeta"
-                    Layout.fillWidth: true
-                    Layout.minimumWidth: 0
-                    wrapMode: Text.WordWrap
-                    color: Theme.muted
-                    font.pixelSize: Theme.roles.small.size
-                    text: root.running && root.bg.pausedMs ? qsTr("checkpoint %1 ago · this device").arg(root.ago(root.bg.pausedMs))
-                          : root.offline ? qsTr("last synced %1").arg(root.hist.lastSynced)
-                          : root.syncKind === "pending" ? qsTr("local changes not uploaded yet · this device")
-                          : (root.hist.current.device ? qsTr("%1 · %2").arg(root.hist.current.when).arg(root.hist.current.device)
-                                                      : (root.hist.current.when || ""))
-                }
-            }
-            UzTag {
-                objectName: "saveSyncPill"
-                Layout.alignment: Qt.AlignTop
-                visible: text !== ""
-                small: true
-                tone: root.running || root.offline ? "neutral" : (root.syncKind === "pending" ? "warn" : "ok")
-                text: root.running ? qsTr("Syncs on quit")
-                      : root.offline ? qsTr("Offline")
-                      : root.syncKind === "pending" ? qsTr("⟳ Sync pending")
-                      : root.syncKind === "synced" ? qsTr("✓ Synced") : ""
             }
         }
 
@@ -227,17 +237,34 @@ Rectangle {
             font.pixelSize: Theme.roles.small.size
         }
 
-        // Footer: "2 slots · 8 versions in Main"
-        UzLabel {
-            objectName: "saveCounts"
-            visible: !root.unsupported && root.hist.current.revision !== undefined
+        // Footer: the link to the Saves tab and "2 slots · 8 versions in Main"
+        RowLayout {
             Layout.fillWidth: true
-            Layout.leftMargin: 16 + Theme.space15
-            elide: Text.ElideRight
-            text: Theme.plural(root.hist.slotCount, qsTr("slot"), qsTr("slots")) + " · "
-                  + (root.hist.versionCount === 1 ? qsTr("1 version in %1") : qsTr("%1 versions in %2").arg(root.hist.versionCount)).arg(root.hist.slotLabel)
-            color: Theme.dim
-            font.pixelSize: Theme.roles.small.size
+            Layout.minimumWidth: 0
+            visible: !root.unsupported
+            spacing: Theme.space2
+            UzButton {
+                id: link
+                objectName: "manageSavesLink"
+                Layout.minimumWidth: 0
+                kind: "link"
+                implicitHeight: Theme.row28
+                font.pixelSize: Theme.roles.input.size
+                font.weight: Font.Medium
+                text: root.noSaves && root.hist.canUploadFile && root.hist.uploadBlockReason === "" ? qsTr("Upload save file…") : qsTr("All saves and versions")
+                onClicked: root.noSaves && root.hist.canUploadFile && root.hist.uploadBlockReason === "" ? root.uploadRequested() : root.manage()
+            }
+            UzLabel {
+                objectName: "saveCounts"
+                visible: root.hist.current.revision !== undefined
+                Layout.fillWidth: true
+                Layout.minimumWidth: 0
+                elide: Text.ElideRight
+                text: Theme.plural(root.hist.slotCount, qsTr("slot"), qsTr("slots")) + " · "
+                      + (root.hist.versionCount === 1 ? qsTr("1 version in %1") : qsTr("%1 versions in %2").arg(root.hist.versionCount)).arg(root.hist.slotLabel)
+                color: Theme.dim
+                font.pixelSize: Theme.roles.small.size
+            }
         }
     }
 }

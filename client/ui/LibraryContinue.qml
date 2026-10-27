@@ -19,7 +19,8 @@ ColumnLayout {
         root.startRequested(gameId)
     }
 
-    visible: shown.length > 0
+    property bool suppressed: false   // the game page is open
+    visible: shown.length > 0 && !suppressed
     spacing: Theme.space1
 
     UzSectionLabel { objectName: "continueLabel"; Layout.fillWidth: true; number: 1; text: qsTr("Continue") }

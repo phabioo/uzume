@@ -155,7 +155,7 @@ class AdminLibraryUiTest : public QObject {
     adminHub(hub, false);
     Harness h;
     start(h, hub);
-    h.controller->selectGame(QStringLiteral("g1"));
+    QVERIFY(h.openGame(QStringLiteral("g1"), QStringLiteral("manage")));
     QTest::qWait(200);
     QVERIFY(!shown(h, "libraryAdminBar"));
     QVERIFY(!shown(h, "libraryAdminDetails"));
@@ -193,8 +193,13 @@ class AdminLibraryUiTest : public QObject {
     // Details of the selected game.
     h.controller->showLibrary();
     QVERIFY(!shown(h, "libraryRescan"));
-    h.controller->selectGame(QStringLiteral("g1"));
+    // Rename and Delete are admin actions of the game page, under Manage (not on the Overview, not under the list).
+    QVERIFY(h.openGame(QStringLiteral("g1")));
+    QVERIFY(!shown(h, "libraryAdminDetails"));
+    QVERIFY(!shown(h, "libraryAdminRename"));
+    QVERIFY(h.click("tab_Manage"));
     QTRY_VERIFY(shown(h, "libraryAdminDetails"));
+    QVERIFY(shown(h, "libraryAdminRename") && shown(h, "libraryAdminDelete"));
     QTRY_COMPARE(text(h.item("libraryAdminUploader")), QStringLiteral("Tester"));
     QCOMPARE(text(h.item("libraryAdminFile")), QStringLiteral("g1.nds"));
     QCOMPARE(text(h.item("libraryAdminSha")).size(), 64);
@@ -225,7 +230,10 @@ class AdminLibraryUiTest : public QObject {
     confirmIt(h, hub);
     QTRY_COMPARE(calls(hub, "DELETE", "/games/g1"), 1);   // the refusal is not counted, the replay after the confirmation is
     QTRY_VERIFY(!shown(h, "adminAskDialog"));
-    QVERIFY(text(h.item("libraryAdminNote")).contains(QStringLiteral("saves are kept")));
+    // The game is gone: the page closes and the Library says what happened.
+    QTRY_VERIFY(!shown(h, "gamePage"));
+    QTRY_VERIFY(shown(h, "deletedToast"));
+    QVERIFY(text(h.item("toastText")).contains(QStringLiteral("saves are kept")));
   }
 
   void savesOfAllUsersKeepThisAndRestoreForAnotherPerson() {
@@ -241,7 +249,7 @@ class AdminLibraryUiTest : public QObject {
     Harness h;
     start(h, hub);
     QTRY_VERIFY(h.controller->admin()->available());
-    h.controller->selectGame(QStringLiteral("g1"));
+    QVERIFY(h.openGame(QStringLiteral("g1")));
     QVERIFY(h.clickWhenReady("manageSavesLink"));
     QTRY_VERIFY(shown(h, "savesAdminSwitch"));
     QVERIFY(h.item("savesScopeMine") != nullptr && h.item("savesScopeAll") != nullptr);
@@ -322,7 +330,7 @@ class AdminLibraryUiTest : public QObject {
     Harness h;
     start(h, hub);
     QTRY_VERIFY(h.controller->admin()->available());
-    h.controller->selectGame(QStringLiteral("g1"));
+    QVERIFY(h.openGame(QStringLiteral("g1")));
     QVERIFY(h.clickWhenReady("manageSavesLink"));
     QVERIFY(h.click("savesScopeAll"));
     QTRY_VERIFY(shown(h, "savesAdminTableRow_0"));

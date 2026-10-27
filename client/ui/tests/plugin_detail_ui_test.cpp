@@ -106,7 +106,7 @@ class PluginDetailUiTest : public QObject {
   void cleanup() { QCOMPARE(uitest::warningCount().load(), 0); }
 
   void noPluginNoSection() {
-    h_.controller->selectGame(QStringLiteral("g1"));
+    QVERIFY(h_.openGame(QStringLiteral("g1")));
     QTRY_VERIFY(visibleItem("detailTitle") != nullptr);
     QCOMPARE(h_.items("pluginDetail_net.test.notes").size(), 0);
     QVERIFY(visibleItem("detailPluginsRow") == nullptr);
@@ -119,10 +119,11 @@ class PluginDetailUiTest : public QObject {
     pc()->setPluginEnabled(QStringLiteral("net.test.notes"), true);
     pc()->setDeveloperMode(true);
 
+    QVERIFY(h_.openGame(QStringLiteral("g1")));
     QTRY_COMPARE_WITH_TIMEOUT(sectionTitle(), QStringLiteral("Notes for Lumen Drift"), 10000);
     QCOMPARE(textOf(visibleItem("pluginDetailName")), QStringLiteral("Drawn by Notes Plugin"));
     QVERIFY(visibleItem("pluginDetailOrigin") != nullptr);  // installed from a folder: not official
-    QVERIFY(h_.click("tab_Details"));  // the plugins row is one of the facts of the Details tab
+    QVERIFY(h_.click("tab_Manage"));  // the plugins row is one of the facts of the Manage tab
     QTRY_VERIFY(visibleItem("detailPluginsRow") != nullptr);
     QQuickItem* row = visibleItem("detailPluginsRow");
     QVERIFY(row != nullptr);

@@ -1007,7 +1007,7 @@ void installUiTools(McpToolRegistry& registry, ui::PlayerController& player) {
     ToolDef t;
     t.name = QStringLiteral("navigate");
     t.description = QStringLiteral(
-        "Opens a screen through the controller calls the sidebar uses (no clicks). to: library | game (library with gameId selected) | settings "
+        "Opens a screen through the controller calls the sidebar uses (no clicks). to: library | game (the game page of gameId, screen stays library) | settings "
         "(page: account|appearance|audio|controllers|hotkeys|emulation|storage|hubs|plugins|updates|diagnostics; library = storage) | server (page = tab: overview|people|games|systems|plugins|reports|settings; status = overview and users = people still work) "
         "| emulation | controllers (both open that section of Settings) | runs | plugin (page = plugin id) | plugin_settings (page = plugin id) | setup. Returns the screen reached; "
         "screens that need a connected server are refused while none is, and while a game is in front.");
@@ -1033,6 +1033,8 @@ void installUiTools(McpToolRegistry& registry, ui::PlayerController& player) {
       if (to == QLatin1String("library") || to == QLatin1String("game")) {
         if (to == QLatin1String("game") && gameId.isEmpty()) return reply(ToolResult::error(QStringLiteral("gameId required for game")));
         pc->showLibrary();
+        if (to == QLatin1String("game")) pc->openGamePage(gameId);  // the game page (screen stays library)
+        else pc->closeGamePage();
         expect = QStringLiteral("library");
       } else if (to == QLatin1String("settings")) {
         if (!page.isEmpty() && !settingsPages.contains(page))

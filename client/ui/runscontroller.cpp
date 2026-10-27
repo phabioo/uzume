@@ -76,6 +76,15 @@ QString RunsController::slotDisplayName(const QString& slot) const {
   return {};
 }
 
+QString RunsController::runIdForSlot(const QString& slot) const {
+  if (slot.isEmpty() || slot == QLatin1String("default")) return {};
+  for (const RunInfo& run : client_->runs()) {
+    const QString runSlot = run.saveSlot.isEmpty() ? runSaveSlot(run.runId) : run.saveSlot;
+    if (runSlot == slot) return run.runId;
+  }
+  return {};
+}
+
 QString RunsController::unverifiedWarning() const {
   return tr("Uzume has not checked this plugin. Turn it on only if you trust the admin of your server and where the file came from.");
 }

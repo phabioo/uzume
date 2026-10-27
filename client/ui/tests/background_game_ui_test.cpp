@@ -90,6 +90,10 @@ class BackgroundGameUiTest : public QObject {
   // Layout checks of the running game's Library (3c-5) at the current window size.
   static void checkRunningLayout(Harness& h) {
     const QRectF win(0, 0, h.window->width(), h.window->height());
+    // The list first: the running marker sits in the row of the game; then the game page with Resume and Quit game.
+    h.controller->closeGamePage();
+    QTRY_VERIFY(visibleOne(h, "tileRunningPill") != nullptr);
+    QQuickTest::qWaitForPolish(h.window);
     QQuickItem* pill = visibleOne(h, "tileRunningPill");
     QVERIFY2(pill != nullptr, "exactly one running marker expected");
     QQuickItem* tile = pill;
@@ -101,10 +105,13 @@ class BackgroundGameUiTest : public QObject {
     // The "Paused" tag sits in the title cell of the table row, inside the row.
     QVERIFY2(pr.left() >= tr.left() - 0.5 && pr.right() <= tr.right() + 0.5 && pr.top() >= tr.top() - 0.5 && pr.bottom() <= tr.bottom() + 0.5,
              "marker outside the row");
-    QQuickItem* pane = h.item("detailPane");
+    QVERIFY(h.openGame(QStringLiteral("g1")));
+    QQuickItem* pane = h.item("gamePage");
     QVERIFY(pane != nullptr);
     const QRectF pb = sceneRect(pane);
     QVERIFY(pb.right() <= win.right() + 0.5);
+    QQuickTest::qWaitForPolish(h.window);
+    QTest::qWait(60);
     for (const char* n : {"playButton", "playShareButton", "runningNote", "quitNote", "detailPill", "detailTitle"}) inside(h, n, pb);
     inside(h, "nowRunningStrip", win);
     QVERIFY(h.item("startChecklist") == nullptr || !h.item("startChecklist")->isVisible());
@@ -141,6 +148,7 @@ class BackgroundGameUiTest : public QObject {
     const QVariantMap sel = c->selectedGame();
     QCOMPARE(sel.value(QStringLiteral("running")).toBool(), true);
     QCOMPARE(sel.value(QStringLiteral("playLabel")).toString(), QStringLiteral("Resume"));
+    QVERIFY(h.openGame(QStringLiteral("g1")));
     QQuickItem* second = h.item("playShareButton");
     QVERIFY(second != nullptr && second->isVisible());
 
@@ -237,7 +245,7 @@ class BackgroundGameUiTest : public QObject {
     QCOMPARE(c->screen(), QStringLiteral("library"));
     QQuickTest::qWaitForPolish(h.window);
 
-    // Marker on the right tile only, status line, detail column with Resume / Quit game, no interim strip.
+    // Marker on the right tile only, status line, no interim strip (the list); then the game page with Resume / Quit game.
     QVERIFY(h.item("runningStrip") == nullptr);
     const QList<QQuickItem*> statuses = itemsNamed(h, "tileStatus");
     int running = 0;
@@ -250,6 +258,7 @@ class BackgroundGameUiTest : public QObject {
       QCOMPARE(t->property("gameId").toString(), QStringLiteral("g1"));
     }
     QCOMPARE(running, 1);
+    QVERIFY(h.openGame(QStringLiteral("g1")));
     QCOMPARE(h.item("detailPill")->property("text").toString(), QStringLiteral("❚❚ Running · paused"));
     QVERIFY(h.item("playButton")->property("text").toString().contains(QStringLiteral("Resume")));
     QCOMPARE(h.item("playShareButton")->property("text").toString(), QStringLiteral("Quit game"));
@@ -282,9 +291,9 @@ class BackgroundGameUiTest : public QObject {
     GameSession* gs = c->gameSession();
     startPreview(h, QStringLiteral("g1"));
     c->leaveGameView();
-    c->selectGame(QStringLiteral("g2"));
+    QVERIFY(h.openGame(QStringLiteral("g2")));
     QQuickTest::qWaitForPolish(h.window);
-    // Another game selected: plain detail column (Play), no running marker on its tile.
+    // Another game opened: plain game page (Play), no running marker.
     QVERIFY(!h.item("playButton")->property("text").toString().contains(QStringLiteral("Resume")));
     QVERIFY(h.item("quitNote") == nullptr || !h.item("quitNote")->isVisible());
     c->playSelected();  // what the Play button does for this game (the dummy ROM is not downloaded, so the button itself is not clickable)
@@ -324,7 +333,8 @@ class BackgroundGameUiTest : public QObject {
     QCOMPARE(c->screen(), QStringLiteral("library"));
     QQuickTest::qWaitForPolish(h.window);
     QVERIFY(!h.item("startConfirmDialog")->isVisible());
-    QVERIFY(visibleOne(h, "tileRunningPill") != nullptr);
+    c->closeGamePage();
+    QTRY_VERIFY(visibleOne(h, "tileRunningPill") != nullptr);
     QCOMPARE(uitest::warningCount().load(), 0);
   }
 };

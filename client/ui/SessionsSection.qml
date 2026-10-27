@@ -10,7 +10,8 @@ ColumnLayout {
     required property PlayerController player
     readonly property var list: player.sessions.sessions
     objectName: "sessionsSection"
-    visible: list.length > 0
+    property bool suppressed: false   // the game page is open
+    visible: list.length > 0 && !suppressed
     spacing: Theme.space1
 
     UzSectionLabel {
