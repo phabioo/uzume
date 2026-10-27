@@ -116,6 +116,16 @@ bool VideoEncoder::amfInputSupported() {
   return supported;
 }
 
+bool VideoEncoder::nvencD3d11InputSupported() {
+  static const bool supported = hwFramesInputSupported("h264_nvenc", AV_PIX_FMT_D3D11, AV_HWDEVICE_TYPE_D3D11VA);
+  return supported;
+}
+
+const void* VideoEncoder::nvencD3d11Marker() {
+  static const char marker = 'n';
+  return &marker;
+}
+
 bool VideoEncoder::qsvInputSupported() {
   static const bool supported = hwFramesInputSupported("h264_qsv", AV_PIX_FMT_QSV, AV_HWDEVICE_TYPE_QSV);
   return supported;
@@ -243,16 +253,26 @@ bool VideoEncoder::openWith(const QString& name, int width, int height, int fps,
   return true;
 }
 
-VideoEncoder::GpuEncoderSpec VideoEncoder::gpuEncoderSpec(int hwFormat, int swFormat) {
+VideoEncoder::GpuEncoderSpec VideoEncoder::gpuEncoderSpecOf(const AVBufferRef* framesCtx) {
+  const auto* frames = framesCtx && framesCtx->data ? reinterpret_cast<const AVHWFramesContext*>(framesCtx->data) : nullptr;
+  return frames ? gpuEncoderSpec(frames->format, frames->sw_format, frames->user_opaque == nvencD3d11Marker()) : GpuEncoderSpec();
+}
+
+VideoEncoder::GpuEncoderSpec VideoEncoder::gpuEncoderSpec(int hwFormat, int swFormat, bool nvencD3d11) {
   GpuEncoderSpec spec;
   using Opt = QPair<QString, QString>;
-  if (hwFormat == AV_PIX_FMT_CUDA && swFormat == AV_PIX_FMT_RGB0) {
+  if ((hwFormat == AV_PIX_FMT_CUDA && swFormat == AV_PIX_FMT_RGB0) || (nvencD3d11 && hwFormat == AV_PIX_FMT_D3D11 && swFormat == AV_PIX_FMT_BGRA)) {
+    const bool d3d11 = hwFormat == AV_PIX_FMT_D3D11;
     spec.encoder = QStringLiteral("h264_nvenc");
-    spec.framesLabel = QStringLiteral("CUDA");
+    spec.framesLabel = d3d11 ? QStringLiteral("D3D11") : QStringLiteral("CUDA");
     for (const auto& o : kNvencOptions) {
       spec.options.append(Opt(QString::fromLatin1(o[0]), QString::fromLatin1(o[1])));
     }
     spec.options.append(Opt(QStringLiteral("delay"), QStringLiteral("0")));  // each frame leaves in the same send/receive cycle (the default holds back 2)
+    if (d3d11) {  // BGRA input: the colour fields select the conversion (BT.601 limited), like the AMF path
+      spec.colorSpace = AVCOL_SPC_SMPTE170M;
+      spec.colorRange = AVCOL_RANGE_MPEG;
+    }
   } else if (hwFormat == AV_PIX_FMT_D3D11 && swFormat == AV_PIX_FMT_BGRA) {
     spec.encoder = QStringLiteral("h264_amf");
     spec.framesLabel = QStringLiteral("D3D11");
@@ -285,7 +305,7 @@ bool VideoEncoder::openGpu(AVBufferRef* framesCtx, int fps, int bitrate, QString
     out = QStringLiteral("not a CUDA RGB0 frames context");
     return false;
   }
-  const GpuEncoderSpec spec = gpuEncoderSpec(frames->format, frames->sw_format);
+  const GpuEncoderSpec spec = gpuEncoderSpecOf(framesCtx);
   const int width = visible.isEmpty() ? frames->width : visible.width();
   const int height = visible.isEmpty() ? frames->height : visible.height();
   if (spec.encoder.isEmpty()) {

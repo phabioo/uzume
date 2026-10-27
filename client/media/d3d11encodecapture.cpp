@@ -3,9 +3,11 @@
 #include <QElapsedTimer>
 #include <QLoggingCategory>
 #include <atomic>
+#include <cstring>
 #include <mutex>
 
 #include "d3d11glbridge.h"
+#include "videoencoder.h"
 
 // The real implementation needs Windows and FFmpeg's D3D11VA header; everything else compiles the stub at the end.
 #if defined(_WIN32) && defined(__has_include)
@@ -23,9 +25,11 @@
 #endif
 #include <windows.h>
 // After windows.h
+#include <d3d10_1.h>  // ID3D10Multithread; d3d10_1.h must come before any d3d10.h (SAL check in the Windows SDK)
 #include <d3d11.h>
 #include <d3d11_1.h>
 #include <dxgi1_2.h>
+#include <dxgi1_4.h>
 #include <wrl/client.h>
 
 #include <memory>
@@ -49,14 +53,17 @@ Q_LOGGING_CATEGORY(lcD3dCap, "uzume.gpuencode")
 
 constexpr unsigned kVendorAmd = 0x1002;
 constexpr unsigned kVendorIntel = 0x8086;
+constexpr unsigned kVendorNvidia = 0x10DE;
 }  // namespace
 
-D3d11EncodeCapture::Kind D3d11EncodeCapture::kindForVendor(unsigned vendorId) {
+D3d11EncodeCapture::Kind D3d11EncodeCapture::kindForVendor(unsigned vendorId, bool vulkanMode) {
   switch (vendorId) {
     case kVendorAmd:
       return Kind::Amf;
     case kVendorIntel:
       return Kind::Qsv;
+    case kVendorNvidia:
+      return vulkanMode ? Kind::Nvenc : Kind::None;
     default:
       return Kind::None;
   }
@@ -146,6 +153,14 @@ struct D3d11EncodeCapture::Impl {
   ComPtr<ID3D11VideoProcessorInputView> vpInput;
   std::vector<std::pair<ComPtr<ID3D11Texture2D>, ComPtr<ID3D11VideoProcessorOutputView>>> vpOutputs;
 
+  // --- Vulkan mode (ADR 0034 D9): `interop` is the shared texture the Vulkan side blits into; no bridge, no GL
+  bool vulkanMode = false;
+  unsigned char luidBytes[8] = {};
+  bool luidKnown = false;
+  ComPtr<IDXGIKeyedMutex> keyedMutex;
+  HANDLE sharedHandle = nullptr;        // NT handle of `interop`, closed in releaseSize
+  std::shared_ptr<AVFrame> lastFrame;   // for repeat()
+
   Status unavailable(const QString& why) {
     {
       const std::lock_guard<std::mutex> lock(mutex);
@@ -171,12 +186,17 @@ struct D3d11EncodeCapture::Impl {
   const GlD3d11Bridge::GlFunctions* gl() const { return bridge ? bridge->gl() : nullptr; }
 
   Status attach(unsigned tex, int w, int h);
+  Status attachShared(int w, int h, const unsigned char* luid, unsigned vendorId, SharedImage* out);
   void detach(bool glCurrent);
   std::shared_ptr<AVFrame> capture();
+  std::shared_ptr<AVFrame> captureShared();
 
   Status resolveBridge();
+  Status createVulkanDevice(const unsigned char* luid, unsigned vendorId);
   Status createDevice();
   Status createSize(unsigned tex, int w, int h);
+  Status createSharedTexture(int w, int h);
+  Status createFrames(int w, int h);
   void releaseSize(bool glCurrent);
   void releaseCycle(bool glCurrent);
   bool setupFramebuffers();
@@ -223,7 +243,9 @@ D3d11EncodeCapture::Status D3d11EncodeCapture::Impl::resolveBridge() {
 }
 
 D3d11EncodeCapture::Status D3d11EncodeCapture::Impl::createDevice() {
-  device = static_cast<ID3D11Device*>(bridge->d3dDevice());  // AddRef'd by ComPtr
+  if (!vulkanMode) {
+    device = static_cast<ID3D11Device*>(bridge->d3dDevice());  // AddRef'd by ComPtr
+  }
   if (!device) {
     return unavailable(QStringLiteral("the D3D11 device is gone"));
   }
@@ -231,7 +253,7 @@ D3d11EncodeCapture::Status D3d11EncodeCapture::Impl::createDevice() {
   if (FAILED(device.As(&videoDevice)) || !immediate || FAILED(immediate.As(&videoContext))) {
     return unavailable(QStringLiteral("the D3D11 device has no video support"));
   }
-  if (kind.load() == Kind::Amf) {
+  if (kind.load() == Kind::Amf) {  // Nvenc: the encoder reports a missing driver at open
     // Probe the runtime first: a missing amfrt64.dll makes FFmpeg log an error at avcodec_open2.
     if (HMODULE m = LoadLibraryW(L"amfrt64.dll")) {
       FreeLibrary(m);
@@ -330,8 +352,6 @@ D3d11EncodeCapture::Status D3d11EncodeCapture::Impl::createSize(unsigned tex, in
   if (!f) {
     return fail("bridge", QStringLiteral("the bridge closed"));
   }
-  const bool qsv = kind.load() == Kind::Qsv;
-
   // 1. The interop texture. FFmpeg's D3D11 frames have no RGBA sw_format, so B8G8R8A8 it is; GL sees it as RGBA8.
   D3D11_TEXTURE2D_DESC td = {};
   td.Width = static_cast<UINT>(w);
@@ -357,6 +377,13 @@ D3d11EncodeCapture::Status D3d11EncodeCapture::Impl::createSize(unsigned tex, in
   if (!setupFramebuffers()) {
     return Status::Failed;  // fail() already called
   }
+  return createFrames(w, h);
+}
+
+// The encoder-facing half of createSize: FFmpeg frames contexts (and the QSV video processor) for `interop`.
+D3d11EncodeCapture::Status D3d11EncodeCapture::Impl::createFrames(int w, int h) {
+  const bool qsv = kind.load() == Kind::Qsv;
+  HRESULT hr = S_OK;
 
   // 2. FFmpeg frames contexts.
   framesRef = av_hwframe_ctx_alloc(deviceRef);
@@ -376,8 +403,12 @@ D3d11EncodeCapture::Status D3d11EncodeCapture::Impl::createSize(unsigned tex, in
     fc->sw_format = AV_PIX_FMT_BGRA;
     fc->width = w;
     fc->height = h;
-    fc->initial_pool_size = kAmfPoolFrames;
+    // NVENC (Vulkan mode) registers single textures: a dynamic pool like QSV's, not the AMF array texture.
+    fc->initial_pool_size = kind.load() == Kind::Nvenc ? 0 : kAmfPoolFrames;
     fh->BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+    if (kind.load() == Kind::Nvenc) {
+      fc->user_opaque = const_cast<void*>(VideoEncoder::nvencD3d11Marker());  // BGRA D3D11 frames -> h264_nvenc, not h264_amf
+    }
   }
   int rc = av_hwframe_ctx_init(framesRef);
   if (rc < 0) {
@@ -543,6 +574,9 @@ std::shared_ptr<AVFrame> D3d11EncodeCapture::Impl::capture() {
   if (status.load() != Status::Ok) {
     return nullptr;
   }
+  if (vulkanMode) {
+    return captureShared();
+  }
   if (!reg || !framesRef) {
     fail("register", QStringLiteral("capture without a registered texture"));
     return nullptr;
@@ -550,7 +584,191 @@ std::shared_ptr<AVFrame> D3d11EncodeCapture::Impl::capture() {
   if (!blit()) {
     return nullptr;
   }
-  return kind.load() == Kind::Amf ? frameAmf() : frameQsv();
+  return kind.load() == Kind::Qsv ? frameQsv() : frameAmf();
+}
+
+// Vulkan mode: the Vulkan submit has completed (fence) and released key 1; take it, run the usual copy, give key 0 back.
+// The whole sequence runs under the FFmpeg device lock: the encoder thread shares the immediate context.
+std::shared_ptr<AVFrame> D3d11EncodeCapture::Impl::captureShared() {
+  if (!interop || !framesRef || !keyedMutex || !lockBox) {
+    fail("register", QStringLiteral("capture without a shared texture"));
+    return nullptr;
+  }
+  const std::lock_guard<std::recursive_mutex> lock(lockBox->mutex);
+  const HRESULT acq = keyedMutex->AcquireSync(1, 100);
+  if (acq != S_OK) {  // WAIT_TIMEOUT is a success code that did not acquire
+    fail("keyed mutex", acq == static_cast<HRESULT>(WAIT_TIMEOUT) ? QStringLiteral("timed out waiting for the Vulkan frame") : hresultText(acq));
+    return nullptr;
+  }
+  std::shared_ptr<AVFrame> frame = kind.load() == Kind::Qsv ? frameQsv() : frameAmf();  // Nvenc: the same BGRA copy as AMF
+  const HRESULT rel = keyedMutex->ReleaseSync(0);  // queued behind the copy on this device: the next Vulkan frame may write
+  if (FAILED(rel)) {
+    fail("keyed mutex", QStringLiteral("ReleaseSync %1").arg(hresultText(rel)));
+    return nullptr;
+  }
+  if (frame) {
+    lastFrame = frame;
+  }
+  return frame;
+}
+
+D3d11EncodeCapture::Status D3d11EncodeCapture::Impl::createVulkanDevice(const unsigned char* luid, unsigned vendorId) {
+  ComPtr<IDXGIFactory4> factory;
+  if (FAILED(CreateDXGIFactory1(IID_PPV_ARGS(&factory)))) {
+    return fail("device", QStringLiteral("CreateDXGIFactory1 failed"));
+  }
+  LUID id = {};
+  std::memcpy(&id, luid, sizeof id);  // VkPhysicalDeviceIDProperties::deviceLUID is a LUID in memory order
+  ComPtr<IDXGIAdapter1> adapter;
+  HRESULT hr = factory->EnumAdapterByLuid(id, IID_PPV_ARGS(&adapter));
+  if (FAILED(hr)) {
+    return unavailable(QStringLiteral("the Vulkan device's adapter is not a DXGI adapter (%1)").arg(hresultText(hr)));
+  }
+  DXGI_ADAPTER_DESC1 desc = {};
+  adapter->GetDesc1(&desc);
+  if (desc.VendorId != vendorId) {
+    return unavailable(QStringLiteral("the adapter's vendor does not match the Vulkan device"));
+  }
+  const D3D_FEATURE_LEVEL levels[] = {D3D_FEATURE_LEVEL_11_0};
+  hr = D3D11CreateDevice(adapter.Get(), D3D_DRIVER_TYPE_UNKNOWN, nullptr, D3D11_CREATE_DEVICE_BGRA_SUPPORT | D3D11_CREATE_DEVICE_VIDEO_SUPPORT,
+                         levels, 1, D3D11_SDK_VERSION, &device, nullptr, nullptr);
+  if (FAILED(hr)) {
+    return fail("device", QStringLiteral("D3D11CreateDevice %1").arg(hresultText(hr)));
+  }
+  ComPtr<ID3D10Multithread> mt;
+  if (SUCCEEDED(device.As(&mt))) {
+    mt->SetMultithreadProtected(TRUE);
+  }
+  std::memcpy(luidBytes, luid, 8);
+  luidKnown = true;
+  {
+    const std::lock_guard<std::mutex> lock(mutex);
+    deviceName = QString::fromWCharArray(desc.Description);
+  }
+  return Status::Ok;
+}
+
+// The shared texture: B8G8R8A8, NT handle + keyed mutex (key 0 = the Vulkan side may write, key 1 = ready to capture).
+D3d11EncodeCapture::Status D3d11EncodeCapture::Impl::createSharedTexture(int w, int h) {
+  D3D11_TEXTURE2D_DESC td = {};
+  td.Width = static_cast<UINT>(w);
+  td.Height = static_cast<UINT>(h);
+  td.MipLevels = 1;
+  td.ArraySize = 1;
+  td.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+  td.SampleDesc.Count = 1;
+  td.Usage = D3D11_USAGE_DEFAULT;
+  td.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+  td.MiscFlags = D3D11_RESOURCE_MISC_SHARED_NTHANDLE | D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX;
+  HRESULT hr = device->CreateTexture2D(&td, nullptr, &interop);
+  if (FAILED(hr)) {
+    return fail("interop texture", hresultText(hr));
+  }
+  hr = interop.As(&keyedMutex);
+  if (FAILED(hr)) {
+    return fail("keyed mutex", hresultText(hr));
+  }
+  ComPtr<IDXGIResource1> resource;
+  hr = interop.As(&resource);
+  if (FAILED(hr)) {
+    return fail("shared handle", hresultText(hr));
+  }
+  hr = resource->CreateSharedHandle(nullptr, DXGI_SHARED_RESOURCE_READ | DXGI_SHARED_RESOURCE_WRITE, nullptr, &sharedHandle);
+  if (FAILED(hr) || !sharedHandle) {
+    sharedHandle = nullptr;
+    return fail("shared handle", hresultText(hr));
+  }
+  width = w;
+  height = h;
+  return Status::Ok;
+}
+
+D3d11EncodeCapture::Status D3d11EncodeCapture::attachShared(int w, int h, const unsigned char* luid, unsigned vendorId, SharedImage* out) {
+  return d_->attachShared(w, h, luid, vendorId, out);
+}
+
+D3d11EncodeCapture::Status D3d11EncodeCapture::Impl::attachShared(int w, int h, const unsigned char* luid, unsigned vendorId, SharedImage* out) {
+  const Status current = status.load();
+  if (current == Status::Unavailable || current == Status::Failed) {
+    return current;
+  }
+  if (w < 16 || h < 16 || (w & 1) != 0 || (h & 1) != 0) {
+    return unavailable(QStringLiteral("encode size %1 x %2 is not an even size of at least 16").arg(w).arg(h));
+  }
+  if (!luid) {
+    return unavailable(QStringLiteral("the Vulkan device does not report its adapter (no LUID)"));
+  }
+  QElapsedTimer timer;
+  timer.start();
+  vulkanMode = true;
+  if (sharedHandle && w == width && h == height) {
+    out->ntHandle = sharedHandle;
+    out->width = w;
+    out->height = h;
+    return Status::Ok;
+  }
+  if (!device) {
+    const Kind k = D3d11EncodeCapture::kindForVendor(vendorId, /*vulkanMode=*/true);
+    if (k == Kind::None) {
+      return unavailable(QStringLiteral("not an AMD, Intel or NVIDIA GPU"));
+    }
+    if (k == Kind::Nvenc && !VideoEncoder::nvencD3d11InputSupported()) {
+      return unavailable(QStringLiteral("this FFmpeg cannot feed h264_nvenc with D3D11 frames"));
+    }
+    kind = k;
+    const Status v = createVulkanDevice(luid, vendorId);
+    if (v != Status::Ok) {
+      releaseCycle(false);
+      return v;
+    }
+    const Status d = createDevice();
+    if (d != Status::Ok) {
+      releaseCycle(false);
+      return d;
+    }
+  } else {
+    releaseSize(false);  // a different size: the frames context changes, so the encoder reopens
+  }
+  Status s = createSharedTexture(w, h);
+  if (s == Status::Ok) {
+    s = createFrames(w, h);
+  }
+  if (s != Status::Ok) {
+    releaseSize(false);
+    return s;
+  }
+  status = Status::Ok;
+  out->ntHandle = sharedHandle;
+  out->width = w;
+  out->height = h;
+  const Kind k = kind.load();
+  QString name;
+  {
+    const std::lock_guard<std::mutex> lock(mutex);
+    name = deviceName;
+  }
+  qCInfo(lcD3dCap).noquote() << QStringLiteral("D3D11 capture on \"%1\" (Vulkan): %2, %3 frames ready in %4 ms")
+                                    .arg(name,
+                                         k == Kind::Amf ? QStringLiteral("h264_amf") : k == Kind::Qsv ? QStringLiteral("h264_qsv") : QStringLiteral("h264_nvenc"),
+                                         k == Kind::Qsv ? QStringLiteral("NV12") : QStringLiteral("BGRA"))
+                                    .arg(timer.elapsed());
+  return Status::Ok;
+}
+
+bool D3d11EncodeCapture::adapterLuid(unsigned char out[8]) const {
+  if (!d_->luidKnown) {
+    return false;
+  }
+  std::memcpy(out, d_->luidBytes, 8);
+  return true;
+}
+
+std::shared_ptr<AVFrame> D3d11EncodeCapture::repeat() {
+  if (!d_->vulkanMode || !d_->lastFrame || d_->status.load() != Status::Ok) {
+    return nullptr;
+  }
+  AVFrame* clone = av_frame_clone(d_->lastFrame.get());  // the same D3D11 surface once more; nothing is copied
+  return clone ? std::shared_ptr<AVFrame>(clone, [](AVFrame* p) { av_frame_free(&p); }) : nullptr;
 }
 
 std::shared_ptr<AVFrame> D3d11EncodeCapture::Impl::frameAmf() {
@@ -658,6 +876,12 @@ void D3d11EncodeCapture::detach(bool glCurrent) { d_->detach(glCurrent); }
 
 void D3d11EncodeCapture::Impl::releaseSize(bool glCurrent) {
   const GlD3d11Bridge::GlFunctions* f = gl();
+  lastFrame.reset();
+  keyedMutex.Reset();
+  if (sharedHandle) {
+    CloseHandle(sharedHandle);  // the Vulkan side imported its own reference; it frees it with its image
+    sharedHandle = nullptr;
+  }
   vpOutputs.clear();
   vpInput.Reset();
   vp.Reset();
@@ -706,6 +930,8 @@ void D3d11EncodeCapture::Impl::releaseCycle(bool glCurrent) {
   }
   bridge.reset();
   ownBridge = false;
+  vulkanMode = false;
+  luidKnown = false;
 }
 
 void D3d11EncodeCapture::Impl::detach(bool glCurrent) { releaseCycle(glCurrent && wglGetCurrentContext() != nullptr); }
@@ -749,6 +975,9 @@ D3d11EncodeCapture::Status D3d11EncodeCapture::attach(unsigned, int, int) {
   }
   return d_->status.load();
 }
+D3d11EncodeCapture::Status D3d11EncodeCapture::attachShared(int, int, const unsigned char*, unsigned, SharedImage*) { return attach(0, 0, 0); }
+bool D3d11EncodeCapture::adapterLuid(unsigned char[8]) const { return false; }
+std::shared_ptr<AVFrame> D3d11EncodeCapture::repeat() { return nullptr; }
 void D3d11EncodeCapture::detach(bool) {}
 std::shared_ptr<AVFrame> D3d11EncodeCapture::capture() { return nullptr; }
 

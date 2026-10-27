@@ -9,8 +9,9 @@
 
 namespace uzume::emu {
 
-// Vulkan producers (ADR 0034 D8): a texture the target created and owns, handed out as an external-memory handle that the
-// Vulkan device imports (once per generation and slot, cached by the importer). RGBA8 (R8G8B8A8_UNORM), optimal tiling.
+// Vulkan producers (ADR 0034 D8, D9): a texture the target created and owns, handed out as an external-memory handle that
+// the Vulkan device imports (once per generation and slot, cached by the importer). RGBA8 (R8G8B8A8_UNORM) unless `bgra`,
+// optimal tiling.
 struct ExternalImage {
   enum class HandleType { D3D11TextureNt, OpaqueFd };
   HandleType handleType = HandleType::OpaqueFd;
@@ -19,6 +20,7 @@ struct ExternalImage {
   quint64 memorySize = 0;   // OpaqueFd: allocation size of the exporting memory object (0 = unknown)
   quint64 generation = 0;   // textures of one generation never change identity; a new value means "drop what you imported"
   int slot = 0;             // 0..2 within the generation
+  bool bgra = false;        // B8G8R8A8_UNORM instead of R8G8B8A8_UNORM (the Session encode texture, ADR 0034 D9)
   bool keyedMutex = false;  // D3D11: the submit itself acquires acquireKey and releases releaseKey (VK_KHR_win32_keyed_mutex)
   quint64 acquireKey = 0;
   quint64 releaseKey = 1;

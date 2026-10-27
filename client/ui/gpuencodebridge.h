@@ -1,5 +1,5 @@
 #pragma once
-// GPU-direct encoding of the own Session (ADR 0019, ADR 0027 D6): the adapter between the emulation thread and the UI
+// GPU-direct encoding of the own Session (ADR 0019, ADR 0027 D6, ADR 0034 D9): the adapter between the emulation thread and the UI
 // thread. uzume_emulation only knows the interface emu::GpuEncodeTarget; uzume_media implements the captures
 // (CudaGlCapture for NVIDIA, D3d11EncodeCapture for AMD AMF and Intel QSV); uzume_ui, which links both, joins them here.
 
@@ -26,6 +26,15 @@ namespace uzume::ui {
 // the GPU-direct encode texture is the frame fitted into it.
 inline constexpr QSize kShareEncodeMax(1280, 1920);
 
+// Vulkan games (ADR 0034 D9): the D3D11 backend serves every vendor, chosen by the Vulkan device's PCI vendor id.
+//   AMD (0x1002)    -> Amf   when allowed.amf
+//   Intel (0x8086)  -> Qsv   when allowed.qsv
+//   NVIDIA (0x10DE) -> Nvenc when allowed.cuda (h264_nvenc probed and usable; the frames are D3D11, not CUDA)
+// None for any other vendor or a backend that is not allowed. Pure; unit-tested as a truth table.
+enum class VulkanBackend { None, Amf, Qsv, Nvenc };
+struct GpuEncodeAllowed;
+VulkanBackend chooseVulkanBackend(unsigned vendorId, const GpuEncodeAllowed& allowed);
+
 struct GpuEncodePlan {
   bool keep = false;    // a bridge may exist (else drop it)
   bool create = false;  // a bridge must exist now
@@ -44,9 +53,24 @@ GpuEncodePlan planGpuEncode(bool shared, bool hwGame, bool encoderRunning, bool 
 class GpuCapture {
  public:
   enum class Status { Ok, NotReady, Unavailable, Failed };
-  enum class Backend { Cuda, Amf, Qsv };
+  enum class Backend { Cuda, Amf, Qsv, Nvenc };
   virtual ~GpuCapture() = default;
   virtual Status attach(unsigned glTexture2D, int width, int height) = 0;
+  // Vulkan mode (D3d11EncodeCapture only): no GL; the shared texture's NT handle is owned by the capture.
+  struct SharedImage {
+    void* ntHandle = nullptr;
+    int width = 0;
+    int height = 0;
+  };
+  virtual Status attachShared(int width, int height, const unsigned char* luid, unsigned vendorId, SharedImage* out) {
+    Q_UNUSED(width);
+    Q_UNUSED(height);
+    Q_UNUSED(luid);
+    Q_UNUSED(vendorId);
+    Q_UNUSED(out);
+    return Status::Unavailable;
+  }
+  virtual std::shared_ptr<AVFrame> repeat() { return nullptr; }  // Vulkan mode: the last frame once more
   virtual void detach(bool glCurrent) = 0;
   virtual std::shared_ptr<AVFrame> capture() = 0;  // null: failed
   virtual QString reason() const = 0;
@@ -96,6 +120,11 @@ class GpuEncodeBridge final : public emu::GpuEncodeTarget {
   bool wanted() const override;             // wanted_ && state_ == Running
   QSize maxSize() const override;
   Attach attach(unsigned texture, int width, int height) override;  // Ok/NotReady; Unavailable/Failed also set the state
+  // Vulkan games (ADR 0034 D9): the D3D11 backend for the device's vendor (chooseVulkanBackend), its shared texture handed out.
+  Attach attachExternal(int width, int height, const VulkanDevice& device, emu::ExternalImage* out) override;
+  emu::AdapterLuid adapterLuid() const override;  // the adapter of the shared texture, once attachExternal() returned Ok
+  void markUnavailable(const QString& reason) override;  // Running -> Unavailable (quiet), first reason wins
+  bool repeat() override;                   // Vulkan mode: the last captured frame once more
   void detach(bool glCurrent) override;     // chosen capture's detach(glCurrent)
   bool capture() override;                  // stores the frame in the mailbox, only while wanted
   void fail(const QString& reason) override;  // Running -> Failed, first reason wins; never overrides Unavailable
@@ -105,6 +134,7 @@ class GpuEncodeBridge final : public emu::GpuEncodeTarget {
   void transition(State to, const QString& reason);
 
   emu::GpuEncodeTarget::Attach finish(GpuCapture::Status status, const QString& reason);
+  void publish(std::shared_ptr<AVFrame> frame);
   emu::GpuEncodeTarget::Attach selectAndAttach(unsigned texture, int width, int height);
 
   const GpuEncodeOptions options_;
@@ -116,6 +146,10 @@ class GpuEncodeBridge final : public emu::GpuEncodeTarget {
   mutable std::mutex mutex_;                // guards latest_ and reason_
   std::shared_ptr<AVFrame> latest_;
   QString reason_;
+  emu::AdapterLuid luid_;                   // guarded by mutex_
+  void* sharedHandle_ = nullptr;            // emulation thread: the handle and size last handed out (generation_ follows their changes)
+  QSize sharedSize_;
+  quint64 generation_ = 0;
 };
 
 }  // namespace uzume::ui

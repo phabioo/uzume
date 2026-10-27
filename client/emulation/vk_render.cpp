@@ -5,11 +5,13 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cstring>
 #include <mutex>
 #include <vector>
 
 #include "gpu_display_target.h"
+#include "gpu_encode_target.h"
 #include "hw_render.h"
 
 #if UZUME_HAVE_VULKAN
@@ -105,6 +107,10 @@ void VkRenderContext::setExternalMemoryWanted(bool) {}
 void VkRenderContext::setDisplayTarget(std::shared_ptr<GpuDisplayTarget>) {}
 bool VkRenderContext::hasDisplayTarget() const { return false; }
 quint64 VkRenderContext::displayBlitCount() const { return 0; }
+void VkRenderContext::setEncodeTarget(std::shared_ptr<GpuEncodeTarget>) {}
+bool VkRenderContext::hasEncodeTarget() const { return false; }
+quint64 VkRenderContext::encodeBlitCount() const { return 0; }
+bool VkRenderContext::repeatEncode() { return false; }
 bool VkRenderContext::create(QString* error) {
   if (error) *error = QStringLiteral("built without the Vulkan headers");
   return false;
@@ -114,7 +120,7 @@ bool VkRenderContext::hasContext() const { return false; }
 const void* VkRenderContext::renderInterface() const { return nullptr; }
 QString VkRenderContext::apiText() const { return {}; }
 QString VkRenderContext::gpuText() const { return {}; }
-QImage VkRenderContext::presentFrame(int, int, const QSize&, bool, const QSize&, bool*, bool) { return {}; }
+QImage VkRenderContext::presentFrame(int, int, const QSize&, bool, const QSize&, bool*, bool, EncodeOutcome*) { return {}; }
 void VkRenderContext::presentDuplicate() {}
 quint64 VkRenderContext::frameCount() const { return 0; }
 
@@ -287,7 +293,7 @@ struct VkRenderContext::Impl {
 
   // ---- zero-copy display (ADR 0034 D8)
   std::shared_ptr<GpuDisplayTarget> display;
-  bool extWanted = false;                 // a display target is expected: enable the external-memory extensions
+  bool extWanted = false;                 // a display or encode target is expected: enable the external-memory extensions
   std::vector<const char*> extNames;      // device extensions enabled for it (empty: none, see extMissing)
   QString extMissing;                     // why extNames is empty although wanted
   std::vector<const char*> wrapperNames;  // scratch for createDeviceWrapper
@@ -306,13 +312,24 @@ struct VkRenderContext::Impl {
   bool blitFormatOk = false;
   bool blitLinear = false;
   quint64 displayBlits = 0;
-  struct DisplayJob {
+  struct DisplayJob {  // one blit of the frame into an imported image (display slot or the encode image)
     bool active = false;
     ExtSlot* slot = nullptr;
     ExternalImage ext;
     int sw = 0, sh = 0;  // source region
     int dw = 0, dh = 0;  // destination region
   };
+
+  // ---- GPU-direct Session encoding (ADR 0034 D9): one imported image of the target's encode size
+  std::shared_ptr<GpuEncodeTarget> encode;
+  ExtSlot encSlot;
+  ExternalImage encExt;            // what the target handed out for encSlot (keyed mutex keys)
+  bool encAttached = false;        // encSlot holds the image of the current attachExternal()
+  QSize encSize;                   // size of that image
+  bool encLuidChecked = false;
+  bool encImportChecked = false;
+  bool encHasFrame = false;        // the target captured at least one frame (repeatEncode)
+  quint64 encodeBlits = 0;
 
   ~Impl() { destroy(); }
 
@@ -745,6 +762,7 @@ struct VkRenderContext::Impl {
         display->release(true);  // the target frees what it handed out; nothing of it is in use any more
         display.reset();
       }
+      releaseEncode();  // the imported image first, then the target's own side (detach)
       if (vkDestroyFence && fence != VK_NULL_HANDLE) vkDestroyFence(device, fence, nullptr);
       fence = VK_NULL_HANDLE;
       if (vkDestroyCommandPool && pool != VK_NULL_HANDLE) vkDestroyCommandPool(device, pool, nullptr);
@@ -770,6 +788,7 @@ struct VkRenderContext::Impl {
       display->release(true);
       display.reset();
     }
+    if (encode) releaseEncode();
     luidChecked = importFormatChecked = false;
     blitFormat = VK_FORMAT_UNDEFINED;
     extGeneration = 0;
@@ -815,25 +834,27 @@ struct VkRenderContext::Impl {
     qCInfo(lcVk) << "Display target not applicable; the game view uses readback frames";
   }
 
-  enum class LuidCheck { Unknown, Match, Mismatch };
-  LuidCheck checkLuid() const {
-    const AdapterLuid t = display->adapterLuid();
-    if (!t.valid) return LuidCheck::Unknown;
-    quint8 dev[8];
-    bool valid = devLuidValid;
-    std::memcpy(dev, devLuid, 8);
-    {
-      std::lock_guard<std::mutex> lock(g_luidMutex);
-      if (g_luidForTest.size() == 8) {
-        std::memcpy(dev, g_luidForTest.constData(), 8);
-        valid = true;
-      }
+  // The Vulkan device's LUID (the test override included).
+  AdapterLuid deviceLuid() const {
+    AdapterLuid l;
+    l.valid = devLuidValid;
+    std::memcpy(l.bytes, devLuid, 8);
+    std::lock_guard<std::mutex> lock(g_luidMutex);
+    if (g_luidForTest.size() == 8) {
+      std::memcpy(l.bytes, g_luidForTest.constData(), 8);
+      l.valid = true;
     }
-    return valid && std::memcmp(dev, t.bytes, 8) == 0 ? LuidCheck::Match : LuidCheck::Mismatch;
+    return l;
+  }
+  enum class LuidCheck { Unknown, Match, Mismatch };
+  LuidCheck checkLuid(const AdapterLuid& t) const {
+    if (!t.valid) return LuidCheck::Unknown;
+    const AdapterLuid dev = deviceLuid();
+    return dev.valid && std::memcmp(dev.bytes, t.bytes, 8) == 0 ? LuidCheck::Match : LuidCheck::Mismatch;
   }
 
   // Whether the device can import RGBA8 optimal-tiling images of the platform's handle type as transfer destinations.
-  bool checkImportFormat(ExternalImage::HandleType type, QString* why) {
+  bool checkImportFormat(ExternalImage::HandleType type, bool bgra, QString* why) {
 #if UZUME_VK_EXTERNAL
     if (type != kNativeType) {
       *why = QStringLiteral("the target's texture handle type is not importable here");
@@ -845,7 +866,7 @@ struct VkRenderContext::Impl {
     VkPhysicalDeviceImageFormatInfo2 fi{};
     fi.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2;
     fi.pNext = &ei;
-    fi.format = VK_FORMAT_R8G8B8A8_UNORM;
+    fi.format = bgra ? VK_FORMAT_B8G8R8A8_UNORM : VK_FORMAT_R8G8B8A8_UNORM;
     fi.type = VK_IMAGE_TYPE_2D;
     fi.tiling = VK_IMAGE_TILING_OPTIMAL;
     fi.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
@@ -882,7 +903,7 @@ struct VkRenderContext::Impl {
     ici.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     ici.pNext = &emi;
     ici.imageType = VK_IMAGE_TYPE_2D;
-    ici.format = VK_FORMAT_R8G8B8A8_UNORM;
+    ici.format = e.bgra ? VK_FORMAT_B8G8R8A8_UNORM : VK_FORMAT_R8G8B8A8_UNORM;
     ici.extent = {static_cast<uint32_t>(e.texSize.width()), static_cast<uint32_t>(e.texSize.height()), 1};
     ici.mipLevels = 1;
     ici.arrayLayers = 1;
@@ -977,14 +998,8 @@ struct VkRenderContext::Impl {
 #endif
   }
 
-  // Before the frame's submit: decides whether this frame goes to the target and, if so, locks a slot (acquireExternal)
-  // and makes its image ready. false: no display copy this frame; display may have been dropped (then it is null).
-  bool prepareDisplay(int w, int h, const QSize& limit, DisplayJob* job) {
-    if (!display->wanted()) return false;
-    if (extNames.empty()) {
-      displayUnavailable(extMissing.isEmpty() ? QStringLiteral("the Vulkan device was created without the external-memory extensions") : extMissing);
-      return false;
-    }
+  // Whether the core's image format can be blitted (exactly like the readback converts it) and with which filter.
+  bool blitSourceOk() {
     const VkFormat fmt = image.create_info.format;
     if (fmt != blitFormat) {
       blitFormat = fmt;
@@ -998,11 +1013,22 @@ struct VkRenderContext::Impl {
         blitLinear = (f & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT) != 0;
       }
     }
-    if (!blitFormatOk) {
-      displayUnavailable(QStringLiteral("the frame format (%1) is not copied on the GPU").arg(static_cast<int>(fmt)));
+    return blitFormatOk;
+  }
+
+  // Before the frame's submit: decides whether this frame goes to the target and, if so, locks a slot (acquireExternal)
+  // and makes its image ready. false: no display copy this frame; display may have been dropped (then it is null).
+  bool prepareDisplay(int w, int h, const QSize& limit, DisplayJob* job) {
+    if (!display->wanted()) return false;
+    if (extNames.empty()) {
+      displayUnavailable(extMissing.isEmpty() ? QStringLiteral("the Vulkan device was created without the external-memory extensions") : extMissing);
       return false;
     }
-    if (!luidChecked && checkLuid() == LuidCheck::Mismatch) {
+    if (!blitSourceOk()) {
+      displayUnavailable(QStringLiteral("the frame format (%1) is not copied on the GPU").arg(static_cast<int>(image.create_info.format)));
+      return false;
+    }
+    if (!luidChecked && checkLuid(display->adapterLuid()) == LuidCheck::Mismatch) {
       displayUnavailable(QStringLiteral("Vulkan device is on another adapter"));
       return false;
     }
@@ -1021,7 +1047,7 @@ struct VkRenderContext::Impl {
       return false;
     };
     if (!luidChecked) {  // the target only knows its adapter once it is ready: check again now that it handed out an image
-      if (checkLuid() == LuidCheck::Mismatch) {
+      if (checkLuid(display->adapterLuid()) == LuidCheck::Mismatch) {
         display->abort();
         displayUnavailable(QStringLiteral("Vulkan device is on another adapter"));
         return false;
@@ -1030,7 +1056,7 @@ struct VkRenderContext::Impl {
     }
     if (!importFormatChecked) {
       QString why;
-      if (!checkImportFormat(e.handleType, &why)) {
+      if (!checkImportFormat(e.handleType, e.bgra, &why)) {
         display->abort();
         displayUnavailable(why);
         return false;
@@ -1060,8 +1086,8 @@ struct VkRenderContext::Impl {
     return true;
   }
 
-  // Display part of the frame's command buffer: acquire the external image, blit, release it to the external family.
-  void recordDisplay(const DisplayJob& j, VkImageLayout srcLayout, const VkImageSubresourceRange& sr) {
+  // Display or encode part of the frame's command buffer: acquire the external image, blit, release it to the external family.
+  void recordBlit(const DisplayJob& j, VkImageLayout srcLayout, const VkImageSubresourceRange& sr) {
     ExtSlot& slot = *j.slot;
     VkImageSubresourceRange er{};
     er.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -1099,6 +1125,109 @@ struct VkRenderContext::Impl {
     rel.newLayout = VK_IMAGE_LAYOUT_GENERAL;
     vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1, &rel);
     slot.primed = true;
+  }
+
+  // ---- GPU-direct Session encoding (ADR 0034 D9)
+
+  void freeEncodeImage() {
+    if (encSlot.image != VK_NULL_HANDLE && vkDestroyImage) vkDestroyImage(device, encSlot.image, nullptr);
+    if (encSlot.memory != VK_NULL_HANDLE && vkFreeMemory) vkFreeMemory(device, encSlot.memory, nullptr);
+    encSlot = ExtSlot{};
+    encAttached = false;
+    encSize = QSize();
+    encHasFrame = false;
+  }
+  // Frees what was imported, then lets the target release its side (idempotent), then forgets it.
+  void releaseEncode() {
+    freeEncodeImage();
+    if (encode) encode->detach(true);
+    encode.reset();
+    encLuidChecked = encImportChecked = false;
+  }
+  // The target cannot take the frames: tell it (the Session falls back to readback frames), release it, forget it.
+  void dropEncode(const QString& why) {
+    if (encode) encode->fail(why);
+    releaseEncode();
+    qCWarning(lcVk).noquote() << QStringLiteral("Session encode target dropped (%1); the Session encoder gets readback frames").arg(why);
+  }
+  // GPU-direct encoding is not applicable with this device/core: the target reports it as Unavailable (quiet).
+  void encodeUnavailable(const QString& why) {
+    if (encode) encode->markUnavailable(why);
+    releaseEncode();
+    qCInfo(lcVk).noquote() << QStringLiteral("Session encode target not applicable (%1); the Session encoder gets readback frames").arg(why);
+  }
+  // The target reported itself unavailable in attachExternal(): release and forget, no second report.
+  void releaseEncodeQuietly() {
+    releaseEncode();
+    qCInfo(lcVk) << "Session encode target not applicable; the Session encoder gets readback frames";
+  }
+
+  // Before the frame's submit: decides whether this frame goes to the encode target and makes its image ready (attaches at
+  // the first frame and whenever the fitted size changes). false: no encode copy this frame; encode may have been dropped.
+  bool prepareEncode(int w, int h, DisplayJob* job) {
+    if (!encode->wanted()) return false;
+    if (extNames.empty()) {
+      encodeUnavailable(extMissing.isEmpty() ? QStringLiteral("the Vulkan device was created without the external-memory extensions") : extMissing);
+      return false;
+    }
+    if (!blitSourceOk()) {
+      encodeUnavailable(QStringLiteral("the frame format (%1) is not copied on the GPU").arg(static_cast<int>(image.create_info.format)));
+      return false;
+    }
+    if (!encLuidChecked && checkLuid(encode->adapterLuid()) == LuidCheck::Mismatch) {
+      encodeUnavailable(QStringLiteral("Vulkan device is on another adapter"));
+      return false;
+    }
+    const QSize es = HwRenderContext::encodeSizeFor(w, h, encode->maxSize());
+    if (!encAttached || es != encSize) {
+      ExternalImage e;
+      GpuEncodeTarget::VulkanDevice vd;
+      vd.luid = deviceLuid();
+      vd.vendorId = props.vendorID;
+      switch (encode->attachExternal(es.width(), es.height(), vd, &e)) {
+        case GpuEncodeTarget::Attach::NotReady: return false;  // the target is still being set up; the readback keeps encoding
+        case GpuEncodeTarget::Attach::Unavailable: releaseEncodeQuietly(); return false;
+        case GpuEncodeTarget::Attach::Failed: dropEncode(QStringLiteral("attach failed")); return false;
+        case GpuEncodeTarget::Attach::Ok: break;
+      }
+      if (!encLuidChecked) {  // the target only knows its adapter once it is ready
+        if (checkLuid(encode->adapterLuid()) == LuidCheck::Mismatch) {
+          encodeUnavailable(QStringLiteral("Vulkan device is on another adapter"));
+          return false;
+        }
+        encLuidChecked = true;
+      }
+      if (!encImportChecked) {
+        QString why;
+        if (!checkImportFormat(e.handleType, e.bgra, &why)) {
+          encodeUnavailable(why);
+          return false;
+        }
+        encImportChecked = true;
+      }
+      if (e.slot != 0 || e.texSize.width() < es.width() || e.texSize.height() < es.height()) {
+        dropEncode(QStringLiteral("the encode texture does not fit the frame"));
+        return false;
+      }
+      freeEncodeImage();  // the previous size's image is superseded
+      QString why;
+      if (!importExternal(e, encSlot, &why)) {
+        dropEncode(why);
+        return false;
+      }
+      encExt = e;
+      encAttached = true;
+      encSize = es;
+      qCInfo(lcVk).noquote() << QStringLiteral("Session encode image %1x%2 for a %3x%4 frame").arg(es.width()).arg(es.height()).arg(w).arg(h);
+    }
+    job->active = true;
+    job->slot = &encSlot;
+    job->ext = encExt;
+    job->sw = w;
+    job->sh = h;
+    job->dw = es.width();
+    job->dh = es.height();
+    return true;
   }
 
   // ---- libretro interface callbacks (handle = Impl*)
@@ -1168,12 +1297,13 @@ struct VkRenderContext::Impl {
   }
 
   // Submits the core's command buffers and, with `copy`, our readback copy; waits for the fence.
-  bool submit(bool copy, int w, int h, VkDeviceSize copyBytes, const DisplayJob* job = nullptr) {
+  bool submit(bool copy, int w, int h, VkDeviceSize copyBytes, const DisplayJob* job = nullptr, const DisplayJob* enc = nullptr) {
     const bool useCopy = copy && hasImage;
     const bool useDisp = job && job->active && hasImage;
+    const bool useEnc = enc && enc->active && hasImage;
     const bool coreCmdMode = !coreCmds.empty();
     std::vector<VkCommandBuffer> cmds = coreCmds;
-    if (useCopy || useDisp) {
+    if (useCopy || useDisp || useEnc) {
       VkCommandBufferBeginInfo bi{};
       bi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
       bi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
@@ -1207,7 +1337,8 @@ struct VkRenderContext::Impl {
       region.imageSubresource.layerCount = 1;
       region.imageExtent = {static_cast<uint32_t>(w), static_cast<uint32_t>(h), 1};
       if (useCopy) vkCmdCopyImageToBuffer(cmd, img, b.newLayout, buffer, 1, &region);
-      if (useDisp) recordDisplay(*job, b.newLayout, sr);
+      if (useDisp) recordBlit(*job, b.newLayout, sr);
+      if (useEnc) recordBlit(*enc, b.newLayout, sr);
       // Give the image back in the layout and queue family the core handed it over in.
       VkImageMemoryBarrier back = b;
       back.srcQueueFamilyIndex = transfer ? family : VK_QUEUE_FAMILY_IGNORED;
@@ -1244,20 +1375,32 @@ struct VkRenderContext::Impl {
     si.signalSemaphoreCount = sig != VK_NULL_HANDLE ? 1 : 0;
     si.pSignalSemaphores = sig != VK_NULL_HANDLE ? &sig : nullptr;
 #ifdef _WIN32
-    // The keyed mutex of the D3D11 texture is taken and given on by the submit itself: key 0 (the producer's side) in, key 1
-    // (the consumer's side) out, as the ring's consumer protocol expects.
+    // The keyed mutex of a D3D11 texture is taken and given on by the submit itself: key 0 (the producer's side) in, key 1
+    // (the consumer's side) out, as the ring's (display) and the encode capture's consumer protocol expect. The display slot
+    // and the encode image can both be in one submit.
     VkWin32KeyedMutexAcquireReleaseInfoKHR km{};
-    VkDeviceMemory kmMem = useDisp ? job->slot->memory : VK_NULL_HANDLE;
-    uint32_t kmTimeout = 100;  // ms; a free slot's key 0 is available
-    if (useDisp && job->ext.keyedMutex) {
+    VkDeviceMemory kmMem[2] = {};
+    uint64_t kmAcq[2] = {}, kmRel[2] = {};
+    uint32_t kmTimeout[2] = {100, 100};  // ms; a free slot's key 0 is available
+    uint32_t kmCount = 0;
+    auto addKeyed = [&](const DisplayJob* j) {
+      if (!j || !j->active || !hasImage || !j->ext.keyedMutex) return;
+      kmMem[kmCount] = j->slot->memory;
+      kmAcq[kmCount] = j->ext.acquireKey;
+      kmRel[kmCount] = j->ext.releaseKey;
+      ++kmCount;
+    };
+    addKeyed(job);
+    addKeyed(enc);
+    if (kmCount > 0) {
       km.sType = VK_STRUCTURE_TYPE_WIN32_KEYED_MUTEX_ACQUIRE_RELEASE_INFO_KHR;
-      km.acquireCount = 1;
-      km.pAcquireSyncs = &kmMem;
-      km.pAcquireKeys = &job->ext.acquireKey;
-      km.pAcquireTimeouts = &kmTimeout;
-      km.releaseCount = 1;
-      km.pReleaseSyncs = &kmMem;
-      km.pReleaseKeys = &job->ext.releaseKey;
+      km.acquireCount = kmCount;
+      km.pAcquireSyncs = kmMem;
+      km.pAcquireKeys = kmAcq;
+      km.pAcquireTimeouts = kmTimeout;
+      km.releaseCount = kmCount;
+      km.pReleaseSyncs = kmMem;
+      km.pReleaseKeys = kmRel;
       si.pNext = &km;
     }
 #endif
@@ -1355,6 +1498,22 @@ void VkRenderContext::setDisplayTarget(std::shared_ptr<GpuDisplayTarget> target)
 bool VkRenderContext::hasDisplayTarget() const { return d->display != nullptr; }
 quint64 VkRenderContext::displayBlitCount() const { return d->displayBlits; }
 
+void VkRenderContext::setEncodeTarget(std::shared_ptr<GpuEncodeTarget> target) {
+  Impl& s = *d;
+  if (target == s.encode) return;
+  s.releaseEncode();  // before the images it handed out are gone: the imported image first, then detach
+  s.encode = std::move(target);  // the old target may end here (last reference)
+}
+bool VkRenderContext::hasEncodeTarget() const { return d->encode != nullptr; }
+quint64 VkRenderContext::encodeBlitCount() const { return d->encodeBlits; }
+
+bool VkRenderContext::repeatEncode() {
+  Impl& s = *d;
+  if (!s.created || s.lost || !s.encode || !s.encAttached || !s.encHasFrame || !s.encode->wanted()) return false;
+  if (!s.encode->repeat()) return false;
+  return true;
+}
+
 void VkRenderContext::destroy() { d->destroy(); }
 bool VkRenderContext::hasContext() const { return d->created; }
 const void* VkRenderContext::renderInterface() const { return d->created ? &d->iface : nullptr; }
@@ -1372,16 +1531,18 @@ void VkRenderContext::presentDuplicate() {
 }
 
 QImage VkRenderContext::presentFrame(int w, int h, const QSize& maxSize, bool read, const QSize& displayLimit, bool* displayed,
-                                     bool withDisplay) {
+                                     bool withTargets, EncodeOutcome* encodeOut) {
   Impl& s = *d;
   if (displayed) *displayed = false;
+  if (encodeOut) *encodeOut = EncodeOutcome{};
   if (!s.created || s.lost || w <= 0 || h <= 0) return {};
   ++s.frames;
-  Impl::DisplayJob job;
-  if (withDisplay && s.display && s.hasImage && s.imageFresh) {
+  Impl::DisplayJob job, encJob;
+  if (withTargets && s.display && s.hasImage && s.imageFresh) {
     s.prepareDisplay(w, h, displayLimit, &job);
     if (!s.display) read = true;  // the target went away in this frame: it must not cost the game view a frame
   }
+  if (withTargets && s.encode && s.hasImage && s.imageFresh) s.prepareEncode(w, h, &encJob);  // a dropped target never costs a frame
   BytesPerFrame fm;
   if (read && s.hasImage && s.imageFresh) {
     fm = formatMode(s.image.create_info.format);
@@ -1397,7 +1558,7 @@ QImage VkRenderContext::presentFrame(int w, int h, const QSize& maxSize, bool re
     copy = false;  // the display copy (if any) and the core's work still run
   }
   const bool wasCopy = copy;
-  const bool ok = s.submit(copy, w, h, bytes, job.active ? &job : nullptr);
+  const bool ok = s.submit(copy, w, h, bytes, job.active ? &job : nullptr, encJob.active ? &encJob : nullptr);
   s.imageFresh = false;
   if (job.active) {
     if (ok && s.display) {
@@ -1407,6 +1568,26 @@ QImage VkRenderContext::presentFrame(int w, int h, const QSize& maxSize, bool re
     } else if (s.display) {
       s.display->abort();
       s.dropDisplay(QStringLiteral("the copy into the display texture failed"));
+    }
+  }
+  if (encJob.active) {
+    if (ok && s.encode) {
+      // The submit waited for its fence: the blit is complete and the keyed mutex is at the consumer's key.
+      const auto t0 = std::chrono::steady_clock::now();
+      const bool captured = s.encode->capture();
+      const qint64 ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - t0).count();
+      if (captured) {
+        ++s.encodeBlits;
+        s.encHasFrame = true;
+        if (encodeOut) {
+          encodeOut->captured = true;
+          encodeOut->ns = ns;
+        }
+      } else {
+        s.dropEncode(QStringLiteral("capture failed"));
+      }
+    } else if (s.encode) {
+      s.dropEncode(QStringLiteral("the copy into the encode texture failed"));
     }
   }
   if (!ok || !wasCopy) return {};
