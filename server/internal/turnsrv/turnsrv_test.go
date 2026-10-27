@@ -372,12 +372,13 @@ func TestBindPairRotatesStrategies(t *testing.T) {
 				return pc, nil
 			}
 			ok := false
+			var last error
 			for i := 0; i < 20 && !ok; i++ {
 				ln, pc, err := bindPair("127.0.0.1", 0, i%3, listen, listenPacket)
 				if err != nil {
-					if !errors.Is(err, refuse) {
-						t.Fatal(err)
-					}
+					// refuse is the simulated exclusion; on a Windows runner a real one ("forbidden by its access permissions")
+					// hits the same way, and the server's start loop rotates past both.
+					last = err
 					continue
 				}
 				if ln.Addr().(*net.TCPAddr).Port != pc.LocalAddr().(*net.UDPAddr).Port {
@@ -388,7 +389,7 @@ func TestBindPairRotatesStrategies(t *testing.T) {
 				ok = true
 			}
 			if !ok {
-				t.Fatal("no attempt succeeded")
+				t.Fatalf("no attempt succeeded (last error: %v)", last)
 			}
 		})
 	}
