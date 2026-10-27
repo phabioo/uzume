@@ -485,6 +485,42 @@ class RandomizerUiTest : public QObject {
     QTRY_VERIFY(h.controller->runBuild().isEmpty());
     QTRY_VERIFY(!popupOpen(h, "runBuildDialog"));
   }
+
+  // A run whose game cannot start (its core is neither installed nor offered): Play says why, every time, and leaves nothing stuck.
+  void playRunShowsWhyTheGameCannotStart() {
+    FakeHub hub(QStringLiteral("a"));
+    runsHub(hub);
+    const QString runId = randomizedRun(hub, true, QStringLiteral("run"), QStringLiteral("ready"), true).value("run_id").toString();
+    QJsonObject plain = hub.runs.value(runId);
+    plain.remove("randomizer");
+    hub.runs.insert(runId, plain);
+    QVERIFY(hub.start());
+    Harness h;
+    QVERIFY(h.start());
+    h.window->resize(1280, 800);
+    pair(h, hub);
+    RunsController* runs = h.controller->runs();
+    QTRY_VERIFY_WITH_TIMEOUT(runs->loaded() && runs->active()->rowCount() == 1, 8000);
+    const QString slotBefore = h.controller->saveSync()->slotFor(kGameId);
+    QVERIFY(h.click("navRuns"));
+    QTRY_VERIFY(h.item("runsStartButton") != nullptr);
+    runs->openRun(runId);
+    QTRY_VERIFY(shown(h.item("runPlay")));
+    for (int attempt = 0; attempt < 2; ++attempt) {
+      QVERIFY(h.click("runPlay"));
+      QTRY_VERIFY_WITH_TIMEOUT(!runs->message().isEmpty(), 8000);
+      QVERIFY2(runs->message().contains(QStringLiteral("does not offer it")), qPrintable(runs->message()));
+      QVERIFY(runs->messageIsError());
+      QVERIFY(shown(h.item("runsMessage")));
+      QCOMPARE(h.controller->selectedGame().value("playDisabledReason").toString(), runs->message());
+      QVERIFY(h.controller->runBuild().isEmpty());
+      QVERIFY(!runs->busy());
+      QCOMPARE(h.controller->saveSync()->slotFor(kGameId), slotBefore);  // the run's slot is not left selected
+      runs->dismissMessage();
+      QVERIFY(runs->message().isEmpty());
+      QTRY_VERIFY(h.item("runPlay")->isEnabled());
+    }
+  }
 };
 
 QTEST_MAIN(RandomizerUiTest)

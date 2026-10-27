@@ -2597,8 +2597,22 @@ void PlayerController::startRunGame(const QString& runId, const QString& gameId)
     return;
   }
   selectGame(gameId);
+  // A game that cannot start (core neither installed nor offered, file missing, ...) says why on the run screen; it never fails silently.
+  if (const QVariantMap sel = selectedGame(); !sel.value(QStringLiteral("canPlay")).toBool()) {
+    QString why = sel.value(QStringLiteral("playDisabledReason")).toString();
+    if (why.isEmpty()) why = startError_;
+    if (why.isEmpty()) why = tr("The game of this run cannot start right now.");
+    finishRunStart();
+    runs_->showLaunchProblem(why);
+    return;
+  }
   cancelBackgroundUpdateForSelected();
   starter_->startSelected(false);
+  if (phase_ == PlayPhase::None && !gameActive_ && !session_.isActive() && !startError_.isEmpty()) {
+    const QString why = startError_;
+    finishRunStart();
+    runs_->showLaunchProblem(why);
+  }
 }
 
 // The state of the "Building your variant" dialog (10f-3) from the pending run start and the build that is running for it.

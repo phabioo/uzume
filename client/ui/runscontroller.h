@@ -171,6 +171,8 @@ class RunsController : public QObject {
   Q_INVOKABLE void setRunStatus(const QString& runId, const QString& status);
   Q_INVOKABLE void playRun(const QString& runId);
   Q_INVOKABLE void dismissMessage();
+  // The app could not start the game of a run: the reason shows on the run screen (the same text as the game page).
+  void showLaunchProblem(const QString& text) { setMessage(text, true); }
 
   // Start a run (and invite more players into an open run).
   Q_INVOKABLE void beginStart();  // loads the users and the offered plugins
