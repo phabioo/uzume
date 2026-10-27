@@ -258,7 +258,7 @@ packaging() {
   # Beta version numbering of the CI version job (ADR 0011).
   "$ROOT/scripts/next-beta-version.sh" --self-test >"$tmp/beta-version.log" 2>&1 || { cat "$tmp/beta-version.log"; rc=1; }
   if command -v shellcheck >/dev/null 2>&1; then
-    shellcheck "$dir/install-server.sh" "$dir/build-deb.sh" "$dir/appimage/build-appimage.sh""$ROOT/scripts/gen-hub-notices.sh" "$ROOT/scripts/check-trusted-keys.sh" "$ROOT/scripts/e2e-hub-update.sh" || rc=1
+    shellcheck "$dir/install-server.sh" "$dir/build-deb.sh" "$dir/appimage/build-appimage.sh" "$ROOT/scripts/gen-hub-notices.sh" "$ROOT/scripts/check-trusted-keys.sh" "$ROOT/scripts/e2e-hub-update.sh" || rc=1
     shellcheck -s sh "$dir"/deb/* || rc=1
     # Remaining scripts: warnings and errors only (the e2e scripts use A && ok || die on purpose).
     shellcheck -S warning "$ROOT"/scripts/*.sh "$ROOT/.claude/hooks/session-start.sh" || rc=1

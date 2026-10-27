@@ -619,7 +619,7 @@ jobs:
               echo "::error::missing library or plugin on platform $plat"; exit 1
             fi
           done
-          test -f "$HOME/.local/share/Uzume/Uzume/device.json" || { ls -R "$HOME/.local/share" | head -n 20; echo "::error::data folder is not the XDG data location"; exit 1; }
+          test -f "$HOME/.local/share/Uzume/Uzume/device.json" || { find "$HOME/.local/share" | head -n 20; echo "::error::data folder is not the XDG data location"; exit 1; }
       - uses: actions/upload-artifact@v7
         with:
           name: uzume-app-linux-x64
