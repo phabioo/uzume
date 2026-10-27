@@ -63,6 +63,9 @@ type Config struct {
 	// PluginIndexURL is the signed plugin index (default updates.DefaultPluginIndexURL; https or file://); "none" or
 	// empty = no index (offline servers). Use PluginIndex for the effective value.
 	PluginIndexURL string
+	// ToolsSourceURL is the release list of the tools catalog (default hub.DefaultToolsSourceURL, the GitHub releases
+	// API of the randomizer engine); "none" or empty = off. Use ToolsSource for the effective value.
+	ToolsSourceURL string
 	// UpdateRequestDir is where the update request file is created (default /run/uzume; Windows <data-dir>\update-request).
 	UpdateRequestDir string
 	// SaveKeepRecent, SaveKeepDaily, SaveKeepWeekly are the save history retention rules (ADR 0012 D7):
@@ -318,6 +321,12 @@ func register(fs *flag.FlagSet, getenv func(string) string, goos string) *Config
 		}
 		return updates.DefaultPluginIndexURL
 	}(), "URL of the signed plugin index, https or file://; none = no index, for offline servers (UZUME_PLUGIN_INDEX_URL)")
+	fs.StringVar(&c.ToolsSourceURL, "tools-source-url", func() string {
+		if v := getenv("UZUME_TOOLS_SOURCE_URL"); v != "" {
+			return v
+		}
+		return DefaultToolsSourceURL
+	}(), "URL of the release list of the tools catalog (GitHub releases API), https; none = off, for offline servers (UZUME_TOOLS_SOURCE_URL)")
 	intEnv := func(key string, def int) int {
 		if n, err := strconv.Atoi(strings.TrimSpace(getenv("UZUME_" + key))); err == nil {
 			return n
@@ -361,6 +370,18 @@ func register(fs *flag.FlagSet, getenv func(string) string, goos string) *Config
 // PluginIndex returns the effective plugin index URL: empty when the index is disabled ("none" or empty).
 func (c *Config) PluginIndex() string {
 	u := strings.TrimSpace(c.PluginIndexURL)
+	if strings.EqualFold(u, "none") {
+		return ""
+	}
+	return u
+}
+
+// DefaultToolsSourceURL is the GitHub releases API of the randomizer engine (same value as hub.DefaultToolsSourceURL).
+const DefaultToolsSourceURL = "https://api.github.com/repos/upr-fvx/universal-pokemon-randomizer-fvx/releases"
+
+// ToolsSource returns the effective tools source URL: empty when the source is disabled ("none" or empty).
+func (c *Config) ToolsSource() string {
+	u := strings.TrimSpace(c.ToolsSourceURL)
 	if strings.EqualFold(u, "none") {
 		return ""
 	}
@@ -449,6 +470,11 @@ func (c *Config) Validate() error {
 	if u := c.PluginIndex(); u != "" {
 		if err := updates.ValidateIndexURL(u); err != nil {
 			return fmt.Errorf("plugin-index-url: %w", err)
+		}
+	}
+	if u := c.ToolsSource(); u != "" {
+		if pu, err := url.Parse(u); err != nil || pu.Scheme != "https" || pu.Host == "" || pu.User != nil {
+			return errors.New("tools-source-url must be an https URL or none")
 		}
 	}
 	if c.SaveKeepRecent < 0 || c.SaveKeepDaily < 0 || c.SaveKeepWeekly < 0 {

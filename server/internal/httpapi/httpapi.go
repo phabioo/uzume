@@ -204,6 +204,8 @@ func (s *Server) authMiddleware(next api.StrictHandlerFunc, op string) api.Stric
 			"ListPluginStore", "GetPluginStoreValue", "PutPluginStoreValue", "DeletePluginStoreValue", "GetGameCheats", "GetAdminCheatDb", "UpdateAdminCheatDb", "RefreshAdminCheatDb",
 			"UploadScreenshot", "ListScreenshots", "ListRunScreenshots", "DownloadScreenshotContent", "DeleteScreenshot",
 			"AddFavorite", "RemoveFavorite", "ListCollections", "CreateCollection", "RenameCollection", "DeleteCollection", "AddCollectionGame", "RemoveCollectionGame",
+			"ListTools", "GetToolPackage", "ListVariants", "ListGameVariants", "CreateVariant", "RenameVariant", "DeleteVariant", "GetRunVariant", "SetRunVariantState",
+			"ListAdminTools", "UpdateAdminTool", "SyncAdminTool", "InstallAdminToolVersion", "RemoveAdminToolVersion",
 			"ListRuns", "CreateRun", "GetRun", "JoinRun", "DeclineRun", "LeaveRun", "InviteRun", "SetRunStatus", "PutRunState", "AppendRunEvent", "ListRunEvents", "PutRunBoard":
 			p, err := s.svc.Authenticate(ctx, tok)
 			if err != nil {
@@ -283,7 +285,8 @@ func httpStatus(c hub.Code) int {
 		return http.StatusConflict
 	case hub.CodeTooLarge:
 		return http.StatusRequestEntityTooLarge
-	case hub.CodeConflict, hub.CodeChildMode, hub.CodePairingExpired, hub.CodeSaveConflict, hub.CodeSaveConflictStale,
+	case hub.CodeToolInUse, hub.CodeToolHashMismatch, hub.CodeNameTaken, hub.CodeOwnVariantMismatch, hub.CodeOwnVariantsOff,
+		hub.CodeConflict, hub.CodeChildMode, hub.CodePairingExpired, hub.CodeSaveConflict, hub.CodeSaveConflictStale,
 		hub.CodeSessionFull, hub.CodeCapabilityMissing, hub.CodeDisplayNameTaken,
 		hub.CodeSaveSlotExists, hub.CodeSessionRunning, hub.CodeSaveSlotProtected, hub.CodePasswordNotSet, hub.CodeAlreadySetUp:
 		return http.StatusConflict

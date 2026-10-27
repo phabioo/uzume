@@ -186,6 +186,11 @@ type RunParticipant struct {
 	// this run (plays whose presence named the run) and the end of the latest one (nil = never played).
 	PlaySeconds  *int64     `json:"play_seconds,omitempty"`
 	LastPlayedAt *time.Time `json:"last_played_at,omitempty"`
+	// VariantKind ("run" or "own") and VariantState ("not_built", "building", "ready") describe the variant the person
+	// plays in a randomizer run (nil in other runs and before the first join). variantID (an own variant) is private.
+	VariantKind  *string `json:"variant_kind"`
+	VariantState *string `json:"variant_state"`
+	variantID    string
 }
 
 // Run is the run object as REST and WSS carry it (archived is web only and not part of the wire format).
@@ -203,6 +208,8 @@ type Run struct {
 	Plugins      []RunPlugin      `json:"plugins"`
 	Participants []RunParticipant `json:"participants"`
 	LastSeq      int64            `json:"last_seq"`
+	// Randomizer is the public part of the run's randomizer recipe (never the settings or the seed).
+	Randomizer RunRandomizer `json:"randomizer"`
 	// PlaySeconds is the total play time of all people in this run; set by the REST reads only (nil in pushes).
 	PlaySeconds *int64 `json:"play_seconds,omitempty"`
 	Archived    bool   `json:"-"`
@@ -475,6 +482,7 @@ func loadRunsChunked(ctx context.Context, q dbq, ids []string, withState bool, b
 		r.Archived, r.CreatedAt, r.UpdatedAt, r.Settings = archived != 0, unixTime(created), unixTime(updated), json.RawMessage(settings)
 		r.SaveSlot = RunSaveSlot(r.ID)
 		r.Plugins, r.Participants = []RunPlugin{}, []RunParticipant{}
+		r.Randomizer = RunRandomizer{Mode: RandomizerOff}
 		byID[r.ID] = r
 	}
 	rows.Close()
@@ -505,7 +513,7 @@ func loadRunsChunked(ctx context.Context, q dbq, ids []string, withState bool, b
 		return internal(err)
 	}
 
-	rows, err = q.QueryContext(ctx, `SELECT p.run_id, p.user_id, u.display_name, p.status, p.game_id, p.color
+	rows, err = q.QueryContext(ctx, `SELECT p.run_id, p.user_id, u.display_name, p.status, p.game_id, p.color, p.variant_kind, p.variant_id, p.variant_state
 		FROM run_participants p JOIN users u ON u.id = p.user_id WHERE p.run_id IN `+in+` ORDER BY p.run_id, p.invited_at, p.rowid`, args...)
 	if err != nil {
 		return internal(err)
@@ -515,7 +523,8 @@ func loadRunsChunked(ctx context.Context, q dbq, ids []string, withState bool, b
 		var p RunParticipant
 		var game sql.NullString
 		var color sql.NullInt64
-		if err := rows.Scan(&rid, &p.UserID, &p.UserName, &p.Status, &game, &color); err != nil {
+		var vkind, vid, vstate sql.NullString
+		if err := rows.Scan(&rid, &p.UserID, &p.UserName, &p.Status, &game, &color, &vkind, &vid, &vstate); err != nil {
 			rows.Close()
 			return internal(err)
 		}
@@ -526,6 +535,13 @@ func loadRunsChunked(ctx context.Context, q dbq, ids []string, withState bool, b
 			c := int(color.Int64)
 			p.Color = &c
 		}
+		if vkind.Valid {
+			p.VariantKind = &vkind.String
+		}
+		if vstate.Valid {
+			p.VariantState = &vstate.String
+		}
+		p.variantID = vid.String
 		p.States = map[string]RunPluginState{}
 		if r := byID[rid]; r != nil {
 			r.Participants = append(r.Participants, p)
@@ -534,6 +550,9 @@ func loadRunsChunked(ctx context.Context, q dbq, ids []string, withState bool, b
 	rows.Close()
 	if err := rows.Err(); err != nil {
 		return internal(err)
+	}
+	if err := loadRunRandomizers(ctx, q, in, args, byID); err != nil {
+		return err
 	}
 	if !withState {
 		return nil
@@ -730,7 +749,9 @@ type CreateRunInput struct {
 	GameID        string
 	InviteUserIDs []string
 	Settings      json.RawMessage
-	Rules         *RunRules // nil = DefaultRunRules
+	// Randomizer is the optional randomizer recipe (nil = mode off), see RunRandomizerInput.
+	Randomizer *RunRandomizerInput
+	Rules      *RunRules // nil = DefaultRunRules
 }
 
 // CreateRun creates a run in status starting. The creator joins with GameID; invited users get run_updated.
@@ -779,11 +800,20 @@ func (s *Service) CreateRun(ctx context.Context, in CreateRunInput) (_ Run, err 
 		}
 		plugins = append(plugins, RunPlugin{PluginID: p.PluginID, Version: p.Version, SHA256: sha})
 	}
-	if _, err := s.GetGameFor(ctx, in.UserID, in.GameID); err != nil {
+	game, err := s.GetGameFor(ctx, in.UserID, in.GameID)
+	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			return Run{}, badRequest("Unknown game")
 		}
 		return Run{}, err
+	}
+	rz, err := s.newRunRandomizer(ctx, in.Randomizer, game)
+	if err != nil {
+		return Run{}, err
+	}
+	if rz != nil {
+		s.tools.usageMu.RLock() // against RemoveToolVersion between the catalog check and the insert
+		defer s.tools.usageMu.RUnlock()
 	}
 	creator, err := s.GetUser(ctx, in.UserID)
 	if err != nil {
@@ -845,6 +875,11 @@ func (s *Service) CreateRun(ctx context.Context, in CreateRunInput) (_ Run, err 
 	if _, err := tx.ExecContext(ctx, `INSERT INTO run_participants(run_id, user_id, status, game_id, color, invited_at) VALUES (?, ?, 'joined', ?, 0, ?)`,
 		id, in.UserID, in.GameID, now.Unix()); err != nil {
 		return Run{}, internal(err)
+	}
+	if rz != nil {
+		if err := insertRunRandomizer(ctx, tx, id, in.UserID, rz); err != nil {
+			return Run{}, err
+		}
 	}
 	for _, u := range invites {
 		if _, err := tx.ExecContext(ctx, `INSERT INTO run_participants(run_id, user_id, status, invited_at) VALUES (?, ?, 'invited', ?)`,
@@ -948,7 +983,14 @@ func (s *Service) ListRunEvents(ctx context.Context, userID, runID string, after
 
 // JoinRun joins the user with a library game (from invited, declined or left). Joining again with the same game
 // is a no-op; with another game it is a conflict.
-func (s *Service) JoinRun(ctx context.Context, userID, runID, gameID string) (_ Run, err error) {
+func (s *Service) JoinRun(ctx context.Context, userID, runID, gameID string) (Run, error) {
+	return s.JoinRunWith(ctx, userID, runID, gameID, nil)
+}
+
+// JoinRunWith is JoinRun with the variant the person plays in a randomizer run (nil = the run variant). A variant
+// choice in a run without randomizer is refused (400). Kind "own" needs allow_own (409 own_variants_off) and a variant of
+// the person for the same game with the run's tool and version (409 own_variant_mismatch; 404 for an unknown one).
+func (s *Service) JoinRunWith(ctx context.Context, userID, runID, gameID string, jv *JoinVariant) (_ Run, err error) {
 	defer s.publishOK(&err, TopicRuns)
 	if _, err := s.GetGameFor(ctx, userID, gameID); err != nil {
 		if errors.Is(err, ErrNotFound) {
@@ -969,9 +1011,19 @@ func (s *Service) JoinRun(ctx context.Context, userID, runID, gameID string) (_ 
 		if err != nil {
 			return nil, false, err
 		}
+		kind, variantID, err := s.checkJoinVariant(ctx, tx, run, userID, gameID, jv)
+		if err != nil {
+			return nil, false, err
+		}
 		if _, err := tx.ExecContext(ctx, `UPDATE run_participants SET status = 'joined', game_id = ?, color = COALESCE(color, ?) WHERE run_id = ? AND user_id = ?`,
 			gameID, color, runID, userID); err != nil {
 			return nil, false, internal(err)
+		}
+		if kind != "" {
+			if _, err := tx.ExecContext(ctx, `UPDATE run_participants SET variant_kind = ?, variant_id = ?, variant_state = 'not_built' WHERE run_id = ? AND user_id = ?`,
+				kind, nullIfEmpty(variantID), runID, userID); err != nil {
+				return nil, false, internal(err)
+			}
 		}
 		e := hubEvent("run.joined", map[string]any{"user_id": userID, "user_name": name, "game_id": gameID})
 		return &e, true, nil

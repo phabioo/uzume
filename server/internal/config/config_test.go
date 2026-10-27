@@ -416,3 +416,24 @@ func TestCheatDBConfig(t *testing.T) {
 		t.Fatalf("env: %+v", c)
 	}
 }
+
+func TestToolsSourceConfig(t *testing.T) {
+	if c := parse(t, nil); c.ToolsSourceURL != DefaultToolsSourceURL || c.ToolsSource() != DefaultToolsSourceURL || c.Validate() != nil {
+		t.Fatalf("default: %+v", c)
+	}
+	for _, c := range []*Config{
+		parse(t, map[string]string{"UZUME_TOOLS_SOURCE_URL": "none"}),
+		parse(t, nil, "-tools-source-url", "NONE"),
+	} {
+		if c.ToolsSource() != "" || c.Validate() != nil {
+			t.Fatalf("none: %+v", c)
+		}
+	}
+	c := parse(t, map[string]string{"UZUME_TOOLS_SOURCE_URL": "https://env.example/releases"}, "-tools-source-url", "https://flag.example/releases")
+	if c.ToolsSource() != "https://flag.example/releases" || c.Validate() != nil {
+		t.Fatalf("flag: %+v", c)
+	}
+	if c = parse(t, nil, "-tools-source-url", "http://insecure.example/x"); c.Validate() == nil {
+		t.Fatal("http accepted")
+	}
+}

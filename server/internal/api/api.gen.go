@@ -745,6 +745,30 @@ func (e AdminSystemUpdateAutoUpdate) Valid() bool {
 	}
 }
 
+// Defines values for AdminToolSourceState.
+const (
+	AdminToolSourceStateError AdminToolSourceState = "error"
+	AdminToolSourceStateNever AdminToolSourceState = "never"
+	AdminToolSourceStateOff   AdminToolSourceState = "off"
+	AdminToolSourceStateOk    AdminToolSourceState = "ok"
+)
+
+// Valid indicates whether the value is a known member of the AdminToolSourceState enum.
+func (e AdminToolSourceState) Valid() bool {
+	switch e {
+	case AdminToolSourceStateError:
+		return true
+	case AdminToolSourceStateNever:
+		return true
+	case AdminToolSourceStateOff:
+		return true
+	case AdminToolSourceStateOk:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AdminUpdateSettingsChannel.
 const (
 	AdminUpdateSettingsChannelBeta   AdminUpdateSettingsChannel = "beta"
@@ -786,19 +810,19 @@ func (e AdminUpdateVersionChannel) Valid() bool {
 
 // Defines values for AdminUpdateVersionData.
 const (
-	Keep    AdminUpdateVersionData = "keep"
-	Refuse  AdminUpdateVersionData = "refuse"
-	Restore AdminUpdateVersionData = "restore"
+	AdminUpdateVersionDataKeep    AdminUpdateVersionData = "keep"
+	AdminUpdateVersionDataRefuse  AdminUpdateVersionData = "refuse"
+	AdminUpdateVersionDataRestore AdminUpdateVersionData = "restore"
 )
 
 // Valid indicates whether the value is a known member of the AdminUpdateVersionData enum.
 func (e AdminUpdateVersionData) Valid() bool {
 	switch e {
-	case Keep:
+	case AdminUpdateVersionDataKeep:
 		return true
-	case Refuse:
+	case AdminUpdateVersionDataRefuse:
 		return true
-	case Restore:
+	case AdminUpdateVersionDataRestore:
 		return true
 	default:
 		return false
@@ -912,25 +936,25 @@ func (e CorePackageFileRole) Valid() bool {
 
 // Defines values for CorePlatform.
 const (
-	LinuxArm64 CorePlatform = "linux-arm64"
-	LinuxX64   CorePlatform = "linux-x64"
-	MacosArm64 CorePlatform = "macos-arm64"
-	MacosX64   CorePlatform = "macos-x64"
-	WindowsX64 CorePlatform = "windows-x64"
+	CorePlatformLinuxArm64 CorePlatform = "linux-arm64"
+	CorePlatformLinuxX64   CorePlatform = "linux-x64"
+	CorePlatformMacosArm64 CorePlatform = "macos-arm64"
+	CorePlatformMacosX64   CorePlatform = "macos-x64"
+	CorePlatformWindowsX64 CorePlatform = "windows-x64"
 )
 
 // Valid indicates whether the value is a known member of the CorePlatform enum.
 func (e CorePlatform) Valid() bool {
 	switch e {
-	case LinuxArm64:
+	case CorePlatformLinuxArm64:
 		return true
-	case LinuxX64:
+	case CorePlatformLinuxX64:
 		return true
-	case MacosArm64:
+	case CorePlatformMacosArm64:
 		return true
-	case MacosX64:
+	case CorePlatformMacosX64:
 		return true
-	case WindowsX64:
+	case CorePlatformWindowsX64:
 		return true
 	default:
 		return false
@@ -959,7 +983,10 @@ const (
 	ErrorCodeInvalidImage         ErrorCode = "invalid_image"
 	ErrorCodeInvalidSetupCode     ErrorCode = "invalid_setup_code"
 	ErrorCodeInviteInvalid        ErrorCode = "invite_invalid"
+	ErrorCodeNameTaken            ErrorCode = "name_taken"
 	ErrorCodeNotFound             ErrorCode = "not_found"
+	ErrorCodeOwnVariantMismatch   ErrorCode = "own_variant_mismatch"
+	ErrorCodeOwnVariantsOff       ErrorCode = "own_variants_off"
 	ErrorCodePairingDenied        ErrorCode = "pairing_denied"
 	ErrorCodePairingExpired       ErrorCode = "pairing_expired"
 	ErrorCodePairingPending       ErrorCode = "pairing_pending"
@@ -985,6 +1012,8 @@ const (
 	ErrorCodeStoreConflict        ErrorCode = "store_conflict"
 	ErrorCodeStoreQuotaExceeded   ErrorCode = "store_quota_exceeded"
 	ErrorCodeTooLarge             ErrorCode = "too_large"
+	ErrorCodeToolHashMismatch     ErrorCode = "tool_hash_mismatch"
+	ErrorCodeToolInUse            ErrorCode = "tool_in_use"
 	ErrorCodeUnauthorized         ErrorCode = "unauthorized"
 	ErrorCodeUploadsDisabled      ErrorCode = "uploads_disabled"
 	ErrorCodeUserDisabled         ErrorCode = "user_disabled"
@@ -1033,7 +1062,13 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case ErrorCodeInviteInvalid:
 		return true
+	case ErrorCodeNameTaken:
+		return true
 	case ErrorCodeNotFound:
+		return true
+	case ErrorCodeOwnVariantMismatch:
+		return true
+	case ErrorCodeOwnVariantsOff:
 		return true
 	case ErrorCodePairingDenied:
 		return true
@@ -1084,6 +1119,10 @@ func (e ErrorCode) Valid() bool {
 	case ErrorCodeStoreQuotaExceeded:
 		return true
 	case ErrorCodeTooLarge:
+		return true
+	case ErrorCodeToolHashMismatch:
+		return true
+	case ErrorCodeToolInUse:
 		return true
 	case ErrorCodeUnauthorized:
 		return true
@@ -1357,6 +1396,24 @@ func (e RunEventRequestSource) Valid() bool {
 	}
 }
 
+// Defines values for RunJoinVariantKind.
+const (
+	RunJoinVariantKindOwn RunJoinVariantKind = "own"
+	RunJoinVariantKindRun RunJoinVariantKind = "run"
+)
+
+// Valid indicates whether the value is a known member of the RunJoinVariantKind enum.
+func (e RunJoinVariantKind) Valid() bool {
+	switch e {
+	case RunJoinVariantKindOwn:
+		return true
+	case RunJoinVariantKindRun:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for RunParticipantStatus.
 const (
 	RunParticipantStatusDeclined RunParticipantStatus = "declined"
@@ -1375,6 +1432,87 @@ func (e RunParticipantStatus) Valid() bool {
 	case RunParticipantStatusJoined:
 		return true
 	case RunParticipantStatusLeft:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RunParticipantVariantKind.
+const (
+	RunParticipantVariantKindOwn RunParticipantVariantKind = "own"
+	RunParticipantVariantKindRun RunParticipantVariantKind = "run"
+)
+
+// Valid indicates whether the value is a known member of the RunParticipantVariantKind enum.
+func (e RunParticipantVariantKind) Valid() bool {
+	switch e {
+	case RunParticipantVariantKindOwn:
+		return true
+	case RunParticipantVariantKindRun:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RunParticipantVariantState.
+const (
+	RunParticipantVariantStateBuilding RunParticipantVariantState = "building"
+	RunParticipantVariantStateNotBuilt RunParticipantVariantState = "not_built"
+	RunParticipantVariantStateReady    RunParticipantVariantState = "ready"
+)
+
+// Valid indicates whether the value is a known member of the RunParticipantVariantState enum.
+func (e RunParticipantVariantState) Valid() bool {
+	switch e {
+	case RunParticipantVariantStateBuilding:
+		return true
+	case RunParticipantVariantStateNotBuilt:
+		return true
+	case RunParticipantVariantStateReady:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RunRandomizerMode.
+const (
+	RunRandomizerModeEach RunRandomizerMode = "each"
+	RunRandomizerModeOff  RunRandomizerMode = "off"
+	RunRandomizerModeSame RunRandomizerMode = "same"
+)
+
+// Valid indicates whether the value is a known member of the RunRandomizerMode enum.
+func (e RunRandomizerMode) Valid() bool {
+	switch e {
+	case RunRandomizerModeEach:
+		return true
+	case RunRandomizerModeOff:
+		return true
+	case RunRandomizerModeSame:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RunRandomizerRequestMode.
+const (
+	RunRandomizerRequestModeEach RunRandomizerRequestMode = "each"
+	RunRandomizerRequestModeOff  RunRandomizerRequestMode = "off"
+	RunRandomizerRequestModeSame RunRandomizerRequestMode = "same"
+)
+
+// Valid indicates whether the value is a known member of the RunRandomizerRequestMode enum.
+func (e RunRandomizerRequestMode) Valid() bool {
+	switch e {
+	case RunRandomizerRequestModeEach:
+		return true
+	case RunRandomizerRequestModeOff:
+		return true
+	case RunRandomizerRequestModeSame:
 		return true
 	default:
 		return false
@@ -1401,16 +1539,16 @@ func (e RunRulesCheats) Valid() bool {
 
 // Defines values for RunRulesMemoryWrite.
 const (
-	RunRulesMemoryWriteLogged RunRulesMemoryWrite = "logged"
-	RunRulesMemoryWriteOff    RunRulesMemoryWrite = "off"
+	Logged RunRulesMemoryWrite = "logged"
+	Off    RunRulesMemoryWrite = "off"
 )
 
 // Valid indicates whether the value is a known member of the RunRulesMemoryWrite enum.
 func (e RunRulesMemoryWrite) Valid() bool {
 	switch e {
-	case RunRulesMemoryWriteLogged:
+	case Logged:
 		return true
-	case RunRulesMemoryWriteOff:
+	case Off:
 		return true
 	default:
 		return false
@@ -1462,6 +1600,45 @@ func (e RunStatusRequestStatus) Valid() bool {
 	case RunStatusRequestStatusFinished:
 		return true
 	case RunStatusRequestStatusPaused:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RunVariantVariantKind.
+const (
+	RunVariantVariantKindOwn RunVariantVariantKind = "own"
+	RunVariantVariantKindRun RunVariantVariantKind = "run"
+)
+
+// Valid indicates whether the value is a known member of the RunVariantVariantKind enum.
+func (e RunVariantVariantKind) Valid() bool {
+	switch e {
+	case RunVariantVariantKindOwn:
+		return true
+	case RunVariantVariantKindRun:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RunVariantStateRequestState.
+const (
+	RunVariantStateRequestStateBuilding RunVariantStateRequestState = "building"
+	RunVariantStateRequestStateNotBuilt RunVariantStateRequestState = "not_built"
+	RunVariantStateRequestStateReady    RunVariantStateRequestState = "ready"
+)
+
+// Valid indicates whether the value is a known member of the RunVariantStateRequestState enum.
+func (e RunVariantStateRequestState) Valid() bool {
+	switch e {
+	case RunVariantStateRequestStateBuilding:
+		return true
+	case RunVariantStateRequestStateNotBuilt:
+		return true
+	case RunVariantStateRequestStateReady:
 		return true
 	default:
 		return false
@@ -1624,6 +1801,78 @@ func (e TokenResponseTokenType) Valid() bool {
 	}
 }
 
+// Defines values for ToolInUseErrorErrorCode.
+const (
+	ToolInUse ToolInUseErrorErrorCode = "tool_in_use"
+)
+
+// Valid indicates whether the value is a known member of the ToolInUseErrorErrorCode enum.
+func (e ToolInUseErrorErrorCode) Valid() bool {
+	switch e {
+	case ToolInUse:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ToolPlatformEntryOrigin.
+const (
+	Github ToolPlatformEntryOrigin = "github"
+	Import ToolPlatformEntryOrigin = "import"
+)
+
+// Valid indicates whether the value is a known member of the ToolPlatformEntryOrigin enum.
+func (e ToolPlatformEntryOrigin) Valid() bool {
+	switch e {
+	case Github:
+		return true
+	case Import:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ToolPlatformName.
+const (
+	ToolPlatformNameLinuxArm64 ToolPlatformName = "linux-arm64"
+	ToolPlatformNameLinuxX64   ToolPlatformName = "linux-x64"
+	ToolPlatformNameWindowsX64 ToolPlatformName = "windows-x64"
+)
+
+// Valid indicates whether the value is a known member of the ToolPlatformName enum.
+func (e ToolPlatformName) Valid() bool {
+	switch e {
+	case ToolPlatformNameLinuxArm64:
+		return true
+	case ToolPlatformNameLinuxX64:
+		return true
+	case ToolPlatformNameWindowsX64:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for IncludeDeleted.
+const (
+	IncludeDeletedN0 IncludeDeleted = 0
+	IncludeDeletedN1 IncludeDeleted = 1
+)
+
+// Valid indicates whether the value is a known member of the IncludeDeleted enum.
+func (e IncludeDeleted) Valid() bool {
+	switch e {
+	case IncludeDeletedN0:
+		return true
+	case IncludeDeletedN1:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListAdminPairingRequestsParamsStatus.
 const (
 	Denied  ListAdminPairingRequestsParamsStatus = "denied"
@@ -1654,6 +1903,60 @@ func (e ListAdminReportsParamsStatus) Valid() bool {
 	case New:
 		return true
 	case Seen:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListGameVariantsParamsIncludeDeleted.
+const (
+	ListGameVariantsParamsIncludeDeletedN0 ListGameVariantsParamsIncludeDeleted = 0
+	ListGameVariantsParamsIncludeDeletedN1 ListGameVariantsParamsIncludeDeleted = 1
+)
+
+// Valid indicates whether the value is a known member of the ListGameVariantsParamsIncludeDeleted enum.
+func (e ListGameVariantsParamsIncludeDeleted) Valid() bool {
+	switch e {
+	case ListGameVariantsParamsIncludeDeletedN0:
+		return true
+	case ListGameVariantsParamsIncludeDeletedN1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListVariantsParamsIncludeDeleted.
+const (
+	N0 ListVariantsParamsIncludeDeleted = 0
+	N1 ListVariantsParamsIncludeDeleted = 1
+)
+
+// Valid indicates whether the value is a known member of the ListVariantsParamsIncludeDeleted enum.
+func (e ListVariantsParamsIncludeDeleted) Valid() bool {
+	switch e {
+	case N0:
+		return true
+	case N1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DeleteVariantParamsSaves.
+const (
+	DeleteVariantParamsSavesDelete DeleteVariantParamsSaves = "delete"
+	DeleteVariantParamsSavesKeep   DeleteVariantParamsSaves = "keep"
+)
+
+// Valid indicates whether the value is a known member of the DeleteVariantParamsSaves enum.
+func (e DeleteVariantParamsSaves) Valid() bool {
+	switch e {
+	case DeleteVariantParamsSavesDelete:
+		return true
+	case DeleteVariantParamsSavesKeep:
 		return true
 	default:
 		return false
@@ -2871,6 +3174,61 @@ type AdminSystems struct {
 	Systems    []AdminSystem   `json:"systems"`
 }
 
+// AdminTool defines model for AdminTool.
+type AdminTool struct {
+	Id string `json:"id"`
+
+	// LatestVersion The newest release the source listed; absent before the first successful check
+	LatestVersion *string         `json:"latest_version,omitempty"`
+	License       string          `json:"license"`
+	Name          string          `json:"name"`
+	Offered       bool            `json:"offered"`
+	Source        AdminToolSource `json:"source"`
+	SourceUrl     string          `json:"source_url"`
+
+	// UpdateAvailable `latest_version` is newer than the newest cached version
+	UpdateAvailable *bool              `json:"update_available,omitempty"`
+	Versions        []AdminToolVersion `json:"versions"`
+}
+
+// AdminToolSource defines model for AdminToolSource.
+type AdminToolSource struct {
+	LastCheck   *time.Time `json:"last_check,omitempty"`
+	LastError   *string    `json:"last_error,omitempty"`
+	LastSuccess *time.Time `json:"last_success,omitempty"`
+
+	// State `off` = `-tools-source-url none`, `never` = not asked yet, `error` = the last check failed
+	State AdminToolSourceState `json:"state"`
+
+	// Url The configured release list; absent when the source is off
+	Url *string `json:"url,omitempty"`
+}
+
+// AdminToolSourceState `off` = `-tools-source-url none`, `never` = not asked yet, `error` = the last check failed
+type AdminToolSourceState string
+
+// AdminToolUpdate defines model for AdminToolUpdate.
+type AdminToolUpdate struct {
+	Offered bool `json:"offered"`
+}
+
+// AdminToolVersion defines model for AdminToolVersion.
+type AdminToolVersion struct {
+	// Complete Every known platform is cached
+	Complete bool `json:"complete"`
+
+	// Installed At least one platform is cached
+	Installed bool                `json:"installed"`
+	Platforms []ToolPlatformEntry `json:"platforms"`
+	UsedBy    ToolUsage           `json:"used_by"`
+	Version   string              `json:"version"`
+}
+
+// AdminTools defines model for AdminTools.
+type AdminTools struct {
+	Tools []AdminTool `json:"tools"`
+}
+
 // AdminTurn defines model for AdminTurn.
 type AdminTurn struct {
 	Allocations int `json:"allocations"`
@@ -3362,7 +3720,7 @@ type HandshakeRequest_Video struct {
 type HandshakeResponse struct {
 	Compatible bool `json:"compatible"`
 
-	// Features Optional server feature flags (additive, protocol_version unchanged). `saves_v1` = save sync API, `sessions_v1` = Sessions API and WSS endpoint, `users_v1` = invite redemption (`POST /invites/redeem`) and user management, `uploads_v1` = the calling user may upload ROMs (`POST /games`; advertised per caller), `firmware_v1` = systems registry and firmware download, `cores_v1` = signed core packages served by the server (`/api/v1/cores/...`, `core_package_version` in `SystemInfo`), `turn_v1` = at least one relay provider is on (the embedded TURN server and/or Cloudflare TURN; `turn_servers` in `hello_ack`, `ice_update` and the join response), `saves_v2` = save restore, manual snapshots, history labels and the `save_updated` WSS message, `saves_v3` = deleting manual snapshots (`DELETE /games/{game_id}/saves/{slot}/history/{version}`), `saves_v4` = uploading a save file into a slot (`POST /games/{game_id}/saves/{slot}/upload`), `saves_v5` = renaming a slot (`POST /games/{game_id}/saves/{slot}/rename`), deleting a slot (`DELETE /games/{game_id}/saves/{slot}`), `save_updated` reasons `renamed` and `deleted`, and 409 `session_running` on `saves_v4` uploads while a Session of the game runs, `saves_v6` = deleting any history version (before it only manual snapshots) and the main slot `default` (before it only other slots; renaming `default` stays refused), `cores_v2` = several cores per system (`default_core_id` and `cores` in `SystemInfo`; core ids follow `^[a-z0-9][a-z0-9_-]{0,63}$`), `ice_update_v1` = the server pushes the WSS message `ice_update` whenever its effective ICE configuration changes, `plugins_v1` = plugin list and download (`GET /plugins`, `GET /plugins/{plugin_id}/{version}/file`), `runs_v1` = runs, `runs_v2` = runs without plugins (`plugins` may be empty) and the run field `save_slot`, `local_roms_v1` = local-only games and resumable uploads (`POST /games/register`, `DELETE /games/{game_id}/registration`, `/uploads`; `stored`, `on_hub`, `roms`, `game_version`; `GET /roms/{sha256}` serves stored files only), `reports_v1` = problem reports (`POST /reports`; the admin endpoints under `/admin/reports`), `accounts_v1` = server accounts (`POST /auth/sign-in`, `/account` with password, confirmation and own devices, `/admin/users/{user_id}/password-reset`, `/admin/accounts/settings`; the error codes `confirmation_required`, `password_required` and `password_not_set`), `admin_v1` = the admin API under `/admin/...` (advertised only to admin users). `cores_index_v1` (signed core index) existed in 0.4 to 0.7 and was removed in 0.8.
+	// Features Optional server feature flags (additive, protocol_version unchanged). `saves_v1` = save sync API, `sessions_v1` = Sessions API and WSS endpoint, `users_v1` = invite redemption (`POST /invites/redeem`) and user management, `uploads_v1` = the calling user may upload ROMs (`POST /games`; advertised per caller), `firmware_v1` = systems registry and firmware download, `cores_v1` = signed core packages served by the server (`/api/v1/cores/...`, `core_package_version` in `SystemInfo`), `turn_v1` = at least one relay provider is on (the embedded TURN server and/or Cloudflare TURN; `turn_servers` in `hello_ack`, `ice_update` and the join response), `saves_v2` = save restore, manual snapshots, history labels and the `save_updated` WSS message, `saves_v3` = deleting manual snapshots (`DELETE /games/{game_id}/saves/{slot}/history/{version}`), `saves_v4` = uploading a save file into a slot (`POST /games/{game_id}/saves/{slot}/upload`), `saves_v5` = renaming a slot (`POST /games/{game_id}/saves/{slot}/rename`), deleting a slot (`DELETE /games/{game_id}/saves/{slot}`), `save_updated` reasons `renamed` and `deleted`, and 409 `session_running` on `saves_v4` uploads while a Session of the game runs, `saves_v6` = deleting any history version (before it only manual snapshots) and the main slot `default` (before it only other slots; renaming `default` stays refused), `cores_v2` = several cores per system (`default_core_id` and `cores` in `SystemInfo`; core ids follow `^[a-z0-9][a-z0-9_-]{0,63}$`), `ice_update_v1` = the server pushes the WSS message `ice_update` whenever its effective ICE configuration changes, `plugins_v1` = plugin list and download (`GET /plugins`, `GET /plugins/{plugin_id}/{version}/file`), `runs_v1` = runs, `runs_v2` = runs without plugins (`plugins` may be empty) and the run field `save_slot`, `local_roms_v1` = local-only games and resumable uploads (`POST /games/register`, `DELETE /games/{game_id}/registration`, `/uploads`; `stored`, `on_hub`, `roms`, `game_version`; `GET /roms/{sha256}` serves stored files only), `reports_v1` = problem reports (`POST /reports`; the admin endpoints under `/admin/reports`), `accounts_v1` = server accounts (`POST /auth/sign-in`, `/account` with password, confirmation and own devices, `/admin/users/{user_id}/password-reset`, `/admin/accounts/settings`; the error codes `confirmation_required`, `password_required` and `password_not_set`), `admin_v1` = the admin API under `/admin/...` (advertised only to admin users), `tools_v1` = the tools catalog (`GET /tools`, `GET /tools/{tool_id}/packages/{version}/{platform}`, `/admin/tools`), `variants_v1` = game variants and runs with a randomizer recipe (`/variants`, `/games/{game_id}/variants`, `randomizer` in the run object and in `POST /runs`, `variant` in `POST /runs/{run_id}/join`, `GET /runs/{run_id}/variant`, `POST /runs/{run_id}/variant-state`, `variant_kind` and `variant_state` per participant). `cores_index_v1` (signed core index) existed in 0.4 to 0.7 and was removed in 0.8.
 	Features           *[]string          `json:"features,omitempty"`
 	HubVersion         string             `json:"hub_version"`
 	MinProtocolVersion int                `json:"min_protocol_version"`
@@ -3717,6 +4075,10 @@ type Run struct {
 	PlaySeconds *int64      `json:"play_seconds,omitempty"`
 	Plugins     []RunPlugin `json:"plugins"`
 
+	// Randomizer Feature `variants_v1`. The public part of a run's randomizer recipe, fixed when the run is created. Never holds the
+	// settings or the seed (`getRunVariant` gives a participant what they need). Always present; `mode` is `off` for ordinary runs.
+	Randomizer RunRandomizer `json:"randomizer"`
+
 	// Rules Core rules of a run (`run_rules_v1`), enforced by the app. A new run has `states` false, `rewind` false and
 	// `cheats` / `memory_write` `off`; without a run everything is allowed. `logged` allows the feature and writes the
 	// run events `cheat.enabled`, `cheat.disabled` and `memory.write`.
@@ -3754,6 +4116,9 @@ type RunCreateRequest struct {
 
 	// Plugins Zero to 8 plugins (feature `runs_v2`; a run without plugins is valid).
 	Plugins []RunPluginRef `json:"plugins"`
+
+	// Randomizer The randomizer recipe of a new run. Mode `off` (or no object) means an ordinary run.
+	Randomizer *RunRandomizerRequest `json:"randomizer,omitempty"`
 
 	// Rules Optional (`run_rules_v1`); a new run without it gets the defaults (everything off).
 	Rules *RunRules `json:"rules,omitempty"`
@@ -3824,7 +4189,21 @@ type RunInviteRequest struct {
 // RunJoinRequest defines model for RunJoinRequest.
 type RunJoinRequest struct {
 	GameId openapi_types.UUID `json:"game_id"`
+
+	// Variant Feature `variants_v1`. Which variant to play in a randomizer run; default `{kind: run}`. 400 in a run without randomizer; `own` needs `allow_own` (409 `own_variants_off`) and a matching variant (409 `own_variant_mismatch`).
+	Variant *RunJoinVariant `json:"variant,omitempty"`
 }
+
+// RunJoinVariant defines model for RunJoinVariant.
+type RunJoinVariant struct {
+	Kind RunJoinVariantKind `json:"kind"`
+
+	// VariantId Required for `own`: an own variant of the same game with the run's tool version
+	VariantId *openapi_types.UUID `json:"variant_id,omitempty"`
+}
+
+// RunJoinVariantKind defines model for RunJoinVariant.Kind.
+type RunJoinVariantKind string
 
 // RunJsonObject An opaque JSON object the server stores byte-exact and never interprets.
 type RunJsonObject = json.RawMessage
@@ -3853,10 +4232,22 @@ type RunParticipant struct {
 	Status   RunParticipantStatus      `json:"status"`
 	UserId   string                    `json:"user_id"`
 	UserName string                    `json:"user_name"`
+
+	// VariantKind Feature `variants_v1`. The variant this person plays in a randomizer run: the run variant or an own one. null in other runs and before the first join.
+	VariantKind *RunParticipantVariantKind `json:"variant_kind,omitempty"`
+
+	// VariantState Feature `variants_v1`. How far this person's variant is; set by the person themself (`setRunVariantState`). null in other runs.
+	VariantState *RunParticipantVariantState `json:"variant_state,omitempty"`
 }
 
 // RunParticipantStatus defines model for RunParticipant.Status.
 type RunParticipantStatus string
+
+// RunParticipantVariantKind Feature `variants_v1`. The variant this person plays in a randomizer run: the run variant or an own one. null in other runs and before the first join.
+type RunParticipantVariantKind string
+
+// RunParticipantVariantState Feature `variants_v1`. How far this person's variant is; set by the person themself (`setRunVariantState`). null in other runs.
+type RunParticipantVariantState string
 
 // RunPlugin defines model for RunPlugin.
 type RunPlugin struct {
@@ -3880,6 +4271,47 @@ type RunPluginState struct {
 	StateRev  int64         `json:"state_rev"`
 	UpdatedAt time.Time     `json:"updated_at"`
 }
+
+// RunRandomizer Feature `variants_v1`. The public part of a run's randomizer recipe, fixed when the run is created. Never holds the
+// settings or the seed (`getRunVariant` gives a participant what they need). Always present; `mode` is `off` for ordinary runs.
+type RunRandomizer struct {
+	// AllowOwn Whether people may join with an own variant of the same game and engine version
+	AllowOwn bool `json:"allow_own"`
+
+	// BaseSha256 SHA-256 of the base dump (Gen 1 to 5); absent for 3DS
+	BaseSha256 *string `json:"base_sha256,omitempty"`
+
+	// Mode `each` = every person gets their own world, `same` = one world for everyone
+	Mode     RunRandomizerMode `json:"mode"`
+	PresetId *string           `json:"preset_id,omitempty"`
+
+	// TitleId 3DS title id; absent for other systems
+	TitleId     *string `json:"title_id,omitempty"`
+	ToolId      *string `json:"tool_id,omitempty"`
+	ToolVersion *string `json:"tool_version,omitempty"`
+}
+
+// RunRandomizerMode `each` = every person gets their own world, `same` = one world for everyone
+type RunRandomizerMode string
+
+// RunRandomizerRequest The randomizer recipe of a new run. Mode `off` (or no object) means an ordinary run.
+type RunRandomizerRequest struct {
+	AllowOwn *bool                    `json:"allow_own,omitempty"`
+	Mode     RunRandomizerRequestMode `json:"mode"`
+	PresetId *string                  `json:"preset_id,omitempty"`
+
+	// Settings Settings string, printable ASCII; required unless mode is off
+	Settings *string `json:"settings,omitempty"`
+
+	// ToolId Default `randomizer`
+	ToolId *string `json:"tool_id,omitempty"`
+
+	// ToolVersion Must be an offered version of the tool (cached on the server)
+	ToolVersion *string `json:"tool_version,omitempty"`
+}
+
+// RunRandomizerRequestMode defines model for RunRandomizerRequest.Mode.
+type RunRandomizerRequestMode string
 
 // RunRules Core rules of a run (`run_rules_v1`), enforced by the app. A new run has `states` false, `rewind` false and
 // `cheats` / `memory_write` `off`; without a run everything is allowed. `logged` allows the feature and writes the
@@ -3933,6 +4365,40 @@ type RunStatusRequest struct {
 
 // RunStatusRequestStatus defines model for RunStatusRequest.Status.
 type RunStatusRequestStatus string
+
+// RunVariant defines model for RunVariant.
+type RunVariant struct {
+	// BaseSha256 Base dump pin (Gen 1 to 5); absent for 3DS
+	BaseSha256 *string `json:"base_sha256,omitempty"`
+
+	// Seed The run seed (mode `same`) or the seed derived for the caller (mode `each`)
+	Seed int64 `json:"seed"`
+
+	// Settings Settings string
+	Settings string `json:"settings"`
+
+	// Slot The run's save slot (`run-` plus 8 hex characters)
+	Slot string `json:"slot"`
+
+	// TitleId 3DS title id; absent for other systems
+	TitleId     *string `json:"title_id,omitempty"`
+	ToolId      string  `json:"tool_id"`
+	ToolVersion string  `json:"tool_version"`
+
+	// VariantKind Whose recipe this is: the run's or the caller's own variant
+	VariantKind *RunVariantVariantKind `json:"variant_kind,omitempty"`
+}
+
+// RunVariantVariantKind Whose recipe this is: the run's or the caller's own variant
+type RunVariantVariantKind string
+
+// RunVariantStateRequest defines model for RunVariantStateRequest.
+type RunVariantStateRequest struct {
+	State RunVariantStateRequestState `json:"state"`
+}
+
+// RunVariantStateRequestState defines model for RunVariantStateRequest.State.
+type RunVariantStateRequestState string
 
 // SaveCheckpoint Current checkpoint of a slot (one opaque blob).
 type SaveCheckpoint struct {
@@ -4324,6 +4790,80 @@ type TokenResponse struct {
 // TokenResponseTokenType defines model for TokenResponse.TokenType.
 type TokenResponseTokenType string
 
+// Tool defines model for Tool.
+type Tool struct {
+	Id      string `json:"id"`
+	License string `json:"license"`
+	Name    string `json:"name"`
+	Offered bool   `json:"offered"`
+
+	// SourceUrl Where the source code lives
+	SourceUrl string `json:"source_url"`
+
+	// Version Newest cached version; empty when none
+	Version  string             `json:"version"`
+	Versions []ToolVersionEntry `json:"versions"`
+}
+
+// ToolInUseError defines model for ToolInUseError.
+type ToolInUseError struct {
+	Error struct {
+		Code    ToolInUseErrorErrorCode `json:"code"`
+		Message string                  `json:"message"`
+	} `json:"error"`
+	UsedBy ToolUsage `json:"used_by"`
+}
+
+// ToolInUseErrorErrorCode defines model for ToolInUseError.Error.Code.
+type ToolInUseErrorErrorCode string
+
+// ToolList defines model for ToolList.
+type ToolList struct {
+	Tools []Tool `json:"tools"`
+}
+
+// ToolPlatformEntry defines model for ToolPlatformEntry.
+type ToolPlatformEntry struct {
+	// Cached The zip is in the server cache
+	Cached bool `json:"cached"`
+
+	// Origin Admin reads only
+	Origin   *ToolPlatformEntryOrigin `json:"origin,omitempty"`
+	Platform ToolPlatformName         `json:"platform"`
+
+	// Root Folder inside the zip that holds `UPR-FVX.jar` and `java/` (with a trailing slash), empty when they are at the zip root
+	Root *string `json:"root,omitempty"`
+
+	// Sha256 SHA-256 of the zip, pinned at the first download or import; empty while the platform was never downloaded
+	Sha256 string `json:"sha256"`
+	Size   int64  `json:"size"`
+
+	// Url Download URL of the release; admin reads only
+	Url *string `json:"url,omitempty"`
+}
+
+// ToolPlatformEntryOrigin Admin reads only
+type ToolPlatformEntryOrigin string
+
+// ToolPlatformName defines model for ToolPlatformName.
+type ToolPlatformName string
+
+// ToolUsage defines model for ToolUsage.
+type ToolUsage struct {
+	// Runs Runs that are not finished or abandoned and pin the version
+	Runs int `json:"runs"`
+
+	// Variants Variants (not deleted) that pin the version
+	Variants int `json:"variants"`
+}
+
+// ToolVersionEntry defines model for ToolVersionEntry.
+type ToolVersionEntry struct {
+	Platforms []ToolPlatformEntry `json:"platforms"`
+	UsedBy    ToolUsage           `json:"used_by"`
+	Version   string              `json:"version"`
+}
+
 // TurnServer Relay credentials from a relay provider of the server (`turn_v1`): the embedded TURN server (TURN REST API scheme),
 // Cloudflare TURN or an external TURN server configured by the admin. Credentials are short-lived (`expires_at`)
 // except the static username and password of an external TURN server, which have no `expires_at`. The server may
@@ -4375,6 +4915,61 @@ type UserList struct {
 	Users []UserInfo `json:"users"`
 }
 
+// Variant defines model for Variant.
+type Variant struct {
+	// BaseSha256 Pinned base dump (Gen 1 to 5); absent when not given
+	BaseSha256 *string   `json:"base_sha256,omitempty"`
+	CreatedAt  time.Time `json:"created_at"`
+
+	// DeletedAt Set when the variant was deleted with its saves kept (`include_deleted=1` lists it)
+	DeletedAt *time.Time         `json:"deleted_at,omitempty"`
+	GameId    openapi_types.UUID `json:"game_id"`
+	Id        openapi_types.UUID `json:"id"`
+	Name      string             `json:"name"`
+
+	// RunId Reserved; null
+	RunId    *openapi_types.UUID `json:"run_id"`
+	Seed     int64               `json:"seed"`
+	Settings string              `json:"settings"`
+
+	// Slot The save slot of the variant
+	Slot       string `json:"slot"`
+	SpoilerLog bool   `json:"spoiler_log"`
+
+	// TitleId 3DS title id; absent when not given
+	TitleId     *string `json:"title_id,omitempty"`
+	ToolId      string  `json:"tool_id"`
+	ToolVersion string  `json:"tool_version"`
+
+	// UpdateVersion 3DS update the variant is built for; absent when not given
+	UpdateVersion *string `json:"update_version,omitempty"`
+}
+
+// VariantCreateRequest defines model for VariantCreateRequest.
+type VariantCreateRequest struct {
+	BaseSha256 *string `json:"base_sha256,omitempty"`
+	Name       string  `json:"name"`
+	Seed       int64   `json:"seed"`
+
+	// Settings Printable ASCII
+	Settings      string  `json:"settings"`
+	SpoilerLog    *bool   `json:"spoiler_log,omitempty"`
+	TitleId       *string `json:"title_id,omitempty"`
+	ToolId        string  `json:"tool_id"`
+	ToolVersion   string  `json:"tool_version"`
+	UpdateVersion *string `json:"update_version,omitempty"`
+}
+
+// VariantList defines model for VariantList.
+type VariantList struct {
+	Variants []Variant `json:"variants"`
+}
+
+// VariantRenameRequest defines model for VariantRenameRequest.
+type VariantRenameRequest struct {
+	Name string `json:"name"`
+}
+
 // AdminBackupName defines model for AdminBackupName.
 type AdminBackupName = string
 
@@ -4408,6 +5003,9 @@ type CoreVersion = string
 // GameId defines model for GameId.
 type GameId = openapi_types.UUID
 
+// IncludeDeleted defines model for IncludeDeleted.
+type IncludeDeleted int
+
 // PluginId defines model for PluginId.
 type PluginId = string
 
@@ -4435,8 +5033,20 @@ type ScreenshotId = openapi_types.UUID
 // SessionId defines model for SessionId.
 type SessionId = openapi_types.UUID
 
+// ToolId defines model for ToolId.
+type ToolId = string
+
+// ToolPlatform defines model for ToolPlatform.
+type ToolPlatform = ToolPlatformName
+
+// ToolVersion defines model for ToolVersion.
+type ToolVersion = string
+
 // UserId defines model for UserId.
 type UserId = string
+
+// VariantId defines model for VariantId.
+type VariantId = openapi_types.UUID
 
 // AdminBackupConflict defines model for AdminBackupConflict.
 type AdminBackupConflict = Error
@@ -4494,6 +5104,9 @@ type Unauthorized = Error
 
 // UploadsDisabled defines model for UploadsDisabled.
 type UploadsDisabled = Error
+
+// VariantConflict defines model for VariantConflict.
+type VariantConflict = Error
 
 // bearerAuthContextKey is the context key for bearerAuth security scheme
 type bearerAuthContextKey string
@@ -4604,6 +5217,15 @@ type PutSaveStateMultipartBody struct {
 	State   openapi_types.File  `json:"state"`
 }
 
+// ListGameVariantsParams defines parameters for ListGameVariants.
+type ListGameVariantsParams struct {
+	// IncludeDeleted `1` also lists variants that were deleted with their saves kept (the recipe is kept for "Build it again").
+	IncludeDeleted *ListGameVariantsParamsIncludeDeleted `form:"include_deleted,omitempty" json:"include_deleted,omitempty"`
+}
+
+// ListGameVariantsParamsIncludeDeleted defines parameters for ListGameVariants.
+type ListGameVariantsParamsIncludeDeleted int
+
 // DeletePluginStoreValueParams defines parameters for DeletePluginStoreValue.
 type DeletePluginStoreValueParams struct {
 	BaseRevision *int64 `form:"base_revision,omitempty" json:"base_revision,omitempty"`
@@ -4631,10 +5253,32 @@ type ListRunEventsParams struct {
 	Limit *int   `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// GetToolPackageParams defines parameters for GetToolPackage.
+type GetToolPackageParams struct {
+	IfNoneMatch *string `json:"If-None-Match,omitempty"`
+}
+
 // PutUploadChunkParams defines parameters for PutUploadChunk.
 type PutUploadChunkParams struct {
 	ContentRange string `json:"Content-Range"`
 }
+
+// ListVariantsParams defines parameters for ListVariants.
+type ListVariantsParams struct {
+	// IncludeDeleted `1` also lists variants that were deleted with their saves kept (the recipe is kept for "Build it again").
+	IncludeDeleted *ListVariantsParamsIncludeDeleted `form:"include_deleted,omitempty" json:"include_deleted,omitempty"`
+}
+
+// ListVariantsParamsIncludeDeleted defines parameters for ListVariants.
+type ListVariantsParamsIncludeDeleted int
+
+// DeleteVariantParams defines parameters for DeleteVariant.
+type DeleteVariantParams struct {
+	Saves *DeleteVariantParamsSaves `form:"saves,omitempty" json:"saves,omitempty"`
+}
+
+// DeleteVariantParamsSaves defines parameters for DeleteVariant.
+type DeleteVariantParamsSaves string
 
 // UpdateAccountJSONRequestBody defines body for UpdateAccount for application/json ContentType.
 type UpdateAccountJSONRequestBody = AccountUpdate
@@ -4708,6 +5352,9 @@ type UpdateAdminSystemCoreJSONRequestBody = AdminCoreUpdate
 // PinAdminFirmwareFileJSONRequestBody defines body for PinAdminFirmwareFile for application/json ContentType.
 type PinAdminFirmwareFileJSONRequestBody = AdminFirmwarePin
 
+// UpdateAdminToolJSONRequestBody defines body for UpdateAdminTool for application/json ContentType.
+type UpdateAdminToolJSONRequestBody = AdminToolUpdate
+
 // InstallAdminUpdateJSONRequestBody defines body for InstallAdminUpdate for application/json ContentType.
 type InstallAdminUpdateJSONRequestBody = AdminUpdateInstall
 
@@ -4768,6 +5415,9 @@ type CreateSaveSnapshotJSONRequestBody = SaveSnapshotRequest
 // PutSaveStateMultipartRequestBody defines body for PutSaveState for multipart/form-data ContentType.
 type PutSaveStateMultipartRequestBody PutSaveStateMultipartBody
 
+// CreateVariantJSONRequestBody defines body for CreateVariant for application/json ContentType.
+type CreateVariantJSONRequestBody = VariantCreateRequest
+
 // PostHandshakeJSONRequestBody defines body for PostHandshake for application/json ContentType.
 type PostHandshakeJSONRequestBody = HandshakeRequest
 
@@ -4816,6 +5466,9 @@ type PutRunStateJSONRequestBody = RunStateRequest
 // SetRunStatusJSONRequestBody defines body for SetRunStatus for application/json ContentType.
 type SetRunStatusJSONRequestBody = RunStatusRequest
 
+// SetRunVariantStateJSONRequestBody defines body for SetRunVariantState for application/json ContentType.
+type SetRunVariantStateJSONRequestBody = RunVariantStateRequest
+
 // PublishSessionJSONRequestBody defines body for PublishSession for application/json ContentType.
 type PublishSessionJSONRequestBody = SessionPublishRequest
 
@@ -4827,6 +5480,9 @@ type SetupWithCodeJSONRequestBody = SetupRequest
 
 // CreateUploadJSONRequestBody defines body for CreateUpload for application/json ContentType.
 type CreateUploadJSONRequestBody = CreateUploadRequest
+
+// RenameVariantJSONRequestBody defines body for RenameVariant for application/json ContentType.
+type RenameVariantJSONRequestBody = VariantRenameRequest
 
 // Getter for additional properties for HandshakeRequest. Returns the specified
 // element and whether it was found
@@ -5588,6 +6244,21 @@ type ServerInterface interface {
 	// Pin or unpin the expected SHA-256 of a firmware file (admin)
 	// (POST /api/v1/admin/systems/{system_id}/firmware/{file_id}/pin)
 	PinAdminFirmwareFile(w http.ResponseWriter, r *http.Request, systemId AdminSystemId, fileId AdminFirmwareId)
+	// The tools catalog with every version, also the ones apps do not see (admin, `tools_v1`)
+	// (GET /api/v1/admin/tools)
+	ListAdminTools(w http.ResponseWriter, r *http.Request)
+	// Offer a tool to apps or stop offering it (admin)
+	// (PUT /api/v1/admin/tools/{tool_id})
+	UpdateAdminTool(w http.ResponseWriter, r *http.Request, toolId ToolId)
+	// Read the release list of the tool's source now (admin)
+	// (POST /api/v1/admin/tools/{tool_id}/sync)
+	SyncAdminTool(w http.ResponseWriter, r *http.Request, toolId ToolId)
+	// Remove a tool version with its cached files (admin)
+	// (DELETE /api/v1/admin/tools/{tool_id}/versions/{version})
+	RemoveAdminToolVersion(w http.ResponseWriter, r *http.Request, toolId ToolId, version ToolVersion)
+	// Download a tool version for every platform (admin)
+	// (POST /api/v1/admin/tools/{tool_id}/versions/{version}/install)
+	InstallAdminToolVersion(w http.ResponseWriter, r *http.Request, toolId ToolId, version ToolVersion)
 	// Check for an update now (admin)
 	// (POST /api/v1/admin/updates/check)
 	CheckAdminUpdates(w http.ResponseWriter, r *http.Request)
@@ -5783,6 +6454,12 @@ type ServerInterface interface {
 	// The preview PNG of a save state (`states_v1`)
 	// (GET /api/v1/games/{game_id}/states/{slot}/{n}/preview)
 	DownloadSaveStatePreview(w http.ResponseWriter, r *http.Request, gameId GameId, slot SaveSlotName, n SaveStateNumber)
+	// The caller's own variants of one game (`variants_v1`)
+	// (GET /api/v1/games/{game_id}/variants)
+	ListGameVariants(w http.ResponseWriter, r *http.Request, gameId GameId, params ListGameVariantsParams)
+	// Store a variant recipe for a game (`variants_v1`)
+	// (POST /api/v1/games/{game_id}/variants)
+	CreateVariant(w http.ResponseWriter, r *http.Request, gameId GameId)
 	// Handshake with capability negotiation
 	// (POST /api/v1/handshake)
 	PostHandshake(w http.ResponseWriter, r *http.Request)
@@ -5873,6 +6550,12 @@ type ServerInterface interface {
 	// Change the run status
 	// (POST /api/v1/runs/{run_id}/status)
 	SetRunStatus(w http.ResponseWriter, r *http.Request, runId RunId)
+	// The recipe the caller builds their variant of a randomizer run from (`variants_v1`)
+	// (GET /api/v1/runs/{run_id}/variant)
+	GetRunVariant(w http.ResponseWriter, r *http.Request, runId RunId)
+	// Report how far the caller's variant of a randomizer run is (`variants_v1`)
+	// (POST /api/v1/runs/{run_id}/variant-state)
+	SetRunVariantState(w http.ResponseWriter, r *http.Request, runId RunId)
 	// Save slots of the authenticated device's user
 	// (GET /api/v1/saves)
 	ListSaves(w http.ResponseWriter, r *http.Request)
@@ -5921,6 +6604,12 @@ type ServerInterface interface {
 	// Download a firmware file (any trusted device; never logged)
 	// (GET /api/v1/systems/{system_id}/firmware/{file_id})
 	GetFirmwareFile(w http.ResponseWriter, r *http.Request, systemId string, fileId string)
+	// Tools this server offers to apps (`tools_v1`, any trusted device)
+	// (GET /api/v1/tools)
+	ListTools(w http.ResponseWriter, r *http.Request)
+	// Download the zip of a tool version for a platform (`tools_v1`, any trusted device)
+	// (GET /api/v1/tools/{tool_id}/packages/{version}/{platform})
+	GetToolPackage(w http.ResponseWriter, r *http.Request, toolId ToolId, version ToolVersion, platform ToolPlatform, params GetToolPackageParams)
 	// Start or resume a resumable ROM upload (`local_roms_v1`)
 	// (POST /api/v1/uploads)
 	CreateUpload(w http.ResponseWriter, r *http.Request)
@@ -5936,6 +6625,15 @@ type ServerInterface interface {
 	// Users of this server (for the invite field)
 	// (GET /api/v1/users)
 	ListUsers(w http.ResponseWriter, r *http.Request)
+	// The caller's own variants of all games (`variants_v1`)
+	// (GET /api/v1/variants)
+	ListVariants(w http.ResponseWriter, r *http.Request, params ListVariantsParams)
+	// Delete an own variant (`variants_v1`)
+	// (DELETE /api/v1/variants/{variant_id})
+	DeleteVariant(w http.ResponseWriter, r *http.Request, variantId VariantId, params DeleteVariantParams)
+	// Rename an own variant (`variants_v1`)
+	// (PATCH /api/v1/variants/{variant_id})
+	RenameVariant(w http.ResponseWriter, r *http.Request, variantId VariantId)
 	// WSS upgrade (presence, Session events, signaling; documentation only, the upgrade is not a JSON call)
 	// (GET /api/v1/ws)
 	ConnectWebSocket(w http.ResponseWriter, r *http.Request)
@@ -8567,6 +9265,172 @@ func (siw *ServerInterfaceWrapper) PinAdminFirmwareFile(w http.ResponseWriter, r
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PinAdminFirmwareFile(w, r, systemId, fileId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListAdminTools operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminTools(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAdminTools(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateAdminTool operation middleware
+func (siw *ServerInterfaceWrapper) UpdateAdminTool(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "tool_id" -------------
+	var toolId ToolId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "tool_id", r.PathValue("tool_id"), &toolId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "tool_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateAdminTool(w, r, toolId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SyncAdminTool operation middleware
+func (siw *ServerInterfaceWrapper) SyncAdminTool(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "tool_id" -------------
+	var toolId ToolId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "tool_id", r.PathValue("tool_id"), &toolId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "tool_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SyncAdminTool(w, r, toolId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RemoveAdminToolVersion operation middleware
+func (siw *ServerInterfaceWrapper) RemoveAdminToolVersion(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "tool_id" -------------
+	var toolId ToolId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "tool_id", r.PathValue("tool_id"), &toolId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "tool_id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "version" -------------
+	var version ToolVersion
+
+	err = runtime.BindStyledParameterWithOptions("simple", "version", r.PathValue("version"), &version, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "version", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RemoveAdminToolVersion(w, r, toolId, version)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// InstallAdminToolVersion operation middleware
+func (siw *ServerInterfaceWrapper) InstallAdminToolVersion(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "tool_id" -------------
+	var toolId ToolId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "tool_id", r.PathValue("tool_id"), &toolId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "tool_id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "version" -------------
+	var version ToolVersion
+
+	err = runtime.BindStyledParameterWithOptions("simple", "version", r.PathValue("version"), &version, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "version", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.InstallAdminToolVersion(w, r, toolId, version)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -11310,6 +12174,86 @@ func (siw *ServerInterfaceWrapper) DownloadSaveStatePreview(w http.ResponseWrite
 	handler.ServeHTTP(w, r)
 }
 
+// ListGameVariants operation middleware
+func (siw *ServerInterfaceWrapper) ListGameVariants(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "game_id" -------------
+	var gameId GameId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "game_id", r.PathValue("game_id"), &gameId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "game_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListGameVariantsParams
+
+	// ------------- Optional query parameter "include_deleted" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "include_deleted", r.URL.Query(), &params.IncludeDeleted, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "include_deleted"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "include_deleted", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListGameVariants(w, r, gameId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateVariant operation middleware
+func (siw *ServerInterfaceWrapper) CreateVariant(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "game_id" -------------
+	var gameId GameId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "game_id", r.PathValue("game_id"), &gameId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "game_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateVariant(w, r, gameId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // PostHandshake operation middleware
 func (siw *ServerInterfaceWrapper) PostHandshake(w http.ResponseWriter, r *http.Request) {
 
@@ -12255,6 +13199,70 @@ func (siw *ServerInterfaceWrapper) SetRunStatus(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r)
 }
 
+// GetRunVariant operation middleware
+func (siw *ServerInterfaceWrapper) GetRunVariant(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "run_id" -------------
+	var runId RunId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "run_id", r.PathValue("run_id"), &runId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "run_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetRunVariant(w, r, runId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SetRunVariantState operation middleware
+func (siw *ServerInterfaceWrapper) SetRunVariantState(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "run_id" -------------
+	var runId RunId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "run_id", r.PathValue("run_id"), &runId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "run_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SetRunVariantState(w, r, runId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListSaves operation middleware
 func (siw *ServerInterfaceWrapper) ListSaves(w http.ResponseWriter, r *http.Request) {
 
@@ -12737,6 +13745,100 @@ func (siw *ServerInterfaceWrapper) GetFirmwareFile(w http.ResponseWriter, r *htt
 	handler.ServeHTTP(w, r)
 }
 
+// ListTools operation middleware
+func (siw *ServerInterfaceWrapper) ListTools(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListTools(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetToolPackage operation middleware
+func (siw *ServerInterfaceWrapper) GetToolPackage(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "tool_id" -------------
+	var toolId ToolId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "tool_id", r.PathValue("tool_id"), &toolId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "tool_id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "version" -------------
+	var version ToolVersion
+
+	err = runtime.BindStyledParameterWithOptions("simple", "version", r.PathValue("version"), &version, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "version", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "platform" -------------
+	var platform ToolPlatform
+
+	err = runtime.BindStyledParameterWithOptions("simple", "platform", r.PathValue("platform"), &platform, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "platform", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetToolPackageParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "If-None-Match" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("If-None-Match")]; found {
+		var IfNoneMatch string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "If-None-Match", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "If-None-Match", valueList[0], &IfNoneMatch, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "If-None-Match", Err: err})
+			return
+		}
+
+		params.IfNoneMatch = &IfNoneMatch
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetToolPackage(w, r, toolId, version, platform, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // CreateUpload operation middleware
 func (siw *ServerInterfaceWrapper) CreateUpload(w http.ResponseWriter, r *http.Request) {
 
@@ -12892,6 +13994,125 @@ func (siw *ServerInterfaceWrapper) ListUsers(w http.ResponseWriter, r *http.Requ
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListUsers(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListVariants operation middleware
+func (siw *ServerInterfaceWrapper) ListVariants(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListVariantsParams
+
+	// ------------- Optional query parameter "include_deleted" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "include_deleted", r.URL.Query(), &params.IncludeDeleted, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "include_deleted"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "include_deleted", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListVariants(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteVariant operation middleware
+func (siw *ServerInterfaceWrapper) DeleteVariant(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "variant_id" -------------
+	var variantId VariantId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "variant_id", r.PathValue("variant_id"), &variantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "variant_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteVariantParams
+
+	// ------------- Optional query parameter "saves" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "saves", r.URL.Query(), &params.Saves, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "saves"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "saves", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteVariant(w, r, variantId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RenameVariant operation middleware
+func (siw *ServerInterfaceWrapper) RenameVariant(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "variant_id" -------------
+	var variantId VariantId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "variant_id", r.PathValue("variant_id"), &variantId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "variant_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RenameVariant(w, r, variantId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -13136,6 +14357,11 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/admin/systems/{system_id}/firmware/{file_id}", wrapper.GetAdminFirmwareFile)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/api/v1/admin/systems/{system_id}/firmware/{file_id}", wrapper.PutAdminFirmwareFile)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/admin/systems/{system_id}/firmware/{file_id}/pin", wrapper.PinAdminFirmwareFile)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/admin/tools", wrapper.ListAdminTools)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/api/v1/admin/tools/{tool_id}", wrapper.UpdateAdminTool)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/admin/tools/{tool_id}/sync", wrapper.SyncAdminTool)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/api/v1/admin/tools/{tool_id}/versions/{version}", wrapper.RemoveAdminToolVersion)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/admin/tools/{tool_id}/versions/{version}/install", wrapper.InstallAdminToolVersion)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/admin/updates/check", wrapper.CheckAdminUpdates)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/admin/updates/install", wrapper.InstallAdminUpdate)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/admin/updates/resume", wrapper.ResumeAdminUpdates)
@@ -13201,6 +14427,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/games/{game_id}/states/{slot}/{n}", wrapper.DownloadSaveState)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/api/v1/games/{game_id}/states/{slot}/{n}", wrapper.PutSaveState)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/games/{game_id}/states/{slot}/{n}/preview", wrapper.DownloadSaveStatePreview)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/games/{game_id}/variants", wrapper.ListGameVariants)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/games/{game_id}/variants", wrapper.CreateVariant)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/handshake", wrapper.PostHandshake)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/invites/redeem", wrapper.RedeemInvite)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/local/pair", wrapper.LocalPair)
@@ -13231,6 +14459,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/runs/{run_id}/screenshots", wrapper.ListRunScreenshots)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/api/v1/runs/{run_id}/state/{plugin_id}", wrapper.PutRunState)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/runs/{run_id}/status", wrapper.SetRunStatus)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/runs/{run_id}/variant", wrapper.GetRunVariant)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/runs/{run_id}/variant-state", wrapper.SetRunVariantState)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/saves", wrapper.ListSaves)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/api/v1/screenshots/{screenshot_id}", wrapper.DeleteScreenshot)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/screenshots/{screenshot_id}/content", wrapper.DownloadScreenshotContent)
@@ -13247,11 +14477,16 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/setup", wrapper.SetupWithCode)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/systems", wrapper.ListSystems)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/systems/{system_id}/firmware/{file_id}", wrapper.GetFirmwareFile)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/tools", wrapper.ListTools)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/tools/{tool_id}/packages/{version}/{platform}", wrapper.GetToolPackage)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/uploads", wrapper.CreateUpload)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/api/v1/uploads/{upload_id}", wrapper.DeleteUpload)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/uploads/{upload_id}", wrapper.GetUpload)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/api/v1/uploads/{upload_id}", wrapper.PutUploadChunk)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/users", wrapper.ListUsers)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/variants", wrapper.ListVariants)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/api/v1/variants/{variant_id}", wrapper.DeleteVariant)
+	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/api/v1/variants/{variant_id}", wrapper.RenameVariant)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/ws", wrapper.ConnectWebSocket)
 
 	return m
@@ -13294,6 +14529,8 @@ type TooLargeJSONResponse Error
 type UnauthorizedJSONResponse Error
 
 type UploadsDisabledJSONResponse Error
+
+type VariantConflictJSONResponse Error
 
 type GetHubInfoRequestObject struct {
 }
@@ -19583,6 +20820,378 @@ func (response PinAdminFirmwareFile404JSONResponse) VisitPinAdminFirmwareFileRes
 	return err
 }
 
+type ListAdminToolsRequestObject struct {
+}
+
+type ListAdminToolsResponseObject interface {
+	VisitListAdminToolsResponse(w http.ResponseWriter) error
+}
+
+type ListAdminTools200JSONResponse AdminTools
+
+func (response ListAdminTools200JSONResponse) VisitListAdminToolsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminTools401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListAdminTools401JSONResponse) VisitListAdminToolsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminTools403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListAdminTools403JSONResponse) VisitListAdminToolsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminToolRequestObject struct {
+	ToolId ToolId `json:"tool_id"`
+	Body   *UpdateAdminToolJSONRequestBody
+}
+
+type UpdateAdminToolResponseObject interface {
+	VisitUpdateAdminToolResponse(w http.ResponseWriter) error
+}
+
+type UpdateAdminTool200JSONResponse AdminTool
+
+func (response UpdateAdminTool200JSONResponse) VisitUpdateAdminToolResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminTool400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UpdateAdminTool400JSONResponse) VisitUpdateAdminToolResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminTool401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateAdminTool401JSONResponse) VisitUpdateAdminToolResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminTool403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateAdminTool403JSONResponse) VisitUpdateAdminToolResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminTool404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateAdminTool404JSONResponse) VisitUpdateAdminToolResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SyncAdminToolRequestObject struct {
+	ToolId ToolId `json:"tool_id"`
+}
+
+type SyncAdminToolResponseObject interface {
+	VisitSyncAdminToolResponse(w http.ResponseWriter) error
+}
+
+type SyncAdminTool200JSONResponse AdminTool
+
+func (response SyncAdminTool200JSONResponse) VisitSyncAdminToolResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SyncAdminTool400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response SyncAdminTool400JSONResponse) VisitSyncAdminToolResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SyncAdminTool401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response SyncAdminTool401JSONResponse) VisitSyncAdminToolResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SyncAdminTool403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response SyncAdminTool403JSONResponse) VisitSyncAdminToolResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SyncAdminTool404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response SyncAdminTool404JSONResponse) VisitSyncAdminToolResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RemoveAdminToolVersionRequestObject struct {
+	ToolId  ToolId      `json:"tool_id"`
+	Version ToolVersion `json:"version"`
+}
+
+type RemoveAdminToolVersionResponseObject interface {
+	VisitRemoveAdminToolVersionResponse(w http.ResponseWriter) error
+}
+
+type RemoveAdminToolVersion204Response struct {
+}
+
+func (response RemoveAdminToolVersion204Response) VisitRemoveAdminToolVersionResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type RemoveAdminToolVersion401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response RemoveAdminToolVersion401JSONResponse) VisitRemoveAdminToolVersionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RemoveAdminToolVersion403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response RemoveAdminToolVersion403JSONResponse) VisitRemoveAdminToolVersionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RemoveAdminToolVersion404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response RemoveAdminToolVersion404JSONResponse) VisitRemoveAdminToolVersionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RemoveAdminToolVersion409JSONResponse ToolInUseError
+
+func (response RemoveAdminToolVersion409JSONResponse) VisitRemoveAdminToolVersionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type InstallAdminToolVersionRequestObject struct {
+	ToolId  ToolId      `json:"tool_id"`
+	Version ToolVersion `json:"version"`
+}
+
+type InstallAdminToolVersionResponseObject interface {
+	VisitInstallAdminToolVersionResponse(w http.ResponseWriter) error
+}
+
+type InstallAdminToolVersion200JSONResponse AdminTool
+
+func (response InstallAdminToolVersion200JSONResponse) VisitInstallAdminToolVersionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type InstallAdminToolVersion400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response InstallAdminToolVersion400JSONResponse) VisitInstallAdminToolVersionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type InstallAdminToolVersion401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response InstallAdminToolVersion401JSONResponse) VisitInstallAdminToolVersionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type InstallAdminToolVersion403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response InstallAdminToolVersion403JSONResponse) VisitInstallAdminToolVersionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type InstallAdminToolVersion404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response InstallAdminToolVersion404JSONResponse) VisitInstallAdminToolVersionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type InstallAdminToolVersion409JSONResponse struct{ AdminConflictJSONResponse }
+
+func (response InstallAdminToolVersion409JSONResponse) VisitInstallAdminToolVersionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type CheckAdminUpdatesRequestObject struct {
 }
 
@@ -24317,6 +25926,136 @@ func (response DownloadSaveStatePreview404JSONResponse) VisitDownloadSaveStatePr
 	return err
 }
 
+type ListGameVariantsRequestObject struct {
+	GameId GameId `json:"game_id"`
+	Params ListGameVariantsParams
+}
+
+type ListGameVariantsResponseObject interface {
+	VisitListGameVariantsResponse(w http.ResponseWriter) error
+}
+
+type ListGameVariants200JSONResponse VariantList
+
+func (response ListGameVariants200JSONResponse) VisitListGameVariantsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListGameVariants401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListGameVariants401JSONResponse) VisitListGameVariantsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListGameVariants404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ListGameVariants404JSONResponse) VisitListGameVariantsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateVariantRequestObject struct {
+	GameId GameId `json:"game_id"`
+	Body   *CreateVariantJSONRequestBody
+}
+
+type CreateVariantResponseObject interface {
+	VisitCreateVariantResponse(w http.ResponseWriter) error
+}
+
+type CreateVariant201JSONResponse Variant
+
+func (response CreateVariant201JSONResponse) VisitCreateVariantResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateVariant400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response CreateVariant400JSONResponse) VisitCreateVariantResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateVariant401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateVariant401JSONResponse) VisitCreateVariantResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateVariant404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CreateVariant404JSONResponse) VisitCreateVariantResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateVariant409JSONResponse struct{ VariantConflictJSONResponse }
+
+func (response CreateVariant409JSONResponse) VisitCreateVariantResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type PostHandshakeRequestObject struct {
 	Body *PostHandshakeJSONRequestBody
 }
@@ -26716,6 +28455,177 @@ func (response SetRunStatus413JSONResponse) VisitSetRunStatusResponse(w http.Res
 	return err
 }
 
+type GetRunVariantRequestObject struct {
+	RunId RunId `json:"run_id"`
+}
+
+type GetRunVariantResponseObject interface {
+	VisitGetRunVariantResponse(w http.ResponseWriter) error
+}
+
+type GetRunVariant200JSONResponse RunVariant
+
+func (response GetRunVariant200JSONResponse) VisitGetRunVariantResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetRunVariant401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetRunVariant401JSONResponse) VisitGetRunVariantResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetRunVariant403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetRunVariant403JSONResponse) VisitGetRunVariantResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetRunVariant404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetRunVariant404JSONResponse) VisitGetRunVariantResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetRunVariant409JSONResponse struct{ RunConflictJSONResponse }
+
+func (response GetRunVariant409JSONResponse) VisitGetRunVariantResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetRunVariantStateRequestObject struct {
+	RunId RunId `json:"run_id"`
+	Body  *SetRunVariantStateJSONRequestBody
+}
+
+type SetRunVariantStateResponseObject interface {
+	VisitSetRunVariantStateResponse(w http.ResponseWriter) error
+}
+
+type SetRunVariantState200JSONResponse Run
+
+func (response SetRunVariantState200JSONResponse) VisitSetRunVariantStateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetRunVariantState400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response SetRunVariantState400JSONResponse) VisitSetRunVariantStateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetRunVariantState401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response SetRunVariantState401JSONResponse) VisitSetRunVariantStateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetRunVariantState403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response SetRunVariantState403JSONResponse) VisitSetRunVariantStateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetRunVariantState404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response SetRunVariantState404JSONResponse) VisitSetRunVariantStateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetRunVariantState409JSONResponse struct{ RunConflictJSONResponse }
+
+func (response SetRunVariantState409JSONResponse) VisitSetRunVariantStateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListSavesRequestObject struct {
 }
 
@@ -27864,6 +29774,128 @@ func (response GetFirmwareFile404JSONResponse) VisitGetFirmwareFileResponse(w ht
 	return err
 }
 
+type ListToolsRequestObject struct {
+}
+
+type ListToolsResponseObject interface {
+	VisitListToolsResponse(w http.ResponseWriter) error
+}
+
+type ListTools200JSONResponse ToolList
+
+func (response ListTools200JSONResponse) VisitListToolsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListTools401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListTools401JSONResponse) VisitListToolsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetToolPackageRequestObject struct {
+	ToolId   ToolId       `json:"tool_id"`
+	Version  ToolVersion  `json:"version"`
+	Platform ToolPlatform `json:"platform"`
+	Params   GetToolPackageParams
+}
+
+type GetToolPackageResponseObject interface {
+	VisitGetToolPackageResponse(w http.ResponseWriter) error
+}
+
+type GetToolPackage200ResponseHeaders struct {
+	ContentLength *int64
+	ETag          *string
+}
+
+type GetToolPackage200ApplicationzipResponse struct {
+	Body          io.Reader
+	Headers       GetToolPackage200ResponseHeaders
+	ContentLength int64
+}
+
+func (response GetToolPackage200ApplicationzipResponse) VisitGetToolPackageResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "application/zip")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	if response.Headers.ContentLength != nil {
+		w.Header().Set("Content-Length", fmt.Sprint(*response.Headers.ContentLength))
+	}
+	if response.Headers.ETag != nil {
+		w.Header().Set("ETag", fmt.Sprint(*response.Headers.ETag))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type GetToolPackage304ResponseHeaders struct {
+	ETag *string
+}
+
+type GetToolPackage304Response struct {
+	Headers GetToolPackage304ResponseHeaders
+}
+
+func (response GetToolPackage304Response) VisitGetToolPackageResponse(w http.ResponseWriter) error {
+	if response.Headers.ETag != nil {
+		w.Header().Set("ETag", fmt.Sprint(*response.Headers.ETag))
+	}
+	w.WriteHeader(304)
+	return nil
+}
+
+type GetToolPackage401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetToolPackage401JSONResponse) VisitGetToolPackageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetToolPackage404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetToolPackage404JSONResponse) VisitGetToolPackageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type CreateUploadRequestObject struct {
 	Body *CreateUploadJSONRequestBody
 }
@@ -28235,6 +30267,194 @@ func (response ListUsers401JSONResponse) VisitListUsersResponse(w http.ResponseW
 	return err
 }
 
+type ListVariantsRequestObject struct {
+	Params ListVariantsParams
+}
+
+type ListVariantsResponseObject interface {
+	VisitListVariantsResponse(w http.ResponseWriter) error
+}
+
+type ListVariants200JSONResponse VariantList
+
+func (response ListVariants200JSONResponse) VisitListVariantsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListVariants401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListVariants401JSONResponse) VisitListVariantsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteVariantRequestObject struct {
+	VariantId VariantId `json:"variant_id"`
+	Params    DeleteVariantParams
+}
+
+type DeleteVariantResponseObject interface {
+	VisitDeleteVariantResponse(w http.ResponseWriter) error
+}
+
+type DeleteVariant204Response struct {
+}
+
+func (response DeleteVariant204Response) VisitDeleteVariantResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteVariant400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response DeleteVariant400JSONResponse) VisitDeleteVariantResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteVariant401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteVariant401JSONResponse) VisitDeleteVariantResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteVariant404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteVariant404JSONResponse) VisitDeleteVariantResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteVariant409JSONResponse struct{ VariantConflictJSONResponse }
+
+func (response DeleteVariant409JSONResponse) VisitDeleteVariantResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RenameVariantRequestObject struct {
+	VariantId VariantId `json:"variant_id"`
+	Body      *RenameVariantJSONRequestBody
+}
+
+type RenameVariantResponseObject interface {
+	VisitRenameVariantResponse(w http.ResponseWriter) error
+}
+
+type RenameVariant200JSONResponse Variant
+
+func (response RenameVariant200JSONResponse) VisitRenameVariantResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RenameVariant400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response RenameVariant400JSONResponse) VisitRenameVariantResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RenameVariant401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response RenameVariant401JSONResponse) VisitRenameVariantResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RenameVariant404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response RenameVariant404JSONResponse) VisitRenameVariantResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RenameVariant409JSONResponse struct{ VariantConflictJSONResponse }
+
+func (response RenameVariant409JSONResponse) VisitRenameVariantResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ConnectWebSocketRequestObject struct {
 }
 
@@ -28551,6 +30771,21 @@ type StrictServerInterface interface {
 	// Pin or unpin the expected SHA-256 of a firmware file (admin)
 	// (POST /api/v1/admin/systems/{system_id}/firmware/{file_id}/pin)
 	PinAdminFirmwareFile(ctx context.Context, request PinAdminFirmwareFileRequestObject) (PinAdminFirmwareFileResponseObject, error)
+	// The tools catalog with every version, also the ones apps do not see (admin, `tools_v1`)
+	// (GET /api/v1/admin/tools)
+	ListAdminTools(ctx context.Context, request ListAdminToolsRequestObject) (ListAdminToolsResponseObject, error)
+	// Offer a tool to apps or stop offering it (admin)
+	// (PUT /api/v1/admin/tools/{tool_id})
+	UpdateAdminTool(ctx context.Context, request UpdateAdminToolRequestObject) (UpdateAdminToolResponseObject, error)
+	// Read the release list of the tool's source now (admin)
+	// (POST /api/v1/admin/tools/{tool_id}/sync)
+	SyncAdminTool(ctx context.Context, request SyncAdminToolRequestObject) (SyncAdminToolResponseObject, error)
+	// Remove a tool version with its cached files (admin)
+	// (DELETE /api/v1/admin/tools/{tool_id}/versions/{version})
+	RemoveAdminToolVersion(ctx context.Context, request RemoveAdminToolVersionRequestObject) (RemoveAdminToolVersionResponseObject, error)
+	// Download a tool version for every platform (admin)
+	// (POST /api/v1/admin/tools/{tool_id}/versions/{version}/install)
+	InstallAdminToolVersion(ctx context.Context, request InstallAdminToolVersionRequestObject) (InstallAdminToolVersionResponseObject, error)
 	// Check for an update now (admin)
 	// (POST /api/v1/admin/updates/check)
 	CheckAdminUpdates(ctx context.Context, request CheckAdminUpdatesRequestObject) (CheckAdminUpdatesResponseObject, error)
@@ -28746,6 +30981,12 @@ type StrictServerInterface interface {
 	// The preview PNG of a save state (`states_v1`)
 	// (GET /api/v1/games/{game_id}/states/{slot}/{n}/preview)
 	DownloadSaveStatePreview(ctx context.Context, request DownloadSaveStatePreviewRequestObject) (DownloadSaveStatePreviewResponseObject, error)
+	// The caller's own variants of one game (`variants_v1`)
+	// (GET /api/v1/games/{game_id}/variants)
+	ListGameVariants(ctx context.Context, request ListGameVariantsRequestObject) (ListGameVariantsResponseObject, error)
+	// Store a variant recipe for a game (`variants_v1`)
+	// (POST /api/v1/games/{game_id}/variants)
+	CreateVariant(ctx context.Context, request CreateVariantRequestObject) (CreateVariantResponseObject, error)
 	// Handshake with capability negotiation
 	// (POST /api/v1/handshake)
 	PostHandshake(ctx context.Context, request PostHandshakeRequestObject) (PostHandshakeResponseObject, error)
@@ -28836,6 +31077,12 @@ type StrictServerInterface interface {
 	// Change the run status
 	// (POST /api/v1/runs/{run_id}/status)
 	SetRunStatus(ctx context.Context, request SetRunStatusRequestObject) (SetRunStatusResponseObject, error)
+	// The recipe the caller builds their variant of a randomizer run from (`variants_v1`)
+	// (GET /api/v1/runs/{run_id}/variant)
+	GetRunVariant(ctx context.Context, request GetRunVariantRequestObject) (GetRunVariantResponseObject, error)
+	// Report how far the caller's variant of a randomizer run is (`variants_v1`)
+	// (POST /api/v1/runs/{run_id}/variant-state)
+	SetRunVariantState(ctx context.Context, request SetRunVariantStateRequestObject) (SetRunVariantStateResponseObject, error)
 	// Save slots of the authenticated device's user
 	// (GET /api/v1/saves)
 	ListSaves(ctx context.Context, request ListSavesRequestObject) (ListSavesResponseObject, error)
@@ -28884,6 +31131,12 @@ type StrictServerInterface interface {
 	// Download a firmware file (any trusted device; never logged)
 	// (GET /api/v1/systems/{system_id}/firmware/{file_id})
 	GetFirmwareFile(ctx context.Context, request GetFirmwareFileRequestObject) (GetFirmwareFileResponseObject, error)
+	// Tools this server offers to apps (`tools_v1`, any trusted device)
+	// (GET /api/v1/tools)
+	ListTools(ctx context.Context, request ListToolsRequestObject) (ListToolsResponseObject, error)
+	// Download the zip of a tool version for a platform (`tools_v1`, any trusted device)
+	// (GET /api/v1/tools/{tool_id}/packages/{version}/{platform})
+	GetToolPackage(ctx context.Context, request GetToolPackageRequestObject) (GetToolPackageResponseObject, error)
 	// Start or resume a resumable ROM upload (`local_roms_v1`)
 	// (POST /api/v1/uploads)
 	CreateUpload(ctx context.Context, request CreateUploadRequestObject) (CreateUploadResponseObject, error)
@@ -28899,6 +31152,15 @@ type StrictServerInterface interface {
 	// Users of this server (for the invite field)
 	// (GET /api/v1/users)
 	ListUsers(ctx context.Context, request ListUsersRequestObject) (ListUsersResponseObject, error)
+	// The caller's own variants of all games (`variants_v1`)
+	// (GET /api/v1/variants)
+	ListVariants(ctx context.Context, request ListVariantsRequestObject) (ListVariantsResponseObject, error)
+	// Delete an own variant (`variants_v1`)
+	// (DELETE /api/v1/variants/{variant_id})
+	DeleteVariant(ctx context.Context, request DeleteVariantRequestObject) (DeleteVariantResponseObject, error)
+	// Rename an own variant (`variants_v1`)
+	// (PATCH /api/v1/variants/{variant_id})
+	RenameVariant(ctx context.Context, request RenameVariantRequestObject) (RenameVariantResponseObject, error)
 	// WSS upgrade (presence, Session events, signaling; documentation only, the upgrade is not a JSON call)
 	// (GET /api/v1/ws)
 	ConnectWebSocket(ctx context.Context, request ConnectWebSocketRequestObject) (ConnectWebSocketResponseObject, error)
@@ -31502,6 +33764,143 @@ func (sh *strictHandler) PinAdminFirmwareFile(w http.ResponseWriter, r *http.Req
 	}
 }
 
+// ListAdminTools operation middleware
+func (sh *strictHandler) ListAdminTools(w http.ResponseWriter, r *http.Request) {
+	var request ListAdminToolsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListAdminTools(ctx, request.(ListAdminToolsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListAdminTools")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListAdminToolsResponseObject); ok {
+		if err := validResponse.VisitListAdminToolsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateAdminTool operation middleware
+func (sh *strictHandler) UpdateAdminTool(w http.ResponseWriter, r *http.Request, toolId ToolId) {
+	var request UpdateAdminToolRequestObject
+
+	request.ToolId = toolId
+
+	var body UpdateAdminToolJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateAdminTool(ctx, request.(UpdateAdminToolRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateAdminTool")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateAdminToolResponseObject); ok {
+		if err := validResponse.VisitUpdateAdminToolResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SyncAdminTool operation middleware
+func (sh *strictHandler) SyncAdminTool(w http.ResponseWriter, r *http.Request, toolId ToolId) {
+	var request SyncAdminToolRequestObject
+
+	request.ToolId = toolId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SyncAdminTool(ctx, request.(SyncAdminToolRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SyncAdminTool")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SyncAdminToolResponseObject); ok {
+		if err := validResponse.VisitSyncAdminToolResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RemoveAdminToolVersion operation middleware
+func (sh *strictHandler) RemoveAdminToolVersion(w http.ResponseWriter, r *http.Request, toolId ToolId, version ToolVersion) {
+	var request RemoveAdminToolVersionRequestObject
+
+	request.ToolId = toolId
+	request.Version = version
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RemoveAdminToolVersion(ctx, request.(RemoveAdminToolVersionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RemoveAdminToolVersion")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RemoveAdminToolVersionResponseObject); ok {
+		if err := validResponse.VisitRemoveAdminToolVersionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// InstallAdminToolVersion operation middleware
+func (sh *strictHandler) InstallAdminToolVersion(w http.ResponseWriter, r *http.Request, toolId ToolId, version ToolVersion) {
+	var request InstallAdminToolVersionRequestObject
+
+	request.ToolId = toolId
+	request.Version = version
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.InstallAdminToolVersion(ctx, request.(InstallAdminToolVersionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "InstallAdminToolVersion")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(InstallAdminToolVersionResponseObject); ok {
+		if err := validResponse.VisitInstallAdminToolVersionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // CheckAdminUpdates operation middleware
 func (sh *strictHandler) CheckAdminUpdates(w http.ResponseWriter, r *http.Request) {
 	var request CheckAdminUpdatesRequestObject
@@ -33390,6 +35789,66 @@ func (sh *strictHandler) DownloadSaveStatePreview(w http.ResponseWriter, r *http
 	}
 }
 
+// ListGameVariants operation middleware
+func (sh *strictHandler) ListGameVariants(w http.ResponseWriter, r *http.Request, gameId GameId, params ListGameVariantsParams) {
+	var request ListGameVariantsRequestObject
+
+	request.GameId = gameId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListGameVariants(ctx, request.(ListGameVariantsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListGameVariants")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListGameVariantsResponseObject); ok {
+		if err := validResponse.VisitListGameVariantsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateVariant operation middleware
+func (sh *strictHandler) CreateVariant(w http.ResponseWriter, r *http.Request, gameId GameId) {
+	var request CreateVariantRequestObject
+
+	request.GameId = gameId
+
+	var body CreateVariantJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateVariant(ctx, request.(CreateVariantRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateVariant")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateVariantResponseObject); ok {
+		if err := validResponse.VisitCreateVariantResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // PostHandshake operation middleware
 func (sh *strictHandler) PostHandshake(w http.ResponseWriter, r *http.Request) {
 	var request PostHandshakeRequestObject
@@ -34270,6 +36729,65 @@ func (sh *strictHandler) SetRunStatus(w http.ResponseWriter, r *http.Request, ru
 	}
 }
 
+// GetRunVariant operation middleware
+func (sh *strictHandler) GetRunVariant(w http.ResponseWriter, r *http.Request, runId RunId) {
+	var request GetRunVariantRequestObject
+
+	request.RunId = runId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetRunVariant(ctx, request.(GetRunVariantRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetRunVariant")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetRunVariantResponseObject); ok {
+		if err := validResponse.VisitGetRunVariantResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SetRunVariantState operation middleware
+func (sh *strictHandler) SetRunVariantState(w http.ResponseWriter, r *http.Request, runId RunId) {
+	var request SetRunVariantStateRequestObject
+
+	request.RunId = runId
+
+	var body SetRunVariantStateJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SetRunVariantState(ctx, request.(SetRunVariantStateRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SetRunVariantState")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SetRunVariantStateResponseObject); ok {
+		if err := validResponse.VisitSetRunVariantStateResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListSaves operation middleware
 func (sh *strictHandler) ListSaves(w http.ResponseWriter, r *http.Request) {
 	var request ListSavesRequestObject
@@ -34701,6 +37219,59 @@ func (sh *strictHandler) GetFirmwareFile(w http.ResponseWriter, r *http.Request,
 	}
 }
 
+// ListTools operation middleware
+func (sh *strictHandler) ListTools(w http.ResponseWriter, r *http.Request) {
+	var request ListToolsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListTools(ctx, request.(ListToolsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListTools")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListToolsResponseObject); ok {
+		if err := validResponse.VisitListToolsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetToolPackage operation middleware
+func (sh *strictHandler) GetToolPackage(w http.ResponseWriter, r *http.Request, toolId ToolId, version ToolVersion, platform ToolPlatform, params GetToolPackageParams) {
+	var request GetToolPackageRequestObject
+
+	request.ToolId = toolId
+	request.Version = version
+	request.Platform = platform
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetToolPackage(ctx, request.(GetToolPackageRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetToolPackage")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetToolPackageResponseObject); ok {
+		if err := validResponse.VisitGetToolPackageResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // CreateUpload operation middleware
 func (sh *strictHandler) CreateUpload(w http.ResponseWriter, r *http.Request) {
 	var request CreateUploadRequestObject
@@ -34830,6 +37401,92 @@ func (sh *strictHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListUsersResponseObject); ok {
 		if err := validResponse.VisitListUsersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListVariants operation middleware
+func (sh *strictHandler) ListVariants(w http.ResponseWriter, r *http.Request, params ListVariantsParams) {
+	var request ListVariantsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListVariants(ctx, request.(ListVariantsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListVariants")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListVariantsResponseObject); ok {
+		if err := validResponse.VisitListVariantsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteVariant operation middleware
+func (sh *strictHandler) DeleteVariant(w http.ResponseWriter, r *http.Request, variantId VariantId, params DeleteVariantParams) {
+	var request DeleteVariantRequestObject
+
+	request.VariantId = variantId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteVariant(ctx, request.(DeleteVariantRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteVariant")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteVariantResponseObject); ok {
+		if err := validResponse.VisitDeleteVariantResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RenameVariant operation middleware
+func (sh *strictHandler) RenameVariant(w http.ResponseWriter, r *http.Request, variantId VariantId) {
+	var request RenameVariantRequestObject
+
+	request.VariantId = variantId
+
+	var body RenameVariantJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RenameVariant(ctx, request.(RenameVariantRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RenameVariant")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RenameVariantResponseObject); ok {
+		if err := validResponse.VisitRenameVariantResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

@@ -121,3 +121,40 @@ func TestImportCores(t *testing.T) {
 		t.Fatal("http source accepted")
 	}
 }
+
+func TestImportTools(t *testing.T) {
+	in, data := t.TempDir(), t.TempDir()
+	good := filepath.Join(in, "UPR_FVX-v1_6_2-Linux_x86.zip")
+	if err := os.WriteFile(good, hubtest.ToolZip(t, "linux-x64", true, "x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	win := filepath.Join(in, "UPR_FVX-v1_6_2-Windows.zip")
+	if err := os.WriteFile(win, hubtest.ToolZip(t, "windows-x64", false, "x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var out strings.Builder
+	// The files may come before or after the flags.
+	if err := runImportTools([]string{good, "-data-dir", data, win}, &out); err != nil {
+		t.Fatalf("%v %q", err, out.String())
+	}
+	if strings.Count(out.String(), "Added") != 2 || !strings.Contains(out.String(), "randomizer 1.6.2 linux-x64") || !strings.Contains(out.String(), "randomizer 1.6.2 windows-x64") {
+		t.Fatalf("%q", out.String())
+	}
+	if _, err := os.Stat(filepath.Join(data, "tools", "randomizer", "1.6.2", "linux-x64.zip")); err != nil {
+		t.Fatal(err)
+	}
+	out.Reset()
+	if err := runImportTools([]string{"-data-dir", data, good}, &out); err != nil || !strings.Contains(out.String(), "Unchanged") {
+		t.Fatalf("again: %v %q", err, out.String())
+	}
+	// A wrong name or content is rejected with its reason and fails the command.
+	bad := filepath.Join(in, "engine.zip")
+	os.WriteFile(bad, []byte("x"), 0o600)
+	out.Reset()
+	if err := runImportTools([]string{"-data-dir", data, bad, good}, &out); err == nil || !strings.Contains(out.String(), "Rejected") || !strings.Contains(out.String(), "file name") {
+		t.Fatalf("%v %q", err, out.String())
+	}
+	if err := runImportTools([]string{"-data-dir", data}, &out); err == nil {
+		t.Fatal("no files accepted")
+	}
+}
