@@ -1096,7 +1096,7 @@ void RunsController::startRun(const QString& name, const QString& gameId, const 
     const QString settings = randomizer.value(QStringLiteral("settings")).toString().trimmed();
     const QString toolVersion = randomizer.value(QStringLiteral("tool_version")).toString();
     if (problem.isEmpty() && settings.isEmpty()) problem = tr("Pick a preset or paste a settings string for the randomizer.");
-    else if (problem.isEmpty() && toolVersion.isEmpty()) problem = tr("Home server offers no randomizer. Admins: Server › Tools.");
+    else if (problem.isEmpty() && toolVersion.isEmpty()) problem = tr("The server offers no randomizer. Admins: Server › Tools.");
     rz = {{QStringLiteral("mode"), rzMode},
           {QStringLiteral("settings"), settings},
           {QStringLiteral("tool_id"), QStringLiteral("randomizer")},

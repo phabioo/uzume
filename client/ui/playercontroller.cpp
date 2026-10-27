@@ -401,6 +401,7 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
     toolCache_ = std::make_unique<ToolCache>(profiles_->toolCacheDir());
     variantCache_ = std::make_unique<VariantCache>(profiles_->variantCacheDir());
     toolsClient_ = std::make_unique<ToolsClient>(conn_.get(), toolCache_.get());
+    connect(admin_.get(), &AdminController::toolsChanged, toolsClient_.get(), &ToolsClient::refresh);  // Server > Tools changed what is offered
     variantsClient_ = std::make_unique<VariantsClient>(conn_.get());
     auto bridge = std::make_shared<VariantsPluginBridge>();
     VariantsController::Deps vd;

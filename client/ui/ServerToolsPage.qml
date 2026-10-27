@@ -46,7 +46,7 @@ AdminPage {
     label: qsTr("Server")
     area: qsTr("Tools")
     helpItems: [
-        { title: qsTr("Versions"), text: qsTr("Updating never changes a running run or an existing recipe. Home server keeps every version still in use.") }
+        { title: qsTr("Versions"), text: qsTr("Updating never changes a running run or an existing recipe. %1 keeps every version still in use.").arg(root.serverName) }
     ]
 
     // ------------------------------------------------------------ text helpers
@@ -70,8 +70,12 @@ AdminPage {
         const same = d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate()
         return same ? qsTr("today %1").arg(Qt.formatTime(d, "HH:mm")) : Qt.formatDateTime(d, "d MMM HH:mm")
     }
-    function mb(bytes: real): string {
-        return qsTr("%1 MB").arg(Math.max(1, Math.round(bytes / 1000000)))
+    function bytesText(n: real): string {
+        const gib = Math.pow(1024, 3), mib = Math.pow(1024, 2)
+        const trim = (v) => { const t = v.toFixed(1); return t.endsWith(".0") ? t.slice(0, -2) : t }
+        if (n >= gib) return qsTr("%1 GB").arg(trim(n / gib))
+        if (n >= mib) return qsTr("%1 MB").arg(Math.round(n / mib))
+        return qsTr("%1 KB").arg(Math.max(1, Math.round(n / 1024)))
     }
     function sizeOf(v: var): real {
         let m = 0
@@ -111,7 +115,7 @@ AdminPage {
         return ""
     }
     readonly property var versionRows: root.installedVersions.map((v, i) => ({
-        version: v.version, used: root.usageText(v.used_by), size: root.mb(root.sizeOf(v)),
+        version: v.version, used: root.usageText(v.used_by), size: root.bytesText(root.sizeOf(v)),
         offered: i === 0 && root.tool !== null && root.tool.offered === true, origin: root.originText(v), inUse: root.usedCount(v) > 0 }))
 
     // One line of the facts list: Mono label (96 wide) at the left, the value beside it, a hairline under it.
@@ -242,7 +246,7 @@ AdminPage {
                 root.applyTool(data)
             } else {
                 // The download was refused or the file is not the engine (10h-2b): the server's reason is the message.
-                root.say(code === "tool_hash_mismatch" ? qsTr("Could not get %1: this file isn't the release Home server pinned.").arg(version)
+                root.say(code === "tool_hash_mismatch" ? qsTr("Could not get %1: this file isn't the release %2 pinned.").arg(version).arg(root.serverName)
                                                       : root.failText(qsTr("Could not get %1").arg(version), message), "error")
                 root.load()
             }
@@ -262,7 +266,7 @@ AdminPage {
             if (ok && data) {
                 root.applyTool(data)
                 if ((data.latest_version ?? "") !== "") root.install(data.latest_version)
-                else root.say(qsTr("Home server found no release to download."), "warning")
+                else root.say(qsTr("%1 found no release to download.").arg(root.serverName), "warning")
             } else {
                 root.say(root.failText(qsTr("Could not check for updates"), message), "error")
             }
@@ -286,7 +290,7 @@ AdminPage {
                 root.load()
             } else if (code === "tool_in_use") {
                 // 409: a variant or a run still pins it; the counts come from the answer.
-                root.removeError = qsTr("Home server keeps %1 while %2 use it.").arg(version).arg(root.usageText(data ? data.used_by : null))
+                root.removeError = qsTr("%1 keeps %2 while %3 use it.").arg(root.serverName).arg(version).arg(root.usageText(data ? data.used_by : null))
                 root.load()
             } else {
                 root.removeError = root.failText(qsTr("Could not remove %1").arg(version), message)
@@ -314,7 +318,7 @@ AdminPage {
         Layout.fillWidth: true
         wrapMode: Text.Wrap
         textFormat: Text.PlainText
-        text: qsTr("Programs Home server offers to apps, like cores. Apps run them on their own PC; game files never come here.")
+        text: qsTr("Programs %1 offers to apps, like cores. Apps run them on their own PC; game files never come here.").arg(root.serverName)
         font.family: Theme.sans
         font.pixelSize: Theme.roles.input.size
         lineHeight: Theme.roles.small.line
@@ -349,7 +353,7 @@ AdminPage {
             Layout.fillWidth: true
             kind: "empty"
             title: qsTr("No tools yet")
-            text: qsTr("Tools are programs Home server offers to apps, like cores. The Randomizer plugin needs its engine.")
+            text: qsTr("Tools are programs %1 offers to apps, like cores. The Randomizer plugin needs its engine.").arg(root.serverName)
             action: root.tool !== null && root.source.state !== "off" ? qsTr("Get the engine") : ""
             onActionClicked: root.getEngine()
         }
@@ -361,7 +365,7 @@ AdminPage {
                 objectName: "toolSourceProblemEmpty"
                 kind: "warning"
                 small: true
-                text: root.source.state === "off" ? qsTr("Home server has no place to get tools from.") : qsTr("Home server can't reach the internet.")
+                text: root.source.state === "off" ? qsTr("%1 has no place to get tools from.").arg(root.serverName) : qsTr("%1 can't reach the internet.").arg(root.serverName)
                 maxWidth: 640
             }
             Text {
@@ -450,7 +454,7 @@ AdminPage {
         Fact {
             label: qsTr("Size")
             valueName: "toolFactSize"
-            value: qsTr("%1 per PC · downloaded once").arg(root.mb(root.sizeOf(root.newest)))
+            value: qsTr("%1 per PC · downloaded once").arg(root.bytesText(root.sizeOf(root.newest)))
         }
         Fact {
             label: qsTr("Platforms")
@@ -461,7 +465,7 @@ AdminPage {
             label: qsTr("License")
             inlineExtra: true
             valueName: "toolFactLicense"
-            value: root.tool ? qsTr("%1 · ").arg(root.tool.license) : ""
+            value: root.tool ? qsTr("%1 ·").arg(root.tool.license) : ""
             UzButton {
                 objectName: "toolSourceLink"
                 kind: "link"
@@ -475,12 +479,11 @@ AdminPage {
             objectName: "toolOfferRow"
             Layout.fillWidth: true
             Layout.minimumWidth: 0
-            Layout.rightMargin: -Theme.settingsResetWidth
             resetMode: "none"
             idKey: "offer"
             label: qsTr("Offer to apps")
             descriptionName: "toolOfferNote"
-            description: root.tool && root.tool.offered === true ? qsTr("Apps download the engine from Home server when someone builds a variant.")
+            description: root.tool && root.tool.offered === true ? qsTr("Apps download the engine from %1 when someone builds a variant.").arg(root.serverName)
                                                                 : qsTr("Apps can't build new variants. Existing variants keep playing.")
             ctrl: "toggle"
             controlName: "toolOffer"
@@ -520,7 +523,7 @@ AdminPage {
                 objectName: "toolSourceProblem"
                 kind: "warning"
                 small: true
-                text: root.source.state === "off" ? qsTr("Home server has no place to check for updates.") : qsTr("Home server can't reach the internet.")
+                text: root.source.state === "off" ? qsTr("%1 has no place to check for updates.").arg(root.serverName) : qsTr("%1 can't reach the internet.").arg(root.serverName)
                 maxWidth: 640
             }
             Text {

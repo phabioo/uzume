@@ -1065,6 +1065,7 @@ Rectangle {
         sourceComponent: RunStartDialog {
             objectName: "detailRunStartDialog"
             runs: root.player.runs
+            serverName: root.player.hubName
             pcOnly: root.player.localHub.onThisPcOnly
         }
         function openFor(gameId) {

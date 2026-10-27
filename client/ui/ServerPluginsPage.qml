@@ -234,7 +234,7 @@ AdminPage {
         if (st !== null) root.call("DELETE", "/admin/plugins/stage/" + st.stage_id, undefined, function () {})
     }
 
-    // 10h-3: the Randomizer plugin's detail says which engine Home server offers to apps.
+    // 10h-3: the Randomizer plugin's detail says which engine the server offers to apps.
     readonly property bool randomizerSelected: root.selected !== null && root.selected.plugin_id === "uzume.randomizer"
     readonly property string engineLine: {
         const t = root.engineTool

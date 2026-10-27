@@ -154,12 +154,12 @@ class RandomizerUiTest : public QObject {
     openTools(h);
     QCOMPARE(h.item("serverTabs")->property("active").toString(), QStringLiteral("Tools"));
     QTRY_VERIFY(shown(h.item("toolCard")));
-    QVERIFY(text(h.item("toolsIntro")).startsWith(QStringLiteral("Programs Home server offers to apps")));
+    QVERIFY(text(h.item("toolsIntro")).startsWith(QStringLiteral("Programs Test server offers to apps")));
     QCOMPARE(text(h.item("toolFactEngine")), QStringLiteral("FVX · OPEN-SOURCE RANDOMIZER"));
     QVERIFY2(text(h.item("toolFactVersion")).startsWith(QStringLiteral("2.3.1 · checked today")), qPrintable(text(h.item("toolFactVersion"))));
-    QCOMPARE(text(h.item("toolFactSize")), QStringLiteral("38 MB per PC · downloaded once"));
+    QCOMPARE(text(h.item("toolFactSize")), QStringLiteral("36 MB per PC · downloaded once"));
     QCOMPARE(text(h.item("toolFactPlatforms")), QStringLiteral("Windows · Linux"));
-    QCOMPARE(text(h.item("toolFactLicense")), QStringLiteral("GPL-3.0 · "));
+    QCOMPARE(text(h.item("toolFactLicense")), QStringLiteral("GPL-3.0 ·"));
     QVERIFY(shown(h.item("toolSourceLink")));
     // Offer to apps is off: the reason is the line under it. The update line offers the newer release.
     QVERIFY(text(h.item("toolOfferNote")).startsWith(QStringLiteral("Apps can't build new variants")));
@@ -203,7 +203,7 @@ class RandomizerUiTest : public QObject {
     QVERIFY(h.clickWhenReady("toolRemoveConfirm"));
     QTRY_COMPARE(hub.adminCalls.value(QStringLiteral("DELETE ") + kApi + QStringLiteral("/tools/randomizer/versions/2.2.0")), 1);
     // The server refuses (there is no force): the dialog stays and names what pins the version.
-    QTRY_COMPARE(h.item("toolRemoveDialog")->property("error").toString(), QStringLiteral("Home server keeps 2.2.0 while 2 variant recipes · 1 run use it."));
+    QTRY_COMPARE(h.item("toolRemoveDialog")->property("error").toString(), QStringLiteral("Test server keeps 2.2.0 while 2 variant recipes · 1 run use it."));
     QVERIFY(popupOpen(h, "toolRemoveDialog"));
     QVERIFY(h.click("toolRemoveCancel"));
     QTRY_VERIFY(!popupOpen(h, "toolRemoveDialog"));
@@ -220,7 +220,7 @@ class RandomizerUiTest : public QObject {
       pair(h, hub);
       openTools(h);
       QTRY_VERIFY(shown(h.item("toolSourceProblem")));
-      QCOMPARE(text(h.item("toolSourceProblem")), QStringLiteral("Home server can't reach the internet."));
+      QCOMPARE(text(h.item("toolSourceProblem")), QStringLiteral("Test server can't reach the internet."));
       QVERIFY(text(h.item("toolImportHint")).contains(QStringLiteral("uzume-server import-tools")));
       QVERIFY(h.item("toolImportFile") == nullptr);
     }
@@ -312,7 +312,7 @@ class RandomizerUiTest : public QObject {
     QTRY_COMPARE_WITH_TIMEOUT(runs->games()->rowCount(), 1, 8000);
     QVERIFY(h.click(("runGame_" + kGameId).toUtf8().constData()));
     QTRY_VERIFY(shown(h.item("runRandomizerReason")));
-    QCOMPARE(text(h.item("runRandomizerReason")), QStringLiteral("Home server offers no randomizer. Admins: Server › Tools."));
+    QCOMPARE(text(h.item("runRandomizerReason")), QStringLiteral("Home offers no randomizer. Admins: Server › Tools."));
     QVERIFY(!h.item("runRandomizerMode")->isEnabled());
     QVERIFY(!shown(h.item("runRandomizerPreset")));
     // A run without the randomizer carries no randomizer object.

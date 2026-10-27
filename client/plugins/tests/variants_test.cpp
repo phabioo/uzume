@@ -208,10 +208,14 @@ class VariantsPluginTest : public QObject {
     official.permissions = {"variants.build"};
     official.sign = true;
     QVERIFY(m.installFromFile(writeFile(src.filePath("o.fbplugin"), makeFbPlugin(official))).ok);
-    m.setDeveloperMode(true);  // even with Developer mode: an installed unsigned copy is no developer link
-    const QString msg = "permission variants.build needs a signed official plugin";
+    m.setDeveloperMode(false);
+    const QString msg = "permission variants.build needs a signed official plugin or Developer mode";
     QVERIFY(m.info("net.test.unsigned")->problems.contains(msg));
     QVERIFY(!m.setEnabled("net.test.unsigned", true));
+    m.setDeveloperMode(true);  // an installed unsigned (local) copy may use it in Developer mode
+    QVERIFY(m.info("net.test.unsigned")->problems.isEmpty());
+    m.setDeveloperMode(false);
+    QVERIFY(m.info("net.test.unsigned")->problems.contains(msg));
     QVERIFY(m.info("net.test.official")->problems.isEmpty());
     QVERIFY(m.setEnabled("net.test.official", true));
     // The shell context starts the official one (it registers presets while no game runs), never the unsigned one.
@@ -227,7 +231,7 @@ class VariantsPluginTest : public QObject {
     ps.id = "net.test.linked";
     ps.permissions = {"variants.build"};
     QVERIFY(m.linkDevFolder(writePlugin(src.path(), ps)).ok);
-    QVERIFY(m.info("net.test.linked")->problems.contains("permission variants.build needs a signed official plugin"));
+    QVERIFY(m.info("net.test.linked")->problems.contains("permission variants.build needs a signed official plugin or Developer mode"));
     m.setDeveloperMode(true);
     QVERIFY(m.info("net.test.linked")->problems.isEmpty());
     QVERIFY(m.setEnabled("net.test.linked", true));

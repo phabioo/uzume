@@ -5,7 +5,7 @@ import Uzume.App
 // The "Randomizer" section of "Start a run" (randomizer.md 10e-1, 10e-2 a to f). Shown when the Randomizer plugin registered games
 // (`variants.pluginRegistered()`): Segmented Off / Each person gets their own / Same world for everyone, then Preset (the presets the plugin
 // registered for the game, plus Custom with a settings string) and "Allow own variants", the line that pins the engine version (the save slot
-// line is the dialog's). States: d Home server offers no engine (the row stays, turned off, with the reason), e the game is not supported.
+// line is the dialog's). States: d the server offers no engine (the row stays, turned off, with the reason), e the game is not supported.
 // The dialog reads `payload` when it starts the run: {mode, preset_id, settings, tool_version, allow_own} (mode "off" = an ordinary run).
 // objectNames: runRandomizer (the section), runRandomizerMode (Segmented, or runRandomizerModeSelect when it does not fit), runRandomizerReason,
 // runRandomizerPreset, runRandomizerSettings, runRandomizerOwn, runRandomizerPin, runRandomizerNote.
@@ -16,6 +16,7 @@ ColumnLayout {
     property string gameId: ""
     property string gameTitle: ""
     property string runName: ""
+    property string serverName: ""         // the connected server's name for the "offers no randomizer" line
     property int rev: 0                    // bumped when the dialog opens: the registry changes without a signal
 
     property string mode: "off"
@@ -27,7 +28,7 @@ ColumnLayout {
     readonly property bool gameKnown: root.gameId !== ""
     readonly property bool supported: root.rev >= 0 && root.gameKnown && root.variants.supported(root.gameId)
     readonly property var engine: root.variants.engine
-    // Home server offers an engine: its version pins the run.
+    // The server offers an engine: its version pins the run.
     readonly property string engineVersion: root.engine.offline === true || root.engine.state === "not_offered" || root.engine.state === "no_server" ? "" : (root.engine.version ?? "")
     readonly property bool usable: root.supported && root.engineVersion !== ""
     readonly property bool on: root.usable && root.mode !== "off"
@@ -92,7 +93,7 @@ ColumnLayout {
         objectName: "runRandomizerReason"
         visible: root.gameKnown && (!root.supported || root.engineVersion === "")
         color: Theme.ink2
-        text: !root.supported ? (root.gameTitle !== "" ? qsTr("%1 can’t be randomized.").arg(root.gameTitle) : qsTr("This game can’t be randomized.")) : qsTr("Home server offers no randomizer. Admins: Server › Tools.")
+        text: !root.supported ? (root.gameTitle !== "" ? qsTr("%1 can’t be randomized.").arg(root.gameTitle) : qsTr("This game can’t be randomized.")) : (root.serverName !== "" ? qsTr("%1 offers no randomizer. Admins: Server › Tools.").arg(root.serverName) : qsTr("The server offers no randomizer. Admins: Server › Tools."))
     }
     Hint {
         visible: !root.gameKnown

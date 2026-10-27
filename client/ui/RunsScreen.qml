@@ -895,6 +895,7 @@ Rectangle {
     RunStartDialog {
         id: startDialog
         runs: root.runs
+        serverName: root.player.hubName
         pcOnly: root.player.localHub.onThisPcOnly
     }
 

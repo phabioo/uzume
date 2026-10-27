@@ -166,7 +166,9 @@ class VariantsController : public QObject {
   Q_INVOKABLE void reloadAll();
 
   // ---- the engine
-  Q_INVOKABLE void prepareEngine();  // downloads the offered engine (10d-2); a pending build continues after it
+  // Downloads the offered engine (10d-2); a pending build continues after it. With no offered version the tools list is read again first
+  // (the admin may have turned the engine on since the connect); engineChanged() follows in every outcome.
+  Q_INVOKABLE void prepareEngine();
   // ---- variants
   // Creates the variant on the server and builds it. Returns {ok, requestId} or {ok:false, error}. seed: digits, used when useSeed.
   // Server answers that come later (name_taken, ...) arrive as createFailed().
@@ -272,6 +274,7 @@ class VariantsController : public QObject {
   void publishPluginState();
   void postPlugin(const Job& j, const QString& state, double progress, const QString& error = QString());
   void refreshEngine();
+  void onToolsRefreshed();
   void applyLocalRecipe(Job& j, const VariantInfo& v) const;
   VariantRecipe recipeFor(const VariantInfo& v, const GameEntry& game) const;
   QString stateOf(const QString& variantId) const;
@@ -304,6 +307,7 @@ class VariantsController : public QObject {
   double engineReceived_ = 0, engineTotal_ = 0;
   QString engineError_;
   bool engineBusy_ = false;
+  bool engineRefreshing_ = false;  // prepareEngine() waits for GET /tools
   quint64 listGen_ = 0;
   bool activeWaitingEngine_ = false;
   bool activeWaitingBase_ = false;

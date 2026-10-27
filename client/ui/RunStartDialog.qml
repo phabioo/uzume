@@ -13,6 +13,7 @@ UzDialog {
     property string inviteRunId: ""
     property bool inviteWasSent: false
     readonly property bool inviting: mode === "invite"
+    property string serverName: ""      // shown in the Randomizer section when the server offers no engine
     property bool pcOnly: false         // the server of this PC only: nobody to invite (8j-4)
 
     size: "lg"
@@ -299,6 +300,7 @@ UzDialog {
                 id: randomizer
                 hidden: root.inviting
                 variants: root.runs.variants
+                serverName: root.serverName
                 gameId: game.selectedId
                 gameTitle: {
                     const g = root.runs.games

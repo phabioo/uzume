@@ -103,6 +103,8 @@ VariantsController::VariantsController(Deps deps, std::shared_ptr<VariantsPlugin
   connect(&builder_, &VariantBuilder::finished, this, &VariantsController::onFinished);
   if (deps_.tools != nullptr) {
     connect(deps_.tools, &ToolsClient::toolsChanged, this, &VariantsController::refreshEngine);
+    connect(deps_.tools, &ToolsClient::toolsChanged, this, &VariantsController::onToolsRefreshed);
+    connect(deps_.tools, &ToolsClient::refreshFailed, this, &VariantsController::onToolsRefreshed);
     connect(deps_.tools, &ToolsClient::progress, this, [this](const QString&, qint64 got, qint64 total) {
       engineReceived_ = static_cast<double>(got);
       engineTotal_ = static_cast<double>(total);
@@ -213,14 +215,33 @@ void VariantsController::refreshEngine() {
 }
 
 void VariantsController::prepareEngine() {
-  if (deps_.tools == nullptr || !deps_.tools->available() || deps_.tools->busy()) return;
+  if (deps_.tools != nullptr && deps_.tools->busy()) return;  // a download runs: its end reports
+  if (deps_.tools == nullptr || !deps_.tools->available()) {
+    refreshEngine();
+    emit engineChanged();  // nothing to prepare: waiters finish with the state
+    return;
+  }
   const QString version = deps_.tools->offeredVersion(QStringLiteral("randomizer"));
-  if (version.isEmpty()) return;
+  if (version.isEmpty()) {
+    // The list may be older than the admin's change: read it again, then prepare once a version is offered.
+    if (engineRefreshing_) return;
+    engineRefreshing_ = true;
+    deps_.tools->refresh();
+    return;
+  }
   engineBusy_ = true;
   engineError_.clear();
   engineReceived_ = engineTotal_ = 0;
   refreshEngine();
   deps_.tools->prepare(QStringLiteral("randomizer"), version);
+}
+
+void VariantsController::onToolsRefreshed() {
+  if (!engineRefreshing_) return;
+  engineRefreshing_ = false;
+  if (deps_.tools != nullptr && !deps_.tools->offeredVersion(QStringLiteral("randomizer")).isEmpty()) return prepareEngine();
+  refreshEngine();
+  emit engineChanged();  // still nothing offered: waiters finish with the state
 }
 
 void VariantsController::onToolPrepared(const ToolPrepareResult& r) {
