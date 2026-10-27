@@ -66,7 +66,7 @@ class RewindBuffer {
   // Number of snapshots that hold `seconds` of play at `fps`.
   static int snapshotsFor(double seconds, double fps) {
     if (seconds <= 0 || fps <= 0) return 0;
-    return std::max(1, static_cast<int>(std::ceil(seconds * fps / kRewindIntervalFrames)));
+    return (std::max)(1, static_cast<int>(std::ceil(seconds * fps / kRewindIntervalFrames)));
   }
   // Seconds of play that `snapshots` states cover.
   static double secondsFor(int snapshots, double fps) {
@@ -74,14 +74,14 @@ class RewindBuffer {
   }
   // Memory the setting needs for a state of `stateBytes` (0 for off).
   static qint64 estimateBytes(double seconds, double fps, qint64 stateBytes) {
-    return static_cast<qint64>(snapshotsFor(seconds, fps)) * std::max<qint64>(0, stateBytes);
+    return static_cast<qint64>(snapshotsFor(seconds, fps)) * (std::max<qint64>)(0, stateBytes);
   }
   // Limits for a setting: the count the length needs, capped so that count * stateBytes stays within kRewindMaxBytes.
   static std::pair<int, qint64> limitsFor(double seconds, double fps, qint64 stateBytes) {
     const int want = snapshotsFor(seconds, fps);
     if (want <= 0 || stateBytes <= 0) return {0, 0};
     const qint64 fit = kRewindMaxBytes / stateBytes;
-    const int count = static_cast<int>(std::min<qint64>(want, fit));
+    const int count = static_cast<int>((std::min<qint64>)(want, fit));
     return {count, count > 0 ? kRewindMaxBytes : 0};
   }
 

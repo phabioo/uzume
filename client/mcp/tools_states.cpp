@@ -146,7 +146,7 @@ void installStatesTools(McpToolRegistry& registry, ui::PlayerController& player)
       if (a.contains(QStringLiteral("frames"))) frames = a.value(QStringLiteral("frames")).toDouble();
       else if (a.contains(QStringLiteral("seconds"))) frames = a.value(QStringLiteral("seconds")).toVariant().toDouble() * 60.0;
       if (!(frames > 0) || frames > 60.0 * 600) return reply(ToolResult::error(QStringLiteral("seconds or frames (positive) is required")));
-      const int snapshots = std::max(1, static_cast<int>(std::ceil(frames / emu::kRewindIntervalFrames)));
+      const int snapshots = (std::max)(1, static_cast<int>(std::ceil(frames / emu::kRewindIntervalFrames)));
       s->rewindBy(snapshots, [reply](const ui::StatesController::Result& r) {
         if (!r.ok) return reply(resultJson(r));
         const int back = r.n * emu::kRewindIntervalFrames;
