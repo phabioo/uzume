@@ -879,6 +879,134 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
       emit selectedGameChanged();
     }
   });
+  wireNotifications();
+}
+
+// ---------------------------------------------------------------- Together: notifications and the online list (0.23, ADR 0033)
+
+void PlayerController::wireNotifications() {
+  notifications_ = std::make_unique<NotificationCenter>(settings_.get());
+  connect(notifications_.get(), &NotificationCenter::actionRequested, this, &PlayerController::runNotificationAction);
+  // The list belongs to one server and person: another one starts empty.
+  connect(this, &PlayerController::hubChanged, this, [this]() {
+    const QString id = conn_->hubId().isEmpty() ? QString() : conn_->hubId() + QLatin1Char('/') + conn_->hubUserId();
+    if (id.isEmpty() || id == notifyHubId_) return;
+    notifyHubId_ = id;
+    notifications_->reset();
+    notifiedRunInvites_.clear();
+    notifiedProblems_.clear();
+    notifiedUpdate_.clear();
+  });
+  connect(sessions_.get(), &SessionController::notice, notifications_.get(), [this](const QString& kind, const QString& text, const QString& label, const QString& data) {
+    notifications_->notify(kind, text, label, data);
+  });
+  // App update available.
+  connect(updates_.get(), &UpdatesController::changed, this, [this]() {
+    if (!updates_->updateAvailable()) return;
+    const QString v = updates_->availableVersion();
+    if (v.isEmpty() || v == notifiedUpdate_) return;
+    notifiedUpdate_ = v;
+    notifications_->notify(QStringLiteral("update"), tr("Uzume %1 is available").arg(v), tr("WHAT'S NEW"), QStringLiteral("settings:updates"));
+  });
+  // Server problems (admins only: attention() is empty for everyone else); a problem that went away may be news again later.
+  connect(this, &PlayerController::attentionChanged, this, [this]() {
+    QSet<QString> now;
+    for (const QVariant& v : attention()) {
+      const QVariantMap m = v.toMap();
+      const QString id = m.value(QStringLiteral("id")).toString();
+      if (!id.startsWith(QLatin1String("server:"))) continue;
+      now.insert(id);
+      if (notifiedProblems_.contains(id)) continue;
+      notifiedProblems_.insert(id);
+      notifications_->notify(QStringLiteral("server_problem"), m.value(QStringLiteral("text")).toString(), tr("OPEN STATUS"),
+                             QStringLiteral("attention:") + m.value(QStringLiteral("target")).toString());
+    }
+    notifiedProblems_.intersect(now);
+  });
+  // Runs: an invite for me, and status changes by others. What arrives with the first list after a connect is not news.
+  connect(runClient_.get(), &RunClient::participantsChanged, this, [this](const QString& runId) {
+    const auto run = runClient_->run(runId);
+    const RunParticipant* mine = run ? run->participant(conn_->hubUserId()) : nullptr;
+    if (mine == nullptr || mine->status != QLatin1String("invited") || run->isOver()) {
+      notifiedRunInvites_.remove(runId);
+      return;
+    }
+    if (notifiedRunInvites_.contains(runId)) return;
+    notifiedRunInvites_.insert(runId);
+    if (runClient_->loaded())
+      notifications_->notify(QStringLiteral("run_event"), tr("You are invited to the run \u201C%1\u201D").arg(run->name), tr("OPEN RUN"), QStringLiteral("run:") + runId);
+  });
+  connect(runClient_.get(), &RunClient::eventAdded, this, [this](const QString& runId, const RunEvent& e) {
+    if (!runClient_->loaded() || e.type != QLatin1String("run.status")) return;
+    const QDateTime at = QDateTime::fromString(e.createdAt, Qt::ISODate);
+    if (!at.isValid() || at.secsTo(QDateTime::currentDateTimeUtc()) > 120) return;  // catch-up of an older event
+    const QString by = e.payload.value(QStringLiteral("by_user_name")).toString();
+    if (e.userId == conn_->hubUserId() || (!by.isEmpty() && by == conn_->userDisplayName())) return;  // my own change
+    const auto run = runClient_->run(runId);
+    notifications_->notify(QStringLiteral("run_event"), run ? tr("%1: %2").arg(run->name, runs_->eventSummary(e)) : runs_->eventSummary(e), tr("OPEN RUN"),
+                           QStringLiteral("run:") + runId);
+  });
+  // The online list.
+  connect(sessions_->roster(), &OnlineRoster::changed, this, &PlayerController::onlineChanged);
+  connect(sessions_.get(), &SessionController::shareChanged, this, &PlayerController::onlineChanged);
+  connect(sessions_.get(), &SessionController::gameChanged, this, &PlayerController::onlineChanged);
+  connect(runClient_.get(), &RunClient::runsChanged, this, &PlayerController::onlineChanged);
+  connect(this, &PlayerController::hubChanged, this, &PlayerController::onlineChanged);
+}
+
+QVariantList PlayerController::onlinePeople() const {
+  if (!sessions_ || !runClient_) return {};
+  QVariantList out = sessions_->roster()->peopleVariant(conn_->hubUserId());
+  const QString runId = sessions_->localRunId();
+  const auto run = runId.isEmpty() ? std::nullopt : runClient_->run(runId);
+  const bool runOpen = run && !run->isOver() && run->participants.size() < kRunMaxParticipants;
+  for (QVariant& v : out) {
+    QVariantMap m = v.toMap();
+    const QString uid = m.value(QStringLiteral("userId")).toString();
+    QString kind;
+    if (sessions_->canInvite(uid)) kind = QStringLiteral("session");
+    else if (runOpen && run->participant(uid) == nullptr) kind = QStringLiteral("run");
+    m.insert(QStringLiteral("inviteKind"), kind);
+    v = m;
+  }
+  return out;
+}
+
+void PlayerController::watchOnline(const QString& sessionId) { sessions_->watchFromRoster(sessionId); }
+
+void PlayerController::inviteOnline(const QString& userId) {
+  if (sessions_->canInvite(userId)) {
+    sessions_->invite(userId);
+    return;
+  }
+  const QString runId = sessions_->localRunId();
+  if (runId.isEmpty() || userId.isEmpty()) return;
+  const QString name = [&]() {
+    for (const QVariant& v : sessions_->roster()->peopleVariant())
+      if (v.toMap().value(QStringLiteral("userId")).toString() == userId) return v.toMap().value(QStringLiteral("name")).toString();
+    return QString();
+  }();
+  runClient_->inviteUsers(runId, {userId}, [this, name](const RunResult& r) {
+    if (!r.ok) notifications_->notify(QStringLiteral("run_event"), tr("Could not invite %1 to the run.").arg(name.isEmpty() ? tr("this person") : name));
+  });
+}
+
+void PlayerController::runNotificationAction(const QString& kind, const QString& data) {
+  Q_UNUSED(kind);
+  const int colon = static_cast<int>(data.indexOf(QLatin1Char(':')));
+  if (colon <= 0) return;
+  const QString what = data.left(colon);
+  const QString arg = data.mid(colon + 1);
+  if (what == QLatin1String("watch")) {
+    sessions_->watchFromRoster(arg);
+  } else if (what == QLatin1String("run")) {
+    showRuns();
+    if (page_ == QLatin1String("runs")) runs_->openRun(arg);
+  } else if (what == QLatin1String("settings")) {
+    showSettingsSection(arg);
+  } else if (what == QLatin1String("attention")) {
+    openAttention(arg);
+  }
 }
 
 PlayerController::~PlayerController() {

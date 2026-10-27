@@ -124,6 +124,11 @@ struct PresenceUpdate {
   QString deviceId;
   QString state;  // online | offline | in_game
   QString gameId;
+  // together_v1 (Uzume 0.23): per-receiver fields; empty when the server does not send them or the receiver may not see them.
+  QString displayName;
+  QString gameTitle;
+  QString system;
+  QString sessionId;  // the device's shared Session, only when the receiver may see it
 };
 
 }  // namespace uzume

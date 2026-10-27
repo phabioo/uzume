@@ -4,7 +4,7 @@ import QtQuick.Layouts
 import Uzume.App
 
 // AppNav (frame.md "0-4 A" to "0-4 C" and "0-4 G"): the 232 px navigation of every screen. Lockup, PLAY (Library, Runs;
-// Emulation, Controls and Hotkeys are Settings sections), the SERVER group for admins or THIS PC when there is no server, ONLINE (people with a Session),
+// Emulation, Controls and Hotkeys are Settings sections), the SERVER group for admins or THIS PC when there is no server, ONLINE (people who are online, with Watch / Invite; 0.23),
 // Settings, the server line and the person. Compact (window below 900 px high): 28 px items, one-line ONLINE rows, no address line.
 // SERVER: the single item Server (opens the Server screen on Overview; its tabs are Overview, People, Games, Systems & cores,
 // Plugins, Reports, Settings) with the badge of everything that needs an admin: open problems, waiting devices, new reports.
@@ -28,7 +28,9 @@ Rectangle {
     readonly property var groupEntries: thisPcItems.map(function (e) { return { label: e.label, name: e.name, page: e.page, section: e.section } })
     readonly property bool serverItemShown: root.serverMode && root.player.admin.available
     readonly property bool hasGroupItems: root.serverMode ? root.serverItemShown : thisPcItems.length > 0
-    readonly property var online: root.serverMode ? root.player.sessions.sessions.filter(function (s) { return !s.invited }) : []
+    // ONLINE (0.23, ADR 0033 D1): people other than me who are online on the server, not devices.
+    readonly property var online: root.serverMode ? root.player.onlinePeople : []
+    readonly property int onlineShown: 8
     color: Theme.ground
     implicitWidth: Theme.sidebarWidth
     objectName: "appNav"
@@ -109,6 +111,37 @@ Rectangle {
             Layout.minimumWidth: 0
             implicitHeight: lockup.implicitHeight
             UzLockup { id: lockup; objectName: "sidebarLockup"; x: Theme.navInset }
+            // Bell (board 6r-2): unread count, opens the Notifications popover; opening marks everything read.
+            UzIconButton {
+                id: bell
+                objectName: "navBell"
+                x: parent.width - width - Theme.space2
+                anchors.verticalCenter: lockup.verticalCenter
+                glyph: "bell"
+                on: notificationsPopover.opened
+                Accessible.name: root.player.notifications.unread > 0 ? qsTr("Notifications, %1 unread").arg(root.player.notifications.unread) : qsTr("Notifications")
+                onClicked: notificationsPopover.opened ? notificationsPopover.close() : notificationsPopover.openFor(bell, "below", "start")
+            }
+            // Unread count: a small box at the top-right corner of the button, outside the glyph.
+            Rectangle {
+                objectName: "navBellCount"
+                visible: root.player.notifications.unread > 0
+                x: bell.x + bell.width - 8
+                y: bell.y - 2
+                width: Math.max(16, countText.implicitWidth + 6)
+                height: 16
+                color: Theme.badge
+                Text {
+                    id: countText
+                    anchors.centerIn: parent
+                    text: root.player.notifications.unread > 9 ? "9+" : String(root.player.notifications.unread)
+                    font.family: Theme.mono
+                    font.pixelSize: 10
+                    font.weight: Font.Medium
+                    color: Theme.ground
+                }
+            }
+            NotificationsPopover { id: notificationsPopover; player: root.player }
         }
 
         UzNavGroupHead { Layout.fillWidth: true; Layout.topMargin: root.compact ? 20 : 28; text: qsTr("Play") }
@@ -179,7 +212,8 @@ Rectangle {
             }
         }
 
-        // ONLINE: people with a shared Session and what they play; hidden without data.
+        // ONLINE: people who are online and what they play; hidden without data. "Watch" when they share a Session I may see,
+        // "Invite" when I share a Session or am in a run they are not in: one click, no menu.
         UzNavGroupHead {
             objectName: "navOnlineHead"
             Layout.fillWidth: true
@@ -193,53 +227,88 @@ Rectangle {
             Layout.topMargin: Theme.space1
             spacing: 0
             visible: root.online.length > 0
-            // Six fixed delegates, shown while there is an entry: a model that follows the Sessions list would rebuild the rows on
-            // every refresh (see groupEntries above).
+            // Fixed delegates, shown while there is an entry: a model that follows the roster would rebuild the rows on every
+            // presence update (see groupEntries above).
             Repeater {
-                model: 6
+                model: root.onlineShown
                 delegate: Item {
                     id: person
                     required property int index
-                    readonly property var modelData: root.online[index] || ({ who: "", game: "" })
+                    readonly property var modelData: root.online[index] || ({ name: "", sub: "", sessionId: "", inviteKind: "", color: 1, userId: "" })
                     visible: index < root.online.length
                     objectName: "navOnlineRow"
                     Layout.fillWidth: true
                     Layout.minimumWidth: 0
                     implicitHeight: root.compact ? Theme.row28 : 40
                     Accessible.role: Accessible.StaticText
-                    Accessible.name: qsTr("%1 plays %2").arg(modelData.who).arg(modelData.game)
+                    Accessible.name: qsTr("%1, %2").arg(modelData.name).arg(modelData.sub)
                     UzAvatar {
                         x: Theme.navInset
                         anchors.verticalCenter: parent.verticalCenter
                         size: 20
-                        name: person.modelData.who
-                        person: person.index + 1
+                        name: person.modelData.name
+                        person: person.modelData.color
+                    }
+                    Row {
+                        id: rowActions
+                        anchors.right: parent.right
+                        anchors.rightMargin: Theme.space05
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: 0
+                        UzButton {
+                            objectName: "navOnlineWatch"
+                            visible: person.modelData.sessionId !== ""
+                            kind: "link"
+                            text: qsTr("Watch")
+                            font.pixelSize: Theme.roles.small.size
+                            Accessible.name: qsTr("Watch %1").arg(person.modelData.name)
+                            onClicked: root.player.watchOnline(person.modelData.sessionId)
+                        }
+                        UzButton {
+                            objectName: "navOnlineInvite"
+                            visible: person.modelData.inviteKind !== ""
+                            kind: "link"
+                            text: qsTr("Invite")
+                            font.pixelSize: Theme.roles.small.size
+                            Accessible.name: qsTr("Invite %1").arg(person.modelData.name)
+                            onClicked: root.player.inviteOnline(person.modelData.userId)
+                        }
                     }
                     Column {
                         x: Theme.navInset + 20 + Theme.space1
-                        width: parent.width - x - Theme.space2
+                        width: Math.max(0, parent.width - x - rowActions.width - Theme.space1)
                         anchors.verticalCenter: parent.verticalCenter
                         Text {
+                            objectName: "navOnlineName"
                             width: parent.width
                             elide: Text.ElideRight
                             textFormat: Text.PlainText
-                            text: root.compact ? person.modelData.who + " · " + person.modelData.game : person.modelData.who
+                            text: root.compact ? person.modelData.name + " · " + person.modelData.sub : person.modelData.name
                             font.family: Theme.sans
                             font.pixelSize: Theme.roles.input.size
                             color: Theme.ink2
                         }
                         Text {
+                            objectName: "navOnlineSub"
                             visible: !root.compact
                             width: parent.width
                             elide: Text.ElideRight
                             textFormat: Text.PlainText
-                            text: person.modelData.game
+                            text: person.modelData.sub
                             font.family: Theme.sans
                             font.pixelSize: Theme.roles.small.size
                             color: Theme.muted
                         }
                     }
                 }
+            }
+            UzMono {
+                objectName: "navOnlineMore"
+                visible: root.online.length > root.onlineShown
+                Layout.leftMargin: Theme.navInset
+                text: qsTr("+%1 more").arg(root.online.length - root.onlineShown)
+                color: Theme.muted
+                font.pixelSize: Theme.roles.meta11.size
             }
         }
 

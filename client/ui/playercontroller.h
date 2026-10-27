@@ -62,8 +62,10 @@
 #include "updatescontroller.h"
 #include "admincontroller.h"
 #include "reportcontroller.h"
+#include <QSet>
 #include "mcpcontroller.h"
 #include "discordpresence.h"
+#include "notificationcenter.h"
 
 namespace uzume::ui {
 
@@ -169,6 +171,11 @@ class PlayerController : public QObject {
   // Plugins (Settings > Plugins, Plugin console tab of the game panel)
   Q_PROPERTY(uzume::ui::PluginsController* plugins READ plugins CONSTANT)
   Q_PROPERTY(uzume::ui::RunsController* runs READ runs CONSTANT)
+  // Together (0.23): the notifications of the bell and the toasts (ADR 0033 D2), and the online list (D1): people other than me
+  // [{userId, name, state, gameTitle, system, sessionId, sub, color, inviteKind}]; inviteKind "session" | "run" | "" decides the
+  // "Invite" button. Empty without a server.
+  Q_PROPERTY(uzume::ui::NotificationCenter* notifications READ notifications CONSTANT)
+  Q_PROPERTY(QVariantList onlinePeople READ onlinePeople NOTIFY onlineChanged)
   Q_PROPERTY(uzume::ui::VariantsController* variants READ variants CONSTANT)  // game variants (0.21)
   // Play run of a randomized run that has to build the person's variant first (10f-3): {runId, runName, gameTitle, state: building |
   // failed, step: reading|randomizing|writing|"", fraction, percent, etaText, error, startWhenReady, background}; empty when none.
@@ -258,6 +265,13 @@ class PlayerController : public QObject {
   AccountsController* accounts() { return accounts_.get(); }
   PluginsController* plugins() { return plugins_.get(); }
   RunsController* runs() { return runs_.get(); }
+  NotificationCenter* notifications() { return notifications_.get(); }
+  QVariantList onlinePeople() const;
+  Q_INVOKABLE void watchOnline(const QString& sessionId);   // "Watch" in the online list
+  Q_INVOKABLE void inviteOnline(const QString& userId);     // "Invite": to my shared Session, else to my run
+  // The action of a notification entry (NotificationCenter::actionRequested): "watch:<session id>", "run:<run id>",
+  // "settings:<section>", "attention:<target>"; anything else is ignored.
+  void runNotificationAction(const QString& kind, const QString& actionData);
   VariantsController* variants() { return variants_.get(); }
   QVariantMap runBuild() const { return runBuild_; }
   Q_INVOKABLE void setRunBuildStartWhenReady(bool on);  // "Start <run> when it's ready"
@@ -496,6 +510,7 @@ class PlayerController : public QObject {
   void hubChanged();
   void coreWarningsChanged();  // hub handshake, the server's systems/cores or the local cores changed
   void attentionChanged();
+  void onlineChanged();
   void hubLinkChanged();
   void libraryStateChanged();
   void selectedGameChanged();
@@ -594,6 +609,12 @@ class PlayerController : public QObject {
   std::unique_ptr<StateApi> stateApi_;          // save states on the server (states_v1)
   std::unique_ptr<StatesController> states_;    // after session_, settings_, runClient_
   QString stateRunId_;                          // run the running game was started in ("" = none): its core rules apply to states
+  std::unique_ptr<NotificationCenter> notifications_;  // after runs_ and updates_ (connected to both)
+  QString notifyHubId_;                                // the server the notifications belong to
+  QSet<QString> notifiedRunInvites_;
+  QSet<QString> notifiedProblems_;
+  QString notifiedUpdate_;
+  void wireNotifications();
   std::unique_ptr<ToolCache> toolCache_;
   std::unique_ptr<VariantCache> variantCache_;
   std::unique_ptr<ToolsClient> toolsClient_;

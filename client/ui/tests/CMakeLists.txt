@@ -376,3 +376,12 @@ target_compile_definitions(test_ui_states_controller_testcore PRIVATE FB_TEST_RO
   FB_TEST_DATA_DIR="${FB_NETTEST_DIR}/testdata")
 add_dependencies(test_ui_states_controller_testcore uzume_test_rom)
 target_include_directories(test_ui_states_controller_testcore PRIVATE ${FB_NETTEST_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/../../emulation/tests)
+
+# Together (0.23): online roster and notification center without QML.
+uzume_add_test(ui_together together_test.cpp LIBS uzume_ui uzume_core uzume_emulation)
+
+# Together (0.23) in the UI: ONLINE list, bell, toasts, Settings > Notifications against FakeHub.
+uzume_add_test(ui_together_ui together_ui_test.cpp ${FB_NETTEST_DIR}/fakehub.cpp ${FB_NETTEST_DIR}/fakehub.h
+  LIBS ${FB_UI_TEST_LIBS})
+target_include_directories(test_ui_together_ui PRIVATE ${FB_NETTEST_DIR})
+target_compile_definitions(test_ui_together_ui PRIVATE FB_TEST_DATA_DIR="${FB_NETTEST_DIR}/testdata")

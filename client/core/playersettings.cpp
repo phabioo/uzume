@@ -46,6 +46,7 @@ constexpr const char* kDisplayNameKey = "display_name";
 constexpr const char* kPluginLanguageKey = "plugin_language";
 constexpr const char* kDiagEmulationKey = "diagnostics_emulation_open";
 constexpr const char* kDiagStreamingKey = "diagnostics_streaming_open";
+constexpr const char* kNotifyKey = "notifications";  // { modes: {kind: toast|list}, quiet_fullscreen, sound }
 constexpr const char* kPluginHudCornersKey = "plugin_hud_corners";  // { plugin_id: corner }
 constexpr const char* kPluginHudHiddenKey = "plugin_hud_hidden";    // [plugin_id]
 constexpr const char* kPluginHudAllHiddenKey = "plugin_hud_all_hidden";
@@ -527,6 +528,46 @@ bool PlayerSettings::setLastPlayed(const QString& hubId, const QString& gameId, 
   hub.insert(gameId, static_cast<double>(msecs));
   all.insert(hubId, hub);
   raw_.insert(QLatin1String(kLastPlayedKey), all);
+  return save();
+}
+
+bool PlayerSettings::isNotificationKind(const QString& kind) {
+  return kind == QLatin1String("invite") || kind == QLatin1String("session_started") || kind == QLatin1String("run_event") ||
+         kind == QLatin1String("update") || kind == QLatin1String("server_problem");
+}
+
+QString PlayerSettings::notificationMode(const QString& kind) const {
+  const QJsonObject modes = raw_.value(QLatin1String(kNotifyKey)).toObject().value(QStringLiteral("modes")).toObject();
+  return modes.value(kind).toString() == QLatin1String("list") ? QStringLiteral("list") : QStringLiteral("toast");
+}
+
+bool PlayerSettings::setNotificationMode(const QString& kind, const QString& mode) {
+  if (!isNotificationKind(kind) || (mode != QLatin1String("toast") && mode != QLatin1String("list"))) return false;
+  QJsonObject n = raw_.value(QLatin1String(kNotifyKey)).toObject();
+  QJsonObject modes = n.value(QStringLiteral("modes")).toObject();
+  modes.insert(kind, mode);
+  n.insert(QStringLiteral("modes"), modes);
+  raw_.insert(QLatin1String(kNotifyKey), n);
+  return save();
+}
+
+bool PlayerSettings::notifyQuietFullscreen() const {
+  return raw_.value(QLatin1String(kNotifyKey)).toObject().value(QStringLiteral("quiet_fullscreen")).toBool(true);
+}
+
+bool PlayerSettings::setNotifyQuietFullscreen(bool on) {
+  QJsonObject n = raw_.value(QLatin1String(kNotifyKey)).toObject();
+  n.insert(QStringLiteral("quiet_fullscreen"), on);
+  raw_.insert(QLatin1String(kNotifyKey), n);
+  return save();
+}
+
+bool PlayerSettings::notifySound() const { return raw_.value(QLatin1String(kNotifyKey)).toObject().value(QStringLiteral("sound")).toBool(false); }
+
+bool PlayerSettings::setNotifySound(bool on) {
+  QJsonObject n = raw_.value(QLatin1String(kNotifyKey)).toObject();
+  n.insert(QStringLiteral("sound"), on);
+  raw_.insert(QLatin1String(kNotifyKey), n);
   return save();
 }
 

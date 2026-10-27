@@ -158,6 +158,8 @@ class RunsController : public QObject {
   VariantsController* variants() const { return variants_; }
   RunRecapController* recap() const { return recap_; }
   void setVariants(VariantsController* v) { variants_ = v; }
+  // One line for a Hub run event ("Lena paused the run"), as the run board shows it.
+  QString eventSummary(const RunEvent& e) const { return hubEventText(e); }
 
   // The run context for a game start: the bridge of fb.run and the pins of the plugins (null bridge: unknown run).
   RunLaunch launchFor(const QString& runId);

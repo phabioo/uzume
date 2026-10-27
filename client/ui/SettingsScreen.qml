@@ -28,6 +28,7 @@ Rectangle {
             { id: "storage", name: qsTr("Folders & storage") },
             { id: "hubs", name: qsTr("Servers") },
             { id: "plugins", name: qsTr("Plugins") },
+            { id: "notifications", name: qsTr("Notifications") },
             { id: "updates", name: qsTr("Updates") },
             { id: "diagnostics", name: qsTr("Help & diagnostics") } ] }
     ]
@@ -55,6 +56,8 @@ Rectangle {
         case "appearance": return [{ text: qsTr("Theme is per PC; your favourites and collections follow your account.") }]
         case "storage": return [{ text: qsTr("Uzume tells the server which games you have; the files stay on this PC.") },
                                 { title: qsTr("Nothing on the server"), text: qsTr("Clean-up only removes copies on this PC: games that download again, unused cores. Saves are always on %1 and never part of a clean-up.").arg(root.player.hubName !== "" ? root.player.hubName : qsTr("your server")) }]
+        case "notifications": return [{ text: qsTr("The bell in the side menu keeps the last 50 news of this server. A toast is the same news for six seconds.") },
+                                      { title: qsTr("Quiet in fullscreen"), text: qsTr("Only mentions show over your game; everything else waits in the bell.") }]
         case "emulation": return [{ title: qsTr("Here and per game"), text: qsTr("Emulation is how games look and feel on this PC. A game can keep its own values under Game overrides.") },
                                   { text: qsTr("Only options the core reports are listed. Uzume itself controls render mode, screen layout and firmware.") }]
         default: return [{ text: qsTr("These settings only affect this PC and your account.") }]
@@ -156,6 +159,11 @@ Rectangle {
         case "hubs": return root.activeHubName !== "" ? qsTr("%1 saved · %2 active").arg(root.savedHubs.length).arg(root.activeHubName)
                                                       : qsTr("%1 saved").arg(root.savedHubs.length)
         case "plugins": return root.player.plugins.summary
+        case "notifications": {
+            const kinds = ["invite", "session_started", "run_event", "update"].concat(root.player.isAdmin ? ["server_problem"] : [])
+            const toasts = kinds.filter(function (k) { return root.player.notifications.modes[k] === "toast" }).length
+            return toasts === 0 ? qsTr("Bell only") : qsTr("%1 of %2 as toast").arg(toasts).arg(kinds.length)
+        }
         case "updates": return root.updatesLine()
         default: return qsTr("Logs and support")
         }
@@ -1136,6 +1144,124 @@ Rectangle {
                             controlName: "reduceMotionToggle"
                             checked: root.player.reduceMotion
                             onToggled: on => root.player.reduceMotion = on
+                        }
+                    }
+
+                    // ------------------------------------------------------------------ NOTIFICATIONS (6r-1)
+                    ColumnLayout {
+                        id: secNotifications
+                        width: content.width   // laid out at the page width from the first pass
+                        visible: root.currentSection === "notifications"
+                        objectName: "notificationsSection"
+                        Layout.fillWidth: true
+                        Layout.preferredWidth: 1
+                        Layout.minimumWidth: 0
+                        spacing: Theme.space15
+                        Rectangle { Layout.fillWidth: true; height: 1; color: Theme.rule }
+                        UzSettingsRow {
+                            objectName: "notifyInviteRow"
+                            Layout.fillWidth: true
+                            Layout.minimumWidth: 0
+                            resetMode: "none"
+                            label: qsTr("Invites")
+                            description: qsTr("Someone invites you to watch their Session.")
+                            ctrl: "segment"
+                            controlName: "notifyInviteSegment"
+                            values: [
+                                { value: "toast", label: qsTr("Toast"), name: "notifyInviteToast" },
+                                { value: "list", label: qsTr("List only"), name: "notifyInviteList" }
+                            ]
+                            current: root.player.notifications.modes["invite"]
+                            onValuePicked: value => root.player.notifications.setMode("invite", value)
+                        }
+                        UzSettingsRow {
+                            objectName: "notifySessionStartedRow"
+                            Layout.fillWidth: true
+                            Layout.minimumWidth: 0
+                            resetMode: "none"
+                            label: qsTr("Sessions started")
+                            description: qsTr("Someone starts a Session you may watch.")
+                            ctrl: "segment"
+                            controlName: "notifySessionStartedSegment"
+                            values: [
+                                { value: "toast", label: qsTr("Toast"), name: "notifySessionStartedToast" },
+                                { value: "list", label: qsTr("List only"), name: "notifySessionStartedList" }
+                            ]
+                            current: root.player.notifications.modes["session_started"]
+                            onValuePicked: value => root.player.notifications.setMode("session_started", value)
+                        }
+                        UzSettingsRow {
+                            objectName: "notifyRunEventRow"
+                            Layout.fillWidth: true
+                            Layout.minimumWidth: 0
+                            resetMode: "none"
+                            label: qsTr("Run events")
+                            description: qsTr("Run invites and runs that are paused, resumed, finished or abandoned by others.")
+                            ctrl: "segment"
+                            controlName: "notifyRunEventSegment"
+                            values: [
+                                { value: "toast", label: qsTr("Toast"), name: "notifyRunEventToast" },
+                                { value: "list", label: qsTr("List only"), name: "notifyRunEventList" }
+                            ]
+                            current: root.player.notifications.modes["run_event"]
+                            onValuePicked: value => root.player.notifications.setMode("run_event", value)
+                        }
+                        UzSettingsRow {
+                            objectName: "notifyUpdateRow"
+                            Layout.fillWidth: true
+                            Layout.minimumWidth: 0
+                            resetMode: "none"
+                            label: qsTr("Updates")
+                            description: qsTr("A new version of Uzume is available.")
+                            ctrl: "segment"
+                            controlName: "notifyUpdateSegment"
+                            values: [
+                                { value: "toast", label: qsTr("Toast"), name: "notifyUpdateToast" },
+                                { value: "list", label: qsTr("List only"), name: "notifyUpdateList" }
+                            ]
+                            current: root.player.notifications.modes["update"]
+                            onValuePicked: value => root.player.notifications.setMode("update", value)
+                        }
+                        UzSettingsRow {
+                            objectName: "notifyServerProblemRow"
+                            visible: root.player.isAdmin
+                            Layout.fillWidth: true
+                            Layout.minimumWidth: 0
+                            resetMode: "none"
+                            label: qsTr("Server problems")
+                            description: qsTr("The server reports something that needs an admin.")
+                            ctrl: "segment"
+                            controlName: "notifyServerProblemSegment"
+                            values: [
+                                { value: "toast", label: qsTr("Toast"), name: "notifyServerProblemToast" },
+                                { value: "list", label: qsTr("List only"), name: "notifyServerProblemList" }
+                            ]
+                            current: root.player.notifications.modes["server_problem"]
+                            onValuePicked: value => root.player.notifications.setMode("server_problem", value)
+                        }
+                        UzSettingsRow {
+                            objectName: "notifyQuietRow"
+                            Layout.fillWidth: true
+                            Layout.minimumWidth: 0
+                            resetMode: "none"
+                            label: qsTr("Quiet in fullscreen")
+                            description: qsTr("Only mentions show while a game is fullscreen. The rest waits in the bell.")
+                            ctrl: "toggle"
+                            controlName: "notifyQuietToggle"
+                            checked: root.player.notifications.quietFullscreen
+                            onToggled: on => root.player.notifications.quietFullscreen = on
+                        }
+                        UzSettingsRow {
+                            objectName: "notifySoundRow"
+                            Layout.fillWidth: true
+                            Layout.minimumWidth: 0
+                            resetMode: "none"
+                            label: qsTr("Sound for toasts")
+                            description: qsTr("A short chime when a toast appears.")
+                            ctrl: "toggle"
+                            controlName: "notifySoundToggle"
+                            checked: root.player.notifications.sound
+                            onToggled: on => root.player.notifications.sound = on
                         }
                     }
 

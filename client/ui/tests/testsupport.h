@@ -218,6 +218,7 @@ struct Harness {
   // SDL gamepads are off by default (most tests need no input devices). The Controllers tests turn them on and
   // drive the service from the test (gamepadPollMs = 0: no timer, poll() is called explicitly).
   bool gamepads = false;
+  bool notificationToasts = false;  // keep the toasts of the notifications (they cover clickable items)
   int gamepadPollMs = 0;
   // Connection check: fake probes (tests never touch the network); empty = the real probes.
   std::function<std::unique_ptr<uzume::ConnectionProbes>()> connectionProbes;
@@ -235,6 +236,11 @@ struct Harness {
     o.allowHttp = true;
     controller = std::make_unique<uzume::ui::PlayerController>(o);
     controller->connection()->setPollIntervalMs(80);
+    // Notification toasts (0.23) float over the page and would catch the test's clicks: they only go to the bell unless a test wants them.
+    if (!notificationToasts) {
+      for (const char* kind : {"invite", "session_started", "run_event", "update", "server_problem"})
+        controller->notifications()->setMode(QLatin1String(kind), QStringLiteral("list"));
+    }
     engine = std::make_unique<QQmlApplicationEngine>();
     engine->addImportPath(QStringLiteral("qrc:/qt/qml"));
     engine->addImageProvider(QStringLiteral("screenshots"), controller->createScreenshotImageProvider());

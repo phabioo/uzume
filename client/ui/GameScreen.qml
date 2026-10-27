@@ -564,6 +564,14 @@ Rectangle {
                     z: 12
                     readonly property real maxToastWidth: Math.max(240, playArea.width - 2 * Theme.space3)
 
+                    // Notification toasts (ADR 0033 D2): invites, Sessions that start, run news. Quiet in fullscreen lets only mentions through.
+                    ToastHost {
+                        objectName: "gameToastHost"
+                        player: root.player
+                        maxToastWidth: toasts.maxToastWidth
+                    }
+                    Binding { target: root.player.notifications; property: "fullscreen"; value: root.fullscreen }
+
                     // Volume by hotkey ("Show volume on screen"): one line that replaces itself and goes after 1.5 s
                     UzToast {
                         id: volumeToast

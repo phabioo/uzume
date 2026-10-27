@@ -77,7 +77,7 @@ cmd_up() {
   [ -x "$bin" ] || die "app binary not found: $bin (build it: make check-client, or set UZUME_APP_BIN)"
   for t in Xvfb openssl curl python3 go; do command -v "$t" >/dev/null || die "$t is required"; done
 
-  rm -rf "$STATE/server" "$STATE"/app[0-9]* "$STATE/shots"
+  rm -rf "$STATE/server" "$STATE"/app[0-9]* "$STATE/shots" "$STATE/buildbot"
   mkdir -p "$STATE/bin" "$STATE/server" "$STATE/logs" "$PIDS" "$STATE/shots"
   (cd "$ROOT/server" && go build -o "$STATE/bin/uzume-server" ./cmd/uzume-server) >"$STATE/logs/build.log" 2>&1 \
     || { tail -n 15 "$STATE/logs/build.log"; die "server build failed"; }
@@ -88,9 +88,34 @@ cmd_up() {
   export UZUME_DATA_DIR="$STATE/server"
   printf '%s\n' "$admin_pw" | "$STATE/bin/uzume-server" setup-admin -username admin >"$STATE/logs/setup.log" 2>&1 \
     || { tail -n 15 "$STATE/logs/setup.log"; die "setup-admin failed"; }
+  # Core: the in-repo test core (client/build/<preset>/emulation/uzume_test_core.so) is imported as the NDS core `melondsds`, laid out like
+  # the libretro buildbot (ADR 0020 D10, `import-cores`, offline), so "Live Dummy Game" starts and can be shared. Without the built test core
+  # the games stay "Core missing" (UZUME_TEST_CORE overrides the path).
+  local tcore="${UZUME_TEST_CORE:-$ROOT/client/build/${CLIENT_PRESET:-linux-debug}/emulation/uzume_test_core.so}"
+  if [ -f "$tcore" ]; then
+    local plat=linux-x64 cdir="$STATE/buildbot"
+    [ "$(uname -m)" = "aarch64" ] && plat=linux-arm64
+    mkdir -p "$cdir/$plat"
+    cp "$tcore" "$STATE/melondsds_libretro.so"
+    printf 'display_name = "melonDS DS (live test core)"\ncorename = "melonDS DS"\nsystemid = "nds"\nlicense = "GPLv3"\n' >"$STATE/melondsds_libretro.info"
+    python3 -I - "$STATE" "$cdir" "$plat" <<'PY' || die "test core: building the import directory"
+import sys, zipfile, zlib
+st, cdir, plat = sys.argv[1:4]
+with zipfile.ZipFile(f"{cdir}/info.zip", "w") as z:
+    z.write(f"{st}/melondsds_libretro.info", "melondsds_libretro.info")
+name = "melondsds_libretro.so.zip"
+with zipfile.ZipFile(f"{cdir}/{plat}/{name}", "w") as z:
+    z.write(f"{st}/melondsds_libretro.so", "melondsds_libretro.so")
+crc = zlib.crc32(open(f"{st}/melondsds_libretro.so", "rb").read()) & 0xFFFFFFFF
+open(f"{cdir}/{plat}/.index-extended", "w").write(f"2026-10-09 {crc:08x} {name}\n")
+PY
+    "$STATE/bin/uzume-server" import-cores "$cdir" >"$STATE/logs/import.log" 2>&1 || { tail -n 10 "$STATE/logs/import.log"; die "import-cores failed"; }
+  else
+    echo "live-app: no test core at $tcore (build client first); games will show Core missing" >&2
+  fi
   local port addr
   port=$(free_port); addr="127.0.0.1:$port"
-  "$STATE/bin/uzume-server" -listen "$addr" -plugin-index-url none >"$STATE/logs/server.log" 2>&1 &
+  "$STATE/bin/uzume-server" -listen "$addr" -plugin-index-url none -core-buildbot-url "https://127.0.0.1:1/nightly" >"$STATE/logs/server.log" 2>&1 &
   echo $! >"$PIDS/server.pid"
   wait_for 20 curl -fsk "https://$addr/.well-known/uzume" || { tail -n 15 "$STATE/logs/server.log"; cmd_down >/dev/null; die "server did not start"; }
   local fp

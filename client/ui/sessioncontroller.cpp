@@ -7,6 +7,7 @@
 #include <QPointer>
 #include <algorithm>
 #include <limits>
+#include <utility>
 
 #include "screenlayout.h"
 
@@ -26,7 +27,11 @@ SessionController::SessionController(HubConnection* conn, ProfileStore* profiles
   });
 
   connect(conn_, &HubConnection::stateChanged, this, &SessionController::onConnectionState);
-  connect(&socket_, &HubSocket::stateChanged, this, [this]() { emit linkChanged(); });
+  connect(&socket_, &HubSocket::stateChanged, this, [this](HubSocket::State st) {
+    if (st != HubSocket::State::Open) roster_.clear();  // the server sends a fresh snapshot after the next hello_ack
+    emit linkChanged();
+  });
+  connect(&socket_, &HubSocket::presenceUpdated, &roster_, &OnlineRoster::apply);
   connect(&socket_, &HubSocket::helloAcked, this, &SessionController::onHelloAck);
   connect(&socket_, &HubSocket::iceUpdated, this, [this](const HelloAck& ack) { host_.updateIceServers(ack.iceServers, ack.turnServers); });
   connect(&socket_, &HubSocket::sessionUpdated, this, &SessionController::onSessionUpdated);
@@ -160,10 +165,31 @@ void SessionController::onConnectionState(HubConnection::State s) {
       closeRemote(remotes_.back()->info.sessionId, QString(), false);
     }
     sessions_.clear();
+    sessionsLoaded_ = false;
+    pendingWatch_.clear();
+    roster_.clear();
     users_.clear();
     emit sessionsChanged();
   }
   emit linkChanged();
+}
+
+bool SessionController::canInvite(const QString& userId) const {
+  if (!shared_ || userId.isEmpty()) return false;
+  for (const SessionInviteEntry& i : own_.invites) {
+    if (i.userId == userId && (i.state == QLatin1String("invited") || i.state == QLatin1String("joined"))) return false;
+  }
+  return true;
+}
+
+void SessionController::watchFromRoster(const QString& sessionId) {
+  if (sessionId.isEmpty()) return;
+  if (sessions_.contains(sessionId)) {
+    watch(sessionId);
+    return;
+  }
+  pendingWatch_ = sessionId;
+  refreshSessions();
 }
 
 void SessionController::onHelloAck() {
@@ -215,7 +241,9 @@ void SessionController::refreshSessions() {
         sessions_.insert(s.sessionId, s);
       }
     }
+    sessionsLoaded_ = true;
     emit sessionsChanged();
+    if (const QString id = std::exchange(pendingWatch_, QString()); !id.isEmpty()) watch(id);
   });
 }
 
@@ -232,7 +260,16 @@ void SessionController::onSessionUpdated(const SessionInfo& s) {
   if (s.isOwner) {
     return;
   }
+  const bool wasKnown = sessions_.contains(s.sessionId);
+  const bool wasInvited = wasKnown && sessions_.value(s.sessionId).invited;
   sessions_.insert(s.sessionId, s);
+  if (sessionsLoaded_) {
+    if (s.invited && !wasInvited) {
+      emit notice(QStringLiteral("invite"), tr("%1 invited you to watch %2").arg(s.owner.displayName, s.gameTitle), tr("WATCH"), QStringLiteral("watch:") + s.sessionId);
+    } else if (!s.invited && !wasKnown) {
+      emit notice(QStringLiteral("session_started"), tr("%1 started a Session: %2").arg(s.owner.displayName, s.gameTitle), tr("WATCH"), QStringLiteral("watch:") + s.sessionId);
+    }
+  }
   if (Remote* r = remote(s.sessionId)) {
     r->info = s;
     emit surfacesChanged();
