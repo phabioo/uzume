@@ -77,6 +77,22 @@ bool verifyAndLockMsi(const uzume::launcher::MsiUpdateRequest& req, HANDLE* lock
   return true;
 }
 
+// Waits while another Windows installation holds the installer (execute mutex), polling every 2 s, until the
+// budget counted from `startedMs` (GetTickCount64) is used up; msiexec then reports 1618 itself.
+// A non-elevated open can fail with ERROR_ACCESS_DENIED while the mutex exists: that counts as busy.
+void waitWhileInstallerBusy(ULONGLONG startedMs) {
+  using namespace uzume::launcher;
+  while (GetTickCount64() - startedMs < kMsiBusyBudgetMs) {
+    HANDLE m = OpenMutexW(SYNCHRONIZE, FALSE, L"Global\\_MSIExecute");
+    if (m == nullptr) {
+      if (GetLastError() != ERROR_ACCESS_DENIED) return;
+    } else {
+      CloseHandle(m);
+    }
+    Sleep(kMsiBusyPollMs);
+  }
+}
+
 // --apply-msi-update (temporary copy of the launcher, see msiupdate.h): wait until no Player instance runs, run
 // msiexec (elevated unless per-user), start the Player again, delete this copy.
 int applyMsiUpdate(const uzume::launcher::MsiUpdateRequest& req) {
@@ -101,30 +117,38 @@ int applyMsiUpdate(const uzume::launcher::MsiUpdateRequest& req) {
   wchar_t sys[MAX_PATH] = {};
   if (!params.empty() && GetSystemDirectoryW(sys, MAX_PATH) > 0) {
     const std::wstring msiexec = std::wstring(sys) + L"\\msiexec.exe";
-    HANDLE proc = nullptr;
-    if (scopeNeedsElevation(req.scope)) {
-      SHELLEXECUTEINFOW sei = {};
-      sei.cbSize = sizeof(sei);
-      sei.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NOASYNC;
-      sei.lpVerb = L"runas";
-      sei.lpFile = msiexec.c_str();
-      sei.lpParameters = params.c_str();
-      sei.nShow = SW_HIDE;
-      if (ShellExecuteExW(&sei)) proc = sei.hProcess;
-    } else {
-      std::wstring cmd = L"\"" + msiexec + L"\" " + params;
-      STARTUPINFOW si = {};
-      si.cb = sizeof(si);
-      PROCESS_INFORMATION pi = {};
-      if (CreateProcessW(nullptr, &cmd[0], nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi)) {
-        CloseHandle(pi.hThread);
-        proc = pi.hProcess;
+    const ULONGLONG started = GetTickCount64();
+    for (;;) {
+      waitWhileInstallerBusy(started);
+      code = 1;
+      HANDLE proc = nullptr;
+      if (scopeNeedsElevation(req.scope)) {
+        SHELLEXECUTEINFOW sei = {};
+        sei.cbSize = sizeof(sei);
+        sei.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NOASYNC;
+        sei.lpVerb = L"runas";
+        sei.lpFile = msiexec.c_str();
+        sei.lpParameters = params.c_str();
+        sei.nShow = SW_HIDE;
+        if (ShellExecuteExW(&sei)) proc = sei.hProcess;
+      } else {
+        std::wstring cmd = L"\"" + msiexec + L"\" " + params;
+        STARTUPINFOW si = {};
+        si.cb = sizeof(si);
+        PROCESS_INFORMATION pi = {};
+        if (CreateProcessW(nullptr, &cmd[0], nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi)) {
+          CloseHandle(pi.hThread);
+          proc = pi.hProcess;
+        }
       }
-    }
-    if (proc != nullptr) {
-      WaitForSingleObject(proc, INFINITE);
-      GetExitCodeProcess(proc, &code);
-      CloseHandle(proc);
+      if (proc != nullptr) {
+        WaitForSingleObject(proc, INFINITE);
+        GetExitCodeProcess(proc, &code);
+        CloseHandle(proc);
+      }
+      // Another installation was running (1618): wait and try again within the budget. The MSI stays locked.
+      if (!shouldRetryMsi(code, GetTickCount64() - started)) break;
+      Sleep(kMsiRetryPauseMs);
     }
   }
   if (lock != INVALID_HANDLE_VALUE) CloseHandle(lock);
@@ -135,9 +159,7 @@ int applyMsiUpdate(const uzume::launcher::MsiUpdateRequest& req) {
     MessageBoxW(nullptr, L"The installer file does not match the verified update (it was changed or could not be checked). Nothing was installed.",
                 L"Uzume", MB_OK | MB_ICONERROR);
   } else if (code != 0 && code != 3010) {  // 3010 = success, restart required
-    wchar_t msg[256];
-    _snwprintf_s(msg, _countof(msg), _TRUNCATE, L"The Uzume update could not be installed (code %lu).", code);
-    MessageBoxW(nullptr, msg, L"Uzume", MB_OK | MB_ICONERROR);
+    MessageBoxW(nullptr, msiFailureMessage(code).c_str(), L"Uzume", MB_OK | MB_ICONERROR);
   }
   // Start the Player again (the installed one after success, otherwise the previous one).
   std::vector<std::wstring> relaunch;
