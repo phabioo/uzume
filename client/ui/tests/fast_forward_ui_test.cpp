@@ -55,10 +55,14 @@ class FastForwardUiTest : public QObject {
     QTest::keyClick(h.window, Qt::Key_Space);  // Space toggles (off)
     QTRY_VERIFY(!gs->fastForward());
     // Off and on read differently: the ratio alone looked the same in both states.
-    QTRY_COMPARE(h.item("fastForwardButton")->property("text").toString(), QStringLiteral("Speed-up 2×"));
+    QTRY_COMPARE(h.item("fastForwardButton")->property("value").toString(), QStringLiteral("Off · 2×"));
+    // The word gives way when the bar is narrow (level >= 1; Windows fonts are wider at the default window size).
+    const bool fullLabel = h.item("gameHeader")->property("level").toInt() < 1;
+    QCOMPARE(h.item("fastForwardButton")->property("text").toString(), fullLabel ? QStringLiteral("» Speed-up") : QStringLiteral("»"));
     QTest::keyClick(h.window, Qt::Key_Space);
     QTRY_VERIFY(gs->fastForward());
-    QTRY_COMPARE(h.item("fastForwardButton")->property("text").toString(), QStringLiteral("Speed-up on · 2×"));
+    QTRY_COMPARE(h.item("fastForwardButton")->property("value").toString(), QStringLiteral("On · 2×"));
+    QVERIFY(h.item("fastForwardButton")->property("inverted").toBool());   // on = the ink plane
 
     // Header at 1280 px (Windows fonts are wider): every header button lies inside the header, none overlap, and at
     // least 120 px stay free between "Library" and the right-hand controls.
@@ -78,9 +82,10 @@ class FastForwardUiTest : public QObject {
         rects.append({QLatin1String(name), r});
       }
       QVERIFY(h.item("fastForwardButton")->isVisible());
+      // (the halves of the split button share one pixel)
       for (int i = 0; i < rects.size(); ++i)
         for (int j = i + 1; j < rects.size(); ++j)
-          QVERIFY2(!rects[i].second.intersects(rects[j].second), qPrintable(rects[i].first + QStringLiteral(" overlaps ") + rects[j].first));
+          QVERIFY2(!rects[i].second.adjusted(0.5, 0, -0.5, 0).intersects(rects[j].second.adjusted(0.5, 0, -0.5, 0)), qPrintable(rects[i].first + QStringLiteral(" overlaps ") + rects[j].first));
       const qreal spare = h.item("fastForwardButton")->mapRectToScene(QRectF(0, 0, 1, 1)).left() -
                           h.item("backToLibraryButton")->mapRectToScene(QRectF(0, 0, h.item("backToLibraryButton")->width(), 1)).right();
       QVERIFY2(spare >= 120, qPrintable(QStringLiteral("only %1 px spare").arg(spare)));
@@ -88,7 +93,7 @@ class FastForwardUiTest : public QObject {
 
     // Speed menu (split button, right half): changes the ratio of the running game; the value and the indicator follow.
     QCOMPARE(gs->fastForwardRatio(), 2.0);
-    QCOMPARE(h.item("fastForwardButton")->property("text").toString(), QStringLiteral("Speed-up on · 2×"));
+    QCOMPARE(h.item("fastForwardButton")->property("value").toString(), QStringLiteral("On · 2×"));
     // The speed menu is the chevron next to the button, or, when the header is tight, the speed entries of the "..." menu.
     const auto openSpeed = [&]() {
       if (h.item("speedValueButton") != nullptr && h.item("speedValueButton")->isVisible()) return h.click("speedValueButton");
@@ -102,7 +107,7 @@ class FastForwardUiTest : public QObject {
     QVERIFY(h.click("menuItem_speed_6"));
     QCOMPARE(gs->fastForwardRatio(), 6.0);
     QTRY_VERIFY(h.item("menuItem_speed_2") == nullptr || !h.item("menuItem_speed_2")->isVisible());
-    QCOMPARE(h.item("fastForwardButton")->property("text").toString(), QStringLiteral("Speed-up on · 6×"));
+    QCOMPARE(h.item("fastForwardButton")->property("value").toString(), QStringLiteral("On · 6×"));
     QVERIFY(h.item("fastForwardIndicator")->isVisible());
 
     // Still usable while the own Session is shared (no block): Space and the button keep working.

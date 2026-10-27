@@ -68,7 +68,7 @@ Item {
             contentWidth: width
             contentHeight: content.implicitHeight + 2 * Theme.space3
             boundsBehavior: Flickable.StopAtBounds
-            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+            ScrollBar.vertical: ScrollBar { policy: flick.contentHeight > flick.height + 1 ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff }
 
             ColumnLayout {
                 id: content

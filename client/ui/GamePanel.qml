@@ -3,11 +3,13 @@ import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import Uzume.App
 
-// Side panel of the game view (boards 3g-1, 3r): 320 wide on `ground`, one `rule` line at the left, run tabs on top (Session, the
-// plugin tabs, the Plugin console in Developer mode), collapsible to a 48 px rail. The Session tab of your game: Sharing, Save and
-// Quit as numbered sections and the hint row (F3, F4) at the bottom. In the Multiview the panel follows the selected tile: your tile =
-// the Session tab with a tile header, a remote tile = who, connection, "Audio here", "Remove from multiview". Diagnostics are not a tab
-// any more: F3 opens the block on the stage (GameScreen).
+// Side panel of the game view (boards 7-5 and 3r): 320 wide on `ground`, one `rule` line at the left, run tabs on top (Game, the
+// plugin tabs, the Plugin console in Developer mode; 48 px, icon and label, the open tab has the marker-under), collapsible to a
+// 56 px rail that names its tabs vertically (a click opens the panel on that tab). The Game tab of your game: "Now" (save state,
+// slot, who watches, play time), four framed buttons (Snapshot, Screenshot, Share…, Saves…), Sharing, and Quit pinned to the bottom
+// with its sentence. A plugin tab is a 40 px strip with the plugin name and its origin over the plugin's content in a scroll area. In
+// the Multiview the panel follows the selected tile: your tile = the Game tab with a tile header, a remote tile = who, connection,
+// "Audio here", "Remove from multiview". Diagnostics are not a tab: F3 opens the block on the stage (GameScreen).
 Rectangle {
     id: root
     required property PlayerController player
@@ -39,9 +41,9 @@ Rectangle {
         return null
     }
     readonly property bool pluginTabOpen: pluginTab !== null && root.localTile
-    // Tab model: Session, the plugin tabs, the Plugin console.
+    // Tab model: Game, the plugin tabs, the Plugin console.
     readonly property var tabEntries: {
-        var out = [{ id: "game", kind: "game", name: root.localTile ? qsTr("Session") : qsTr("Tile"), icon: "", dot: "", origin: "official", mark: "" }]
+        var out = [{ id: "game", kind: "game", name: root.localTile ? qsTr("Game") : qsTr("Tile"), icon: "", dot: "", origin: "official", mark: "" }]
         if (!root.localTile) return out   // a remote tile has no plugin tabs
         var t = pluginTabs
         for (var i = 0; i < t.length; ++i)
@@ -51,16 +53,17 @@ Rectangle {
             out.push({ id: "console", kind: "console", name: qsTr("Plugin console"), icon: "", dot: "", origin: "official", mark: ">_" })
         return out
     }
-    // Fitting: every tab shows a short label (a plugin tab its icon in front of it; a label never grows past `tabLabelMax`). Session
+    // Fitting: every tab shows a short label (a Game or plugin tab its icon in front of it; a label never grows past `tabLabelMax`). Game
     // and the open tab always stay; when the rest does not fit, the last tabs move into the "More" tab menu. In a very wide font
     // the labels of Session and the open tab elide to a share of the bar.
     readonly property int tabGap: 18
     readonly property int tabLabelMax: 96
     readonly property int tabIconSize: 16
+    function tabCap(e) { return root.tabLabelMax }
     readonly property var tabPlan: {
         var all = tabEntries, n = all.length, avail = tabBar.width - 2 * Theme.space3, gapW = root.tabGap
-        function labelW(e) { return Math.min(root.tabLabelMax, Math.ceil(tabFm.advanceWidth(e.name))) + (e.dot !== "" ? 10 : 0) }
-        function iconW(e) { return e.kind === "plugin" ? root.tabIconSize + 6 : 0 }
+        function labelW(e) { return Math.min(root.tabCap(e), Math.ceil(tabFm.advanceWidth(e.name))) + (e.dot !== "" ? 10 : 0) }
+        function iconW(e) { return e.kind === "plugin" || e.kind === "game" ? root.tabIconSize + 6 : 0 }
         // The "More" tab measured with the real font, so a wide font cannot push it out of the bar.
         function overflowW(count) { return count > 0 ? Math.ceil(tabFm.advanceWidth(qsTr("More") + " ▾")) + gapW : 0 }
         var shown = []
@@ -78,9 +81,9 @@ Rectangle {
             overflow.unshift(shown.splice(idx, 1)[0].e)
         }
         var textSum = 0
-        for (var q = 0; q < shown.length; ++q) textSum += Math.min(root.tabLabelMax, Math.ceil(tabFm.advanceWidth(shown[q].e.name)))
+        for (var q = 0; q < shown.length; ++q) textSum += Math.min(root.tabCap(shown[q].e), Math.ceil(tabFm.advanceWidth(shown[q].e.name)))
         var fixedW = total() - textSum - (shown.reduce(function (a, s) { return a + (s.e.dot !== "" ? 10 : 0) }, 0)) + overflowW(overflow.length)
-        var textMax = shown.length > 0 && fixedW + textSum > avail ? Math.max(16, Math.floor((avail - fixedW) / shown.length)) : root.tabLabelMax
+        var textMax = shown.length > 0 && fixedW + textSum > avail ? Math.max(16, Math.floor((avail - fixedW) / shown.length)) : 9999
         return { shown: shown, overflow: overflow, textMax: textMax }
     }
     FontMetrics { id: tabFm; font.family: Theme.sans; font.pixelSize: 13 }
@@ -89,7 +92,7 @@ Rectangle {
         root.panelTab = id
         if (root.collapsed) root.collapseToggled()
     }
-    // Alt+1 ... Alt+9: tab n of the tab bar (Session, the plugin tabs, the Plugin console); false = no such tab.
+    // Alt+1 ... Alt+9: tab n of the tab bar (Game, the plugin tabs, the Plugin console); false = no such tab.
     function openTabNumber(n) {
         var t = root.tabEntries
         if (n < 1 || n > t.length || !root.localTile) return false
@@ -105,6 +108,19 @@ Rectangle {
     property bool overflowOpen: false
     signal overflowRequested()
 
+    // "Saves…" and the quick menu's "Manage saves…": the saves view inside the panel (the panel opens if it is a rail).
+    function openSaves() {
+        root.panelTab = "game"
+        if (root.collapsed) root.collapseToggled()
+        root.savesOpen = true
+    }
+    // "Share…": the Game tab scrolled to its Sharing section (the panel opens if it is a rail).
+    function showSharing() {
+        root.closeSaves()
+        root.panelTab = "game"
+        if (root.collapsed) root.collapseToggled()
+        Qt.callLater(function () { flick.contentY = Math.max(0, Math.min(flick.contentHeight - flick.height, shareBlock.mapToItem(col, 0, 0).y + col.y - Theme.space2)) })
+    }
     function closeSaves() {
         if (!root.savesOpen) return
         root.savesOpen = false
@@ -124,7 +140,7 @@ Rectangle {
 
     objectName: "gamePanel"
     color: Theme.ground
-    implicitWidth: collapsed ? Theme.row48 : Theme.sidePanel
+    implicitWidth: collapsed ? Theme.space7 : Theme.sidePanel
     clip: true
 
     Rectangle { anchors.left: parent.left; width: 1; height: parent.height; color: Theme.rule }
@@ -135,6 +151,34 @@ Rectangle {
             if (opts[i].value === saves.slot) return opts[i].label
         }
         return saves.slot === "default" ? qsTr("default") : saves.slot
+    }
+    // Save state of the running game: "Saved 2 min ago · synced" (or syncing / waiting for the server).
+    readonly property bool saveSynced: root.saves.available && !root.saves.uploading && root.saves.online
+    readonly property bool hasSaved: root.saves.history.length > 0
+    readonly property string saveRowText: {
+        if (!root.saves.slotsAvailable) return ""
+        if (root.saves.busy) return qsTr("Saving…")
+        const sync = root.saves.uploading ? qsTr("syncing") : (root.saves.online ? qsTr("synced") : qsTr("waiting for the server"))
+        const when = root.saves.history.length > 0 ? root.saves.history[0].when : ""
+        return when !== "" ? qsTr("Saved %1").arg(when) + " · " + sync : qsTr("Not saved yet")
+    }
+    // Play time of the running game (library statistics, as the game page shows it); empty while unknown.
+    readonly property string playedText: {
+        root.gameSession.state   // refreshed with the game state
+        const g = root.player.runningGameId
+        if (g === "") return ""
+        const p = root.player.library.personalFor(g)
+        return p.supported === true && (p.playSeconds ?? 0) > 0 ? p.playTimeText ?? "" : ""
+    }
+    readonly property var nowRows: {
+        const out = []
+        if (root.saveRowText !== "") {
+            out.push({ name: "save", label: qsTr("Save"), value: root.saveRowText })
+            out.push({ name: "slot", label: qsTr("Slot"), value: root.slotLabel() })
+        }
+        out.push({ name: "watching", label: qsTr("Watching"), value: root.shareText })
+        if (root.playedText !== "") out.push({ name: "played", label: qsTr("Played"), value: root.playedText })
+        return out
     }
     // " · 1 min" behind "Paused by <name>"; refreshed by the minute timer below
     property int nowTick: 0
@@ -152,17 +196,18 @@ Rectangle {
         return mins < 1 ? qsTr("just started") : qsTr("for %1 min").arg(mins)
     }
 
-    // ---- collapsed rail ----
+    // ---- collapsed rail (board 7-5 section 03): 56 px, the framed show button and the tab names written vertically ----
     Column {
         objectName: "panelRail"
         visible: root.collapsed
         anchors.top: parent.top
         anchors.topMargin: Theme.space15
         anchors.horizontalCenter: parent.horizontalCenter
-        spacing: Theme.space2
+        spacing: Theme.space15
         UzIconButton {
             objectName: "panelExpandButton"
             anchors.horizontalCenter: parent.horizontalCenter
+            outlined: true
             focusPolicy: Qt.TabFocus
             glyph: "left"
             glyphSize: 14
@@ -191,36 +236,55 @@ Rectangle {
             ToolTip.visible: dotHover.hovered
             ToolTip.text: root.shareText
         }
-        // One icon per plugin tab; a click opens the panel on that tab
+        // The tab names, vertical; a click opens the panel on that tab
         Repeater {
-            model: root.localTile ? root.pluginTabs : []
-            delegate: PluginTabIcon {
+            model: root.tabEntries.filter(e => e.kind !== "console")
+            delegate: Item {
                 id: railTab
                 required property var modelData
-                objectName: "panelRailTab_" + modelData.pluginId
+                readonly property string marker: root.originMarker(modelData.origin || "local")
+                objectName: modelData.kind === "game" ? "panelRailTab_game" : "panelRailTab_" + String(modelData.id).substring(7)
                 anchors.horizontalCenter: parent.horizontalCenter
-                size: 22
-                chipRadius: 0
-                name: modelData.name || modelData.title
-                icon: modelData.icon || ""
-                dot: modelData.dot || ""
+                width: 32
+                height: Math.min(132, railLabel.implicitWidth) + 2 * Theme.space15
                 activeFocusOnTab: true
                 Accessible.ignored: false
                 Accessible.role: Accessible.Button
-                Accessible.name: modelData.title || modelData.name
-                Accessible.onPressAction: root.openTab("plugin:" + railTab.modelData.pluginId)
+                Accessible.name: modelData.name
+                Accessible.onPressAction: root.openTab(railTab.modelData.id)
                 Keys.onPressed: (event) => {
                     if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
-                        root.openTab("plugin:" + railTab.modelData.pluginId)
+                        root.openTab(railTab.modelData.id)
                         event.accepted = true
                     }
                 }
+                Rectangle { anchors.fill: parent; color: railHover.hovered ? Theme.hover : "transparent" }
+                Text {
+                    id: railLabel
+                    objectName: "panelRailLabel"
+                    anchors.centerIn: parent
+                    rotation: 270
+                    width: Math.min(132, implicitWidth)
+                    elide: Text.ElideRight
+                    horizontalAlignment: Text.AlignHCenter
+                    text: railTab.modelData.name
+                    textFormat: Text.PlainText
+                    font.family: Theme.sans
+                    font.pixelSize: 13
+                    color: railHover.hovered ? Theme.ink : Theme.ink2
+                }
+                Rectangle {   // news / paused marker of a plugin tab
+                    visible: railTab.modelData.dot !== ""
+                    x: parent.width - 8; y: 4
+                    width: 4; height: 4
+                    color: Theme.accent
+                }
                 UzFocusRing { visible: railTab.activeFocus; inset: true }
                 HoverHandler { id: railHover; cursorShape: Qt.PointingHandCursor }
-                TapHandler { onTapped: root.openTab("plugin:" + railTab.modelData.pluginId) }
+                TapHandler { onTapped: root.openTab(railTab.modelData.id) }
                 ToolTip.visible: railHover.hovered
                 ToolTip.delay: 400
-                ToolTip.text: (modelData.title || modelData.name) + (root.originMarker(modelData.origin || "local") !== "" ? " · " + root.originMarker(modelData.origin || "local") : "")
+                ToolTip.text: railTab.modelData.name + (railTab.marker !== "" ? " · " + railTab.marker : "")
             }
         }
     }
@@ -300,7 +364,7 @@ Rectangle {
                             spacing: 6
                             PluginTabIcon {
                                 objectName: "panelTabIcon"
-                                visible: tabItem.entry.kind === "plugin"
+                                visible: tabItem.entry.kind === "plugin" || tabItem.entry.kind === "game"
                                 anchors.verticalCenter: parent.verticalCenter
                                 size: root.tabIconSize
                                 chipRadius: 0
@@ -311,7 +375,8 @@ Rectangle {
                                 objectName: "panelTabLabel"
                                 text: tabItem.entry.name
                                 textFormat: Text.PlainText
-                                width: Math.min(implicitWidth, root.tabPlan.textMax)
+                                // The Game tab always keeps its whole name; the others cap at tabLabelMax
+                                width: Math.min(implicitWidth, tabItem.entry.kind === "game" ? 9999 : root.tabCap(tabItem.entry), root.tabPlan.textMax)
                                 elide: Text.ElideRight
                                 font.family: Theme.sans
                                 font.pixelSize: 13
@@ -327,7 +392,7 @@ Rectangle {
                                 color: Theme.accent
                             }
                         }
-                        Rectangle { visible: tabItem.open; anchors.bottom: parent.bottom; width: parent.width; height: 2; color: Theme.accent }
+                        Rectangle { visible: tabItem.open; anchors.bottom: parent.bottom; width: parent.width; height: 2; color: Theme.markerNav }
                         UzFocusRing { visible: tabItem.activeFocus }
                         TapHandler { onTapped: root.panelTab = tabItem.entry.id }
                         HoverHandler { id: tabHover; cursorShape: Qt.PointingHandCursor }
@@ -377,19 +442,60 @@ Rectangle {
             }
         }
 
-        // ---- plugin tab ----
-        Item {
+        // ---- plugin tab (board 7-5 section 02): a 40 px strip with the plugin name and its origin, the content below ----
+        ColumnLayout {
             id: pluginBox
             objectName: "gamePanelPlugin"
             Layout.fillWidth: true
             Layout.fillHeight: true
             Layout.minimumWidth: 0
             visible: root.pluginTabOpen && !root.savesOpen
-            clip: true
-            Loader {
-                anchors.fill: parent
-                active: pluginBox.visible
-                sourceComponent: PluginPanelContent { player: root.player; tab: root.pluginTab }
+            spacing: 0
+            Item {
+                objectName: "pluginStrip"
+                Layout.fillWidth: true
+                implicitHeight: 40
+                Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.rule2 }
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: Theme.space3
+                    anchors.rightMargin: Theme.space3
+                    spacing: Theme.space1
+                    Text {
+                        objectName: "pluginStripName"
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
+                        elide: Text.ElideRight
+                        text: root.pluginTab ? (root.pluginTab.name || root.pluginTab.title || "") : ""
+                        textFormat: Text.PlainText
+                        font.family: Theme.sans
+                        font.pixelSize: Theme.roles.itemTitleSm.size
+                        font.weight: Theme.roles.itemTitleSm.weight
+                        color: Theme.ink
+                    }
+                    Text {
+                        objectName: "pluginStripMarker"
+                        text: root.pluginTab ? (root.pluginTab.origin === "official" ? qsTr("Official") : root.originMarker(root.pluginTab.origin || "local")) : ""
+                        textFormat: Text.PlainText
+                        font.family: Theme.mono
+                        font.pixelSize: Theme.roles.meta.size
+                        font.weight: Font.Medium
+                        font.letterSpacing: 0.66
+                        font.capitalization: Font.AllUppercase
+                        color: Theme.muted
+                    }
+                }
+            }
+            Item {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.minimumWidth: 0
+                clip: true
+                Loader {
+                    anchors.fill: parent
+                    active: pluginBox.visible
+                    sourceComponent: PluginPanelContent { player: root.player; tab: root.pluginTab }
+                }
             }
         }
 
@@ -409,7 +515,7 @@ Rectangle {
             }
         }
 
-        // ---- your game: Session tab ----
+        // ---- your game: Game tab ----
         Flickable {
             id: flick
             Layout.fillWidth: true
@@ -488,7 +594,150 @@ Rectangle {
                     onClicked: root.ctl.audioHere("local")
                 }
 
-                // 01 SHARING
+                // Now: what is true at this moment (board 7-5 section 01)
+                Column {
+                    id: nowBlock
+                    objectName: "nowBlock"
+                    width: col.width
+                    visible: root.gameSession.active
+                    spacing: 0
+                    UzSectionLabel { width: parent.width; text: qsTr("Now") }
+                    Item { width: 1; height: Theme.space1 }
+                    Repeater {
+                        model: root.nowRows
+                        delegate: Item {
+                            id: nrow
+                            required property var modelData
+                            readonly property bool isSave: modelData.name === "save"
+                            readonly property real markW: isSave && root.hasSaved ? 8 + Theme.space1 : 0
+                            // Label and value share a line when they fit; otherwise the value sits under the label, left aligned.
+                            readonly property bool stacked: nrowLabel.implicitWidth + Theme.space2 + markW + valueMetrics.advanceWidth + 1 > width
+                            objectName: "nowRow_" + modelData.name
+                            width: nowBlock.width
+                            height: Math.max(Theme.row44 - 4, stacked ? nrowLabel.implicitHeight + nrowValue.implicitHeight + 20 : nrowValue.implicitHeight + 16)
+                            Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.rule2 }
+                            Text {
+                                id: nrowLabel
+                                anchors.left: parent.left
+                                y: nrow.stacked ? 10 : (parent.height - height) / 2
+                                text: nrow.modelData.label
+                                textFormat: Text.PlainText
+                                font.family: Theme.sans
+                                font.pixelSize: Theme.roles.buttonSm.size
+                                color: Theme.ink2
+                            }
+                            Rectangle {   // the save mark: ok square while the saved game is on the server, hollow while it syncs; none before the first save
+                                objectName: "nowSaveMark"
+                                visible: nrow.isSave && root.hasSaved
+                                x: nrow.stacked ? 0 : nrowValue.x - width - Theme.space1
+                                y: nrow.stacked ? nrowValue.y + (nrowValue.height - height) / 2 : (nrow.height - height) / 2
+                                width: 8; height: 8
+                                color: root.saveSynced ? Theme.ok : "transparent"
+                                border.width: root.saveSynced ? 0 : 1
+                                border.color: Theme.dim
+                            }
+                            TextMetrics { id: valueMetrics; font: nrowValue.font; text: nrow.modelData.value }
+                            Text {
+                                id: nrowValue
+                                objectName: "nowValue_" + nrow.modelData.name
+                                x: nrow.stacked ? nrow.markW : nrow.width - width
+                                y: nrow.stacked ? nrowLabel.y + nrowLabel.height + 2 : (nrow.height - height) / 2
+                                width: nrow.stacked ? nrow.width - nrow.markW : Math.min(valueMetrics.advanceWidth + 1, nrow.width - nrowLabel.implicitWidth - Theme.space2 - nrow.markW)
+                                horizontalAlignment: nrow.stacked ? Text.AlignLeft : Text.AlignRight
+                                wrapMode: Text.WordWrap
+                                maximumLineCount: 2
+                                elide: Text.ElideRight
+                                text: nrow.modelData.value
+                                textFormat: Text.PlainText
+                                font.family: Theme.sans
+                                font.pixelSize: Theme.roles.buttonSm.size
+                                color: Theme.ink
+                            }
+                        }
+                    }
+                }
+
+                // The four things done most: framed 36 px buttons with their keys
+                GridLayout {
+                    id: actionGrid
+                    objectName: "gameActionGrid"
+                    width: col.width
+                    visible: root.gameSession.active
+                    // One column when a label would elide in the half width (wide fonts, large text).
+                    columns: actionWide ? 2 : 1
+                    readonly property real cellWidth: (width - columnSpacing) / 2
+                    readonly property bool actionWide: cellWidth >= Math.max(snapshotBtn.implicitWidth, shotBtn.implicitWidth, shareBtn.implicitWidth, savesBtn.implicitWidth)
+                    columnSpacing: Theme.space1
+                    rowSpacing: Theme.space1
+                    UzButton {
+                        id: snapshotBtn
+                        objectName: "gameSnapshotButton"
+                        Layout.fillWidth: true
+                        Layout.preferredWidth: 1
+                        Layout.minimumWidth: 0
+                        visible: root.saves.slotsAvailable
+                        focusPolicy: Qt.TabFocus
+                        font.pixelSize: Theme.roles.buttonSm.size
+                        hPadding: 16
+                        text: root.saves.busy ? qsTr("Saving…") : qsTr("Snapshot")
+                        value: root.player.controllers.hotkeyHints.snapshot || "F5"
+                        enabled: root.saves.available && !root.saves.busy
+                        onClicked: root.saves.createSnapshotInGame("")
+                    }
+                    UzButton {
+                        id: shotBtn
+                        objectName: "gameScreenshotButton"
+                        Layout.fillWidth: true
+                        Layout.preferredWidth: 1
+                        Layout.minimumWidth: 0
+                        focusPolicy: Qt.TabFocus
+                        font.pixelSize: Theme.roles.buttonSm.size
+                        hPadding: 16
+                        text: qsTr("Screenshot")
+                        value: root.player.controllers.hotkeyHints.screenshot || "F12"
+                        onClicked: root.player.screenshots.capture()
+                    }
+                    UzButton {
+                        id: shareBtn
+                        objectName: "gameShareButton"
+                        Layout.fillWidth: true
+                        Layout.preferredWidth: 1
+                        Layout.minimumWidth: 0
+                        focusPolicy: Qt.TabFocus
+                        font.pixelSize: Theme.roles.buttonSm.size
+                        hPadding: 16
+                        text: qsTr("Share…")
+                        onClicked: root.showSharing()
+                    }
+                    UzButton {
+                        id: savesBtn
+                        objectName: "manageSavesButton"
+                        Layout.fillWidth: true
+                        Layout.preferredWidth: 1
+                        Layout.minimumWidth: 0
+                        visible: root.saves.slotsAvailable
+                        focusPolicy: Qt.TabFocus
+                        font.pixelSize: Theme.roles.buttonSm.size
+                        hPadding: 16
+                        text: qsTr("Saves…")
+                        onClicked: root.savesOpen = true
+                    }
+                }
+                Text {
+                    objectName: "gameSnapshotMessage"
+                    width: col.width
+                    visible: root.gameSession.active && root.saves.slotsAvailable && root.saves.message !== ""
+                    wrapMode: Text.WordWrap
+                    textFormat: Text.PlainText
+                    font.family: Theme.sans
+                    font.pixelSize: Theme.roles.small.size
+                    lineHeight: Theme.roles.small.line
+                    lineHeightMode: Text.FixedHeight
+                    text: root.saves.message
+                    color: root.saves.messageIsError ? Theme.danger : Theme.ok
+                }
+
+                // Sharing (the who-can-watch controls)
                 Column {
                     id: shareBlock
                     objectName: "sharingBlock"
@@ -497,8 +746,6 @@ Rectangle {
                     UzSectionLabel {
                         objectName: "panelShareState"
                         width: parent.width
-                        number: 1
-                        keepNumber: true
                         text: qsTr("Sharing")
                         meta: root.player.hubName
                     }
@@ -739,7 +986,7 @@ Rectangle {
                             size: "sm"
                             focusPolicy: Qt.NoFocus
                             kind: "primary"
-                            text: root.ctl.shareBusy ? qsTr("Sharing…") : qsTr("Share Session")
+                            text: root.ctl.shareBusy ? qsTr("Sharing…") : qsTr("Share this game…")
                             enabled: !root.ctl.shareBusy && root.ctl.available && root.ctl.hubLink === "online"
                             onClicked: root.ctl.shareSession()
                         }
@@ -751,65 +998,6 @@ Rectangle {
                             focusPolicy: Qt.NoFocus
                             text: qsTr("Stop sharing")
                             onClicked: root.ctl.stopSharing()
-                        }
-                    }
-                }
-
-                // 02 SAVE
-                Column {
-                    id: saveBlock
-                    objectName: "saveSlotBlock"
-                    width: col.width
-                    visible: root.gameSession.active && root.saves.slotsAvailable
-                    spacing: Theme.space15
-                    UzSectionLabel {
-                        width: parent.width
-                        number: 2
-                        keepNumber: true
-                        text: qsTr("Save")
-                        meta: root.slotLabel() + (root.saves.history.length > 0 ? " · " + root.saves.history[0].versionText : "")
-                    }
-                    Row {
-                        spacing: Theme.space1
-                        UzTag { objectName: "saveStateTag"; tone: "ok"; text: qsTr("Saved") }
-                    }
-                    Text {
-                        objectName: "gameSnapshotMessage"
-                        width: parent.width
-                        wrapMode: Text.WordWrap
-                        textFormat: Text.PlainText
-                        font.family: Theme.sans
-                        font.pixelSize: Theme.roles.small.size
-                        lineHeight: Theme.roles.small.line
-                        lineHeightMode: Text.FixedHeight
-                        text: root.saves.message !== "" ? root.saves.message
-                              : qsTr("Saved to “%1” · final sync on pause or quit").arg(root.slotLabel())
-                        color: root.saves.message === "" ? Theme.muted : (root.saves.messageIsError ? Theme.danger : Theme.ok)
-                    }
-                    Flow {
-                        width: parent.width
-                        spacing: Theme.space1
-                        UzButton {
-                            objectName: "gameSnapshotButton"
-                            size: "sm"
-                            focusPolicy: Qt.NoFocus
-                            text: root.saves.busy ? qsTr("Saving snapshot…") : qsTr("Save snapshot")
-                            enabled: root.saves.available && !root.saves.busy
-                            onClicked: root.saves.createSnapshotInGame("")
-                        }
-                        UzKbd {
-                            objectName: "snapshotKey"
-                            visible: root.player.controllers.hotkeyHints.snapshot !== ""
-                            height: Theme.row32
-                            keys: root.player.controllers.hotkeyHints.snapshot
-                        }
-                        UzButton {
-                            objectName: "manageSavesButton"
-                            size: "sm"
-                            kind: "ghost"
-                            focusPolicy: Qt.NoFocus
-                            text: qsTr("Manage saves")
-                            onClicked: root.savesOpen = true
                         }
                     }
                 }
@@ -842,14 +1030,13 @@ Rectangle {
             }
         }
 
-        // Quit stays reachable on the Session tab and in the saves view: a footer under the scrolling page.
+        // Quit stays reachable on the Game tab and in the saves view: a footer pinned under the scrolling page.
         Item {
             id: quitFooter
             Layout.fillWidth: true
             visible: root.localTile && !root.consoleTab && !root.pluginTabOpen
             implicitHeight: quitBlock.implicitHeight + 2 * Theme.space2
             Rectangle { width: parent.width; height: 1; color: Theme.rule }
-            // 03 QUIT
             Column {
                 id: quitBlock
                 objectName: "quitBlock"
@@ -857,32 +1044,27 @@ Rectangle {
                 y: Theme.space2
                 width: parent.width - 2 * Theme.space3
                 spacing: Theme.space15
-                UzSectionLabel { width: parent.width; keepNumber: true; number: root.saves.slotsAvailable && root.gameSession.active ? 3 : 2; text: qsTr("Quit") }
-                Flow {
+                UzButton {
+                    id: endGameButton
+                    objectName: "endGameButton"
+                    visible: !root.quitting
+                    focusPolicy: Qt.TabFocus
+                    font.pixelSize: Theme.roles.buttonSm.size
+                    text: qsTr("Quit game")
+                    onClicked: root.player.requestQuit()
+                }
+                Text {
+                    objectName: "quitNote"
+                    visible: !root.quitting
                     width: parent.width
-                    spacing: Theme.space1
-                    UzButton {
-                        id: endGameButton
-                        objectName: "endGameButton"
-                        visible: !root.quitting
-                        size: "sm"
-                        focusPolicy: Qt.NoFocus
-                        text: qsTr("Quit game")
-                        onClicked: root.player.requestQuit()
-                    }
-                    Text {
-                        objectName: "quitNote"
-                        visible: !root.quitting
-                        height: Theme.row32
-                        verticalAlignment: Text.AlignVCenter
-                        width: Math.min(implicitWidth, quitBlock.width)
-                        elide: Text.ElideRight
-                        text: qsTr("Saves and syncs first.")
-                        textFormat: Text.PlainText
-                        font.family: Theme.sans
-                        font.pixelSize: Theme.roles.small.size
-                        color: Theme.muted
-                    }
+                    wrapMode: Text.WordWrap
+                    text: qsTr("Saves and syncs first, then returns to the Library.")
+                    textFormat: Text.PlainText
+                    font.family: Theme.sans
+                    font.pixelSize: Theme.roles.small.size
+                    lineHeight: Theme.roles.small.line
+                    lineHeightMode: Text.FixedHeight
+                    color: Theme.muted
                 }
                 Column {
                     objectName: "quittingBox"
@@ -915,7 +1097,7 @@ Rectangle {
             }
         }
 
-        // Hint row (F3, F4): the keys that exist; shown with the Session tab
+        // Hint row (Esc, F3, F4): the keys that exist; shown with the Game tab
         UzHintRow {
             objectName: "panelHintRow"
             Layout.fillWidth: true
@@ -923,8 +1105,9 @@ Rectangle {
             hints: {
                 var h = []
                 var d = root.player.controllers.hotkeyHints.diagnostics
+                h.push({ kbd: "Esc", label: qsTr("Quick menu") })
                 if (d) h.push({ kbd: d, label: qsTr("Diagnostics") })
-                if (root.plugins.hudWidgets.length > 0) h.push({ kbd: "F4", label: qsTr("Plugin HUD") })
+                if (root.plugins.hudWidgets.length > 0) h.push({ kbd: "F4", label: qsTr("HUD") })
                 return h
             }
         }

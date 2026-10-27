@@ -13,6 +13,16 @@ Button {
     property string kind: "outline"
     property string size: "md"
     property bool on: false
+    // Control-bar look (boards 7-1, 7-2): `value` is the current state of what the button controls, in Mono uppercase after the
+    // label ("Off · 2×", "5 %"); `chevron` adds the "opens a menu" mark; `inverted` is the ink plane of a toggle that is on
+    // (choosing is not acting, so it is ink and not Yamabuki). `on` keeps its pressed-plane look.
+    property string value: ""
+    property bool chevron: false
+    property bool inverted: false
+    // Whether the label shows; not `labelItem.visible`, which is also false while an ancestor is hidden and left a zero width behind.
+    readonly property bool showLabel: text !== "" || (value === "" && !chevron)
+    readonly property real extrasWidth: (value !== "" ? valueItem.implicitWidth + (showLabel ? 8 : 0) : 0)
+                                        + (chevron ? 12 + (showLabel || value !== "" ? 8 : 0) : 0)
     // Only the person may operate it: the debug MCP server (ADR 0032 D4) refuses to click it. Danger buttons are destructive by default;
     // set true on others that share, install or overwrite.
     property bool destructive: kind === "danger"
@@ -25,7 +35,7 @@ Button {
     implicitHeight: kind === "link" ? Theme.row28 : (size === "sm" ? Theme.row32 : Theme.row36)
     property real hPadding: kind === "link" ? 8 : (size === "sm" ? 24 : 32)   // total horizontal padding around the label (2 x space-1.5 / space-2)
     // Natural label width: from the label's implicitWidth, never from its assigned (possibly capped) width.
-    readonly property real labelNaturalWidth: labelItem.implicitWidth + (control.working ? 20 : 0)
+    readonly property real labelNaturalWidth: (showLabel ? labelItem.implicitWidth : 0) + extrasWidth + (control.working ? 20 : 0)
     implicitWidth: Math.max(kind === "link" ? 0 : 72, labelNaturalWidth + hPadding)
     padding: 0
     // In a Flow/Row-like container the button never grows past the container (the label elides); layouts size it themselves.
@@ -72,6 +82,7 @@ Button {
             Text {
                 id: labelItem
                 objectName: "fbButtonLabel"
+                visible: control.showLabel
                 textFormat: control.textFormat
                 text: control.text
                 font: control.font
@@ -82,15 +93,35 @@ Button {
                        : control.kind === "primary" ? Theme.inkOnAccent
                        : control.kind === "danger" ? Theme.danger
                        : control.kind === "link" ? (control.hovered ? Theme.ink : Theme.muted)
+                       : control.inverted ? Theme.ground
                        : Theme.ink
                 Behavior on color { ColorAnimation { duration: Theme.durFast } }
-                // Elide the label when the button was capped to its Flow/Row-like container.
-                Binding {
-                    target: labelItem
-                    property: "width"
-                    when: (control.parent && control.parent.flow !== undefined && control.parent.width > 0) || (control.width > 0 && control.width < control.implicitWidth - 0.5)
-                    value: Math.min(labelItem.implicitWidth, Math.max(0, control.width - control.hPadding - (control.working ? 20 : 0)))
-                }
+                // Elide the label when the button was capped to its Flow/Row-like container; otherwise it keeps its natural width
+                // (a conditional Binding left a stale zero width behind when the button grew again).
+                width: ((control.parent && control.parent.flow !== undefined && control.parent.width > 0) || (control.width > 0 && control.width < control.implicitWidth - 0.5))
+                       ? Math.min(implicitWidth, Math.max(0, control.width - control.hPadding - control.extrasWidth - (control.working ? 20 : 0)))
+                       : implicitWidth
+            }
+            Text {
+                id: valueItem
+                objectName: "fbButtonValue"
+                visible: control.value !== ""
+                textFormat: Text.PlainText
+                text: control.value
+                anchors.verticalCenter: parent.verticalCenter
+                font.family: Theme.mono
+                font.pixelSize: Theme.roles.meta.size
+                font.weight: Font.Medium
+                font.letterSpacing: 0.66
+                font.capitalization: Font.AllUppercase
+                color: !control.enabled ? Theme.disabledInk : control.kind === "primary" ? Theme.inkOnAccent : (control.inverted ? Theme.ground : Theme.muted)
+            }
+            UzGlyph {
+                visible: control.chevron
+                name: "chevronDown"
+                size: 12
+                anchors.verticalCenter: parent.verticalCenter
+                color: !control.enabled ? Theme.disabledInk : (control.inverted ? Theme.ground : Theme.ink2)
             }
         }
     }
@@ -105,11 +136,13 @@ Button {
             color: !control.enabled ? (control.kind === "ghost" ? "transparent" : Theme.disabledGround)
                  : primary ? (control.down ? Theme.accentPressed : (control.hovered ? Theme.accentHover : Theme.accent))
                  : danger ? (control.down || control.hovered ? Theme.dangerTint : "transparent")
+                 : control.inverted ? (control.down || control.hovered ? Theme.ink2 : Theme.ink)
                  : (control.down || control.on ? Theme.pressed : (control.hovered ? Theme.hover : "transparent"))
             border.width: control.kind === "ghost" ? 0 : 1
             border.color: !control.enabled ? Theme.disabledRule
                         : primary ? plane.color
                         : danger ? Theme.danger
+                        : control.inverted ? Theme.ink
                         : (control.hovered || control.down || control.on ? Theme.ink : Theme.ruleControl)
             Behavior on color { ColorAnimation { duration: Theme.durFast } }
         }

@@ -2,6 +2,7 @@
 // and Multiview at 1440, 1280 and 960 px, game controls (also in the Multiview), the Reset popover, the single diagnostics
 // toggle and the overlay position, the panel following the tile selection, the picker anchored under "+ Add" (never opening
 // on its own), the "Now running" strip in the sidebar. Preview game and FakeHub, no core needed.
+#include <QQmlComponent>
 #include <QQmlContext>
 #include <QQmlProperty>
 #include <QQuickWindow>
@@ -245,7 +246,7 @@ class InGameUiTest : public QObject {
           return rects[i].first + QStringLiteral(" overlaps ") + rects[j].first + chain(visibleItem(h, qPrintable(rects[i].first)));
         }
       }
-      if (i + 1 < rects.size() && rects[i].second.right() > rects[i + 1].second.left() + 0.5) {
+      if (i + 1 < rects.size() && rects[i].second.right() > rects[i + 1].second.left() + 1.5) {
         return rects[i].first + QStringLiteral(" is not left of ") + rects[i + 1].first;
       }
     }
@@ -676,7 +677,7 @@ class InGameUiTest : public QObject {
                    qPrintable(tag + QStringLiteral(": label centre %1 vs button %2").arg(sceneRect(it).center().y()).arg(sceneRect(btn).center().y())));
         }
       }
-      QVERIFY2(checked >= 5, qPrintable(QStringLiteral("only %1 buttons checked").arg(checked)));
+      QVERIFY2(checked >= (qEnvironmentVariableIsSet("UZUME_TEST_WIDE_FONT") ? 3 : 5), qPrintable(QStringLiteral("only %1 buttons checked").arg(checked)));   // wide fonts: the bar gives way
       // Title and system chip share the line with the buttons
       QQuickItem* title = visibleItem(h, "gameTitle");
       QVERIFY(title != nullptr);
@@ -706,7 +707,7 @@ class InGameUiTest : public QObject {
       // Zones of the Session: no "YOUR GAME" label, no "Add tile", no Quit in the header
       QVERIFY(!shown(h, "yourGameLabel") && !shown(h, "addSessionToggle") && !shown(h, "quitButton"));
       QVERIFY(shown(h, "backToLibraryButton") && shown(h, "gameTitle") && shown(h, "sharePill") && shown(h, "moreButton"));
-      if (sz.width() >= 1280) QVERIFY(shown(h, "pauseButton") && shown(h, "fastForwardButton"));
+      if (sz.width() >= 1280) QVERIFY(shown(h, "pauseButton") && (shown(h, "fastForwardButton") || qEnvironmentVariableIsSet("UZUME_TEST_WIDE_FONT")));
       QCOMPARE(textOf(visibleItem(h, "gameTitle")), QStringLiteral("Lumen Drift"));
       QCOMPARE(textOf(visibleItem(h, "sharePill")), QStringLiteral("Not shared"));
     }
@@ -719,26 +720,26 @@ class InGameUiTest : public QObject {
       QVERIFY2(share.top() < quit.top(), "SHARING above Quit game");
       QVERIFY2(quit.bottom() <= panel.bottom() && note.bottom() <= panel.bottom() && panel.bottom() - note.bottom() < 100, "Quit game pinned to the bottom (above the hint row)");
       QCOMPARE(textOf(visibleItem(h, "endGameButton")), QStringLiteral("Quit game"));
-      QCOMPARE(textOf(visibleItem(h, "quitNote")), QStringLiteral("Saves and syncs first."));
+      QCOMPARE(textOf(visibleItem(h, "quitNote")), QStringLiteral("Saves and syncs first, then returns to the Library."));
       for (const char* gone : {"speedSelect", "speedBlock", "newSlotButton", "slotSegment", "diagToggle", "readOnlyNote", "tabSegment", "tabDiagnostics"}) {
         QVERIFY2(!shown(h, gone), gone);
       }
       QVERIFY(shown(h, "visibilitySegment") && shown(h, "visibilityHint") && shown(h, "shareButton"));
-      QCOMPARE(textOf(visibleItem(h, "shareButton")), QStringLiteral("Share Session"));
+      QCOMPARE(textOf(visibleItem(h, "shareButton")), QStringLiteral("Share this game…"));
     }
 
-    // Panel collapses to the 48 px rail and back
+    // Panel collapses to the 56 px rail and back
     QVERIFY(clickHeader(h, "panelToggle", "panel"));
-    QTRY_COMPARE(rectOf(h, "gamePanel").width(), 48.0);
+    QTRY_COMPARE(rectOf(h, "gamePanel").width(), 56.0);
     QVERIFY(shown(h, "panelRail") && shown(h, "panelExpandButton") && !shown(h, "endGameButton"));
     QVERIFY(h.click("panelExpandButton"));
     QTRY_COMPARE(rectOf(h, "gamePanel").width(), 320.0);
 
     // Game controls: Pause label/width stays, Speed-up toggles and shows the value, Space unchanged
-    QVERIFY(h.click("fastForwardButton"));
+    QVERIFY(clickHeader(h, "fastForwardButton", "speedup"));   // or "⋯ > Speed-up" when the bar gave way (wide fonts)
     QVERIFY(gs->fastForward());
-    QVERIFY(visibleItem(h, "fastForwardButton")->property("on").toBool());
-    QVERIFY(h.click("fastForwardButton"));
+    if (shown(h, "fastForwardButton")) QVERIFY(visibleItem(h, "fastForwardButton")->property("inverted").toBool());   // on = the ink plane
+    QVERIFY(clickHeader(h, "fastForwardButton", "speedup"));
     QVERIFY(!gs->fastForward());
 
     // Reset asks first: a dialog over the stage (the header stays), danger action; Cancel keeps the game, Reset confirms
@@ -771,7 +772,7 @@ class InGameUiTest : public QObject {
     QTRY_VERIFY(shown(h, "menuItem_diagnostics"));
     QVERIFY(shown(h, "fullscreenButton") != shown(h, "menuItem_fullscreen"));   // the menu lists it only when the header is too tight for its button
     QVERIFY(shown(h, "menuItem_screenshot") && shown(h, "menuItem_reset") && shown(h, "menuItem_hotkeys") && shown(h, "menuItem_report"));
-    QCOMPARE(textOf(visibleItem(h, "menuItem_reset")), QStringLiteral("Reset game …"));
+    QCOMPARE(textOf(visibleItem(h, "menuItem_reset")), QStringLiteral("Reset game…"));
     // 0.19: "Settings for this game…" in the menu opens the per-game dialog over the game; Done closes it.
     QVERIFY(shown(h, "menuItem_gameSettings"));
     QVERIFY(h.click("menuItem_gameSettings"));
@@ -783,7 +784,7 @@ class InGameUiTest : public QObject {
     QVERIFY(h.item("padHotkeySheetLoader") != nullptr);
     QVERIFY(!h.item("padHotkeySheetLoader")->property("active").toBool());
     QVERIFY(h.item("padHotkeySheet") == nullptr);
-    // "⋯ > Hotkeys" opens the same sheet over the game without leaving it; "Change hotkeys" goes to Controllers > Hotkeys.
+    // "⋯ > Hotkeys" opens the same sheet over the game without leaving it; "Change hotkeys" goes to Settings > Hotkeys.
     QVERIFY(h.click("moreButton"));
     QTRY_VERIFY(shown(h, "menuItem_hotkeys"));
     QVERIFY(h.click("menuItem_hotkeys"));
@@ -818,7 +819,7 @@ class InGameUiTest : public QObject {
     if (shown(h, "layoutSwitch")) {
       QVERIFY(h.click("layoutSwitch"));
     } else {
-      QVERIFY(h.click("moreButton"));
+      QVERIFY(clickMore(h, "screens"));   // too tight for the Screens button: "⋯ > Screens" opens the same menu
     }
     QTRY_VERIFY(shown(h, "menuItem_layout_side"));
     QVERIFY(h.click("menuItem_layout_side"));
@@ -849,7 +850,7 @@ class InGameUiTest : public QObject {
     QTRY_VERIFY(shown(h, "gameSettingsDialog"));
     {
       // One height on every tab (no jumping), and the rows show the live in-game values with their source.
-      QQuickItem* host = h.item("gameSettingsHost");
+      QQuickItem* host = h.item("gameSettingsContent");
       QVERIFY(host != nullptr);
       const QVariantList tabs = host->property("tabs").toList();
       QVERIFY(!tabs.isEmpty());
@@ -935,7 +936,7 @@ class InGameUiTest : public QObject {
     if (shown(h, "layoutSwitch") && shown(h, "tabMultiview") && shown(h, "panelToggle") && shown(h, "fullscreenButton")) {   // not at the very wide font of the widefont run
       QQuickItem* fs = visibleItem(h, "fullscreenButton");
       QCOMPARE(tooltipOf(fs), QStringLiteral("Fullscreen · F11"));
-      QCOMPARE(textOf(visibleItem(h, "pauseButton")), QStringLiteral("Pause"));
+      QCOMPARE(textOf(visibleItem(h, "pauseButton")), QStringLiteral("❚❚ Pause"));
       QCOMPARE(visibleItem(h, "pauseButton")->property("kind").toString(), QStringLiteral("primary"));   // the one yellow button
       QCOMPARE(visibleItem(h, "moreButton")->property("kind").toString(), QString());
       QVERIFY(sceneRect(visibleItem(h, "panelToggle")).right() <= sceneRect(fs).left() + 0.5);
@@ -978,23 +979,23 @@ class InGameUiTest : public QObject {
     QCOMPARE(visibleItem(h, "pauseButton")->property("kind").toString(), QStringLiteral("primary"));
     QVERIFY(h.click("pauseButton"));
     QTRY_VERIFY(gs->isPaused());
-    QTRY_COMPARE(textOf(visibleItem(h, "pauseButton")), QStringLiteral("Resume"));
+    QTRY_COMPARE(textOf(visibleItem(h, "pauseButton")), QStringLiteral("▶ Resume"));
     QVERIFY(h.click("pauseButton"));
     QTRY_VERIFY(!gs->isPaused());
     QVERIFY(h.click("moreButton"));
     QTRY_VERIFY(shown(h, "menuItem_diagnostics"));
-    const char* menuOrder[] = {"menuItem_diagnostics", "menuItem_screenshot", "menuItem_hotkeys", "menuItem_reset", "menuItem_report"};
+    const char* menuOrder[] = {"menuItem_diagnostics", "menuItem_screenshot", "menuItem_hotkeys", "menuItem_gameSettings", "menuItem_report", "menuItem_reset"};
     for (const char* n : menuOrder) QVERIFY2(shown(h, n), n);
     // The menu lays its rows out after it opens (on the Windows runner a frame later), so wait for the order.
     const auto inOrder = [&]() {
-      for (int i = 1; i < 5; ++i) {
+      for (int i = 1; i < 6; ++i) {
         if (!(sceneRect(visibleItem(h, menuOrder[i - 1])).top() < sceneRect(visibleItem(h, menuOrder[i])).top())) return false;
       }
       return true;
     };
-    QTRY_VERIFY2(inOrder(), "menu order: Diagnostics, Screenshot, Hotkeys, Reset, Report");
+    QTRY_VERIFY2(inOrder(), "menu order: Diagnostics, Screenshot, Hotkeys, Settings, Report, Reset");
     QCOMPARE(textOf(visibleItem(h, "menuItem_diagnostics")), QStringLiteral("Diagnostics"));
-    QCOMPARE(textOf(visibleItem(h, "menuItem_report")), QStringLiteral("Report a problem …"));
+    QCOMPARE(textOf(visibleItem(h, "menuItem_report")), QStringLiteral("Report a problem…"));
     QTest::keyClick(h.window, Qt::Key_Escape);
     QTRY_VERIFY(!shown(h, "menuItem_diagnostics"));
   }
@@ -1216,7 +1217,7 @@ class InGameUiTest : public QObject {
     // Panel in the rail: the tile badge stays; expanding restores the panel
     resize(h, 1440, 900);
     QVERIFY(clickHeader(h, "panelToggle", "panel"));
-    QTRY_COMPARE(rectOf(h, "gamePanel").width(), 48.0);
+    QTRY_COMPARE(rectOf(h, "gamePanel").width(), 56.0);
     QVERIFY(shown(h, "panelExpandButton"));
     QVERIFY(h.click("panelExpandButton"));
     QTRY_COMPARE(rectOf(h, "gamePanel").width(), 320.0);
@@ -1240,11 +1241,15 @@ class InGameUiTest : public QObject {
     SessionController* ctl = h.controller->sessions();
     resize(h, 1440, 900);
     QQuickItem* multiBtn = visibleItem(h, "tabMultiview");
-    QVERIFY(multiBtn != nullptr);
-    QVERIFY(multiBtn->activeFocusOnTab());
-    multiBtn->forceActiveFocus();
-    QVERIFY(multiBtn->hasActiveFocus());
-    QTest::keyClick(h.window, Qt::Key_Space);   // the focused header button is activated
+    if (multiBtn == nullptr && qEnvironmentVariableIsSet("UZUME_TEST_WIDE_FONT")) {   // the wide font moved Multiview into "⋯"
+      QVERIFY(clickHeader(h, "tabMultiview", "multiview"));
+    } else {
+      QVERIFY(multiBtn != nullptr);
+      QVERIFY(multiBtn->activeFocusOnTab());
+      multiBtn->forceActiveFocus();
+      QVERIFY(multiBtn->hasActiveFocus());
+      QTest::keyClick(h.window, Qt::Key_Space);   // the focused header button is activated
+    }
     QTRY_COMPARE(ctl->tab(), QStringLiteral("multiview"));
     QQuickTest::qWaitForPolish(h.window);
     // In the Multiview the mode segment (two surfaces) moves with Left / Right
@@ -1252,6 +1257,13 @@ class InGameUiTest : public QObject {
     QTRY_COMPARE(ctl->surfaceCount(), 2);
     QQuickTest::qWaitForPolish(h.window);
     QQuickItem* seg = visibleItem(h, "modeSegment");
+    if (seg == nullptr && qEnvironmentVariableIsSet("UZUME_TEST_WIDE_FONT")) {   // the wide font moved the mode switch into "⋯"
+      QVERIFY(clickMore(h, "modeRow"));
+      QCOMPARE(ctl->multiviewMode(), QStringLiteral("row"));
+      QVERIFY(clickMore(h, "modePip"));
+      QCOMPARE(ctl->multiviewMode(), QStringLiteral("pip"));
+      return;
+    }
     QVERIFY(seg != nullptr);
     QVERIFY(seg->activeFocusOnTab());
     seg->forceActiveFocus();
@@ -1284,6 +1296,7 @@ class InGameUiTest : public QObject {
       QVERIFY2(problem.isEmpty(), qPrintable(QStringLiteral("watching %1 px: ").arg(sz.width()) + problem));
       QVERIFY(shown(h, "leaveButton") && !shown(h, "pauseButton") && !shown(h, "fastForwardButton") && !shown(h, "tabMultiview"));
       QVERIFY(shown(h, "moreButton"));   // F3 diagnostics and the help entries live in the "..." menu
+      QVERIFY(!shown(h, "quickMenu"));   // nothing of yours to pause: no quick menu
     }
     QCOMPARE(textOf(visibleItem(h, "gameTitle")), QStringLiteral("Lena · Harbor Rally"));
     QVERIFY(h.click("leaveButton"));
@@ -1293,8 +1306,18 @@ class InGameUiTest : public QObject {
 
   // ---- sidebar: Now running ----
 
-  // Esc always pauses and opens the pause card (ADR 0026 D1), in a window and in fullscreen; F11 leaves fullscreen.
-  void escPausesAndOpensThePauseCard() {
+  // The row of the quick menu that has the keyboard focus ("" = none of the rows, e.g. Resume or Quit game).
+  static QString focusedQuickRow(Harness& h) {
+    for (const char* n : {"snapshot", "saves", "screenshot", "gameSettings", "reset", "speedup", "sound", "screens", "fullscreen", "diagnostics",
+                          "share", "multiview", "hotkeys", "report"}) {
+      QQuickItem* it = h.item((QByteArray("quickRow_") + n).constData());
+      if (it != nullptr && it->hasActiveFocus()) return QString::fromLatin1(n);
+    }
+    return {};
+  }
+
+  // Esc always pauses and opens the quick menu (ADR 0026 D1, board 7-3), in a window and in fullscreen; F11 leaves fullscreen.
+  void escPausesAndOpensTheQuickMenu() {
     FakeHub hub(QStringLiteral("a"));
     Harness h;
     pair(hub, h, false);
@@ -1302,32 +1325,361 @@ class InGameUiTest : public QObject {
     GameSession* gs = h.controller->gameSession();
     resize(h, 1440, 900);
     QVERIFY(!gs->isPaused());
-    QVERIFY(!shown(h, "pauseOverlay"));
+    QVERIFY(!shown(h, "quickMenu"));
 
-    // Window: Esc pauses and shows the card with Resume; Esc again resumes
+    // Window: Esc pauses and shows the menu with Resume focused; Esc again resumes
     QTest::keyClick(h.window, Qt::Key_Escape);
     QTRY_VERIFY(gs->isPaused());
-    QTRY_VERIFY(shown(h, "pauseOverlay") && shown(h, "pauseResume"));
-    QVERIFY(!shown(h, "pauseLeaveFullscreen"));  // not in fullscreen
+    QTRY_VERIFY(shown(h, "quickMenu") && shown(h, "quickMenuResume"));
+    QTRY_VERIFY(h.item("quickMenuResume")->hasActiveFocus());
+    uitest::saveShot(h.window, QStringLiteral("7-3-quick-menu"));
+    QCOMPARE(textOf(visibleItem(h, "quickMenuTitle")), QStringLiteral("Quick menu"));
+    QCOMPARE(textOf(visibleItem(h, "quickMenuLabel")), QStringLiteral("Paused · Lumen Drift"));
+    QVERIFY(textOf(visibleItem(h, "quickMenuStatus")).contains(QStringLiteral("Nobody is watching.")));
+    QCOMPARE(rectOf(h, "quickMenu").width(), 720.0);
+    QCOMPARE(textOf(visibleItem(h, "quickMenuResume")), QStringLiteral("▶ Resume"));
+    QCOMPARE(visibleItem(h, "quickMenuResume")->property("kind").toString(), QStringLiteral("primary"));
+    QVERIFY(!visibleItem(h, "quickRow_fullscreen")->property("row").toMap().value("label").toString().startsWith(QStringLiteral("Leave")));
+    {
+      // The menu covers the stage only: the header and the panel stay
+      const QRectF menu = rectOf(h, "quickMenu"), play = rectOf(h, "playArea");
+      QVERIFY(play.contains(menu.adjusted(0.5, 0.5, -0.5, -0.5)));
+      QVERIFY(shown(h, "gameHeader") && shown(h, "gamePanel"));
+      QCOMPARE(textOf(visibleItem(h, "pauseButton")), QStringLiteral("▶ Resume"));   // the header reads Resume as well
+    }
     QTest::keyClick(h.window, Qt::Key_Escape);
     QTRY_VERIFY(!gs->isPaused());
-    QTRY_VERIFY(!shown(h, "pauseOverlay"));
+    QTRY_VERIFY(!shown(h, "quickMenu"));
 
-    // Fullscreen: Esc pauses (it does not leave), the card offers Resume and Leave fullscreen, F11 leaves
+    // Fullscreen: Esc pauses (it does not leave), the menu offers "Leave fullscreen" in the Play group, F11 leaves
     QTest::keyClick(h.window, Qt::Key_F11);
     QTest::keyClick(h.window, Qt::Key_Escape);
     QTRY_VERIFY(gs->isPaused());
-    QTRY_VERIFY(shown(h, "pauseOverlay") && shown(h, "pauseResume") && shown(h, "pauseLeaveFullscreen"));
-    QVERIFY(h.click("pauseResume"));
+    QTRY_VERIFY(shown(h, "quickMenu") && shown(h, "quickMenuResume"));
+    QCOMPARE(visibleItem(h, "quickRow_fullscreen")->property("row").toMap().value("label").toString(), QStringLiteral("Leave fullscreen"));
+    QVERIFY(h.click("quickMenuResume"));
     QTRY_VERIFY(!gs->isPaused());
-    QTRY_VERIFY(!shown(h, "pauseOverlay"));
+    QTRY_VERIFY(!shown(h, "quickMenu"));
     QTest::keyClick(h.window, Qt::Key_Escape);
     QTRY_VERIFY(gs->isPaused());
-    QVERIFY(h.click("pauseLeaveFullscreen"));
-    QTRY_VERIFY(!shown(h, "pauseLeaveFullscreen"));
+    QVERIFY(h.click("quickRow_fullscreen"));
+    QTRY_VERIFY(!shown(h, "fullscreenToolbar"));
+    QCOMPARE(visibleItem(h, "quickRow_fullscreen")->property("row").toMap().value("label").toString(), QStringLiteral("Fullscreen"));
     QVERIFY(gs->isPaused());  // leaving fullscreen does not resume
     QTest::keyClick(h.window, Qt::Key_Escape);
     QTRY_VERIFY(!gs->isPaused());
+  }
+
+  // The quick menu is a keyboard and pad menu: arrows move, Enter chooses, Esc resumes; the rows with a value open the header's menus
+  // at the row (Esc closes those first and does not resume); "Quit game…" does what the panel's Quit does.
+  void quickMenuIsReachableWithTheKeyboard() {
+    FakeHub hub(QStringLiteral("a"));
+    Harness h;
+    pair(hub, h, true);
+    startPreview(h, true);
+    GameSession* gs = h.controller->gameSession();
+    resize(h, 1440, 900);
+    QTest::keyClick(h.window, Qt::Key_Escape);
+    QTRY_VERIFY(gs->isPaused());
+    QTRY_VERIFY(h.item("quickMenuResume")->hasActiveFocus());
+    // All four groups with their rows are there, in two columns
+    for (const char* n : {"snapshot", "saves", "screenshot", "gameSettings", "reset", "speedup", "sound", "screens", "fullscreen", "diagnostics",
+                          "share", "multiview", "hotkeys", "report"})
+      QVERIFY2(shown(h, (QByteArray("quickRow_") + n).constData()), n);
+    QVERIFY(rectOf(h, "quickRow_reset").left() < rectOf(h, "quickRow_speedup").left());
+    QVERIFY(rectOf(h, "quickRow_share").left() == rectOf(h, "quickRow_reset").left() && rectOf(h, "quickRow_hotkeys").left() == rectOf(h, "quickRow_speedup").left());
+    QCOMPARE(visibleItem(h, "quickRow_reset")->property("row").toMap().value("danger").toBool(), true);
+    QCOMPARE(visibleItem(h, "quickRow_speedup")->property("row").toMap().value("value").toString(), QStringLiteral("Off · 2×"));
+    QCOMPARE(visibleItem(h, "quickRow_share")->property("row").toMap().value("value").toString(), QStringLiteral("Not shared"));
+
+    // Down leaves Resume for the first row of the left column, Right / Left switch the column, Up goes back to Resume
+    QTest::keyClick(h.window, Qt::Key_Down);
+    const QString first = focusedQuickRow(h);
+    QVERIFY2(first == QLatin1String("snapshot") || first == QLatin1String("saves"), qPrintable(first));
+    QTest::keyClick(h.window, Qt::Key_Right);
+    QCOMPARE(focusedQuickRow(h), QStringLiteral("speedup"));
+    QTest::keyClick(h.window, Qt::Key_Down);
+    QCOMPARE(focusedQuickRow(h), QStringLiteral("sound"));
+    QTest::keyClick(h.window, Qt::Key_Left);
+    QVERIFY(!focusedQuickRow(h).isEmpty() && focusedQuickRow(h) != QLatin1String("sound"));
+    QTest::keyClick(h.window, Qt::Key_Right);
+    QCOMPARE(focusedQuickRow(h), QStringLiteral("sound"));
+
+    // Enter on "Sound" opens the sound popover at the row; Esc closes it first, the game stays paused with the menu open
+    QTest::keyClick(h.window, Qt::Key_Return);
+    QTRY_VERIFY(shown(h, "soundVolumeSlider"));
+    QTest::keyClick(h.window, Qt::Key_Escape);
+    QTRY_VERIFY(!shown(h, "soundVolumeSlider"));
+    QVERIFY(gs->isPaused() && shown(h, "quickMenu"));
+    // ... and so does the speed menu of "Speed-up"
+    QVERIFY(h.click("quickRow_speedup"));
+    QTRY_VERIFY(shown(h, "menuItem_speed_3"));
+    QVERIFY(h.click("menuItem_speed_3"));
+    QCOMPARE(gs->fastForwardRatio(), 3.0);
+    QTRY_COMPARE(visibleItem(h, "quickRow_speedup")->property("row").toMap().value("value").toString(), QStringLiteral("Off · 3×"));
+    gs->setFastForwardRatio(2.0);
+    // Enter on a row with a key runs it: Diagnostics toggles the F3 block
+    QVERIFY(!h.controller->sessions()->diagnostics()->isOpen());
+    visibleItem(h, "quickRow_diagnostics")->forceActiveFocus(Qt::TabFocusReason);
+    QTest::keyClick(h.window, Qt::Key_Return);
+    QTRY_VERIFY(h.controller->sessions()->diagnostics()->isOpen());
+    QTest::keyClick(h.window, Qt::Key_Return);
+    QTRY_VERIFY(!h.controller->sessions()->diagnostics()->isOpen());
+
+    // Up from the first row of a column goes to Resume; Enter on Resume resumes
+    visibleItem(h, "quickRow_speedup")->forceActiveFocus(Qt::TabFocusReason);
+    QTest::keyClick(h.window, Qt::Key_Up);
+    QTRY_VERIFY(h.item("quickMenuResume")->hasActiveFocus());
+    QTest::keyClick(h.window, Qt::Key_Return);
+    QTRY_VERIFY(!gs->isPaused());
+    QTRY_VERIFY(!shown(h, "quickMenu"));
+
+    // Settings for this game… opens the dialog over the menu; Done goes back to the menu, which stays paused
+    QTest::keyClick(h.window, Qt::Key_Escape);
+    QTRY_VERIFY(shown(h, "quickMenu"));
+    QVERIFY(h.click("quickRow_gameSettings"));
+    QTRY_VERIFY(shown(h, "gameSettingsDialog"));
+    QVERIFY(h.click("gameSettingsDone"));
+    QTRY_VERIFY(!shown(h, "gameSettingsDialog"));
+    QVERIFY(gs->isPaused() && shown(h, "quickMenu"));
+    QTRY_VERIFY(!focusedQuickRow(h).isEmpty() || h.item("quickMenuResume")->hasActiveFocus());   // the focus is back in the menu
+    // Reset game… asks first; Esc cancels and the menu is still there
+    QVERIFY(h.click("quickRow_reset"));
+    QTRY_VERIFY(shown(h, "resetConfirm"));
+    QTest::keyClick(h.window, Qt::Key_Escape);
+    QTRY_VERIFY(!shown(h, "resetConfirm"));
+    QVERIFY(gs->isPaused() && shown(h, "quickMenu"));
+
+    // Quit game… saves and returns to the Library, like the panel's Quit game
+    QVERIFY(shown(h, "quickMenuQuit"));
+    QVERIFY(h.click("quickMenuQuit"));
+    QTRY_COMPARE(h.controller->screen(), QStringLiteral("library"));
+    QCOMPARE(gs->state(), GameSession::Idle);
+  }
+
+  // The status line names the save state and who watches (and what they see).
+  void quickMenuStatusNamesWhoWatches() {
+    FakeHub hub(QStringLiteral("a"));
+    Harness h;
+    pair(hub, h, false);
+    startPreview(h, false);
+    GameSession* gs = h.controller->gameSession();
+    resize(h, 1440, 900);
+    QTest::keyClick(h.window, Qt::Key_Escape);
+    QTRY_VERIFY(gs->isPaused());
+    QTRY_VERIFY(shown(h, "quickMenuStatus"));
+    QCOMPARE(textOf(visibleItem(h, "quickMenuStatus")), QStringLiteral("Nobody is watching."));
+    QTest::keyClick(h.window, Qt::Key_Escape);
+    QTRY_VERIFY(!gs->isPaused());
+  }
+
+  // Header values (board 7-1): Speed-up says Off / On with its speed, Sound its percent, Screens the layout, Panel Shown / Hidden; every
+  // control is a framed button (no frameless icon buttons), the toggles that are on are the ink plane.
+  void headerControlsShowTheirValues() {
+    FakeHub hub(QStringLiteral("a"));
+    Harness h;
+    pair(hub, h, false);
+    startPreview(h, false);
+    GameSession* gs = h.controller->gameSession();
+    SessionController* ctl = h.controller->sessions();
+    resize(h, 1920, 1080);
+    // At wide fonts the bar gives way (words, then values): a value is then read from the button's accessible name or tooltip.
+    const bool wide = qEnvironmentVariableIsSet("UZUME_TEST_WIDE_FONT");
+    const auto accName = [&](const char* n) {
+      QQuickItem* it = visibleItem(h, n);
+      const QQmlProperty p(it, QStringLiteral("Accessible.name"), qmlContext(it));
+      return p.isValid() ? p.read().toString() : QString();
+    };
+    const auto shownValue = [&](const char* n) {
+      QQuickItem* it = visibleItem(h, n);
+      if (it == nullptr) return QStringLiteral("<hidden>");
+      const QString v = it->property("value").toString();
+      return v;
+    };
+    const auto readsValue = [&](const char* n, const QString& v) {
+      QQuickItem* it = visibleItem(h, n);
+      if (it == nullptr) return false;
+      return it->property("value").toString() == v || (wide && (accName(n).contains(v) || tooltipOf(it).contains(v)));
+    };
+    const auto valueOf = [&](const char* n) { return shownValue(n); };
+    QVERIFY(textOf(visibleItem(h, "fastForwardButton")) == QStringLiteral("» Speed-up") || (wide && textOf(visibleItem(h, "fastForwardButton")) == QStringLiteral("»")));
+    QVERIFY(readsValue("fastForwardButton", QStringLiteral("Off · 2×")));
+    QVERIFY(!visibleItem(h, "fastForwardButton")->property("inverted").toBool());
+    QVERIFY(h.click("fastForwardButton"));
+    QTRY_VERIFY(readsValue("fastForwardButton", QStringLiteral("On · 2×")));
+    QVERIFY(visibleItem(h, "fastForwardButton")->property("inverted").toBool());   // on = the ink plane
+    QVERIFY(h.click("fastForwardButton"));
+    QTRY_VERIFY(readsValue("fastForwardButton", QStringLiteral("Off · 2×")));
+    gs->setFastForwardRatio(3.0);
+    QTRY_VERIFY(readsValue("fastForwardButton", QStringLiteral("Off · 3×")));
+    gs->setFastForwardRatio(2.0);
+    // the chevron half opens the speeds
+    if (shown(h, "speedValueButton")) {
+      QVERIFY(h.click("speedValueButton"));
+      QTRY_VERIFY(shown(h, "menuItem_speed_6"));
+      QTest::keyClick(h.window, Qt::Key_Escape);
+      QTRY_VERIFY(!shown(h, "menuItem_speed_6"));
+    }
+    QVERIFY(!gs->isPaused());
+
+    QVERIFY(textOf(visibleItem(h, "volumeButton")) == QStringLiteral("Sound") || (wide && textOf(visibleItem(h, "volumeButton")).isEmpty()));   // the word goes last
+    QCOMPARE(valueOf("volumeButton"), QStringLiteral("%1 %").arg(h.controller->audio()->volume()));
+    h.controller->audio()->setVolume(5);
+    QTRY_VERIFY(readsValue("volumeButton", QStringLiteral("5 %")));
+    QVERIFY(h.click("volumeButton"));
+    QTRY_VERIFY(shown(h, "soundVolumeSlider"));
+    QTest::keyClick(h.window, Qt::Key_Escape);
+    QTRY_VERIFY(!shown(h, "soundVolumeSlider"));
+
+    if (shown(h, "layoutSwitch")) {   // (the wide font moves Screens into "⋯", where it is listed with its value)
+      QCOMPARE(textOf(visibleItem(h, "layoutSwitch")), QStringLiteral("Screens"));
+      QVERIFY(readsValue("layoutSwitch", ctl->layoutLabel(ctl->screenLayout())));
+      ctl->chooseScreenLayout(QStringLiteral("side"));
+      QTRY_VERIFY(readsValue("layoutSwitch", ctl->layoutLabel(QStringLiteral("side"))));
+      ctl->chooseScreenLayout(QStringLiteral("stacked"));
+    } else {
+      QVERIFY(h.click("moreButton"));
+      QTRY_VERIFY(shown(h, "menuItem_screens"));
+      QCOMPARE(visibleItem(h, "menuItem_screens")->property("hint").toString(), ctl->layoutLabel(ctl->screenLayout()));
+      QTest::keyClick(h.window, Qt::Key_Escape);
+      QTRY_VERIFY(!shown(h, "menuItem_screens"));
+    }
+
+    QCOMPARE(textOf(visibleItem(h, "panelToggle")), QStringLiteral("Panel"));
+    QVERIFY(readsValue("panelToggle", QStringLiteral("Shown")));
+    QVERIFY(visibleItem(h, "panelToggle")->property("inverted").toBool());
+    QVERIFY(h.click("panelToggle"));
+    QTRY_VERIFY(readsValue("panelToggle", QStringLiteral("Hidden")));
+    QVERIFY(!visibleItem(h, "panelToggle")->property("inverted").toBool());
+    QVERIFY(h.click("panelToggle"));
+    QTRY_VERIFY(readsValue("panelToggle", QStringLiteral("Shown")));
+
+    if (!wide) QCOMPARE(textOf(visibleItem(h, "fullscreenButton")), QStringLiteral("⛶ Fullscreen"));
+    QCOMPARE(textOf(visibleItem(h, "pauseButton")), QStringLiteral("❚❚ Pause"));
+    QVERIFY(readsValue("pauseButton", QStringLiteral("Esc")));
+    QVERIFY(visibleItem(h, "moreButton")->property("outlined").toBool());
+    if (shown(h, "speedValueButton")) QVERIFY(visibleItem(h, "speedValueButton")->property("outlined").toBool());
+    uitest::saveShot(h.window, QStringLiteral("7-1-control-bar"));
+    // The sub line under the title: share state (and the save state when known)
+    QVERIFY(textOf(visibleItem(h, "sharePill")).startsWith(QStringLiteral("Not shared")));
+    QVERIFY(rectOf(h, "sharePill").top() >= rectOf(h, "gameTitle").bottom() - 1.0);
+    // The bar keeps its order: Speed-up, Sound, Screens, Panel, Fullscreen, Pause, ⋯ (all there at 1920 px; wide fonts move some into "⋯")
+    if (!wide) {
+      QVERIFY(rectOf(h, "speedValueButton").right() <= rectOf(h, "volumeButton").left() + 0.5);
+      QVERIFY(rectOf(h, "volumeButton").right() <= rectOf(h, "layoutSwitch").left() + 0.5);
+      QVERIFY(rectOf(h, "layoutSwitch").right() <= rectOf(h, "panelToggle").left() + 0.5);
+      QVERIFY(rectOf(h, "panelToggle").right() <= rectOf(h, "fullscreenButton").left() + 0.5);
+    }
+
+    // Narrow: words and values give way, then Screens and Fullscreen move into "⋯" (with their value); Pause never moves
+    resize(h, 960, 600);
+    QVERIFY(shown(h, "pauseButton") && shown(h, "moreButton"));
+    QVERIFY2(rectOf(h, "gameTitle").width() >= qMin<qreal>(160.0, visibleItem(h, "gameTitle")->implicitWidth()) - 1.0, "the title keeps its room");
+    if (!shown(h, "layoutSwitch")) {
+      QVERIFY(h.click("moreButton"));
+      QTRY_VERIFY(shown(h, "menuItem_screens"));
+      QVERIFY(h.item("menuItem_screens") != nullptr);
+      QTest::keyClick(h.window, Qt::Key_Escape);
+    }
+    if (!shown(h, "fullscreenButton")) {
+      QVERIFY(h.click("moreButton"));
+      QTRY_VERIFY(shown(h, "menuItem_fullscreen"));
+      QTest::keyClick(h.window, Qt::Key_Escape);
+      QTRY_VERIFY(!shown(h, "menuItem_fullscreen"));
+    }
+  }
+
+  // The Game tab of the panel (board 7-5): Now rows, the four framed buttons, Sharing, Quit pinned at the bottom; no numbered labels.
+  void gameTabHasNowRowsAndButtons() {
+    FakeHub hub(QStringLiteral("a"));
+    Harness h;
+    FakeCore core;
+    startLiveGame(hub, h, &core);
+    resize(h, 1440, 900);
+    SaveHistoryController* hist = h.controller->saveHistory();
+    QVERIFY(shown(h, "nowBlock"));
+    QCOMPARE(textOf(visibleItem(h, "panelTabLabel")), QStringLiteral("Game"));
+    QVERIFY(visibleItem(h, "panelTab_game")->property("open").toBool());
+    QCOMPARE(rectOf(h, "panelTabBar").height(), 48.0);
+    for (const char* n : {"nowRow_save", "nowRow_slot", "nowRow_watching"}) QVERIFY2(shown(h, n), n);
+    QVERIFY(textOf(visibleItem(h, "nowValue_save")).startsWith(QStringLiteral("Saved ")));
+    QVERIFY(textOf(visibleItem(h, "nowValue_save")).contains(QStringLiteral("synced")) || textOf(visibleItem(h, "nowValue_save")).contains(QStringLiteral("syncing"))
+            || textOf(visibleItem(h, "nowValue_save")).contains(QStringLiteral("waiting")));
+    QCOMPARE(textOf(visibleItem(h, "nowValue_slot")), hist->slotLabel());
+    QCOMPARE(textOf(visibleItem(h, "nowValue_watching")), QStringLiteral("Not shared"));
+    QVERIFY(shown(h, "nowSaveMark"));
+    // The four buttons in a 2 x 2 grid of 36 px, each with its key
+    const QRectF snap = rectOf(h, "gameSnapshotButton"), shot = rectOf(h, "gameScreenshotButton"), share = rectOf(h, "gameShareButton"), saves = rectOf(h, "manageSavesButton");
+    QCOMPARE(snap.height(), 36.0);
+    if (qEnvironmentVariableIsSet("UZUME_TEST_WIDE_FONT") && qAbs(snap.top() - shot.top()) >= 1) {
+      // A label would elide in half the width: the grid is one column
+      QVERIFY(shot.top() > snap.bottom() - 0.5 && share.top() > shot.bottom() - 0.5 && saves.top() > share.bottom() - 0.5);
+      QVERIFY(qAbs(snap.left() - shot.left()) < 1 && qAbs(snap.left() - saves.left()) < 1);
+    } else {
+      QVERIFY(qAbs(snap.top() - shot.top()) < 1 && qAbs(share.top() - saves.top()) < 1 && share.top() > snap.bottom() - 0.5);
+      QVERIFY(snap.left() < shot.left() && qAbs(snap.left() - share.left()) < 1);
+    }
+    QCOMPARE(textOf(visibleItem(h, "gameSnapshotButton")), QStringLiteral("Snapshot"));
+    QCOMPARE(visibleItem(h, "gameSnapshotButton")->property("value").toString(), QStringLiteral("F5"));
+    QCOMPARE(textOf(visibleItem(h, "gameScreenshotButton")), QStringLiteral("Screenshot"));
+    QCOMPARE(visibleItem(h, "gameScreenshotButton")->property("value").toString(), QStringLiteral("F12"));
+    QCOMPARE(textOf(visibleItem(h, "gameShareButton")), QStringLiteral("Share…"));
+    QCOMPARE(textOf(visibleItem(h, "manageSavesButton")), QStringLiteral("Saves…"));
+    // Sharing follows; the section labels carry no numbers; Quit is pinned below with its sentence
+    QVERIFY(rectOf(h, "panelShareState").top() > saves.bottom());
+    for (QQuickItem* l : h.items("sectionLabelText")) QVERIFY2(!l->isVisible() || !l->property("text").toString().contains(QStringLiteral(" — ")), qPrintable(l->property("text").toString()));
+    QCOMPARE(textOf(visibleItem(h, "quitNote")), QStringLiteral("Saves and syncs first, then returns to the Library."));
+    QVERIFY(rectOf(h, "endGameButton").top() > rectOf(h, "panelShareState").bottom());
+    uitest::saveShot(h.window, QStringLiteral("7-5-game-tab"));
+    // "Share…" scrolls to Sharing, "Saves…" opens the saves view in the panel
+    QVERIFY(h.click("gameShareButton"));
+    QVERIFY(h.click("manageSavesButton"));
+    QTRY_VERIFY(shown(h, "savesView"));
+  }
+
+  // GameSettingsContent (board 7-6) works on its own, without a dialog frame and for a game that is not running: stored values only.
+  void gameSettingsContentEmbedsStandalone() {
+    FakeHub hub(QStringLiteral("a"));
+    Harness h;
+    pair(hub, h, true);
+    QQmlComponent comp(h.engine.get());
+    comp.setData("import QtQuick\nimport Uzume.App\nGameSettingsContent { objectName: \"standaloneSettings\"; width: 520; z: 50 }", QUrl(QStringLiteral("qrc:/test/standalone.qml")));
+    QVERIFY2(comp.isReady(), qPrintable(comp.errorString()));
+    QObject* obj = comp.createWithInitialProperties({{QStringLiteral("player"), QVariant::fromValue(h.controller.get())}});
+    QVERIFY(obj != nullptr);
+    auto* content = qobject_cast<QQuickItem*>(obj);
+    QVERIFY(content != nullptr);
+    content->setParentItem(h.window->contentItem());
+    QVERIFY(!h.controller->gameSession()->isActive());
+    QVERIFY(h.controller->runningGameId().isEmpty());
+    QMetaObject::invokeMethod(content, "showGame", Q_ARG(QString, QStringLiteral("g1")));
+    QTRY_VERIFY(!content->property("tabs").toList().isEmpty());
+    QQuickTest::qWaitForPolish(h.window);
+    QCOMPARE(content->property("gameId").toString(), QStringLiteral("g1"));
+    QVERIFY(!content->property("runningHere").toBool());
+    QVERIFY(content->isVisible() && content->width() == 520);
+    // No dialog around it: no dialog frame or scrim exists for it, the footer is there, the live note is not
+    QVERIFY(!shown(h, "dialogFrame") && !shown(h, "gameSettingsDialog"));
+    QVERIFY(shown(h, "gameSettingsScroll") && shown(h, "gameSettingsFooter") && !shown(h, "gameSettingsLive"));
+    const QVariantList tabs = content->property("tabs").toList();
+    QString speedTab;
+    for (const QVariant& t : tabs)
+      for (const QVariant& r : t.toMap().value("rows").toList())
+        if (r.toMap().value("key").toString() == QLatin1String("uzume.speedup_ratio")) speedTab = t.toMap().value("title").toString();
+    QVERIFY(!speedTab.isEmpty());
+    content->setProperty("activeTab", speedTab);
+    QQuickTest::qWaitForPolish(h.window);
+    QQuickItem* row = visibleItem(h, "gameOption_uzume.speedup_ratio");
+    QVERIFY(row != nullptr);
+    QVERIFY(row->property("meta").toString().startsWith(QStringLiteral("Uses your default")));
+    // A stored value shows with its source; no live value (the game is not running)
+    h.controller->emulation()->setGameOption(QStringLiteral("g1"), QStringLiteral("uzume.speedup_ratio"), QStringLiteral("3"));
+    QTRY_VERIFY(visibleItem(h, "gameOption_uzume.speedup_ratio")->property("meta").toString().startsWith(QStringLiteral("Changed for this game")));
+    QCOMPARE(visibleItem(h, "gameOption_uzume.speedup_ratio")->property("current").toString(), QStringLiteral("3"));
+    QCOMPARE(content->property("changedCount").toInt(), 1);
+    h.controller->emulation()->resetGameOption(QStringLiteral("g1"), QStringLiteral("uzume.speedup_ratio"));
+    QTRY_VERIFY(visibleItem(h, "gameOption_uzume.speedup_ratio")->property("meta").toString().startsWith(QStringLiteral("Uses your default")));
+    delete content;
   }
 
   // 0.19 package 6: F7 opens the layout menu (layouts, Swap screens, Bottom screen in its own window), Shift+F7 swaps, Select + Right

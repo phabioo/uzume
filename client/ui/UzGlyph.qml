@@ -32,7 +32,7 @@ Item {
         if (name === "more") return []
         const d = paths[name]
         if (!d) return []
-        const t = d.split(/\s+/)
+        const t = d.match(/[MLHVZ]|-?[0-9.]+/g) || []   // "M3 6" is a command glued to its first number
         const out = []
         let i = 0, x = 0, y = 0, sx = 0, sy = 0
         while (i < t.length) {

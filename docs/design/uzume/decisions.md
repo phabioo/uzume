@@ -201,6 +201,17 @@ Canvas page "6 Readable pass", 13 boards with the index `S6Index`, drawn in desi
 
 New in the design system (r6): tokens `rule-control`, `badge`, `marker-nav`, a raised `dim`, text size scale tokens, `target-min` 32 / `target-tv` 44, `columns-compact-max` 1440; components `HintRow` and `ColumnNav` (45 components). Where a sheet 6 board and an older board disagree, sheet 6 wins.
 
+## Sheet 7 · In-game redesign (2026-10-26)
+
+Canvas page "Uzume 7 In-game redesign" (boards 7-1 to 7-6); it lives as a Claude design artifact and is not stored in the repository. It follows the readable pass for the running game and adds no function. Fabio accepted on 2026-10-26:
+
+- Every control of the game header has a frame and shows its value ("» Speed-up OFF · 2×", "Sound 5 %", "Screens <layout>", Panel Shown / Hidden); Pause / Resume stays the one primary. Narrow windows drop words before values, then move Fullscreen and Screens into "⋯".
+- Esc, Pause and Start open a Quick menu (Resume, Game / Play / Together / Help, Quit game…) instead of the pause dialog; pad A chooses, B resumes.
+- The panel's Session tab becomes "Game" (Now rows, Snapshot / Screenshot / Share… / Saves…, Sharing, Quit pinned at the bottom); the collapsed rail names its tabs.
+- "Settings for this game" is a dialog around a reusable content block that can also sit in a panel; it shows the live screen layout and speed-up of the running game.
+
+Behaviour: [features.md](../../features.md) ("In-game control bar, Quick menu and Game tab"). Where a sheet 7 board and an older board disagree, sheet 7 wins.
+
 ## Cross-sheet rules (summary)
 
 - **Terms.** Hub = "Uzume server" or "the server", Player = "Uzume" or "the app"; "Stream" only in diagnostics. Session = a running or shared game session.
