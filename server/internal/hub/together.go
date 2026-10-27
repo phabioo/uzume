@@ -341,6 +341,7 @@ func (c *Client) pauseRequest(env envelope) {
 // members who left are removed from an open check (the starter leaving cancels it, all remaining ready closes it),
 // new members join it as pending, and an empty scope drops its check and pause.
 func (s *Service) reconcileTogether(scope, id string, members []string) {
+	s.reconcileVoice(scope, id, members)
 	t := &s.tg
 	k := scopeKey{scope, id}
 	t.mu.Lock()
