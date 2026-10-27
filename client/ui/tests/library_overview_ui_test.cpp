@@ -178,13 +178,18 @@ class LibraryOverviewUiTest : public QObject {
     QVERIFY(h.item("statusChip_all") == nullptr && !shown(h, "readyFirstToggle"));  // no status chips, Ready first sits in the sort menu
     const auto sceneRect = [&](const char* name) { QQuickItem* it = h.item(name); return it->mapRectToScene(it->boundingRect()); };
     const QRectF chip = sceneRect("scopeChip_all"), sort = sceneRect("sortControl"), toolbar = sceneRect("libraryToolbar");
-    const QByteArray widths = QStringLiteral("chips and sort share one toolbar row (toolbar %1 px, chips %2, sort+view %3, search %4)")
-                                  .arg(toolbar.width())
-                                  .arg(h.item("libraryChips")->property("natural").toReal())
-                                  .arg(h.item("libraryToolbar2")->property("natural").toReal())
-                                  .arg(h.item("searchField")->width())
-                                  .toUtf8();
-    QVERIFY2(qAbs(chip.center().y() - sort.center().y()) < 4 && toolbar.height() <= 40, widths.constData());
+    // One row whenever the chips, sort/view and a 96 px search fit (they do with Plex metrics at 1280 px); fonts that
+    // run much wider (Windows CI renders the chips about 75 % wider) put the chips on a second row instead.
+    const qreal chipsW = h.item("libraryChips")->property("natural").toReal();
+    const qreal rightW = h.item("libraryToolbar2")->property("natural").toReal();
+    const bool oneRowFits = toolbar.width() - chipsW - rightW - 2 * 8 >= 96;
+    QCOMPARE(h.item("libraryToolbar")->property("mode").toInt() == 0, oneRowFits);
+    const QByteArray widths = QStringLiteral("toolbar %1 px, chips %2, sort+view %3").arg(toolbar.width()).arg(chipsW).arg(rightW).toUtf8();
+    if (oneRowFits) {
+      QVERIFY2(qAbs(chip.center().y() - sort.center().y()) < 4 && toolbar.height() <= 40, widths.constData());
+    } else {
+      QVERIFY2(chip.top() >= sort.bottom() - 1 && toolbar.height() <= 40 + 8 + chip.height(), widths.constData());
+    }
     QVERIFY(shown(h, "continueCard"));
     QCOMPARE(visibleCount(h, "continueCard") + visibleCount(h, "recentEntry"), 1);
     QCOMPARE(h.item("continueCard")->height(), 64.0);
