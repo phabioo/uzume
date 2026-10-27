@@ -51,7 +51,7 @@ void ConsoleStore::setStatus(const QString& id, PluginStatus status, const QStri
 void ConsoleStore::addLog(const QString& id, LogLevel level, const QString& text) {
   std::lock_guard<std::mutex> lock(m_mutex);
   ConsoleSnapshot& s = m_map[id];
-  s.log.append({QDateTime::currentMSecsSinceEpoch(), level, text});
+  s.log.append({QDateTime::currentMSecsSinceEpoch(), level, text, ++s.lastSeq});
   while (s.log.size() > kLogRing) s.log.removeFirst();
   m_dirty.insert(id);
 }
@@ -76,6 +76,28 @@ bool ConsoleStore::setWatched(const QString& id, const QList<WatchedRow>& rows) 
   s.watched = rows;
   m_dirty.insert(id);
   return true;
+}
+
+void ConsoleStore::noteDenied(const QString& id, const QString& permission) {
+  std::lock_guard<std::mutex> lock(m_mutex);
+  ConsoleSnapshot& s = m_map[id];
+  if (s.notGranted.contains(permission)) return;
+  s.notGranted.append(permission);
+  m_dirty.insert(id);
+}
+
+void ConsoleStore::noteError(const QString& id) {
+  std::lock_guard<std::mutex> lock(m_mutex);
+  ++m_map[id].errorCount;
+  m_dirty.insert(id);
+}
+
+void ConsoleStore::setReloaded(const QString& id, qint64 ms) {
+  std::lock_guard<std::mutex> lock(m_mutex);
+  ConsoleSnapshot& s = m_map[id];
+  s.reloadMs = ms;
+  ++s.reloadCount;
+  m_dirty.insert(id);
 }
 
 ConsoleSnapshot ConsoleStore::snapshot(const QString& id) const {
@@ -195,6 +217,20 @@ void PluginEngine::pause(Plugin& p, const std::string& error) {
   setStatus(p, PluginStatus::Paused, qs(error));
 }
 
+void PluginEngine::handlerError(Plugin& p, const std::string& error) {
+  // Budget and memory overruns keep their behaviour: the state is not trustworthy any more, so the plugin pauses at once.
+  if (p.lua && p.lua->trip() != LuaSandbox::Trip::None) {
+    pause(p, error);
+    return;
+  }
+  store.noteError(p.id());
+  const bool pauseNow = p.errors.record(Clock::now());
+  log(p, LogLevel::Error, LuaSandbox::firstLine(error));
+  if (pauseNow) {
+    pause(p, error + "\n(" + std::to_string(ErrorBurst::kLimit) + " errors within " + std::to_string(ErrorBurst::kWindowMs / 1000) + " s)");
+  }
+}
+
 void PluginEngine::callRef(Plugin& p, int ref, const std::function<int(lua_State*)>& pushArgs) {
   if (p.status != PluginStatus::Running || !p.lua) return;
   std::string err;
@@ -207,7 +243,7 @@ void PluginEngine::callRef(Plugin& p, int ref, const std::function<int(lua_State
       },
       err);
   if (!ok) {
-    pause(p, err);
+    handlerError(p, err);
     return;
   }
   // A handler that stays just below the wall limit every time would still starve everything: repeated slow calls pause it.
@@ -381,6 +417,7 @@ void PluginEngine::stop() {
 void PluginEngine::reload(const QString& id) {
   Plugin* p = find(id);
   if (!p) return;
+  const auto t0 = Clock::now();
   releaseState(*p);
   store.ui.clearPlugin(p->id());
   p->status = PluginStatus::Loading;
@@ -392,7 +429,17 @@ void PluginEngine::reload(const QString& id) {
   }
   p->info.manifest = m.manifest;
   log(*p, LogLevel::Info, "Reloading");
+  p->errors.reset();
+  p->slowCalls = 0;
   load(*p);
+  const qint64 ms = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - t0).count();
+  if (p->status == PluginStatus::Running) {
+    log(*p, LogLevel::Info, "Reloaded in " + std::to_string(ms) + " ms");
+    // What survives a reload: fb.store, fb.cache, the run state on the server, per-game consent. The Lua state does not, so the
+    // plugin hears about it (fb.events.on("fb", "reloaded", fn)) and can restore from fb.store.
+    postHostEvent(QStringLiteral("reloaded"), valueFromVariant(QVariantMap{{QStringLiteral("ms"), ms}}), p->id());
+  }
+  store.setReloaded(p->id(), ms);
 }
 
 void PluginEngine::deliverEvents() {

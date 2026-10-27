@@ -1685,6 +1685,17 @@ void PlayerController::showPluginSettings(const QString& pluginId) {
   emit pluginSettingsRequested(pluginId);
 }
 
+void PlayerController::showDeveloperConsole() {
+  if (!plugins_->developerMode()) return;
+  if (gameActive_ && !background_) {
+    emit gameConsoleRequested();
+    return;
+  }
+  if (conn_->state() != HubConnection::State::Connected) return;
+  showSettingsSection(QStringLiteral("plugins"));
+  emit developerConsoleRequested();
+}
+
 // System of the game being launched, else of the selected game, else of the first known system.
 QString PlayerController::currentSystemId() const {
   if (!launchGame_.system.isEmpty()) {

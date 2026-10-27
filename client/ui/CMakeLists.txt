@@ -41,6 +41,7 @@ qt_add_qml_module(uzume_ui
     savehistorycontroller.h savehistorycontroller.cpp
     localhubcontroller.h localhubcontroller.cpp
     pluginruntime.h pluginruntime.cpp
+    devconsole.h devconsole.cpp
     pluginscontroller.h pluginscontroller.cpp
     pluginemulation.h pluginemulation.cpp
     keyedrowsmodel.h keyedrowsmodel.cpp

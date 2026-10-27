@@ -107,6 +107,9 @@ class PlayerSettings {
   // Plugin developer mode (settings -> Plugins): allows unsigned local plugins, shows the Plugin console in game. Default off.
   bool developerMode() const { return developerMode_; }
   bool setDeveloperMode(bool on);
+  // Developer console "Reload on file change": reload a dev-linked plugin when its files change. Default on.
+  bool pluginReloadOnChange() const { return pluginReloadOnChange_; }
+  bool setPluginReloadOnChange(bool on);
 
   // First start (0.18 package 7): the person chose "Play on this PC" (or "Add later") on the welcome screen, so it is not shown again.
   bool playOnThisPcChosen() const { return playOnThisPc_; }
@@ -220,6 +223,7 @@ class PlayerSettings {
   QString sessionVisibility_;
   QStringList libraryFolders_;
   bool developerMode_ = false;
+  bool pluginReloadOnChange_ = true;
   bool playOnThisPc_ = false;
   QString localServerMode_;
   int localServerPort_ = 0;

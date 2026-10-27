@@ -5,7 +5,10 @@
 #include <QClipboard>
 #include <QDateTime>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QGuiApplication>
 #include <QKeyCombination>
 #include <QKeySequence>
@@ -32,20 +35,6 @@ namespace {
 using plugins::LogLevel;
 using plugins::PluginStatus;
 
-QString hex(quint64 v, int width = 8) {
-  return QStringLiteral("0x%1").arg(v, width, 16, QLatin1Char('0')).toUpper().replace(QLatin1String("0X"), QLatin1String("0x"));
-}
-
-QString levelName(LogLevel l) {
-  switch (l) {
-    case LogLevel::Debug: return QStringLiteral("debug");
-    case LogLevel::Info: return QStringLiteral("info");
-    case LogLevel::Warn: return QStringLiteral("warn");
-    case LogLevel::Error: return QStringLiteral("error");
-  }
-  return QStringLiteral("info");
-}
-
 constexpr Qt::KeyboardModifiers kComboMods = Qt::ControlModifier | Qt::ShiftModifier | Qt::AltModifier | Qt::MetaModifier;
 
 // Portable key text ("Ctrl+H") -> Qt::Key | modifiers; 0 = empty or not a single combination.
@@ -60,27 +49,6 @@ int comboFromText(const QString& text) {
 
 QString textFromCombo(int combo) {
   return QKeySequence(QKeyCombination::fromCombined(combo)).toString(QKeySequence::PortableText);
-}
-
-QString timeText(qint64 ms) { return QDateTime::fromMSecsSinceEpoch(ms).toString(QStringLiteral("HH:mm:ss.zzz")); }
-
-// Status dot of the console: running | loading | paused | error (a plugin is only paused by an error today).
-QString statusKey(const plugins::ConsoleSnapshot& s) {
-  switch (s.status) {
-    case PluginStatus::Running: return QStringLiteral("running");
-    case PluginStatus::Loading: return QStringLiteral("loading");
-    case PluginStatus::Paused: return s.error.isEmpty() ? QStringLiteral("paused") : QStringLiteral("error");
-    case PluginStatus::Stopped: return QStringLiteral("stopped");
-  }
-  return QStringLiteral("stopped");
-}
-
-QString statusText(const QString& key) {
-  if (key == QLatin1String("running")) return PluginsController::tr("Running");
-  if (key == QLatin1String("loading")) return PluginsController::tr("Starting");
-  if (key == QLatin1String("paused")) return PluginsController::tr("Paused");
-  if (key == QLatin1String("error")) return PluginsController::tr("Paused after an error");
-  return PluginsController::tr("Stopped");
 }
 
 QString originText(const QString& origin) {
@@ -178,13 +146,38 @@ PluginsController::PluginsController(PlayerSettings* settings, const QString& da
     for (auto it = mutes.begin(); it != mutes.end(); ++it) (it.value() == QLatin1String("important") ? mutedImportant_ : mutedAlways_).insert(it.key());
   }
 
-  consoleTimer_.setSingleShot(true);
-  consoleTimer_.setInterval(100);  // console model: about 10 Hz at most
-  connect(&consoleTimer_, &QTimer::timeout, this, &PluginsController::rebuildConsole);
-  connect(host_.get(), &plugins::PluginHost::consoleChanged, this, [this]() { scheduleConsole(); });
+  DevConsole::Sources src;
+  src.developerMode = [this]() { return developerMode(); };
+  src.activeIds = [this]() { return consoleIds(); };
+  src.info = [this](const QString& id) { return infoFor(id); };
+  src.snapshot = [this](const QString& id) { return host_->consoleSnapshot(id); };
+  src.unpacked = [this]() {
+    QList<plugins::PluginInfo> out;
+    for (const plugins::PluginInfo& p : manager_->list())
+      if (p.devLinked) out.append(p);
+    return out;
+  };
+  src.inspect = [this](const QString& id) { return inspectOf(id); };
+  src.permissionLabel = [](const QString& perm) { return permissionLabel(perm); };
+  src.reload = [this](const QString& id) { reloadPlugin(id); };
+  src.setWatching = [this](bool on) {
+    manager_->setWatchEnabled(on);
+    if (settings_ != nullptr) settings_->setPluginReloadOnChange(on);
+    return true;
+  };
+  devConsole_ = std::make_unique<DevConsole>(std::move(src), this);
+  if (settings_ != nullptr) {
+    manager_->setWatchEnabled(settings_->pluginReloadOnChange());
+    devConsole_->setReloadOnChange(settings_->pluginReloadOnChange());
+  }
+  if (session_ != nullptr) devConsole_->setMemorySource(std::shared_ptr<MemorySource>(makeGameMemorySource(session_).release()));
+  connect(devConsole_.get(), &DevConsole::modelChanged, this, &PluginsController::consoleChanged);
+  connect(devConsole_.get(), &DevConsole::pausedAfterError, this, [this](const QString& id, const QString&) { addHostNotice(id); });
+  connect(devConsole_.get(), &DevConsole::reloaded, this, [this](const QString& id, const QString& name, qint64 ms) { addReloadNotice(id, name, ms); });
+  connect(host_.get(), &plugins::PluginHost::consoleChanged, this, [this](const QString& id) { devConsole_->noteChanged(id); });
   connect(host_.get(), &plugins::PluginHost::statusChanged, this, [this](const QString& id) {
     onStatus(id);
-    scheduleConsole();
+    devConsole_->noteChanged(id);
     rebuildPanelTabs();
   });
   connect(host_.get(), &plugins::PluginHost::uiChanged, this, &PluginsController::onUiChanged);
@@ -202,7 +195,10 @@ PluginsController::PluginsController(PlayerSettings* settings, const QString& da
     connect(session_, &GameSession::memoryWatchReplaced, this, [this]() {
       if (running_) adapter_->bind(session_->memoryWatch());
     });
-    connect(session_, &GameSession::memoryRegionsChanged, this, [this]() { scheduleConsole(); });
+    connect(session_, &GameSession::memoryRegionsChanged, this, [this]() {
+      devConsole_->schedule();
+      devConsole_->memoryRefresh();
+    });
     connect(session_, &GameSession::stateChanged, this, [this]() {
       if (inGame_ && !session_->isActive()) gameStopped();
     });
@@ -225,7 +221,7 @@ void PluginsController::setDeveloperMode(bool on) {
   refreshPlugins();
   emit developerModeChanged();
   setConsoleAvailable(on && running_);
-  if (on) scheduleConsole();
+  devConsole_->schedule();
 }
 
 QString PluginsController::pluginLanguage() const {
@@ -444,6 +440,69 @@ void PluginsController::linkDevFolder(const QString& pathOrUrl) {
   refreshPlugins();
 }
 
+// "Load unpacked..." (boards 4d-2A and 4d-2B). The manifest is checked first; a problem installs nothing.
+QVariantMap PluginsController::loadUnpacked(const QString& pathOrUrl) {
+  QVariantMap res;
+  const QString path = localPath(pathOrUrl);
+  res.insert(QStringLiteral("path"), path);
+  const auto fail = [&](const QString& name, const QString& detail) {
+    res.insert(QStringLiteral("state"), QStringLiteral("error"));
+    res.insert(QStringLiteral("title"), tr("%1 didn't load").arg(name));
+    res.insert(QStringLiteral("detail"), detail);
+    res.insert(QStringLiteral("note"), tr("Nothing was installed."));
+    unpackedResult_ = res;
+    emit unpackedResultChanged();
+    return res;
+  };
+  if (!developerMode()) return fail(QFileInfo(path).fileName(), tr("Turn on Developer mode first."));
+  if (path.isEmpty() || !QFileInfo(path).isDir()) return fail(QFileInfo(path).fileName(), tr("The folder was not found."));
+  const plugins::ManifestResult mr = plugins::loadManifest(path);
+  if (!mr.ok) {
+    QString name = QFileInfo(path).fileName();
+    QFile mf(QDir(path).filePath(QStringLiteral("manifest.json")));
+    if (mf.open(QIODevice::ReadOnly)) {
+      const QString n = QJsonDocument::fromJson(mf.readAll()).object().value(QLatin1String("name")).toString();
+      if (!n.isEmpty()) name = n.left(64);
+    }
+    qCWarning(lcPlugins) << "load unpacked failed:" << mr.error.left(200);
+    return fail(name, QStringLiteral("manifest.json: ") + mr.error);
+  }
+  const plugins::InstallResult r = manager_->linkDevFolder(path);
+  if (!r.ok) return fail(mr.manifest.name, r.error);
+  setPluginEnabled(r.id, true);
+  refreshPlugins();
+  res.insert(QStringLiteral("state"), QStringLiteral("ok"));
+  res.insert(QStringLiteral("id"), r.id);
+  res.insert(QStringLiteral("title"), tr("%1 loaded").arg(mr.manifest.name));
+  res.insert(QStringLiteral("detail"), tr("manifest.json · %1 %2").arg(mr.manifest.name, mr.manifest.version.toString()));
+  unpackedResult_ = res;
+  emit unpackedResultChanged();
+  setMessage(tr("Loaded %1. It reloads when its files change.").arg(mr.manifest.name), false);
+  return res;
+}
+
+void PluginsController::dismissUnpackedResult() {
+  if (unpackedResult_.isEmpty()) return;
+  unpackedResult_.clear();
+  emit unpackedResultChanged();
+}
+
+bool PluginsController::setIdentityOverride(const QString& system, const QString& code) {
+  if (!developerMode()) return false;
+  static const QRegularExpression sysRe(QStringLiteral("^[a-z0-9_-]{1,32}$"));
+  static const QRegularExpression codeRe(QStringLiteral("^[A-Za-z0-9._-]{1,64}$"));
+  if (!sysRe.match(system).hasMatch() || !codeRe.match(code).hasMatch()) return false;
+  identityOverride_ = IdentityOverride{system, code, QDateTime::currentMSecsSinceEpoch()};
+  return true;
+}
+
+void PluginsController::clearIdentityOverride() { identityOverride_.reset(); }
+
+QVariantMap PluginsController::identityOverride() const {
+  if (!identityOverride_) return {};
+  return {{QStringLiteral("system"), identityOverride_->system}, {QStringLiteral("code"), identityOverride_->code}};
+}
+
 void PluginsController::uninstall(const QString& id) {
   manager_->uninstall(id);
   refreshPlugins();
@@ -625,6 +684,15 @@ void PluginsController::gameStarted(const QString& system, const QString& romPat
   plugins::GameContext ctx;
   ctx.system = system;
   ctx.code = emu::readGameIdentity(romPath, identityReader(system)).code;
+  if (identityOverride_) {  // debug MCP game_start identity: used once, only while developer mode is on and not older than 30 s
+    const IdentityOverride o = *identityOverride_;
+    identityOverride_.reset();
+    if (developerMode() && QDateTime::currentMSecsSinceEpoch() - o.setAtMs <= 30000) {
+      qCInfo(lcPlugins) << "game identity overridden for plugin matching:" << o.system << o.code;
+      ctx.system = o.system;
+      ctx.code = o.code;
+    }
+  }
   ctx.sha256 = sha256;
   ctx.title = title;
   ctx.romPath = romPath;
@@ -636,7 +704,7 @@ void PluginsController::gameStarted(const QString& system, const QString& romPat
   ensureStore();
   ctx.store = store_;
   ctx.emulation = emulation_;
-  const plugins::GameResolution res = run.bridge ? manager_->resolveForRun(run.pins) : manager_->resolveForGame(system, ctx.code);
+  const plugins::GameResolution res = run.bridge ? manager_->resolveForRun(run.pins) : manager_->resolveForGame(ctx.system, ctx.code);
   for (auto it = res.problems.begin(); it != res.problems.end(); ++it)
     qCInfo(lcPlugins) << "plugin" << it.key() << "not started:" << it.value().join(QStringLiteral("; "));
   if (res.start.isEmpty()) {
@@ -647,8 +715,8 @@ void PluginsController::gameStarted(const QString& system, const QString& romPat
   runningIds_.clear();
   for (const plugins::PluginInfo& p : res.start) runningIds_ << p.manifest.id;
   loggedStatus_.clear();
-  clearedAt_.clear();
-  selected_ = runningIds_.value(0);
+  devConsole_->resetSeen();
+  consoleRun_ = run.bridge;
   running_ = true;
   emulation_->gameStarted(gameInfo_, run.bridge);
   if (storeSync_) {
@@ -664,7 +732,8 @@ void PluginsController::gameStarted(const QString& system, const QString& romPat
   postInitialEvents();
   rebuildUiModels();
   setConsoleAvailable(developerMode());
-  scheduleConsole();
+  devConsole_->schedule();
+  devConsole_->memoryRefresh();
 }
 
 void PluginsController::gameStopped() { stopGame(true); }
@@ -681,10 +750,9 @@ void PluginsController::stopGame(bool restartShell) {
     running_ = false;
     runningIds_.clear();
     setConsoleAvailable(false);
-    if (!hasPreview_) {
-      console_.clear();
-      emit consoleChanged();
-    }
+    consoleRun_.reset();
+    devConsole_->resetSeen();
+    devConsole_->memoryRefresh();
   }
   inGame_ = false;
   mutedSession_.clear();
@@ -823,8 +891,7 @@ void PluginsController::onStatus(const QString& id) {
   if (snap.status == PluginStatus::Running) {
     qCInfo(lcPlugins) << "plugin" << id << "started";
   } else if (snap.status == PluginStatus::Paused) {
-    qCWarning(lcPlugins) << "plugin" << id << "paused:" << snap.error.section(QLatin1Char('\n'), 0, 0);
-    addHostNotice(id);
+    qCWarning(lcPlugins) << "plugin" << id << "paused:" << snap.error.section(QLatin1Char('\n'), 0, 0);  // the notice comes from the DevConsole
   }
 }
 
@@ -837,82 +904,48 @@ void PluginsController::setConsoleAvailable(bool on) {
   emit consoleAvailableChanged();
 }
 
-void PluginsController::scheduleConsole() {
-  if (hasPreview_ || !running_ || !developerMode()) return;
-  if (!consoleTimer_.isActive()) consoleTimer_.start();
+// Plugins the developer console lists: the game's set while a game runs, else the shell set and the run view.
+QStringList PluginsController::consoleIds() const {
+  QStringList ids = activeIds();
+  if (!inGame_)
+    for (const QString& id : runViewIds_)
+      if (!ids.contains(id)) ids << id;
+  return ids;
 }
 
-QString PluginsController::visibleLogText(const QString& id) const {
-  const auto snap = host_->consoleSnapshot(id);
-  const qint64 cut = clearedAt_.value(id, 0);
-  QStringList lines;
-  for (const auto& l : snap.log)
-    if (l.timeMs > cut) lines << QStringLiteral("%1 %2 %3").arg(timeText(l.timeMs), levelName(l.level).toUpper(), l.text);
-  return lines.join(QLatin1Char('\n'));
+// Inspect area of the console: the run state this plugin wrote (fb.run) and its keys in the plugin store (fb.store).
+QVariantMap PluginsController::inspectOf(const QString& id) const {
+  QVariantMap out;
+  std::shared_ptr<plugins::RunBridge> run = consoleRun_ ? consoleRun_ : runViewBridge_;
+  if (run) {
+    const QJsonObject cur = run->current();
+    if (!cur.isEmpty()) {
+      out.insert(QStringLiteral("runName"), cur.value(QLatin1String("name")).toString());
+      bool found = false;
+      const QJsonObject st = run->stateOf(cur.value(QLatin1String("me")).toString(), id, &found);
+      if (found) out.insert(QStringLiteral("runState"), QString::fromUtf8(QJsonDocument(st).toJson(QJsonDocument::Compact)).left(4000));
+    }
+  }
+  QVariantList keys;
+  if (store_) {
+    for (const QString& k : store_->keys(id)) {
+      const auto e = store_->get(id, k);
+      if (!e.found) continue;
+      QString text;
+      const QJsonValue v = e.value;
+      if (v.isObject()) text = QString::fromUtf8(QJsonDocument(v.toObject()).toJson(QJsonDocument::Compact));
+      else if (v.isArray()) text = QString::fromUtf8(QJsonDocument(v.toArray()).toJson(QJsonDocument::Compact));
+      else text = v.toVariant().toString();
+      keys.append(QVariantMap{{QStringLiteral("key"), k}, {QStringLiteral("bytes"), text.toUtf8().size()}, {QStringLiteral("revision"), e.revision},
+                              {QStringLiteral("preview"), text.left(120)}});
+      if (keys.size() >= 100) break;
+    }
+  }
+  out.insert(QStringLiteral("store"), keys);
+  return out;
 }
 
-void PluginsController::rebuildConsole() {
-  if (hasPreview_ || !running_ || !developerMode()) return;
-  QVariantList plist;
-  for (const QString& id : std::as_const(runningIds_)) {
-    const auto info = infoFor(id);
-    const QString key = statusKey(host_->consoleSnapshot(id));
-    plist.append(QVariantMap{{QStringLiteral("id"), id},
-                             {QStringLiteral("name"), info ? info->manifest.name : id},
-                             {QStringLiteral("status"), key},
-                             {QStringLiteral("statusText"), statusText(key)}});
-  }
-  if (!runningIds_.contains(selected_)) selected_ = runningIds_.value(0);
-  const auto snap = host_->consoleSnapshot(selected_);
-  const QString key = statusKey(snap);
-
-  QVariantList watched;
-  for (const auto& w : snap.watched)
-    watched.append(QVariantMap{{QStringLiteral("address"), w.address}, {QStringLiteral("value"), w.value}, {QStringLiteral("label"), w.label}});
-  QVariantList events;
-  for (auto it = snap.events.crbegin(); it != snap.events.crend() && events.size() < 100; ++it)  // newest first
-    events.append(QVariantMap{{QStringLiteral("time"), timeText(it->timeMs)},
-                              {QStringLiteral("plugin"), it->plugin},
-                              {QStringLiteral("kind"), it->name},
-                              {QStringLiteral("text"), it->text}});
-  QVariantList log;
-  const qint64 cut = clearedAt_.value(selected_, 0);
-  for (auto it = snap.log.crbegin(); it != snap.log.crend() && log.size() < 200; ++it) {  // newest first
-    if (it->timeMs <= cut) continue;
-    log.append(QVariantMap{{QStringLiteral("time"), timeText(it->timeMs)}, {QStringLiteral("level"), levelName(it->level)}, {QStringLiteral("text"), it->text}});
-  }
-  QVariantList regions;
-  if (session_ != nullptr) {
-    for (const auto& r : session_->memoryRegions())
-      regions.append(QVariantMap{{QStringLiteral("start"), hex(r.start)},
-                                 {QStringLiteral("length"), hex(r.len, 1)},
-                                 {QStringLiteral("addrspace"), QString::fromStdString(r.addrspace)}});
-  }
-  console_ = QVariantMap{{QStringLiteral("plugins"), plist},
-                         {QStringLiteral("selected"), selected_},
-                         {QStringLiteral("status"), key},
-                         {QStringLiteral("statusText"), statusText(key)},
-                         {QStringLiteral("error"), snap.error},
-                         {QStringLiteral("watched"), watched},
-                         {QStringLiteral("events"), events},
-                         {QStringLiteral("log"), log},
-                         {QStringLiteral("regions"), regions},
-                         {QStringLiteral("regionsText"), regions.isEmpty() ? tr("The core exposes no memory map") : QString()}};
-  emit consoleChanged();
-}
-
-void PluginsController::selectConsolePlugin(const QString& id) {
-  if (hasPreview_) {
-    auto c = preview_;
-    c.insert(QStringLiteral("selected"), id);
-    console_ = c;
-    emit consoleChanged();
-    return;
-  }
-  if (!runningIds_.contains(id) || selected_ == id) return;
-  selected_ = id;
-  rebuildConsole();
-}
+void PluginsController::selectConsolePlugin(const QString& id) { devConsole_->selectPlugin(id); }
 
 void PluginsController::reloadPlugin(const QString& id) {
   emit reloadRequested(id);
@@ -922,42 +955,17 @@ void PluginsController::reloadPlugin(const QString& id) {
   host_->reload(id);
 }
 
-void PluginsController::reloadSelected() { reloadPlugin(selected_); }
+void PluginsController::reloadSelected() { reloadPlugin(devConsole_->selectedId()); }
 
-void PluginsController::clearLog(const QString& id) {
-  qint64 latest = QDateTime::currentMSecsSinceEpoch();
-  if (running_)
-    for (const auto& l : host_->consoleSnapshot(id).log) latest = (std::max)(latest, l.timeMs);
-  clearedAt_.insert(id, latest);
-  if (hasPreview_) {
-    auto c = preview_;
-    c.insert(QStringLiteral("log"), QVariantList());
-    preview_ = c;
-    console_ = c;
-    emit consoleChanged();
-    return;
-  }
-  rebuildConsole();
-}
+void PluginsController::clearLog(const QString& id) { devConsole_->clearLog(id); }
 
 void PluginsController::copyLog(const QString& id) {
-  QString text;
-  if (hasPreview_) {
-    for (const QVariant& v : preview_.value(QStringLiteral("log")).toList()) {
-      const QVariantMap m = v.toMap();
-      text += m.value(QStringLiteral("time")).toString() + QLatin1Char(' ') + m.value(QStringLiteral("level")).toString().toUpper() +
-              QLatin1Char(' ') + m.value(QStringLiteral("text")).toString() + QLatin1Char('\n');
-    }
-  } else {
-    text = visibleLogText(id);
-  }
-  if (QGuiApplication::clipboard() != nullptr) QGuiApplication::clipboard()->setText(text);
+  if (QGuiApplication::clipboard() != nullptr) QGuiApplication::clipboard()->setText(devConsole_->logText(id));
 }
 
 void PluginsController::setPreviewConsole(const QVariantMap& console) {
   hasPreview_ = !console.isEmpty();
-  preview_ = console;
-  console_ = console;
+  devConsole_->setPreview(console);
   consoleAvailable_ = !hasPreview_;  // force the signal below
   setConsoleAvailable(hasPreview_);
   emit consoleChanged();
@@ -1457,21 +1465,38 @@ void PluginsController::ensureStore() {
 }
 
 // Host notice "Uzume · plugin paused" (not mutable: it is about the Player's own plugin handling).
+// "<Plugin> paused after an error" (board 4d-2D): Restart plugin, and in Developer mode Open console. The game keeps running.
 void PluginsController::addHostNotice(const QString& pluginId) {
   if (previewUi_ || !activeIds().contains(pluginId)) return;
   const auto info = infoFor(pluginId);
   if (!info) return;
   QVariantList actions{QVariantMap{{QStringLiteral("label"), tr("Restart plugin")}, {QStringLiteral("action"), QStringLiteral("restart")}, {QStringLiteral("value"), pluginId}}};
   if (developerMode())
-    actions.append(QVariantMap{{QStringLiteral("label"), tr("Details")}, {QStringLiteral("action"), QStringLiteral("details")}, {QStringLiteral("value"), pluginId}});
+    actions.append(QVariantMap{{QStringLiteral("label"), tr("Open console")}, {QStringLiteral("action"), QStringLiteral("details")}, {QStringLiteral("value"), pluginId}});
   toasts_.append(QVariantMap{{QStringLiteral("toastId"), --hostToastId_},
                              {QStringLiteral("host"), true},
                              {QStringLiteral("pluginId"), pluginId},
                              {QStringLiteral("pluginName"), tr("Uzume")},
                              {QStringLiteral("tone"), QStringLiteral("warning")},
-                             {QStringLiteral("title"), tr("plugin paused")},
-                             {QStringLiteral("text"), tr("%1 was paused after an error. Your game keeps running.").arg(info->manifest.name)},
+                             {QStringLiteral("title"), tr("%1 paused after an error").arg(info->manifest.name)},
+                             {QStringLiteral("text"), tr("Your game keeps running.")},
                              {QStringLiteral("actions"), actions},
+                             {QStringLiteral("origin"), QStringLiteral("official")}});
+  while (toasts_.size() > 10) toasts_.removeFirst();
+  emit toastsChanged();
+}
+
+// "<Plugin> reloaded · 38 ms" (board 4d-2E), Developer mode only.
+void PluginsController::addReloadNotice(const QString& pluginId, const QString& name, qint64 ms) {
+  if (previewUi_ || !developerMode()) return;
+  toasts_.append(QVariantMap{{QStringLiteral("toastId"), --hostToastId_},
+                             {QStringLiteral("host"), true},
+                             {QStringLiteral("pluginId"), pluginId},
+                             {QStringLiteral("pluginName"), tr("Uzume")},
+                             {QStringLiteral("tone"), QStringLiteral("info")},
+                             {QStringLiteral("title"), tr("%1 reloaded · %2 ms").arg(name).arg(ms)},
+                             {QStringLiteral("text"), QString()},
+                             {QStringLiteral("actions"), QVariantList()},
                              {QStringLiteral("origin"), QStringLiteral("official")}});
   while (toasts_.size() > 10) toasts_.removeFirst();
   emit toastsChanged();

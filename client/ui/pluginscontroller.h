@@ -15,6 +15,7 @@
 #include <memory>
 #include <optional>
 
+#include "devconsole.h"
 #include "plugin_delivery.h"
 #include "plugin_host.h"
 #include "plugin_store.h"
@@ -78,6 +79,12 @@ class PluginsController : public QObject {
   // {plugins: [{id, name, status, statusText}], selected, status, statusText, error, watched, events, log, regions,
   //  regionsText}; refreshed at most about 10 times per second.
   Q_PROPERTY(QVariantMap console READ console NOTIFY consoleChanged)
+  // The developer console (0.22, boards 4d-1 and 4d-2): the one model behind the Settings page, the game panel tab and the debug
+  // MCP tools. `console` above is its model.
+  Q_PROPERTY(uzume::ui::DevConsole* devConsole READ devConsole CONSTANT)
+  // Result of the last "Load unpacked...": {state ("ok" | "error"), title ("Item Helper didn't load"), detail ("manifest.json: ..."),
+  //  path}; empty before the first attempt or after dismissUnpackedResult(). An error installs nothing (board 4d-2B).
+  Q_PROPERTY(QVariantMap unpackedResult READ unpackedResult NOTIFY unpackedResultChanged)
 
   // Plugin UI v1 (fb.ui). Models are rebuilt on the UI thread when the plugin thread delivers changes (coalesced to
   // about 30 updates per second and slot); the trees themselves are fetched with slotTree() on slotChanged().
@@ -133,7 +140,9 @@ class PluginsController : public QObject {
   QString message() const { return message_; }
   bool messageIsError() const { return messageIsError_; }
   bool consoleAvailable() const { return consoleAvailable_; }
-  QVariantMap console() const { return console_; }
+  QVariantMap console() const { return devConsole_->model(); }
+  DevConsole* devConsole() { return devConsole_.get(); }
+  QVariantMap unpackedResult() const { return unpackedResult_; }
 
   QVariantList panelTabs() const { return panelTabs_; }
   QVariantList hudWidgets() const { return hudWidgets_; }
@@ -228,6 +237,15 @@ class PluginsController : public QObject {
   // Installs the missing required plugins the Hub offers first, then the plugin itself ("Install both").
   Q_INVOKABLE void installHubPluginWithDependencies(const QString& id, const QString& version);
   Q_INVOKABLE void linkDevFolder(const QString& pathOrUrl);
+  // "Load unpacked...": checks manifest.json of the folder, links it as a development plugin and turns it on; on a manifest problem
+  // nothing is installed and unpackedResult says why. Returns the result (debug MCP).
+  Q_INVOKABLE QVariantMap loadUnpacked(const QString& pathOrUrl);
+  Q_INVOKABLE void dismissUnpackedResult();
+  // Developer mode only: the game identity {system, code} that plugin matching uses for the next game start instead of the detected
+  // one (debug MCP game_start identity). Refused (false) with developer mode off; single use, expires after 30 s.
+  bool setIdentityOverride(const QString& system, const QString& code);
+  void clearIdentityOverride();
+  QVariantMap identityOverride() const;
   Q_INVOKABLE void uninstall(const QString& id);
   Q_INVOKABLE void setPluginEnabled(const QString& id, bool enabled);
   Q_INVOKABLE void dismissMessage();
@@ -316,6 +334,7 @@ class PluginsController : public QObject {
   void pickFileRequested(const QString& pluginId, const QString& requestId, const QString& title, const QStringList& filters, double maxBytes);
   void consentRequestChanged();
   void cheatsOnChanged();
+  void unpackedResultChanged();
 
  private:
   void updateShell();
@@ -336,6 +355,7 @@ class PluginsController : public QObject {
   void addAppNotice(const PluginEmulationService::Notice& n);
   void ensureStore();
   void addHostNotice(const QString& pluginId);
+  void addReloadNotice(const QString& pluginId, const QString& name, qint64 ms);
   void applyPreviewHud();
   QString pluginIconUrl(const QString& id) const;
   QStringList activeIds() const;
@@ -346,10 +366,10 @@ class PluginsController : public QObject {
   void reportInstall(const plugins::InstallResult& r, bool fromFolder);
   const HubPluginInfo* newestOffer(const QString& id) const;
   void scheduleConsole();
-  void rebuildConsole();
+  QStringList consoleIds() const;     // plugins the developer console lists: the game's set, else the shell's
+  QVariantMap inspectOf(const QString& pluginId) const;
   void onStatus(const QString& id);
   void setMessage(const QString& text, bool isError);
-  QString visibleLogText(const QString& id) const;
   void setConsoleAvailable(bool on);
   static QString localPath(const QString& pathOrUrl);
 
@@ -378,7 +398,14 @@ class PluginsController : public QObject {
   QString launchGameId_;
   QString launchModDir_;
   std::shared_ptr<VideoCaptureAdapter> video_;  // fb.video of the running game; released on the GUI thread after host_->stop()
-  QTimer consoleTimer_;
+  std::unique_ptr<DevConsole> devConsole_;
+  QVariantMap unpackedResult_;
+  struct IdentityOverride {
+    QString system, code;
+    qint64 setAtMs = 0;
+  };
+  std::optional<IdentityOverride> identityOverride_;
+  std::shared_ptr<plugins::RunBridge> consoleRun_;  // fb.run bridge of the running game (Inspect: run state)
   bool running_ = false;                      // plugins of the running game are started
   bool inGame_ = false;                       // a game runs (with or without plugins)
   bool shellRunning_ = false;
@@ -423,8 +450,6 @@ class PluginsController : public QObject {
   QString summary_;
   QString message_;
   bool messageIsError_ = false;
-  QVariantMap console_;
-  QVariantMap preview_;
   bool hasPreview_ = false;
 };
 

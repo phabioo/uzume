@@ -255,6 +255,12 @@ Rectangle {
         return true
     }
     Connections {
+        target: root.player
+        function onGameConsoleRequested() {
+            if (root.visible && !root.fullscreen && root.player.plugins.consoleAvailable) panel.openTab("console")
+        }
+    }
+    Connections {
         target: root.player.controllers
         // Gamepad hotkeys (P1): the buttons are already kept away from the core by the GamepadService.
         function onPadHotkeyTriggered(action) { if (root.visible) root.runHotkey(action === "layout" ? "nextLayout" : action) }

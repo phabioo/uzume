@@ -344,6 +344,31 @@ class McpUiTest : public QObject {
     QCOMPARE(h->controller->selectedGameId(), QStringLiteral("g1"));  // the selection is untouched
   }
 
+  // 0.22: game_start identity {system, code} overrides the game identity for plugin matching; only with Developer mode on.
+  void gameStartIdentityNeedsDeveloperMode() {
+    const ToolDef* def = registry.find(QStringLiteral("game_start"));
+    QVERIFY(def != nullptr);
+    QVERIFY(def->inputSchema.value("properties").toObject().contains("identity"));
+    const QJsonObject identity{{"system", "3ds"}, {"code", "0004000000174600"}};
+    ui::PluginsController* plugins = h->controller->plugins();
+    plugins->setDeveloperMode(false);
+    const Answer refused = call(QStringLiteral("game_start"), {{"gameId", "g1"}, {"identity", identity}});
+    QVERIFY(refused.result.isError);
+    QVERIFY(refused.text().startsWith(QStringLiteral("developer_mode_required")));
+    QVERIFY(plugins->identityOverride().isEmpty());
+    plugins->setDeveloperMode(true);
+    const Answer incomplete = call(QStringLiteral("game_start"), {{"gameId", "g1"}, {"identity", QJsonObject{{"system", "3ds"}}}});
+    QVERIFY(incomplete.result.isError);
+    QVERIFY(incomplete.text().startsWith(QStringLiteral("identity needs")));
+    const Answer unknown = call(QStringLiteral("game_start"), {{"gameId", "missing"}, {"identity", identity}});
+    QVERIFY(unknown.text().startsWith(QStringLiteral("unknown_game")));
+    QVERIFY(plugins->identityOverride().isEmpty());  // nothing is armed for a start that did not happen
+    const Answer bad = call(QStringLiteral("game_start"), {{"gameId", "g1"}, {"identity", QJsonObject{{"system", "3DS!"}, {"code", "x"}}}});
+    QVERIFY(bad.result.isError);
+    QVERIFY(plugins->identityOverride().isEmpty());
+    plugins->setDeveloperMode(false);
+  }
+
   void noQmlWarnings() { QCOMPARE(uitest::warningCount().load(), 0); }
 };
 

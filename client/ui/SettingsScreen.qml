@@ -93,6 +93,19 @@ Rectangle {
         }
     }
 
+    // Ctrl+Shift+D outside a game: Plugins, scrolled to the Developer console.
+    Connections {
+        target: root.player
+        function onDeveloperConsoleRequested() {
+            root.jumpTo("plugins")
+            Qt.callLater(function () {
+                const p = secPlugins.consoleBlock.mapToItem(flick.contentItem, 0, 0)
+                flick.contentY = Math.max(0, Math.min(p.y - Theme.space15, Math.max(0, flick.contentHeight - flick.height)))
+                secPlugins.developerConsole.forceActiveFocus()
+            })
+        }
+    }
+
     // B / Esc / Left inside the content: back to the column (the shell moves to the AppNav when this returns false).
     function handleBack(): bool { return secNav.backFromContent() }
 

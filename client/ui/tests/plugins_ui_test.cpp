@@ -137,7 +137,7 @@ class PluginsUiTest : public QObject {
     QCOMPARE(h.item("sectionStatus_plugins")->property("text").toString(), QStringLiteral("None installed"));
     QVERIFY(h.item("pluginsEmpty")->isVisible());
     QVERIFY(h.item("pluginInstallButton")->isVisible());
-    QVERIFY(!h.item("pluginLinkButton")->isVisible());  // Developer mode only
+    QVERIFY(!h.item("consoleLoadUnpacked")->isVisible());  // Developer mode only
     QVERIFY(h.item("pluginDeveloperModeHint")->property("text").toString().startsWith(
         QStringLiteral("Allows unsigned local plugins, adds the Plugin console tab in game")));
     shot(h, QStringLiteral("4a-plugins-empty"));
@@ -151,7 +151,7 @@ class PluginsUiTest : public QObject {
     QVERIFY(h.controller->playerSettings()->developerMode());
     QVERIFY(pc->manager()->developerMode());
     QVERIFY(PlayerSettings(h.controller->profileStore()->baseDir()).developerMode());
-    QTRY_VERIFY(h.item("pluginLinkButton")->isVisible());
+    QTRY_VERIFY(h.item("consoleLoadUnpacked")->isVisible());
 
     // Plugin language: Auto by default, explicit choice persists and wins over the 3DS option.
     QVERIFY(h.item("pluginLanguageSelect") != nullptr);
@@ -213,7 +213,111 @@ class PluginsUiTest : public QObject {
     QVERIFY(h.click("pluginDeveloperModeToggle"));
     QTRY_VERIFY(!pc->developerMode());
     QVERIFY(!PlayerSettings(h.controller->profileStore()->baseDir()).developerMode());
-    QTRY_VERIFY(!h.item("pluginLinkButton")->isVisible());
+    QTRY_VERIFY(!h.item("consoleLoadUnpacked")->isVisible());
+  }
+
+  // Boards 4d-1 and 4d-2: the Developer console in Settings > Plugins (preview data), then the Developer mode tag and Ctrl+Shift+D.
+  void developerConsolePage() {
+    FakeHub hub(QStringLiteral("a"));
+    hub.hubId = QStringLiteral("hub-dc");
+    hub.name = QStringLiteral("Home");
+    hub.decision = FakeHub::Decision::Approve;
+    QVERIFY(hub.start());
+    Harness h;
+    QVERIFY(h.start());
+    pair(h, hub);
+    PluginsController* pc = h.controller->plugins();
+    gotoPlugins(h);
+    QVERIFY(h.item("pluginDeveloperConsole") != nullptr);
+    QVERIFY(!h.item("pluginDeveloperConsole")->isVisible());  // Developer mode only
+    QVERIFY(h.click("pluginDeveloperModeToggle"));
+    QTRY_VERIFY(pc->developerMode());
+    QTRY_VERIFY(h.item("pluginDeveloperConsole")->isVisible());
+    QVERIFY(h.item("consoleNoPlugins")->isVisible());  // nothing runs: the empty state says what to do
+
+    QVariantMap data = consoleData(true, true);
+    data.insert("unpacked", true);
+    data.insert("folder", "/home/dev/item-helper");
+    data.insert("running", true);
+    data.insert("errorLine", "Paused after an error. Your game keeps running.");
+    data.insert("permissions", QVariantMap{{"granted", QVariantList{QVariantMap{{"id", "memory.read"}, {"label", "Read game memory"}}}},
+                                           {"notGranted", QVariantList{QVariantMap{{"id", "memory.write"}, {"label", "Change game memory"}}}}});
+    pc->setPreviewConsole(data);
+    QTRY_VERIFY(h.item("consoleError")->isVisible());
+    QVERIFY(h.item("consoleLoadUnpacked")->isVisible());
+    QVERIFY(h.item("consoleReload")->isVisible());
+    QCOMPARE(h.item("consoleRestart")->property("text").toString(), QStringLiteral("Reload and resume"));
+    QVERIFY(h.item("consoleUnpackedTag")->isVisible());
+    QCOMPARE(h.item("consoleFolder")->property("text").toString(), QStringLiteral("/home/dev/item-helper"));
+    QVERIFY(h.item("consoleReloadOnChange")->isVisible());
+    QCOMPARE(h.items("consolePermGranted").size(), 1);
+    QVERIFY(h.item("consolePermNotGranted")->property("text").toString().contains(QStringLiteral("Not granted: Change game memory")));
+
+    // Level chips with counts; a chip filters the table, Pause log is a button.
+    QCOMPARE(h.item("consoleChip_error")->property("count").toInt(), 1);
+    QCOMPARE(h.item("consoleChip_warn")->property("count").toInt(), 1);
+    QCOMPARE(h.item("consoleChip_debug")->property("count").toInt(), 1);
+    QCOMPARE(h.items("consoleLog_debug").size(), 1);
+    QVERIFY(h.click("consoleChip_debug"));
+    QTRY_COMPARE(h.items("consoleLog_debug").size(), 0);
+    QCOMPARE(h.item("consoleChip_debug")->property("count").toInt(), 1);  // still counted
+    QVERIFY(!h.item("consoleChip_debug")->property("active").toBool());
+    QVERIFY(h.click("consoleChip_debug"));
+    QTRY_COMPARE(h.items("consoleLog_debug").size(), 1);
+    QCOMPARE(h.item("consolePauseLog")->property("text").toString(), QStringLiteral("Pause log"));
+    QVERIFY(h.click("consolePauseLog"));
+    QTRY_COMPARE(h.item("consolePauseLog")->property("text").toString(), QStringLiteral("Resume log"));
+    QVERIFY(h.click("consolePauseLog"));
+    QTRY_COMPARE(h.item("consolePauseLog")->property("text").toString(), QStringLiteral("Pause log"));
+    shot(h, QStringLiteral("4d-1-developer-console"));
+
+    // The console restarts the plugin through the controller.
+    QSignalSpy reload(pc, &PluginsController::reloadRequested);
+    QVERIFY(h.click("consoleRestart"));
+    QCOMPARE(reload.size(), 1);
+    QVERIFY(h.click("consoleReload"));
+    QCOMPARE(reload.size(), 2);
+
+    // 4d-2B: a manifest problem is told next to the button and installs nothing.
+    pc->loadUnpacked(QDir::tempPath() + "/uzume-no-such-folder");
+    QTRY_VERIFY(h.item("consoleLoadResult")->isVisible());
+    QVERIFY(h.item("consoleLoadRetry")->isVisible());
+    shot(h, QStringLiteral("4d-2b-manifest-problem"));
+    QVERIFY(h.click("consoleLoadDismiss"));
+    QTRY_VERIFY(!h.item("consoleLoadResult")->isVisible());
+    pc->setPreviewConsole({});
+  }
+
+  // The game header tag and Ctrl+Shift+D (board 4d-2F).
+  void developerModeTagAndShortcut() {
+    FakeHub hub(QStringLiteral("a"));
+    hub.hubId = QStringLiteral("hub-dt");
+    hub.name = QStringLiteral("Home");
+    hub.decision = FakeHub::Decision::Approve;
+    QVERIFY(hub.start());
+    Harness h;
+    QVERIFY(h.start());
+    pair(h, hub);
+    h.window->resize(1440, 900);
+    startPreviewGame(h);
+    PluginsController* pc = h.controller->plugins();
+    QVERIFY(h.item("developerModeTag") == nullptr || !h.item("developerModeTag")->isVisible());
+    pc->setDeveloperMode(true);
+    // The tag shows when it fits next to the title (the very wide font of the widefont run leaves no room by design).
+    if (qEnvironmentVariableIsEmpty("UZUME_TEST_WIDE_FONT")) {
+      QTRY_VERIFY(h.item("developerModeTag") != nullptr && h.item("developerModeTag")->isVisible());
+      QCOMPARE(h.item("developerModeTag")->property("text").toString(), QStringLiteral("Developer mode"));
+      shot(h, QStringLiteral("4d-2f-developer-mode-tag"));
+    }
+    // The console tab exists while plugins run (preview); Ctrl+Shift+D opens it.
+    pc->setPreviewConsole(consoleData(false, true));
+    QTRY_VERIFY(h.item("panelTab_console") != nullptr && h.item("panelTab_console")->isVisible());
+    QVERIFY(h.item("pluginConsole") == nullptr || !h.item("pluginConsole")->isVisible());
+    QTest::keyClick(h.window, Qt::Key_D, Qt::ControlModifier | Qt::ShiftModifier);
+    QTRY_VERIFY(h.item("pluginConsole") != nullptr && h.item("pluginConsole")->isVisible());
+    pc->setPreviewConsole({});
+    pc->setDeveloperMode(false);
+    QTRY_VERIFY(h.item("developerModeTag") == nullptr || !h.item("developerModeTag")->isVisible());
   }
 
   void consoleTab() {
@@ -248,7 +352,7 @@ class PluginsUiTest : public QObject {
     QCOMPARE(h.items("consoleRegion").size(), 2);
     QVERIFY(!h.item("consoleNoRegions")->isVisible());
     QVERIFY(h.item("consoleReload") != nullptr);
-    QCOMPARE(h.item("consoleReload")->property("tip").toString(), QStringLiteral("Reload plugin · Ctrl+Shift+R"));
+    QCOMPARE(h.item("consoleReload")->property("tip").toString(), QStringLiteral("Reload plugin · Ctrl+R"));
     shot(h, QStringLiteral("4d-console"));
 
     // Clear empties the log (preview).
