@@ -66,7 +66,7 @@ class SaveHistoryController : public QObject {
   Q_PROPERTY(QString gameId READ gameId NOTIFY changed)
   Q_PROPERTY(QString slot READ slot NOTIFY changed)
   Q_PROPERTY(QVariantList slotOptions READ slotOptions NOTIFY changed)  // [{value, label, count}] count -1 = unknown
-  // [{version, versionText, revision, label, reason, reasonText, device, when, isSnapshot}] newest first
+  // [{version, versionText, revision, label, reason, reasonText, device, when, isSnapshot, cheatsUsed, autoKind ("" | cheats | memory)}] newest first
   Q_PROPERTY(QVariantList history READ history NOTIFY changed)
   Q_PROPERTY(bool loading READ loading NOTIFY changed)
   Q_PROPERTY(bool busy READ busy NOTIFY changed)
@@ -212,6 +212,7 @@ class SaveHistoryController : public QObject {
   void setMessage(const QString& text, bool isError);
   void recomputeBlock();
   static QString reasonText(const QString& reason);
+  static QString autoKind(const QString& reason, const QString& label);
   static QString formatWhen(const QString& iso);
   static QString formatWhen(const QDateTime& when);
   QVariantMap currentMap(const SaveCheckpoint& c) const;

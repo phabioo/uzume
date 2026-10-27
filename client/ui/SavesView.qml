@@ -99,8 +99,13 @@ FocusScope {
         }
         for (const v of hist.history) {
             if (root.filter === "snapshots" && !v.isSnapshot) continue
+            // 11g: "Before cheats" / "Before memory changes" are automatic entries ("Automatic · made before ..."), no manual snapshot text.
+            const auto = v.autoKind || ""
+            const autoText = auto === "cheats" ? qsTr("Automatic · made before cheats were turned on")
+                           : auto === "memory" ? qsTr("Automatic · made before game memory was changed") : ""
             out.push({ kind: v.isSnapshot ? "snap" : "plain", version: v.version, versionText: v.versionText, label: v.label,
-                       isSnapshot: v.isSnapshot, meta: join([v.when, v.device, v.reasonText]) })
+                       isSnapshot: v.isSnapshot, autoKind: auto, cheats: v.cheatsUsed === true,
+                       meta: join([v.when, v.device, autoText !== "" ? autoText : v.reasonText, v.cheatsUsed === true && auto === "" ? qsTr("made with cheats") : ""]) })
         }
         return out
     }
@@ -262,6 +267,260 @@ FocusScope {
             player: root.player
         }
 
+        // F13: title, "Start a run" and the slot tabs sit above the scroll area, so scrolling or a changing content height can
+        // never cut them off (they were half hidden behind the top edge of the Flickable).
+        UzLabel {
+            objectName: "savesTitle"
+            visible: root.inGame
+            text: qsTr("Saves")
+            font.pixelSize: 20
+            font.weight: Font.DemiBold
+        }
+        // The Library's saves tab (3c-3-r6): "Play from Main" is the primary under the title, "Start a run" sits on top.
+        UzButton {
+            objectName: "savesStartRun"
+            visible: !root.inGame && root.player.runs.available && root.game.onHub !== false
+            size: "sm"
+            text: qsTr("Start a run")
+            onClicked: root.startRunRequested()
+        }
+
+        // Slot tabs, or the switcher when there are more than three slots
+        Item {
+            id: tabs
+            objectName: "slotTabs"
+            Layout.fillWidth: true
+            Layout.minimumWidth: 0
+            implicitHeight: 30
+            readonly property bool changeable: !root.hist.gameRunning && !root.hist.busy
+            // Invisible measurement of the natural tab widths (independent of the collapsed state)
+            Item {
+                id: tabsFitProbe
+                visible: false
+                property real sum: 0
+                // Tabs shrink (elide) down to 48 px each before the row falls back to the switcher.
+                property real minSum: 0
+                property int count: 0
+                // "+ New slot" shrinks to a plain "+" when the full label does not fit beside the tabs.
+                readonly property bool linkCompact: sum + 8 + linkProbe.implicitWidth + 8 > tabs.width
+                Text {
+                    id: linkProbe
+                    visible: false
+                    text: qsTr("+ New slot")
+                    font.pixelSize: Theme.roles.input.size
+                    font.weight: Font.Medium
+                }
+                Repeater {
+                    model: root.hist.slotOptions
+                    onCountChanged: Qt.callLater(tabsFitProbe.recalc)
+                    delegate: Text {
+                        required property var modelData
+                        required property int index
+                        textFormat: Text.StyledText
+                        text: modelData.label + (modelData.count > 0 ? " <font color='" + Theme.dim + "'>" + modelData.count + "</font>" : "")
+                        font.pixelSize: Theme.roles.input.size
+                        font.weight: modelData.value === root.hist.slot ? Font.DemiBold : Font.Normal
+                        onImplicitWidthChanged: tabsFitProbe.recalc()
+                        Component.onCompleted: tabsFitProbe.recalc()
+                    }
+                }
+                function recalc() {
+                    let w = 0, m = 0, n = 0
+                    for (let i = 0; i < children.length; ++i) {
+                        const c = children[i]
+                        if (c !== linkProbe && c.implicitWidth !== undefined && c.text !== undefined) { w += Math.min(c.implicitWidth, 90); m += Math.min(c.implicitWidth, 48); ++n }
+                    }
+                    sum = w + Math.max(0, n - 1) * 12
+                    minSum = m + Math.max(0, n - 1) * 12
+                    count = n
+                }
+            }
+            Row {
+                id: tabRow
+                visible: !root.tabsCollapsed
+                anchors.left: parent.left
+                anchors.right: newSlotLink.left
+                anchors.rightMargin: 8
+                height: parent.height
+                spacing: 12
+                clip: true
+                Repeater {
+                    model: root.tabsCollapsed ? [] : root.hist.slotOptions
+                    delegate: Item {
+                        id: tab
+                        required property var modelData
+                        readonly property bool active: modelData.value === root.hist.slot
+                        objectName: "slotTab_" + modelData.value
+                        readonly property string text: tabText.text
+                        height: tabRow.height
+                        width: Math.min(tabText.implicitWidth, 90, Math.max(48, (tabRow.width - Math.max(0, tabsFitProbe.count - 1) * tabRow.spacing) / Math.max(1, tabsFitProbe.count)))
+                        opacity: tabs.changeable || active ? 1 : 0.5
+                        activeFocusOnTab: true
+                        Accessible.role: Accessible.PageTab
+                        Accessible.name: tabText.text
+                        Text {
+                            id: tabText
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: parent.width
+                            elide: Text.ElideRight
+                            textFormat: Text.StyledText
+                            text: tab.modelData.label + (tab.modelData.count > 0 ? " <font color='" + Theme.dim + "'>" + tab.modelData.count + "</font>" : "")
+                            font.pixelSize: Theme.roles.input.size
+                            font.weight: tab.active ? Font.DemiBold : Font.Normal
+                            color: tab.active ? Theme.ink : Theme.muted
+                        }
+                        Rectangle {
+                            visible: tab.active
+                            anchors.bottom: parent.bottom
+                            width: parent.width
+                            height: 2
+                            color: Theme.accent
+                        }
+                        HoverHandler { id: tabHover; cursorShape: Qt.PointingHandCursor }
+                        // The tab elides long slot names: the full name is the tooltip (R-P12).
+                        // A run's slot shows as "Run: <name>"; the raw slot name is the secondary text.
+                        readonly property bool renamed: tab.modelData.value !== "default" && tab.modelData.label !== tab.modelData.value
+                        ToolTip.visible: tabHover.hovered && (tabText.truncated || tab.renamed)
+                        ToolTip.text: tab.renamed ? tab.modelData.label + " (" + tab.modelData.value + ")" : tab.modelData.label
+                        ToolTip.delay: 400
+                        TapHandler { enabled: tabs.changeable && !tab.active; onTapped: root.hist.selectSlot(tab.modelData.value) }
+                        Keys.onPressed: (event) => {
+                            if (tabs.changeable && !tab.active && (event.key === Qt.Key_Space || event.key === Qt.Key_Return)) {
+                                root.hist.selectSlot(tab.modelData.value)
+                                event.accepted = true
+                            }
+                        }
+                    }
+                }
+            }
+            // Switcher "Main · 8 ▾" (more than three slots); "+ New slot" is its last item
+            Rectangle {
+                id: switcher
+                objectName: "slotSwitcher"
+                visible: root.tabsCollapsed
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                height: 30
+                width: Math.min(switcherText.implicitWidth + 36, parent.width)
+                radius: Theme.radiusNone
+                color: Theme.surface
+                border.width: activeFocus || switchMenu.visible ? 1.5 : 1
+                border.color: activeFocus || switchMenu.visible ? Theme.accent : Theme.rule
+                opacity: tabs.changeable ? 1 : 0.6
+                activeFocusOnTab: true
+                Accessible.role: Accessible.ComboBox
+                Accessible.name: qsTr("Save slot: %1").arg(switcherText.text)
+                Text {
+                    id: switcherText
+                    anchors.left: parent.left
+                    anchors.leftMargin: 12
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: Math.min(implicitWidth, switcher.width - 36)
+                    elide: Text.ElideRight
+                    text: {
+                        let count = 0
+                        let hint = ""
+                        for (const o of root.hist.slotOptions) if (o.value === root.hist.slot) { count = o.count; hint = (o.kind === "variant" || o.kind === "run") ? o.hint : "" }
+                        return root.hist.slotLabel + (hint !== "" ? " · " + hint : (count > 0 ? " · " + count : ""))
+                    }
+                    font.pixelSize: Theme.roles.input.size
+                    font.weight: Font.DemiBold
+                    color: Theme.ink
+                }
+                Text { anchors.right: parent.right; anchors.rightMargin: 12; anchors.verticalCenter: parent.verticalCenter; text: switchMenu.visible ? "▴" : "▾"; font.pixelSize: Theme.roles.meta11.size; color: Theme.dim }
+                HoverHandler { cursorShape: Qt.PointingHandCursor }
+                TapHandler { enabled: tabs.changeable; onTapped: { switcher.forceActiveFocus(); switchMenu.visible ? switchMenu.close() : switchMenu.open() } }
+                Keys.onPressed: (event) => { if (tabs.changeable && (event.key === Qt.Key_Space || event.key === Qt.Key_Return || event.key === Qt.Key_Down)) { switchMenu.open(); event.accepted = true } }
+                Popup {
+                    id: switchMenu
+                    objectName: "slotSwitchMenu"
+                    parent: switcher
+                    y: switcher.height + 4
+                    width: Math.max(220, switcher.width)
+                    padding: 4
+                    closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+                    background: Rectangle { radius: Theme.radiusNone; color: Theme.surface; border.width: 1; border.color: Theme.rule }
+                    // A plain Column (no Layout): the model can change while the popup resizes without touching stale layout items.
+                    contentItem: Column {
+                        spacing: 0
+                        Repeater {
+                            model: root.hist.slotOptions
+                            delegate: ItemDelegate {
+                                id: slotItem
+                                required property var modelData
+                                objectName: "slotMenu_" + modelData.value
+                                width: switchMenu.availableWidth
+                                implicitHeight: 30
+                                padding: 0
+                                leftPadding: 8
+                                rightPadding: 8
+                                onClicked: { const slotValue = slotItem.modelData.value; switchMenu.close(); root.hist.selectSlot(slotValue) }
+                                contentItem: Row {
+                                    spacing: 4
+                                    Text { width: 16; anchors.verticalCenter: parent.verticalCenter; text: slotItem.modelData.value === root.hist.slot ? "✓" : ""; font.pixelSize: Theme.roles.input.size; color: Theme.accentText }
+                                    Text {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: slotItem.width - 16 - 4 - 16
+                                        elide: Text.ElideRight
+                                        // Variant and run slots read "Randomizer #1 · Variant · v6" / "Run: Name · Run · v44" (10g-2).
+                        text: slotItem.modelData.label + (slotItem.modelData.kind === "variant" || slotItem.modelData.kind === "run" ? " · " + slotItem.modelData.hint
+                                                          : (slotItem.modelData.count > 0 ? " · " + slotItem.modelData.count : ""))
+                                        textFormat: Text.PlainText
+                                        font.pixelSize: Theme.roles.input.size
+                                        color: Theme.ink
+                                    }
+                                }
+                                background: Rectangle { radius: Theme.radiusNone; color: slotItem.highlighted || slotItem.hovered ? Theme.hover : "transparent" }
+                            }
+                        }
+                        Item { width: switchMenu.availableWidth; height: 9; Rectangle { anchors.centerIn: parent; width: parent.width; height: 1; color: Theme.rule } }
+                        ItemDelegate {
+                            id: newItem
+                            objectName: "slotMenuNew"
+                            width: switchMenu.availableWidth
+                            implicitHeight: 30
+                            padding: 0
+                            leftPadding: 24
+                            text: qsTr("+ New slot")
+                            font.pixelSize: Theme.roles.input.size
+                            font.weight: Font.Medium
+                            onClicked: { switchMenu.close(); root.newSlotError = ""; root.newSlotOpen = true; Qt.callLater(() => newSlotField.forceActiveFocus()) }
+                            // The Basic ItemDelegate text follows the palette (dark text on the dark popup looked disabled, R-P16).
+                            contentItem: Text {
+                                text: newItem.text
+                                textFormat: Text.PlainText
+                                font: newItem.font
+                                color: Theme.ink
+                                verticalAlignment: Text.AlignVCenter
+                                elide: Text.ElideRight
+                            }
+                            background: Rectangle { radius: Theme.radiusNone; color: newItem.highlighted || newItem.hovered ? Theme.hover : "transparent" }
+                        }
+                    }
+                }
+            }
+            UzButton {
+                id: newSlotLink
+                objectName: "newSlotButton"
+                visible: !root.tabsCollapsed
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                kind: "link"
+                implicitHeight: 28
+                font.pixelSize: Theme.roles.input.size
+                font.weight: Font.Medium
+                text: tabsFitProbe.linkCompact ? "+" : qsTr("+ New slot")
+                Accessible.name: qsTr("New slot")
+                enabled: !root.hist.gameRunning
+                onClicked: {
+                    root.newSlotError = ""
+                    root.newSlotOpen = !root.newSlotOpen
+                    if (root.newSlotOpen) newSlotField.forceActiveFocus()
+                }
+            }
+            Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.rule; z: -1 }
+        }
+
         Flickable {
             id: flick
             Layout.fillWidth: true
@@ -277,258 +536,6 @@ FocusScope {
                 id: body
                 width: flick.width
                 spacing: 14
-
-                UzLabel {
-                    objectName: "savesTitle"
-                    visible: root.inGame
-                    text: qsTr("Saves")
-                    font.pixelSize: 20
-                    font.weight: Font.DemiBold
-                }
-                // The Library's saves tab (3c-3-r6): "Play from Main" is the primary under the title, "Start a run" sits on top.
-                UzButton {
-                    objectName: "savesStartRun"
-                    visible: !root.inGame && root.player.runs.available && root.game.onHub !== false
-                    size: "sm"
-                    text: qsTr("Start a run")
-                    onClicked: root.startRunRequested()
-                }
-
-                // Slot tabs, or the switcher when there are more than three slots
-                Item {
-                    id: tabs
-                    objectName: "slotTabs"
-                    Layout.fillWidth: true
-                    Layout.minimumWidth: 0
-                    implicitHeight: 30
-                    readonly property bool changeable: !root.hist.gameRunning && !root.hist.busy
-                    // Invisible measurement of the natural tab widths (independent of the collapsed state)
-                    Item {
-                        id: tabsFitProbe
-                        visible: false
-                        property real sum: 0
-                        // Tabs shrink (elide) down to 48 px each before the row falls back to the switcher.
-                        property real minSum: 0
-                        property int count: 0
-                        // "+ New slot" shrinks to a plain "+" when the full label does not fit beside the tabs.
-                        readonly property bool linkCompact: sum + 8 + linkProbe.implicitWidth + 8 > tabs.width
-                        Text {
-                            id: linkProbe
-                            visible: false
-                            text: qsTr("+ New slot")
-                            font.pixelSize: Theme.roles.input.size
-                            font.weight: Font.Medium
-                        }
-                        Repeater {
-                            model: root.hist.slotOptions
-                            onCountChanged: Qt.callLater(tabsFitProbe.recalc)
-                            delegate: Text {
-                                required property var modelData
-                                required property int index
-                                textFormat: Text.StyledText
-                                text: modelData.label + (modelData.count > 0 ? " <font color='" + Theme.dim + "'>" + modelData.count + "</font>" : "")
-                                font.pixelSize: Theme.roles.input.size
-                                font.weight: modelData.value === root.hist.slot ? Font.DemiBold : Font.Normal
-                                onImplicitWidthChanged: tabsFitProbe.recalc()
-                                Component.onCompleted: tabsFitProbe.recalc()
-                            }
-                        }
-                        function recalc() {
-                            let w = 0, m = 0, n = 0
-                            for (let i = 0; i < children.length; ++i) {
-                                const c = children[i]
-                                if (c !== linkProbe && c.implicitWidth !== undefined && c.text !== undefined) { w += Math.min(c.implicitWidth, 90); m += Math.min(c.implicitWidth, 48); ++n }
-                            }
-                            sum = w + Math.max(0, n - 1) * 12
-                            minSum = m + Math.max(0, n - 1) * 12
-                            count = n
-                        }
-                    }
-                    Row {
-                        id: tabRow
-                        visible: !root.tabsCollapsed
-                        anchors.left: parent.left
-                        anchors.right: newSlotLink.left
-                        anchors.rightMargin: 8
-                        height: parent.height
-                        spacing: 12
-                        clip: true
-                        Repeater {
-                            model: root.tabsCollapsed ? [] : root.hist.slotOptions
-                            delegate: Item {
-                                id: tab
-                                required property var modelData
-                                readonly property bool active: modelData.value === root.hist.slot
-                                objectName: "slotTab_" + modelData.value
-                                readonly property string text: tabText.text
-                                height: tabRow.height
-                                width: Math.min(tabText.implicitWidth, 90, Math.max(48, (tabRow.width - Math.max(0, tabsFitProbe.count - 1) * tabRow.spacing) / Math.max(1, tabsFitProbe.count)))
-                                opacity: tabs.changeable || active ? 1 : 0.5
-                                activeFocusOnTab: true
-                                Accessible.role: Accessible.PageTab
-                                Accessible.name: tabText.text
-                                Text {
-                                    id: tabText
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width: parent.width
-                                    elide: Text.ElideRight
-                                    textFormat: Text.StyledText
-                                    text: tab.modelData.label + (tab.modelData.count > 0 ? " <font color='" + Theme.dim + "'>" + tab.modelData.count + "</font>" : "")
-                                    font.pixelSize: Theme.roles.input.size
-                                    font.weight: tab.active ? Font.DemiBold : Font.Normal
-                                    color: tab.active ? Theme.ink : Theme.muted
-                                }
-                                Rectangle {
-                                    visible: tab.active
-                                    anchors.bottom: parent.bottom
-                                    width: parent.width
-                                    height: 2
-                                    color: Theme.accent
-                                }
-                                HoverHandler { id: tabHover; cursorShape: Qt.PointingHandCursor }
-                                // The tab elides long slot names: the full name is the tooltip (R-P12).
-                                // A run's slot shows as "Run: <name>"; the raw slot name is the secondary text.
-                                readonly property bool renamed: tab.modelData.value !== "default" && tab.modelData.label !== tab.modelData.value
-                                ToolTip.visible: tabHover.hovered && (tabText.truncated || tab.renamed)
-                                ToolTip.text: tab.renamed ? tab.modelData.label + " (" + tab.modelData.value + ")" : tab.modelData.label
-                                ToolTip.delay: 400
-                                TapHandler { enabled: tabs.changeable && !tab.active; onTapped: root.hist.selectSlot(tab.modelData.value) }
-                                Keys.onPressed: (event) => {
-                                    if (tabs.changeable && !tab.active && (event.key === Qt.Key_Space || event.key === Qt.Key_Return)) {
-                                        root.hist.selectSlot(tab.modelData.value)
-                                        event.accepted = true
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    // Switcher "Main · 8 ▾" (more than three slots); "+ New slot" is its last item
-                    Rectangle {
-                        id: switcher
-                        objectName: "slotSwitcher"
-                        visible: root.tabsCollapsed
-                        anchors.left: parent.left
-                        anchors.verticalCenter: parent.verticalCenter
-                        height: 30
-                        width: Math.min(switcherText.implicitWidth + 36, parent.width)
-                        radius: Theme.radiusNone
-                        color: Theme.surface
-                        border.width: activeFocus || switchMenu.visible ? 1.5 : 1
-                        border.color: activeFocus || switchMenu.visible ? Theme.accent : Theme.rule
-                        opacity: tabs.changeable ? 1 : 0.6
-                        activeFocusOnTab: true
-                        Accessible.role: Accessible.ComboBox
-                        Accessible.name: qsTr("Save slot: %1").arg(switcherText.text)
-                        Text {
-                            id: switcherText
-                            anchors.left: parent.left
-                            anchors.leftMargin: 12
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: Math.min(implicitWidth, switcher.width - 36)
-                            elide: Text.ElideRight
-                            text: {
-                                let count = 0
-                                let hint = ""
-                                for (const o of root.hist.slotOptions) if (o.value === root.hist.slot) { count = o.count; hint = (o.kind === "variant" || o.kind === "run") ? o.hint : "" }
-                                return root.hist.slotLabel + (hint !== "" ? " · " + hint : (count > 0 ? " · " + count : ""))
-                            }
-                            font.pixelSize: Theme.roles.input.size
-                            font.weight: Font.DemiBold
-                            color: Theme.ink
-                        }
-                        Text { anchors.right: parent.right; anchors.rightMargin: 12; anchors.verticalCenter: parent.verticalCenter; text: switchMenu.visible ? "▴" : "▾"; font.pixelSize: Theme.roles.meta11.size; color: Theme.dim }
-                        HoverHandler { cursorShape: Qt.PointingHandCursor }
-                        TapHandler { enabled: tabs.changeable; onTapped: { switcher.forceActiveFocus(); switchMenu.visible ? switchMenu.close() : switchMenu.open() } }
-                        Keys.onPressed: (event) => { if (tabs.changeable && (event.key === Qt.Key_Space || event.key === Qt.Key_Return || event.key === Qt.Key_Down)) { switchMenu.open(); event.accepted = true } }
-                        Popup {
-                            id: switchMenu
-                            objectName: "slotSwitchMenu"
-                            parent: switcher
-                            y: switcher.height + 4
-                            width: Math.max(220, switcher.width)
-                            padding: 4
-                            closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-                            background: Rectangle { radius: Theme.radiusNone; color: Theme.surface; border.width: 1; border.color: Theme.rule }
-                            // A plain Column (no Layout): the model can change while the popup resizes without touching stale layout items.
-                            contentItem: Column {
-                                spacing: 0
-                                Repeater {
-                                    model: root.hist.slotOptions
-                                    delegate: ItemDelegate {
-                                        id: slotItem
-                                        required property var modelData
-                                        objectName: "slotMenu_" + modelData.value
-                                        width: switchMenu.availableWidth
-                                        implicitHeight: 30
-                                        padding: 0
-                                        leftPadding: 8
-                                        rightPadding: 8
-                                        onClicked: { const slotValue = slotItem.modelData.value; switchMenu.close(); root.hist.selectSlot(slotValue) }
-                                        contentItem: Row {
-                                            spacing: 4
-                                            Text { width: 16; anchors.verticalCenter: parent.verticalCenter; text: slotItem.modelData.value === root.hist.slot ? "✓" : ""; font.pixelSize: Theme.roles.input.size; color: Theme.accentText }
-                                            Text {
-                                                anchors.verticalCenter: parent.verticalCenter
-                                                width: slotItem.width - 16 - 4 - 16
-                                                elide: Text.ElideRight
-                                                // Variant and run slots read "Randomizer #1 · Variant · v6" / "Run: Name · Run · v44" (10g-2).
-                                text: slotItem.modelData.label + (slotItem.modelData.kind === "variant" || slotItem.modelData.kind === "run" ? " · " + slotItem.modelData.hint
-                                                                  : (slotItem.modelData.count > 0 ? " · " + slotItem.modelData.count : ""))
-                                                textFormat: Text.PlainText
-                                                font.pixelSize: Theme.roles.input.size
-                                                color: Theme.ink
-                                            }
-                                        }
-                                        background: Rectangle { radius: Theme.radiusNone; color: slotItem.highlighted || slotItem.hovered ? Theme.hover : "transparent" }
-                                    }
-                                }
-                                Item { width: switchMenu.availableWidth; height: 9; Rectangle { anchors.centerIn: parent; width: parent.width; height: 1; color: Theme.rule } }
-                                ItemDelegate {
-                                    id: newItem
-                                    objectName: "slotMenuNew"
-                                    width: switchMenu.availableWidth
-                                    implicitHeight: 30
-                                    padding: 0
-                                    leftPadding: 24
-                                    text: qsTr("+ New slot")
-                                    font.pixelSize: Theme.roles.input.size
-                                    font.weight: Font.Medium
-                                    onClicked: { switchMenu.close(); root.newSlotError = ""; root.newSlotOpen = true; Qt.callLater(() => newSlotField.forceActiveFocus()) }
-                                    // The Basic ItemDelegate text follows the palette (dark text on the dark popup looked disabled, R-P16).
-                                    contentItem: Text {
-                                        text: newItem.text
-                                        textFormat: Text.PlainText
-                                        font: newItem.font
-                                        color: Theme.ink
-                                        verticalAlignment: Text.AlignVCenter
-                                        elide: Text.ElideRight
-                                    }
-                                    background: Rectangle { radius: Theme.radiusNone; color: newItem.highlighted || newItem.hovered ? Theme.hover : "transparent" }
-                                }
-                            }
-                        }
-                    }
-                    UzButton {
-                        id: newSlotLink
-                        objectName: "newSlotButton"
-                        visible: !root.tabsCollapsed
-                        anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
-                        kind: "link"
-                        implicitHeight: 28
-                        font.pixelSize: Theme.roles.input.size
-                        font.weight: Font.Medium
-                        text: tabsFitProbe.linkCompact ? "+" : qsTr("+ New slot")
-                        Accessible.name: qsTr("New slot")
-                        enabled: !root.hist.gameRunning
-                        onClicked: {
-                            root.newSlotError = ""
-                            root.newSlotOpen = !root.newSlotOpen
-                            if (root.newSlotOpen) newSlotField.forceActiveFocus()
-                        }
-                    }
-                    Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.rule; z: -1 }
-                }
 
                 // New slot (inline)
                 ColumnLayout {
@@ -1436,9 +1443,11 @@ FocusScope {
                             versionText: modelData.versionText
                             label: modelData.label
                             meta: modelData.meta
+                            cheats: modelData.cheats === true
+                            autoKind: modelData.autoKind || ""
                             last: index === root.rows.length - 1
                             showRestore: modelData.kind !== "current"
-                            showDelete: modelData.kind !== "current" && (modelData.isSnapshot === true || root.hist.canDeleteAnyVersion)
+                            showDelete: modelData.kind !== "current" && !modelData.autoKind && (modelData.isSnapshot === true || root.hist.canDeleteAnyVersion)
                             restoreEnabled: root.hist.restoreBlockReason === "" && !root.hist.busy && root.hist.online
                             deleteEnabled: root.hist.canDeleteSnapshot
                             muted: !root.hist.online
@@ -1447,10 +1456,12 @@ FocusScope {
                             confirmTitle: confirm === "delete"
                                           ? (modelData.label !== "" ? (modelData.isSnapshot ? qsTr("Delete snapshot %1 “%2”?") : qsTr("Delete version %1 “%2”?")).arg(modelData.versionText).arg(modelData.label)
                                                                     : (modelData.isSnapshot ? qsTr("Delete snapshot %1?") : qsTr("Delete version %1?")).arg(modelData.versionText))
+                                          : modelData.autoKind ? qsTr("Restore %1 “%2”?").arg(modelData.versionText).arg(modelData.label)
                                           : qsTr("Restore %1 as the current version of “%2”?").arg(modelData.versionText).arg(root.hist.slotLabel)
                             confirmBody: confirm === "delete"
                                          ? (modelData.isSnapshot ? qsTr("Only this snapshot is removed.") : qsTr("Only this version is removed.")) + qsTr(" The current version and all other versions stay.")
-                                         : qsTr("The current version %1 stays in the history as “Before restore”.").arg(root.hist.current.revisionText || "")
+                                         : (modelData.autoKind ? qsTr("Cheats you turned on stay on; turn them off in the game's Cheats tab.") + "\n" : "")
+                                           + qsTr("The current version %1 stays in the history as “Before restore”.").arg(root.hist.current.revisionText || "")
                            + (root.live ? "\n" + qsTr("The game restarts from this save. A local backup is made first.") : "")
                             confirmOk: confirm === "delete" ? (modelData.isSnapshot ? qsTr("Delete snapshot") : qsTr("Delete version")) : qsTr("Restore %1").arg(modelData.versionText)
                             onRestoreClicked: root.hist.requestRestore(modelData.version)

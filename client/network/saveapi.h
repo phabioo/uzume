@@ -43,6 +43,7 @@ struct SaveHistoryVersion {
   QString createdAt;  // ISO 8601
   QString reason;     // session_end | device_change | before_conflict_resolution | conflict_upload | manual_snapshot | before_restore | before_upload
   QString label;      // optional (saves_v2); empty = none
+  bool cheatsUsed = false;  // run_rules_v1: made from a save written while cheats or memory writes were active
 };
 
 // WSS `save_updated` (feature saves_v2): the checkpoint of a slot changed on another device. `reason` is not validated

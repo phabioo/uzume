@@ -676,6 +676,112 @@ class LibrarySavesUiTest : public QObject {
   }
 
 
+  // Design 11g: versions made with cheats carry a Cheats tag; the app's "Before cheats" / "Before memory changes" copies are
+  // automatic entries (own tag, "Automatic · ..." text, no Delete, Restore is the primary action).
+  void cheatsMarkerAndAutomaticSnapshots() {
+    FakeHub hub(QStringLiteral("a"));
+    oneGame(hub);
+    hub.setHubSave(QStringLiteral("g1"), "cp-1");
+    const QString key = FakeHub::slotKey(QStringLiteral("g1"), QStringLiteral("default"));
+    hub.addHistory(QStringLiteral("g1"), QStringLiteral("default"), "v1", QStringLiteral("session_end"));
+    hub.addHistory(QStringLiteral("g1"), QStringLiteral("default"), "v2", QStringLiteral("manual_snapshot"), QStringLiteral("Before cheats"));
+    hub.addHistory(QStringLiteral("g1"), QStringLiteral("default"), "v3", QStringLiteral("manual_snapshot"), QStringLiteral("Before memory changes"));
+    hub.addHistory(QStringLiteral("g1"), QStringLiteral("default"), "v4", QStringLiteral("manual_snapshot"), QStringLiteral("Chapter 2"));
+    hub.addHistory(QStringLiteral("g1"), QStringLiteral("default"), "v5", QStringLiteral("session_end"));
+    hub.saves[key].history.last().cheatsUsed = true;
+    QVERIFY(hub.start());
+    Harness h;
+    QVERIFY(h.start());
+    pair(h, hub);
+    QVERIFY(h.openGame());
+    SaveHistoryController* hist = h.controller->saveHistory();
+    QTRY_VERIFY_WITH_TIMEOUT(hist->available() && !hist->loading() && hist->versionCount() == 6, 8000);
+    openSavesView(h);
+    QTRY_COMPARE(h.items("historyRow").size(), 5);
+    QVariantList hv = hist->history();  // newest first
+    QCOMPARE(hv.at(0).toMap().value(QStringLiteral("cheatsUsed")).toBool(), true);
+    QCOMPARE(hv.at(1).toMap().value(QStringLiteral("cheatsUsed")).toBool(), false);
+    int cheatsTags = 0, autoTags = 0, deletes = 0, primaryRestores = 0;
+    QStringList metas;
+    for (QQuickItem* it : h.items("historyCheatsTag")) cheatsTags += it->isVisible() ? 1 : 0;
+    for (QQuickItem* it : h.items("historyAutoTag")) autoTags += it->isVisible() ? 1 : 0;
+    for (QQuickItem* it : h.items("deleteButton")) deletes += it->isVisible() ? 1 : 0;
+    for (QQuickItem* it : h.items("restoreButton")) primaryRestores += (it->isVisible() && it->property("text").toString().startsWith(QStringLiteral("Restore before"))) ? 1 : 0;
+    for (QQuickItem* it : h.items("historyMeta")) metas << it->property("text").toString();
+    QCOMPARE(cheatsTags, 1);
+    QCOMPARE(autoTags, 2);
+    QCOMPARE(deletes, 1);  // only "Chapter 2": the automatic copies have no Delete
+    QCOMPARE(primaryRestores, 2);
+    QVERIFY2(metas.filter(QStringLiteral("Automatic · made before cheats were turned on")).size() == 1, qPrintable(metas.join('|')));
+    QVERIFY(metas.filter(QStringLiteral("Automatic · made before game memory was changed")).size() == 1);
+    QVERIFY(metas.filter(QStringLiteral("made with cheats")).size() == 1);
+    QVERIFY(metas.filter(QStringLiteral("Manual snapshot")).size() == 1);  // "Chapter 2" is still a plain manual snapshot
+    uitest::saveShot(h.window, QStringLiteral("library-saves-cheats"));
+    checkInColumn(h, {"historyAutoTag", "historyCheatsTag", "restoreButton"}, 3);
+    // The controller refuses to delete an automatic copy even when asked directly.
+    hist->requestDelete(2);
+    QVERIFY(hist->deleteRequest().isEmpty());
+    hist->requestDelete(4);
+    QVERIFY(!hist->deleteRequest().isEmpty());
+    hist->cancelDelete();
+    // Restore asks once and says what happens to the cheats.
+    hist->requestRestore(2);
+    QTRY_VERIFY(shown(h, "restoreConfirmBox"));
+    QVERIFY(h.items("confirmTitle").size() >= 1);
+    bool titleOk = false, bodyOk = false;
+    for (QQuickItem* it : h.items("confirmTitle")) titleOk |= it->isVisible() && it->property("text").toString() == QStringLiteral("Restore v2 “Before cheats”?");
+    for (QQuickItem* it : h.items("confirmBody")) bodyOk |= it->isVisible() && it->property("text").toString().contains(QStringLiteral("Cheats you turned on stay on"));
+    QVERIFY(titleOk && bodyOk);
+    hist->cancelRestore();
+  }
+
+  // F13: the slot tabs are fully visible, above the scroll area and the "Delete slot..." row (they were cut off at half height).
+  void slotTabsAreNotCutOffByTheSlotManageRow() {
+    FakeHub hub(QStringLiteral("a"));
+    oneGame(hub);
+    hub.setHubSave(QStringLiteral("g1"), "cp-1");
+    FakeSlot boss;
+    boss.revision = 3;
+    boss.content = "boss-save";
+    boss.deviceId = QStringLiteral("other-device");
+    boss.deviceName = QStringLiteral("Laptop Office");
+    hub.saves.insert(FakeHub::slotKey(QStringLiteral("g1"), QStringLiteral("boss")), boss);
+    QVERIFY(hub.start());
+    Harness h;
+    QVERIFY(h.start());
+    pair(h, hub);
+    QVERIFY(h.openGame());
+    SaveHistoryController* hist = h.controller->saveHistory();
+    QTRY_VERIFY_WITH_TIMEOUT(hist->available() && !hist->loading(), 8000);
+    openSavesView(h);
+    hist->selectSlot(QStringLiteral("boss"));
+    QTRY_VERIFY_WITH_TIMEOUT(hist->slotManageAvailable() && !hist->loading(), 8000);
+    QTRY_VERIFY(shown(h, "slotManageRow"));
+    QQuickItem* tabs = h.item("slotTabs");
+    QQuickItem* flick = h.item("slotManageRow")->parentItem();
+    while (flick != nullptr && !flick->property("contentY").isValid()) flick = flick->parentItem();
+    QVERIFY(flick != nullptr);
+    for (QQuickItem* p = tabs->parentItem(); p != nullptr; p = p->parentItem()) QVERIFY2(p != flick, "the slot tabs must not live inside the scrolling area");
+    QQuickTest::qWaitForPolish(h.window);
+    const QRectF tabsRect = sceneRect(tabs);
+    QVERIFY2(tabsRect.height() >= 28, qPrintable(QStringLiteral("tabs height %1").arg(tabsRect.height())));
+    QVERIFY(tabsRect.bottom() <= sceneRect(flick).top() + 0.5);                      // above the scroll area
+    QVERIFY(tabsRect.bottom() <= sceneRect(h.item("slotManageRow")).top() + 0.5);   // and above "Delete slot..."
+    for (const char* name : {"slotTab_default", "slotTab_boss", "newSlotButton"}) {
+      QQuickItem* it = h.item(name);
+      QVERIFY2(it != nullptr && it->isVisible(), name);
+      const QRectF r = sceneRect(it);
+      QVERIFY2(r.top() >= tabsRect.top() - 0.5 && r.bottom() <= tabsRect.bottom() + 0.5, name);
+    }
+    // Scrolling the content (or a shrinking content height) never moves the tabs.
+    flick->setProperty("contentY", std::max(0.0, flick->property("contentHeight").toReal() - flick->height()) + 12);
+    hist->selectSlot(QStringLiteral("default"));
+    QTRY_VERIFY(!shown(h, "slotManageRow"));
+    QQuickTest::qWaitForPolish(h.window);
+    QCOMPARE(sceneRect(tabs).top(), tabsRect.top());
+    QVERIFY(sceneRect(h.item("slotTab_default")).top() >= sceneRect(tabs).top() - 0.5);
+  }
+
   // Rename and delete the selected slot (saves_v5): hidden for the main slot, inline rename, delete with confirmation.
   void renameAndDeleteSlotActions() {
     FakeHub hub(QStringLiteral("a"));

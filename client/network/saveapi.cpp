@@ -84,6 +84,7 @@ std::optional<SaveHistoryVersion> parseSaveHistoryVersion(const QJsonObject& o) 
   v.createdAt = str(o, "created_at");
   v.reason = str(o, "reason");
   v.label = str(o, "label");  // null -> empty
+  v.cheatsUsed = o.value(QStringLiteral("cheats_used")).toBool(false);
   if (v.version < 1 || v.sha256.size() != 64) {
     return std::nullopt;
   }
