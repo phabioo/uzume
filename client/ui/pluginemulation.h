@@ -113,6 +113,7 @@ class PluginEmulationService : public QObject, public plugins::EmulationBridge {
  signals:
   void consentRequestChanged();
   void cheatsOnChanged();
+  void runRulesChanged();  // the run now allows or forbids cheats / memory changes (GUI thread)
   void noticeRaised(const uzume::ui::PluginEmulationService::Notice& notice);
   // Two plugins keep writing the same address (shown as a notice and logged).
   void writeConflict(quint64 addr, const QString& pluginA, const QString& pluginB);

@@ -2558,7 +2558,7 @@ bool FakeHub::handleStates(QSslSocket* sock, const FakeRequest& req) {
     s.preview = bodies.value(QStringLiteral("preview"));
     s.coreId = meta.value(QStringLiteral("core_id")).toString();
     s.coreVersion = meta.value(QStringLiteral("core_version")).toString();
-    if (s.state.isEmpty() || s.coreId.isEmpty()) {
+    if (s.state.isEmpty() || s.coreId.isEmpty() || s.coreVersion.isEmpty()) {  // like the server: core_id and core_version are required
       respondError(sock, 400, QStringLiteral("bad_request"));
       return true;
     }

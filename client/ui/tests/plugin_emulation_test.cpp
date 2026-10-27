@@ -168,6 +168,39 @@ class PluginEmulationServiceTest : public QObject {
     QTRY_VERIFY_WITH_TIMEOUT(appCount("cheats.allowed") >= 1, 3000);
   }
 
+  // 0.20 final live check: the answer "Turn on cheats" tells the plugin (cheats.allowed), so its "Waiting for your answer" ends.
+  void consentAllowTellsThePlugin() {
+    startGame(nullptr);
+    QCOMPARE(svc_->applyCheats("p.one", {poke()}).error, QStringLiteral("consent_required"));
+    svc_->noteUserAction();
+    QTRY_VERIFY(!svc_->consentRequest().isEmpty());
+    QCOMPARE(appCount("cheats.allowed"), 0);
+    svc_->answerConsent(true);
+    QTRY_COMPARE(appCount("cheats.allowed"), 1);
+    QCOMPARE(appCount("cheats.blocked"), 0);
+    QTRY_COMPARE(svc_->cheatsOn(), 1);
+  }
+
+  // 0.20 final live check: "off" is the database being switched off; on without lists is another code.
+  void cheatDatabaseStatusDistinguishesOffFromUnavailable() {
+    startGame(nullptr);
+    const QString path = QDir(dir_.filePath("data")).filePath(QStringLiteral("cheatdb//game-1.json"));
+    QDir().mkpath(dir_.filePath("data/cheatdb"));
+    const auto write = [&](const char* json) {
+      QFile f(path);
+      QVERIFY(f.open(QIODevice::WriteOnly | QIODevice::Truncate));
+      f.write(json);
+    };
+    write(R"({"source":"none","cheats":[]})");
+    QCOMPARE(svc_->cheatDatabase().error, QStringLiteral("off"));
+    write(R"({"source":"unavailable","cheats":[]})");
+    QCOMPARE(svc_->cheatDatabase().error, QStringLiteral("unavailable"));
+    write(R"({"source":"libretro-database","cheats":[]})");
+    const plugins::CheatDatabaseResult ok = svc_->cheatDatabase();
+    QVERIFY(ok.error.isEmpty());
+    QCOMPARE(ok.data.value("source").toString(), QStringLiteral("libretro-database"));
+  }
+
   void cheatsConsentDeniedIsNotRemembered() {
     auto run = std::make_shared<FakeRun>();
     run->rules = {{"cheats", "logged"}};

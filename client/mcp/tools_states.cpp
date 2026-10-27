@@ -5,11 +5,15 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QPointer>
+#include <algorithm>
 #include <cmath>
 
 #include "emulation_runner.h"
+#include "emulationcontroller.h"
 #include "mcp_tools.h"
+#include "pluginscontroller.h"
 #include "playercontroller.h"
+#include "savehistorycontroller.h"
 #include "rewind_buffer.h"
 #include "statescontroller.h"
 #include "tools_util.h"
@@ -152,6 +156,81 @@ void installStatesTools(McpToolRegistry& registry, ui::PlayerController& player)
         const int back = r.n * emu::kRewindIntervalFrames;
         reply(ToolResult::json(QJsonObject{{QStringLiteral("frames"), back}, {QStringLiteral("seconds"), back / 60.0}}));
       });
+    };
+    registry.add(std::move(t));
+  }
+
+  {
+    ToolDef t;
+    t.name = QStringLiteral("saves_history");
+    t.description = QStringLiteral(
+        "Read only: the save history of the game open in the saves view (game page or in-game panel): the slot, the current checkpoint and "
+        "the versions newest first with reason, device, whether made with cheats and the automatic kind (\"cheats\" = Before cheats, "
+        "\"memory\" = Before memory changes). Restoring stays with the person.");
+    t.inputSchema = schema();
+    t.handler = [pc](const QJsonObject&, ToolReply reply) {
+      ui::SaveHistoryController* h = pc ? pc->saveHistory() : nullptr;
+      if (h == nullptr) return reply(ToolResult::error(QStringLiteral("app_closing")));
+      QJsonArray rows;
+      for (const QVariant& v : h->history()) rows.append(QJsonObject::fromVariantMap(v.toMap()));
+      reply(ToolResult::json(QJsonObject{{QStringLiteral("game_id"), h->gameId()},
+                                         {QStringLiteral("slot"), h->slot()},
+                                         {QStringLiteral("slot_label"), h->slotLabel()},
+                                         {QStringLiteral("loading"), h->loading()},
+                                         {QStringLiteral("online"), h->online()},
+                                         {QStringLiteral("current"), QJsonObject::fromVariantMap(h->current())},
+                                         {QStringLiteral("versions"), rows}}));
+    };
+    registry.add(std::move(t));
+  }
+
+  {
+    ToolDef t;
+    t.name = QStringLiteral("toasts_list");
+    t.description = QStringLiteral(
+        "The last toasts the app showed (20 per source, oldest first): the states toasts (saved, loaded, refused with the rule text) and the "
+        "notices of plugins and of the app (\"Cheats are off again\", \"Run rules\"). Each has source, text, a time and, for plugin toasts, "
+        "the plugin and tone. Read only.");
+    t.inputSchema = schema();
+    t.handler = [pc](const QJsonObject&, ToolReply reply) {
+      if (!pc) return reply(ToolResult::error(QStringLiteral("app_closing")));
+      QList<QVariantMap> all;
+      if (ui::StatesController* s = pc->states())
+        for (const QVariant& v : s->toastLog()) all.append(v.toMap());
+      if (ui::PluginsController* p = pc->plugins())
+        for (const QVariant& v : p->toastLog()) all.append(v.toMap());
+      std::stable_sort(all.begin(), all.end(), [](const QVariantMap& a, const QVariantMap& b) { return a.value(QStringLiteral("time")).toString() < b.value(QStringLiteral("time")).toString(); });
+      QJsonArray out;
+      for (const QVariantMap& m : all) out.append(QJsonObject::fromVariantMap(m));
+      reply(ToolResult::json(QJsonObject{{QStringLiteral("toasts"), out}}));
+    };
+    registry.add(std::move(t));
+  }
+
+  {
+    ToolDef t;
+    t.name = QStringLiteral("settings_set");
+    t.description = QStringLiteral(
+        "Sets an app setting of Settings > Emulation > Uzume the way a person would, for tests: key is the option key (for example "
+        "uzume.rewind_seconds with seconds 0 to 600, uzume.run_ahead 0 | 1 | 2, uzume.fullscreen on | off). Scope: global by default, "
+        "system for a system, game_id for one game. Takes effect on the running game at once. Back to the default value removes the "
+        "stored value. Errors: unknown_key, invalid_value.");
+    t.inputSchema = schema({{QStringLiteral("key"), typeStr(QStringLiteral("Option key, for example uzume.rewind_seconds."))},
+                            {QStringLiteral("value"), typeStr(QStringLiteral("The value as text, for example \"30\"."))},
+                            {QStringLiteral("system"), typeStr(QStringLiteral("System id for a system override (nds, gba, ...)."))},
+                            {QStringLiteral("game_id"), typeStr(QStringLiteral("Game id for a game override."))}},
+                           {QStringLiteral("key"), QStringLiteral("value")});
+    t.targetArg = QStringLiteral("key");
+    t.handler = [pc](const QJsonObject& a, ToolReply reply) {
+      if (!pc || pc->emulation() == nullptr) return reply(ToolResult::error(QStringLiteral("app_closing")));
+      const QString key = a.value(QStringLiteral("key")).toString();
+      const QJsonValue v = a.value(QStringLiteral("value"));
+      const QString value = v.isString() ? v.toString() : (v.isDouble() ? QString::number(v.toInt()) : (v.isBool() ? (v.toBool() ? QStringLiteral("true") : QStringLiteral("false")) : QString()));
+      if (key.isEmpty() || value.isEmpty()) return reply(ToolResult::error(QStringLiteral("key and value required")));
+      const QString system = a.value(QStringLiteral("system")).toString(), game = a.value(QStringLiteral("game_id")).toString();
+      const QString err = pc->emulation()->setUzumeOption(key, value, system, game);
+      if (!err.isEmpty()) return reply(ToolResult::error(err));
+      reply(ToolResult::json(QJsonObject{{QStringLiteral("key"), key}, {QStringLiteral("value"), pc->emulation()->uzumeValue(key, system, game)}}));
     };
     registry.add(std::move(t));
   }

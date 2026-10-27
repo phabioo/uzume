@@ -113,6 +113,9 @@ class PlayerSettings {
   // Developer console "Reload on file change": reload a dev-linked plugin when its files change. Default on.
   bool pluginReloadOnChange() const { return pluginReloadOnChange_; }
   bool setPluginReloadOnChange(bool on);
+  // Discord Rich Presence (off by default; key discord_presence).
+  bool discordPresence() const { return discordPresence_; }
+  bool setDiscordPresence(bool on);
 
   // First start (0.18 package 7): the person chose "Play on this PC" (or "Add later") on the welcome screen, so it is not shown again.
   bool playOnThisPcChosen() const { return playOnThisPc_; }
@@ -228,6 +231,7 @@ class PlayerSettings {
   QStringList libraryFolders_;
   bool developerMode_ = false;
   bool pluginReloadOnChange_ = true;
+  bool discordPresence_ = false;
   bool playOnThisPc_ = false;
   QString localServerMode_;
   int localServerPort_ = 0;

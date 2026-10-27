@@ -78,7 +78,8 @@ func TestGameCheatsAPI(t *testing.T) {
 
 	// No lists on the server yet: 200 with an empty list.
 	c := decode[gameCheatsT](t, s.api(anna, "GET", "/api/v1/games/"+gid+"/cheats", nil))
-	if c.Source != "none" || len(c.Cheats) != 0 || c.MatchedBy != "" || c.UpdatedAt != "" {
+	// the database is on (default URL) but holds nothing yet: "unavailable", not "none" (= off)
+	if c.Source != "unavailable" || len(c.Cheats) != 0 || c.MatchedBy != "" || c.UpdatedAt != "" {
 		t.Fatalf("%+v", c)
 	}
 

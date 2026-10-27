@@ -547,7 +547,7 @@ func (s *Service) RunCheatDBRefresh(ctx context.Context, report func(error)) {
 
 // CheatList is the cheat list found for a game.
 type CheatList struct {
-	Source    string // "none" when the database is off or empty
+	Source    string // "none" when the database is off; "unavailable" when it is on but holds no lists yet (not loaded or the update failed)
 	UpdatedAt *time.Time
 	MatchedBy string // "hash", "title_id", "name" or "" (nothing found)
 	ListName  string // name of the list file without .cht
@@ -618,6 +618,17 @@ func (s *Service) romHashes(ctx context.Context, g Game) (sha1hex, crchex string
 // GameCheats returns the cheat list of a game the caller can see. Without lists (database off, no list for the game)
 // the answer is empty, never an error; ErrNotFound only for an unknown game.
 func (s *Service) GameCheats(ctx context.Context, userID, gameID string) (CheatList, error) {
+	out, err := s.gameCheats(ctx, userID, gameID)
+	if err == nil && out.Source == "none" {
+		// "none" is the database being off; switched on without data (not loaded yet, update failed) is a different answer.
+		if st, serr := s.CheatDBStatus(ctx); serr == nil && st.Enabled {
+			out.Source = "unavailable"
+		}
+	}
+	return out, err
+}
+
+func (s *Service) gameCheats(ctx context.Context, userID, gameID string) (CheatList, error) {
 	g, err := s.GetGameFor(ctx, userID, gameID)
 	if err != nil {
 		return CheatList{}, err

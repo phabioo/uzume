@@ -129,6 +129,18 @@ ColumnLayout {
                 buttons: [{ name: "accountPcShare", text: qsTr("Share with others…") }]
                 onButtonClicked: root.player.localHub.openShareDialog("intro")
             }
+            UzSettingsRow {
+                objectName: "accountPcDiscordRow"
+                Layout.fillWidth: true
+                Layout.minimumWidth: 0
+                resetMode: "none"
+                label: qsTr("Show what I play on Discord")
+                description: qsTr("Shows the game, the system and \"Session\" or the run name on your Discord profile while Discord runs on this PC. Off by default; never the server, other people or file paths.")
+                ctrl: "toggle"
+                toggleName: "accountPcDiscordToggle"
+                checked: root.player.discordPresence
+                onToggled: on => root.player.discordPresence = on
+            }
         }
     }
 
@@ -253,6 +265,18 @@ ColumnLayout {
                     if (name === "accountPinRemove") root.openDialog(removePinDialog)
                     else root.openDialog(pinDialog)
                 }
+            }
+            UzSettingsRow {
+                objectName: "accountDiscordRow"
+                Layout.fillWidth: true
+                Layout.minimumWidth: 0
+                resetMode: "none"
+                label: qsTr("Show what I play on Discord")
+                description: qsTr("Shows the game, the system and \"Session\" or the run name on your Discord profile while Discord runs on this PC. Off by default; never the server, other people or file paths.")
+                ctrl: "toggle"
+                toggleName: "accountDiscordToggle"
+                checked: root.player.discordPresence
+                onToggled: on => root.player.discordPresence = on
             }
         }
 

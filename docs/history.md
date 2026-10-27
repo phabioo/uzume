@@ -473,7 +473,7 @@ The Azahar Gateway connection (fork `phabioo/azahar`) and the per-format behavio
 
 ### 0.24 Platforms
 
-Decided by Fabio on 2026-10-21 (as 0.22; renumbered on 2026-10-22 and 2026-10-23). Decisions: [ADR 0034](adr/0034-linux-app-and-vulkan.md). Finished while 0.20 to 0.23 were still open; leftovers and Fabio's tests are in the [roadmap](roadmap.md#024-leftovers). Browser watching was dropped on 2026-10-22 ([ADR 0030](adr/0030-one-app-one-server-uzume.md) D2).
+Decided by Fabio on 2026-10-21 (as 0.22; renumbered on 2026-10-22 and 2026-10-23). Decisions: [ADR 0034](adr/0034-linux-app-and-vulkan.md). Finished while 0.20 to 0.23 were still open; shipped in betas 0.20.5 to 0.20.13 (ADR 0016 amendment 2026-10-27); leftovers and Fabio's tests are in the [roadmap](roadmap.md#024-leftovers). Browser watching was dropped on 2026-10-22 ([ADR 0030](adr/0030-one-app-one-server-uzume.md) D2).
 
 - [x] Done (PR #252): Linux credential store in the freedesktop Secret Service over QtDBus (GNOME Keyring, KWallet), memory only without a session bus; ADR 0034 (S-M)
 - [x] Done (PR #255): Vulkan hardware rendering next to OpenGL: libretro Vulkan hardware interface with readback display and encode (Azahar offers it; melonDS DS stays OpenGL) (L)

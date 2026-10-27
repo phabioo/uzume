@@ -76,3 +76,13 @@ Semantics of D1 to D5 are unchanged: one plain number per beta, the tag is reser
 ## Amendment 2026-10-23 (betas are no longer pruned)
 
 Beta prereleases are no longer pruned (previously the newest 5 were kept). The signed updates-index still keeps the newest 5 per product and channel (`uzume-sign release-add`), so older betas stay downloadable from GitHub but are not offered as updates.
+
+## Amendment 2026-10-27 (milestones built in parallel)
+
+On 2026-10-27 the milestones 0.20 Emulation, 0.21 Randomizer, 0.22 Plugins, 0.23 Together and 0.24 Platforms were built at the same time in separate threads and sessions. Only 0.20 package 1 raised `VERSION` (to 0.20.0), so every merge of all five milestones became a beta `0.20.N`: for example the Linux AppImage (0.24) shipped in 0.20.12 and Discord Rich Presence (0.22) in 0.20.15. No stable release had been promoted since 0.18, so nobody installed a number that now means something else. Decided by Fabio on 2026-10-27:
+
+- **Milestone numbers are themes, beta numbers count builds.** Until the batch is released, no package raises `VERSION`; features and fixes of all five milestones keep shipping as `0.20.N`. A package keeps its milestone in the PR title (for example "(0.22 package 3)"), and the release notes stay per PR as before. Sessions outside the project (the 0.23 session) follow the same rule.
+- **0.21 is the first stable release of the batch.** When Fabio and the agents are both content with the state, one release PR raises `VERSION` to 0.21.0; its beta `0.21.0` (or a later `0.21.N` with fixes) is promoted with "Promote to release" (D3, no rebuild). Stable 0.21 contains the milestones 0.20 to 0.24.
+- **The milestone labels 0.20 to 0.24 stay as they are** in the roadmap, history and ADRs; they name the themes of this batch, not the release that carries them. History records for each milestone the range of betas its packages shipped in.
+- **After the release** D2 applies unchanged: a new milestone gets the next free minor line (0.22 and up) when it starts and raises `VERSION` with its first PR.
+- **Rejected:** a bump per finished milestone (more `VERSION` conflicts between parallel sessions, and 0.24 was finished before 0.22 and 0.23), and 0.24.0 as the release number (Fabio prefers the next line after the betas).

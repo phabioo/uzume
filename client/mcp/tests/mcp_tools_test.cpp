@@ -124,7 +124,8 @@ class McpToolsTest : public QObject {
                           "devconsole_state", "memory_regions", "memory_read", "memory_search", "romfs_list", "romfs_read", "rom_read", "screenshot", "game_input", "game_pause",
                           "game_resume", "game_frame_step", "game_state_save", "game_state_load", "game_memory_write", "cheats_list", "cheats_apply",
                           "cheats_clear", "store_get", "store_put", "consent_set", "server_sign_in", "states_list", "states_save", "states_load",
-                          "states_delete", "rewind", "runs_list", "run_set_rules", "run_events", "plugin_link", "developer_mode", "file_dialog_pick"})
+                          "states_delete", "rewind", "runs_list", "run_set_rules", "run_events", "plugin_link", "developer_mode", "file_dialog_pick", "settings_set", "saves_history", "toasts_list",
+                          "run_recap"})
       QVERIFY2(names.contains(QLatin1String(n)), n);
   }
 
@@ -132,6 +133,10 @@ class McpToolsTest : public QObject {
     const QJsonObject s = jsonOf(call("status")).toObject();
     QVERIFY(!s.value("app").toObject().value("version").toString().isEmpty());
     QVERIFY(s.contains("servers"));
+    const QJsonObject discord = s.value("discord").toObject();  // Rich Presence: off by default, nothing sent
+    QVERIFY(discord.contains("enabled") && !discord.value("enabled").toBool());
+    QVERIFY(!discord.value("connected").toBool());
+    QVERIFY(discord.value("details").toString().isEmpty());
     QVERIFY(!s.value("data_dir").toString().isEmpty());
     const QString text = QJsonDocument(s).toJson();
     QVERIFY(!text.contains("token", Qt::CaseInsensitive));
@@ -191,6 +196,37 @@ class McpToolsTest : public QObject {
     QCOMPARE(call("plugin_link", {{"path", dir.path()}}).content.value(0).text, QStringLiteral("developer_mode_off"));
   }
 
+  // 0.20 final live check: settings_set, saves_history, toasts_list, plugin id under both names, hold_ms and confirm in the schema.
+  void liveCheckGapTools() {
+    QCOMPARE(call("settings_set", {{"key", "uzume.nope"}, {"value", "1"}}).content.value(0).text, QStringLiteral("unknown_key"));
+    QCOMPARE(call("settings_set", {{"key", "uzume.run_ahead"}, {"value", "7"}}).content.value(0).text, QStringLiteral("invalid_value"));
+    QCOMPARE(call("settings_set", {{"key", "uzume.rewind_seconds"}, {"value", "601"}}).content.value(0).text, QStringLiteral("invalid_value"));
+    const QJsonObject set = jsonOf(call("settings_set", {{"key", "uzume.rewind_seconds"}, {"value", 13}})).toObject();
+    QCOMPARE(set.value("value").toString(), QStringLiteral("13"));
+    QCOMPARE(pc->emulation()->uzumeValue(QStringLiteral("uzume.rewind_seconds"), QStringLiteral("nds")), QStringLiteral("13"));
+    QCOMPARE(jsonOf(call("settings_set", {{"key", "uzume.run_ahead"}, {"value", "1"}, {"system", "gba"}})).toObject().value("value").toString(), QStringLiteral("1"));
+    QCOMPARE(pc->emulation()->uzumeValue(QStringLiteral("uzume.run_ahead"), QStringLiteral("nds")), QStringLiteral("0"));
+    QCOMPARE(jsonOf(call("settings_set", {{"key", "uzume.rewind_seconds"}, {"value", "0"}})).toObject().value("value").toString(), QStringLiteral("0"));
+
+    QVERIFY(!call("saves_history").isError);
+    QVERIFY(jsonOf(call("saves_history")).toObject().contains("versions"));
+    QVERIFY(jsonOf(call("toasts_list")).toObject().contains("toasts"));
+
+    // The plugin is `id` for most tools and `plugin_id` for others: both spellings reach the handler.
+    call("store_put", {{"plugin_id", "uzume.cheats"}, {"key", "k"}, {"value", 1}});
+    QVERIFY(jsonOf(call("store_get", {{"id", "uzume.cheats"}, {"key", "k"}})).toObject().value("found").toBool());
+    QCOMPARE(call("plugin_console", {{"plugin_id", "uzume.nothing"}}).content.value(0).text, QStringLiteral("plugin_not_running"));
+    QCOMPARE(call("file_dialog_pick", {{"id", "uzume.cheats"}, {"path", ""}}).content.value(0).text, QStringLiteral("no_pick_request"));
+
+    for (const ToolDef& t : pc->mcp()->registry()->tools()) {
+      if (t.name == QLatin1String("ui_key")) {
+        QVERIFY(t.inputSchema.value("properties").toObject().contains("hold_ms"));
+        QVERIFY(t.inputSchema.value("properties").toObject().contains("confirm"));
+      }
+      if (t.name == QLatin1String("ui_click")) QVERIFY(t.inputSchema.value("properties").toObject().contains("confirm"));
+    }
+  }
+
   void serverSignInValidatesArguments() {
     QVERIFY(call("server_sign_in").isError);
     QVERIFY(call("server_sign_in", {{"url", "https://127.0.0.1:1"}, {"username", "lena"}}).isError);  // no password
@@ -202,6 +238,21 @@ class McpToolsTest : public QObject {
     QVERIFY(!serverFingerprintTrusted(QStringLiteral("AB:CD:EF"), QStringLiteral("abcdee")));
     QVERIFY(!serverFingerprintTrusted(QStringLiteral("AB:CD:EF"), QString()));
     QVERIFY(!serverFingerprintTrusted(QString(), QString()));
+  }
+
+  void runRecapValidatesArguments() {
+    QVERIFY(call("run_recap").isError);
+    QVERIFY(call("run_recap", {{"run_id", ""}}).isError);
+    QVERIFY(call("run_recap", {{"run_id", 7}}).isError);
+    QVERIFY(call("run_recap", {{"run_id", "not-a-uuid"}}).isError);
+    const QString uuid = QStringLiteral("11111111-2222-3333-4444-555555555555");
+    QVERIFY(validateRunRecapArgs({{"run_id", uuid}}).isEmpty());
+    QVERIFY(validateRunRecapArgs({{"run_id", uuid.toUpper()}}).isEmpty());
+    QVERIFY(!validateRunRecapArgs({}).isEmpty());
+    QVERIFY(!validateRunRecapArgs({{"run_id", "../etc"}}).isEmpty());
+    // A valid id without a connected server is refused with a clear reason, not a timeout.
+    const ToolResult r = call("run_recap", {{"run_id", uuid}});
+    QVERIFY(r.isError);
   }
 
   void tokenFromEnvironmentOnlyWithMcpFlag() {

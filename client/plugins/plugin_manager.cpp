@@ -8,6 +8,7 @@
 #include <QCryptographicHash>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QLoggingCategory>
 #include <QRegularExpression>
 #include <QSaveFile>
 #include <algorithm>
@@ -16,6 +17,8 @@
 #include <set>
 
 #include "updatesig.h"
+
+Q_LOGGING_CATEGORY(lcManager, "uzume.plugins.manager")
 
 namespace uzume::plugins {
 
@@ -144,6 +147,7 @@ PluginManager::Entry PluginManager::makeEntry(const QString& dir, const QString&
   e.valid = m.ok;
   if (m.ok) {
     e.info.manifest = m.manifest;
+    for (const QString& w : m.manifest.warnings) qCWarning(lcManager) << "plugin" << m.manifest.id << "manifest:" << w;
   } else {
     e.info.manifest.id = fallbackId;
     e.info.manifest.name = fallbackId;

@@ -169,6 +169,40 @@ class ManifestTest : public QObject {
     QVERIFY(errOf(rs(R"([{"key":"m","type":"enum","label":"l","default":"x","options":[{"value":"x"},{"value":"y","label":"l"}]}])")).contains("option 'label'"));
     QVERIFY(errOf(rs(R"([{"key":"m","type":"enum","label":"l","default":"z","options":[{"value":"x","label":"l"},{"value":"y","label":"l"}]}])")).contains("one of the option values"));
   }
+  static QString rc(const QString& v) { return QStringLiteral(R"({"recap":%1})").arg(v); }
+  void recapValid() {
+    const ManifestResult r = parseManifest(base(rc(R"([{"type":"soullink.catch","glyph":"catch"},{"type":"soullink.death","glyph":"lost"},
+      {"type":"soullink.badge","glyph":"badge"},{"type":"soullink.correction","glyph":"note"},{"type":"x.shot","glyph":"screenshot","extra":1}])")));
+    QVERIFY2(r.ok, qPrintable(r.error));
+    QCOMPARE(r.manifest.recap.size(), 5);
+    QCOMPARE(r.manifest.recap.at(1).type, QString("soullink.death"));
+    QCOMPARE(r.manifest.recap.at(1).glyph, QString("lost"));
+    QVERIFY(r.manifest.warnings.isEmpty());
+    QVERIFY(parseManifest(base()).manifest.recap.isEmpty());
+  }
+  void recapInvalidEntriesAreWarnings() {
+    // Every kind of bad entry is skipped with a warning; the manifest and the good entries stay.
+    const ManifestResult r = parseManifest(base(rc(R"([{"type":"a.ok","glyph":"catch"},
+      {"type":"A.Upper","glyph":"catch"}, {"type":"b","glyph":"star"}, {"type":"c"}, {"glyph":"note"}, 7,
+      {"type":"a.ok","glyph":"lost"}, {"type":"","glyph":"note"}, {"type":"d","glyph":5}])")));
+    QVERIFY2(r.ok, qPrintable(r.error));
+    QCOMPARE(r.manifest.recap.size(), 1);
+    QCOMPARE(r.manifest.recap.at(0).type, QString("a.ok"));
+    QCOMPARE(r.manifest.warnings.size(), 8);
+    QVERIFY(r.manifest.warnings.at(0).startsWith("recap[1]"));
+    // not a list: one warning, still loads
+    const ManifestResult o = parseManifest(base(rc(R"({"type":"a","glyph":"catch"})")));
+    QVERIFY(o.ok);
+    QVERIFY(o.manifest.recap.isEmpty());
+    QCOMPARE(o.manifest.warnings.size(), 1);
+    // more than 32 entries: the first 32 count
+    QStringList many;
+    for (int i = 0; i < 40; ++i) many << QStringLiteral(R"({"type":"t.%1","glyph":"note"})").arg(i);
+    const ManifestResult m = parseManifest(base(rc("[" + many.join(",") + "]")));
+    QVERIFY(m.ok);
+    QCOMPARE(m.manifest.recap.size(), 32);
+    QCOMPARE(m.manifest.warnings.size(), 1);
+  }
   void runSettingsBuildAndHubInfo() {
     QList<uzume::RunSetting> list;
     QVERIFY(uzume::parseRunSettings(QJsonDocument::fromJson(R"([

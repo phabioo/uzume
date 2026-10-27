@@ -74,7 +74,7 @@ Core-side facts (3DS): see [ADR 0023](../adr/0023-plugins.md) context (Azahar ex
 | `run.state` | Read/write per-player run state, append run events | first release |
 | `video.capture` | Capture a screen or region of the game picture as PNG at native resolution (`fb.video`); on demand through the existing readback, no write to disk, 1 per second, local game only | API 1 addition |
 | `memory.write` | Write memory through a write queue | built (0.20) |
-| `cheats` | Hand cheat codes to the core's own cheat engine (`retro_cheat_set`); consent, snapshot and run log as for `memory.write` | built (0.20) |
+| `cheats` | Hand cheat codes to the core's own cheat engine (`retro_cheat_set`); consent, snapshot and run log as for `memory.write` | built (0.20); in a run game the plugin starts only while `rules.cheats` is `logged` (`memory.write`: `rules.memory_write`), see [guides/plugin-api.md](../guides/plugin-api.md#when-plugins-run) |
 | `store` | Small private data per person and plugin (`fb.store`), a local copy synced with the server (`plugin_store_v1`), conflicts keep both versions | built (0.20) |
 | `tool.exec` | Start an external program | not built; replaced by the variant build permission of [ADR 0031](../adr/0031-game-variants-and-randomizer.md) D5 (name open), signed official only, planned for 0.21 |
 

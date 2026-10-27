@@ -17,6 +17,7 @@
 #include "keyedrowsmodel.h"
 #include "pluginscontroller.h"
 #include "runclient.h"
+#include "runrecapcontroller.h"
 #include "variantscontroller.h"
 
 namespace uzume::ui {
@@ -100,6 +101,8 @@ class RunsController : public QObject {
   Q_PROPERTY(bool startUsersLoading READ startUsersLoading NOTIFY startStateChanged)
   // The variants controller (0.21): the Randomizer section of Start a run and the join dialog read presets and own variants from it.
   Q_PROPERTY(uzume::ui::VariantsController* variants READ variants CONSTANT)
+  // The Recap tab of the opened run (0.22, board 4jh-app-2).
+  Q_PROPERTY(uzume::ui::RunRecapController* recap READ recap CONSTANT)
 
  public:
   RunsController(RunClient* client, PluginsController* plugins, HubLibrary* library, HubConnection* connection, QObject* parent = nullptr);
@@ -153,6 +156,7 @@ class RunsController : public QObject {
 
   RunClient* client() { return client_; }
   VariantsController* variants() const { return variants_; }
+  RunRecapController* recap() const { return recap_; }
   void setVariants(VariantsController* v) { variants_ = v; }
 
   // The run context for a game start: the bridge of fb.run and the pins of the plugins (null bridge: unknown run).
@@ -257,6 +261,7 @@ class RunsController : public QObject {
   QString gamesFor_;
 
   VariantsController* variants_ = nullptr;
+  RunRecapController* recap_ = nullptr;
   QPointer<RunClient> client_;
   PluginsController* plugins_;
   HubLibrary* library_;

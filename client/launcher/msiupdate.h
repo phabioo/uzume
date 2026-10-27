@@ -152,4 +152,24 @@ inline std::wstring quoteArgs(const std::vector<std::wstring>& args) {
   return s;
 }
 
+// ERROR_INSTALL_ALREADY_RUNNING: another Windows installation holds the installer (e.g. an auto-update of another program).
+constexpr unsigned long kMsiBusyCode = 1618;
+constexpr unsigned long long kMsiBusyBudgetMs = 5ull * 60 * 1000;  // total wait for a busy installer
+constexpr unsigned long kMsiBusyPollMs = 2000;                     // poll interval of the installer mutex
+constexpr unsigned long kMsiRetryPauseMs = 5000;                   // pause before running msiexec again after 1618
+
+// Run msiexec again? Only after 1618 and while the wait budget (counted from the first attempt) is not used up.
+inline bool shouldRetryMsi(unsigned long exitCode, unsigned long long elapsedMs) {
+  return exitCode == kMsiBusyCode && elapsedMs < kMsiBusyBudgetMs;
+}
+
+// Text of the error box for a failed msiexec run.
+inline std::wstring msiFailureMessage(unsigned long code) {
+  if (code == kMsiBusyCode) {
+    return L"Another program was being installed, so the Uzume update could not be installed (code 1618). "
+           L"Start the update again from Settings when that installation has finished.";
+  }
+  return L"The Uzume update could not be installed (code " + std::to_wstring(code) + L").";
+}
+
 }  // namespace uzume::launcher

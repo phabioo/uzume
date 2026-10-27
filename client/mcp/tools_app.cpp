@@ -94,7 +94,7 @@ void installAppTools(McpToolRegistry& registry, ui::PlayerController& player) {
     t.name = QStringLiteral("status");
     t.description = QStringLiteral(
         "App version, channel and commit, OS, data directory, portable mode, the servers (name, address, connected; no tokens), the current screen, "
-        "the running game (id, title, system, core), developer mode and the running plugins.");
+        "the running game (id, title, system, core), developer mode, Discord Rich Presence (enabled, connected, last details and state) and the running plugins.");
     t.inputSchema = schema();
     t.handler = [pc](const QJsonObject&, ToolReply reply) {
       if (!pc) return reply(ToolResult::error(QStringLiteral("app_closing")));
@@ -129,6 +129,7 @@ void installAppTools(McpToolRegistry& registry, ui::PlayerController& player) {
           {QStringLiteral("screen"), pc->screen()},
           {QStringLiteral("game"), game.isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(game)},
           {QStringLiteral("developer_mode"), pc->plugins()->developerMode()},
+          {QStringLiteral("discord"), pc->discord() != nullptr ? pc->discord()->stateJson() : QJsonObject{}},
           {QStringLiteral("plugins_running"), plugins}}));
     };
     registry.add(std::move(t));

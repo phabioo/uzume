@@ -100,12 +100,18 @@ struct CallState {
 };
 }  // namespace
 
-void McpToolRegistry::call(const QString& name, const QJsonObject& args, ToolReply done) {
+void McpToolRegistry::call(const QString& name, const QJsonObject& argsIn, ToolReply done) {
   const ToolDef* def = find(name);
   if (def == nullptr || !def->handler) {
     done(ToolResult::error(QStringLiteral("unknown_tool")));
     return;
   }
+  // A plugin is named `id` by most tools and `plugin_id` by others: either spelling works for every tool that takes one.
+  QJsonObject args = argsIn;
+  const QJsonObject props = def->inputSchema.value(QStringLiteral("properties")).toObject();
+  const QString idKey = QStringLiteral("id"), pluginKey = QStringLiteral("plugin_id");
+  if (props.contains(idKey) && !args.contains(idKey) && args.contains(pluginKey)) args.insert(idKey, args.value(pluginKey));
+  if (props.contains(pluginKey) && !args.contains(pluginKey) && args.contains(idKey)) args.insert(pluginKey, args.value(idKey));
   const QString target = logTarget(*def, args);
   qInfo().noquote() << "mcp:" << def->name << target;
 
