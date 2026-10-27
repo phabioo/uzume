@@ -110,7 +110,8 @@ For developers: the app can embed a local [MCP](https://modelcontextprotocol.io)
 
 1. Settings › Diagnostics › Claude debugging (MCP): turn on "Allow Claude to control this app" (or start the app with `--mcp`). The port is 47615 unless you change it (1024 to 65535).
 2. "Copy setup command" and run it in Claude Code on this PC: `claude mcp add --transport http uzume http://127.0.0.1:<port>/mcp --header "Authorization: Bearer <token>"`. "New token" replaces the token at once. The token is random, lives only in the OS credential store (target `Uzume/mcp`) and is never written to a file or the log.
-3. While the server listens, a band "Claude can control this app" with a "Stop" button shows at the bottom of every screen, the game included.
+3. `--mcp-port <n>` sets the port for this start only. With `--mcp`, the environment variable `UZUME_MCP_TOKEN` (32 to 256 characters of `A-Z a-z 0-9 - _`) is the token for this start instead of the credential store; it is never stored or logged and is ignored without `--mcp`.
+4. While the server listens, a band "Claude can control this app" with a "Stop" button shows at the bottom of every screen, the game included.
 
 The server binds to `127.0.0.1` only, checks the token, the `Host` header and (if present) a loopback `Origin`, and takes `POST /mcp` with bodies up to 1 MiB. Every call is logged as `mcp: <tool> <target>`, never with arguments or results.
 
@@ -160,6 +161,7 @@ The server binds to `127.0.0.1` only, checks the token, the `Host` header and (i
 | `navigate` | `to` (`library`, `game`, `settings`, `server`, `emulation`, `controllers`, `runs`, `plugin`, `plugin_settings`, `setup`), `page?`, `gameId?` | opens the screen through the controller calls the sidebar uses; `not_reachable` without a connected server or while a game is in front |
 | `game_start` / `game_stop` | `gameId`, `slot?` / | the Play and Quit game calls; a start that needs the "quit the running game?" dialog answers `confirm_pending` and leaves the decision to the person |
 | `app_screenshot` | `window?` | PNG of an app window as drawn (`grabWindow`), dialogs included |
+| `server_sign_in` | `url`, `username`, `password`, `trust_fingerprint?` | adds the server and signs in with the password (live tests); a self-signed certificate only with a matching SHA-256 `trust_fingerprint`, otherwise it fails and returns the fingerprint; the password is never logged or returned |
 
 Limits: memory 1 MiB, RomFS and ROM 4 MiB, logs 2000 lines, images 4096 x 4096 per call; a tool that does not answer within 10 s fails with `timeout`. The report tools use the app's own admin connection and only read; they answer `not_admin` without an admin sign-in and `not_supported` for a server without `admin_v1`. Brakes: no tool writes saves (the cheat and memory tools change the running game only, with the safety copy and run rules of the plugin API), and none returns passwords, tokens or relay credentials; log lines are redacted like the diagnostics bundle. The UI tools act like a person at the keyboard, with one exception: a destructive control is never operated. `ui_click`, and `ui_key` or `ui_type` with Return, Enter or Space on it, answer `needs_confirmation_in_app` and the refusal is logged (`mcp: refused ui_click needs_confirmation_in_app <objectName>`). Destructive are danger buttons (`kind: "danger"`, the `destructive` property of `UzButton`), and buttons for deleting, removing, restoring or overwriting, "Share with others", "Stop sharing", installs and updates (which can need admin rights); "New token" and turning the server off are allowed. The match is deliberately wide: it also covers "Remove" of a library folder. `ui_tree` marks such controls with `destructive: true`. Password fields (and fields of a component with `secret`) show `***` instead of their text in `ui_tree`, in the answers of `ui_type` and in text search; typing into them is allowed. A screenshot shows what the screen shows, so do not reveal a password while Claude looks. Known limit: a control that is destructive but not marked or named as above is not recognised, so mark new ones with `destructive: true`. Game data goes only to your Claude session on this PC.
 
@@ -185,7 +187,7 @@ The ROM cache, `profiles.json`, `device.json`, `hubs/<id>/users/<user_id>/saves/
 ## Command line and environment
 
 ```sh
-uzume [--data-dir <path>] [--mcp] [--dev-allow-http] [--collect-logs <out.zip>] [--version | --version-json] [--help]
+uzume [--data-dir <path>] [--mcp [--mcp-port <n>]] [--dev-allow-http] [--collect-logs <out.zip>] [--version | --version-json] [--help]
 uzume-cli <command> ...            # run without arguments for the usage text
 ```
 

@@ -47,6 +47,13 @@ class McpController : public QObject {
   void start();
   // `--mcp`: on for this run only, the setting stays as it is.
   void enableForThisStart();
+  // `--mcp-port <n>`: the port for this run only (not stored). False when out of range 1024..65535 (nothing changes).
+  bool setPortForThisStart(int port);
+  // `UZUME_MCP_TOKEN`: the token for this run only; never stored in the credential store, never logged. Empty or too short
+  // (< 32 chars, or characters outside base64url) is refused and the stored token stays in use.
+  bool setTokenForThisStart(const QByteArray& token);
+  // The value of UZUME_MCP_TOKEN, but only together with `--mcp` (`mcpFlag`); empty otherwise.
+  static QByteArray tokenFromEnvironment(bool mcpFlag);
 
   // Installs the tools (the app calls it once; tests install their own).
   void setToolInstaller(const std::function<void(mcp::McpToolRegistry&)>& installer);
@@ -76,6 +83,7 @@ class McpController : public QObject {
   QByteArray token_;
   int port_;
   bool forced_ = false;
+  bool tokenFromEnv_ = false;  // token_ came from UZUME_MCP_TOKEN: renewToken() keeps it out of the credential store
   QString error_;
 };
 
