@@ -46,6 +46,7 @@
 #include "personalcontroller.h"
 #include "screenshotcontroller.h"
 #include "runscontroller.h"
+#include "variantscontroller.h"
 #include "playersettings.h"
 #include "romcache.h"
 #include "romdownloader.h"
@@ -164,6 +165,7 @@ class PlayerController : public QObject {
   // Plugins (Settings > Plugins, Plugin console tab of the game panel)
   Q_PROPERTY(uzume::ui::PluginsController* plugins READ plugins CONSTANT)
   Q_PROPERTY(uzume::ui::RunsController* runs READ runs CONSTANT)
+  Q_PROPERTY(uzume::ui::VariantsController* variants READ variants CONSTANT)  // game variants (0.21)
   // Favourites and collections of the signed-in person (3c-0, 3c-1, 3c-4)
   Q_PROPERTY(uzume::ui::PersonalController* personal READ personal CONSTANT)
   Q_PROPERTY(uzume::ui::ScreenshotController* screenshots READ screenshots CONSTANT)
@@ -247,6 +249,10 @@ class PlayerController : public QObject {
   AccountsController* accounts() { return accounts_.get(); }
   PluginsController* plugins() { return plugins_.get(); }
   RunsController* runs() { return runs_.get(); }
+  VariantsController* variants() { return variants_.get(); }
+  ToolsClient* toolsClient() { return toolsClient_.get(); }  // debug MCP server
+  ToolCache* toolCache() { return toolCache_.get(); }
+  VariantCache* variantCache() { return variantCache_.get(); }
   PersonalController* personal() { return personal_.get(); }
   ScreenshotController* screenshots() { return screenshots_.get(); }
   LocalStorageController* localStorage() { return localStorage_.get(); }
@@ -555,6 +561,11 @@ class PlayerController : public QObject {
   std::unique_ptr<PluginsController> plugins_;  // after settings_ and session_: destroyed before them
   std::unique_ptr<RunClient> runClient_;        // after sessions_ (the Hub socket) and plugins_
   std::unique_ptr<RunsController> runs_;
+  std::unique_ptr<ToolCache> toolCache_;
+  std::unique_ptr<VariantCache> variantCache_;
+  std::unique_ptr<ToolsClient> toolsClient_;
+  std::unique_ptr<VariantsClient> variantsClient_;
+  std::unique_ptr<VariantsController> variants_;  // after runs_ and plugins_ (references the Hub socket through conn_)
   std::unique_ptr<ConnectionCheckController> connectionCheck_;  // reads the Hub's ICE servers from sessions_ and the profile from conn_
   // "Play run": the game starts with the run context and the run's save slot; the chosen slot is restored afterwards.
   struct RunStart {
@@ -565,6 +576,23 @@ class PlayerController : public QObject {
   };
   RunStart runStart_;
   void startRunGame(const QString& runId, const QString& gameId);
+  // "Play" of one variant (0.21): the game starts with the variant's own save slot; the chosen slot is restored afterwards.
+  struct VariantStart {
+    QString variantId;
+    QString gameId;
+    QString previousSlot;
+    bool pending() const { return !variantId.isEmpty(); }
+  };
+  VariantStart variantStart_;
+  struct PendingRunPlay {
+    QString runId;
+    QString gameId;
+  };
+  PendingRunPlay pendingRunPlay_;  // a run start waits for its run variant
+  void startVariantGame(const QString& variantId);
+  VariantLaunch variantLaunchFor(const GameEntry& game);
+  QString titleIdOf(const GameEntry& game);
+  bool startPending() const { return runStart_.pending() || variantStart_.pending(); }
   void finishRunStart();  // the run's game is over (or never started): the game's own slot is selected again
   std::unique_ptr<SaveHistoryController> history_;  // after saves_/conn_: destroyed first
   std::unique_ptr<EmulationController> emulation_;

@@ -54,7 +54,10 @@ bool relativeSafePath(const QString& p) {
 
 QString permissionError(const QString& p) {
   static const std::set<QString> supported = {QStringLiteral("memory.read"), QStringLiteral("rom.read"), QStringLiteral("ui"),
-                                              QStringLiteral("run.state"), QStringLiteral("video.capture")};
+                                              QStringLiteral("run.state"), QStringLiteral("video.capture"),
+                                              // 0.21 Randomizer (ADR 0031 D5): build a game variant from a recipe; official plugins only
+                                              // (PluginManager reports "permission variants.build needs a signed official plugin")
+                                              QStringLiteral("variants.build")};
   if (supported.count(p)) return {};
   if (p == QLatin1String("memory.write") || p == QLatin1String("tool.exec"))
     return QStringLiteral("permission %1 is not available yet").arg(p);

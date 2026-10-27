@@ -49,6 +49,12 @@ std::vector<RomfsEntry> romfsList(const QString& romPath, std::string_view dir, 
 // Drops the cached RomFS index (the game changed or stopped); a changed file is also detected by size and mtime.
 void romfsCacheClear();
 
+// RomFS with a LayeredFS mod laid over it (a 3DS game variant, ADR 0031 D2): <modDir>/romfs/<path> wins over the file of the game,
+// a listing is the union of both (the mod's size wins). A mod path that tries to leave <modDir>/romfs is ignored. An empty modDir is
+// the plain functions above. A file the game cannot give (encrypted game, missing) is still served when the mod has it.
+Result romfsOverlayRead(const QString& romPath, const QString& modDir, std::string_view path, size_t maxOut = 256u << 20);
+std::vector<RomfsEntry> romfsOverlayList(const QString& romPath, const QString& modDir, std::string_view dir, std::string* error = nullptr);
+
 // ---- 3DS textures ----
 // Image: RGBA8888, straight alpha, row-major, top-down.
 struct Image {

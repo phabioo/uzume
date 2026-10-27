@@ -1,6 +1,7 @@
 # uzume_core: Player core without GUI (core/ + network/). Add sources here and in ../network.
 add_library(uzume_core STATIC version.cpp credentialstore.cpp profilestore.cpp romcache.cpp localstorage.cpp savestore.cpp playersettings.cpp firmwarecache.cpp corecache.cpp dsvsave.cpp sdtree.cpp emulationsettings.cpp controllerprofiles.cpp
-  filelog.cpp diagbundle.cpp problemreport.cpp semver.cpp updateindex.cpp updaterollback.cpp updatesig.cpp installroot.cpp updater.cpp localhub.cpp hubsetup.cpp fsutil.cpp localromindex.cpp securitycode.cpp joinlink.cpp localpin.cpp localserverprocess.cpp)
+  filelog.cpp diagbundle.cpp problemreport.cpp semver.cpp updateindex.cpp updaterollback.cpp updatesig.cpp installroot.cpp updater.cpp localhub.cpp hubsetup.cpp fsutil.cpp localromindex.cpp securitycode.cpp joinlink.cpp localpin.cpp localserverprocess.cpp
+  zipextract.cpp toolcache.cpp variantcache.cpp enginerunner.cpp variantbuilder.cpp variantlaunch.cpp)
 target_include_directories(uzume_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_features(uzume_core PUBLIC cxx_std_20)
 target_link_libraries(uzume_core PUBLIC Qt6::Core Qt6::Concurrent Qt6::Network OpenSSL::Crypto)
@@ -39,4 +40,19 @@ uzume_add_test(core_localserverprocess tests/localserverprocess_test.cpp LIBS uz
 if(WIN32)
   # Writes/reads/deletes a dummy value in the Windows Credential Manager (Windows CI only).
   uzume_add_test(core_windows_credential_store tests/windows_credential_store_test.cpp LIBS uzume_core)
+endif()
+
+# Stand-in for the randomizer engine's CLI (testutil/test_engine.cpp): tests pack it as java/bin/java of a fake engine package.
+if(BUILD_TESTING)
+  add_executable(uzume_test_engine ${UZUME_TESTUTIL_DIR}/test_engine.cpp)
+  uzume_warnings(uzume_test_engine)
+  set_target_properties(uzume_test_engine PROPERTIES OUTPUT_NAME uzume_test_engine)
+  uzume_vcpkg_runtime(uzume_test_engine)
+  uzume_add_test(core_zipextract tests/zipextract_test.cpp LIBS uzume_core)
+  uzume_add_test(core_toolcache tests/toolcache_test.cpp LIBS uzume_core)
+  uzume_add_test(core_variantcache tests/variantcache_test.cpp LIBS uzume_core)
+  uzume_add_test(core_variantbuilder tests/variantbuilder_test.cpp LIBS uzume_core)
+  add_dependencies(test_core_variantbuilder uzume_test_engine)
+  target_compile_definitions(test_core_variantbuilder PRIVATE FB_TEST_ENGINE_PATH="$<TARGET_FILE:uzume_test_engine>")
+  uzume_add_test(core_variantlaunch tests/variantlaunch_test.cpp LIBS uzume_core)
 endif()

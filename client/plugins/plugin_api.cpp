@@ -549,7 +549,7 @@ int romRomfs(lua_State* L) {
   const std::string_view path = checkView(L, 1);
   const Plugin* p = self(L);
   if (p->engine->ctx.romPath.isEmpty()) return pushFail(L, "no game file");
-  return pushResult(L, formats::romfsRead(p->engine->ctx.romPath, path));
+  return pushResult(L, formats::romfsOverlayRead(p->engine->ctx.romPath, p->engine->ctx.modDir, path));
 }
 
 int romRomfsList(lua_State* L) {
@@ -558,7 +558,7 @@ int romRomfsList(lua_State* L) {
   const Plugin* p = self(L);
   if (p->engine->ctx.romPath.isEmpty()) return pushFail(L, "no game file");
   std::string err;
-  const auto entries = formats::romfsList(p->engine->ctx.romPath, dir, &err);
+  const auto entries = formats::romfsOverlayList(p->engine->ctx.romPath, p->engine->ctx.modDir, dir, &err);
   if (entries.empty() && !err.empty()) return pushFail(L, err);
   lua_createtable(L, static_cast<int>(entries.size()), 0);
   lua_Integer i = 1;
@@ -572,6 +572,189 @@ int romRomfsList(lua_State* L) {
     lua_setfield(L, -2, "size");
     lua_rawseti(L, -2, i++);
   }
+  return 1;
+}
+
+// ------------------------------------------------------------------ fb.variants
+
+void setStr(lua_State* L, const char* k, const QString& v);
+
+// Reads field `key` of the table at `idx` as a string; nil/absent gives `def`, any other type is an error.
+QString varStr(lua_State* L, int idx, const char* key, const QString& def, int maxLen) {
+  lua_getfield(L, idx, key);
+  QString out = def;
+  if (lua_isnil(L, -1)) {
+    lua_pop(L, 1);
+    return out;
+  }
+  if (lua_type(L, -1) != LUA_TSTRING) luaL_error(L, "%s must be a string", key);
+  size_t n = 0;
+  const char* c = lua_tolstring(L, -1, &n);
+  if (static_cast<int>(n) > maxLen) luaL_error(L, "%s is too long (max %d)", key, maxLen);
+  out = QString::fromUtf8(c, static_cast<qsizetype>(n));
+  lua_pop(L, 1);
+  return out;
+}
+
+bool validPresetId(const QString& id) {
+  static const QRegularExpression re(QStringLiteral("^[a-z0-9_-]{1,32}$"));
+  return re.match(id).hasMatch() && id != QLatin1String("custom");  // "custom" is Uzume's own entry
+}
+
+std::shared_ptr<VariantsProvider> variantsProvider(lua_State* L) { return self(L)->engine->ctx.variants; }
+
+// fb.variants.register{engine, presets = {{id, label, hint, settings = {["428"] = "..."}}}, games = {{system, codes = {...}}}}
+int variantsRegister(lua_State* L) {
+  need(L, "variants.build");
+  luaL_checktype(L, 1, LUA_TTABLE);
+  const auto prov = variantsProvider(L);
+  if (!prov) luaL_error(L, "variants are not available");
+  VariantRegistration reg;
+  reg.pluginId = self(L)->id();
+  reg.engine = varStr(L, 1, "engine", QStringLiteral("randomizer"), 64);
+  if (reg.engine != QLatin1String("randomizer")) luaL_error(L, "unknown engine '%s'", reg.engine.toUtf8().constData());
+  lua_getfield(L, 1, "presets");
+  if (lua_type(L, -1) == LUA_TTABLE) {
+    const lua_Integer n = luaL_len(L, -1);
+    if (n > 32) luaL_error(L, "too many presets (max 32)");
+    for (lua_Integer i = 1; i <= n; ++i) {
+      lua_rawgeti(L, -1, i);
+      if (lua_type(L, -1) != LUA_TTABLE) luaL_error(L, "presets[%d] must be a table", static_cast<int>(i));
+      VariantPreset pr;
+      pr.id = varStr(L, lua_gettop(L), "id", QString(), 32);
+      if (!validPresetId(pr.id)) luaL_error(L, "presets[%d].id must be 1 to 32 characters of a-z 0-9 _ - and not 'custom'", static_cast<int>(i));
+      pr.label = varStr(L, lua_gettop(L), "label", pr.id, 60);
+      pr.hint = varStr(L, lua_gettop(L), "hint", QString(), 200);
+      lua_getfield(L, -1, "settings");
+      if (lua_type(L, -1) != LUA_TTABLE) luaL_error(L, "presets[%d].settings must be a table {[\"428\"] = \"...\"}", static_cast<int>(i));
+      lua_pushnil(L);
+      int count = 0;
+      while (lua_next(L, -2) != 0) {
+        if (lua_type(L, -2) != LUA_TSTRING || lua_type(L, -1) != LUA_TSTRING) luaL_error(L, "settings entries must map a version string to a settings string");
+        size_t kn = 0, vn = 0;
+        const char* k = lua_tolstring(L, -2, &kn);
+        const char* v = lua_tolstring(L, -1, &vn);
+        const QString key = QString::fromUtf8(k, static_cast<qsizetype>(kn));
+        static const QRegularExpression ver(QStringLiteral("^[0-9]{3}$"));
+        if (!ver.match(key).hasMatch()) luaL_error(L, "settings version must be 3 digits");
+        if (vn == 0 || vn > 4096) luaL_error(L, "a settings string must be 1 to 4096 characters");
+        if (++count > 8) luaL_error(L, "too many settings versions in one preset (max 8)");
+        pr.settings.insert(key, QString::fromUtf8(v, static_cast<qsizetype>(vn)));
+        lua_pop(L, 1);
+      }
+      lua_pop(L, 1);  // settings
+      if (pr.settings.isEmpty()) luaL_error(L, "presets[%d] has no settings", static_cast<int>(i));
+      reg.presets.append(pr);
+      lua_pop(L, 1);  // the preset
+    }
+  }
+  lua_pop(L, 1);
+  lua_getfield(L, 1, "games");
+  if (lua_type(L, -1) == LUA_TTABLE) {
+    const lua_Integer n = luaL_len(L, -1);
+    if (n > 64) luaL_error(L, "too many games entries (max 64)");
+    for (lua_Integer i = 1; i <= n; ++i) {
+      lua_rawgeti(L, -1, i);
+      if (lua_type(L, -1) != LUA_TTABLE) luaL_error(L, "games[%d] must be a table", static_cast<int>(i));
+      VariantGameSupport g;
+      g.system = varStr(L, lua_gettop(L), "system", QString(), 16);
+      if (g.system.isEmpty()) luaL_error(L, "games[%d].system is required", static_cast<int>(i));
+      lua_getfield(L, -1, "codes");
+      if (lua_type(L, -1) == LUA_TTABLE) {
+        const lua_Integer cn = luaL_len(L, -1);
+        if (cn > 512) luaL_error(L, "too many codes in games[%d] (max 512)", static_cast<int>(i));
+        for (lua_Integer k = 1; k <= cn; ++k) {
+          lua_rawgeti(L, -1, k);
+          if (lua_type(L, -1) != LUA_TSTRING) luaL_error(L, "codes must be strings");
+          size_t len = 0;
+          const char* c = lua_tolstring(L, -1, &len);
+          if (len == 0 || len > 32) luaL_error(L, "a code must be 1 to 32 characters");
+          g.codes.append(QString::fromUtf8(c, static_cast<qsizetype>(len)));
+          lua_pop(L, 1);
+        }
+      }
+      lua_pop(L, 1);  // codes
+      reg.games.append(g);
+      lua_pop(L, 1);  // the entry
+    }
+  }
+  lua_pop(L, 1);
+  prov->registry()->set(reg);
+  lua_pushboolean(L, 1);
+  return 1;
+}
+
+// fb.variants.engine() -> {offered = bool, version = string | nil, on_pc = bool}
+int variantsEngine(lua_State* L) {
+  need(L, "variants.build");
+  const auto prov = variantsProvider(L);
+  VariantEngineInfo e;
+  if (prov) e = prov->engine();
+  lua_createtable(L, 0, 3);
+  lua_pushboolean(L, e.offered);
+  lua_setfield(L, -2, "offered");
+  if (!e.version.isEmpty()) setStr(L, "version", e.version);
+  lua_pushboolean(L, e.onPc);
+  lua_setfield(L, -2, "on_pc");
+  return 1;
+}
+
+// fb.variants.list([game_id]) -> {{id, name, slot, preset_id, state, tool_version}}; the variants of the game in the context
+// (in the shell context, which has no game: of `game_id`). Never the seed or the settings.
+int variantsList(lua_State* L) {
+  need(L, "variants.build");
+  const auto prov = variantsProvider(L);
+  Plugin* p = self(L);
+  QString gameId = p->engine->ctx.gameId;
+  if (p->engine->ctx.shell && lua_type(L, 1) == LUA_TSTRING) gameId = QString::fromStdString(checkStr(L, 1));
+  const QList<VariantRow> rows = prov && !gameId.isEmpty() ? prov->list(gameId) : QList<VariantRow>();
+  lua_createtable(L, static_cast<int>(rows.size()), 0);
+  lua_Integer i = 1;
+  for (const VariantRow& r : rows) {
+    lua_createtable(L, 0, 6);
+    setStr(L, "id", r.id);
+    setStr(L, "name", r.name);
+    setStr(L, "slot", r.slot);
+    if (!r.presetId.isEmpty()) setStr(L, "preset_id", r.presetId);
+    setStr(L, "state", r.state);
+    if (!r.toolVersion.isEmpty()) setStr(L, "tool_version", r.toolVersion);
+    lua_rawseti(L, -2, i++);
+  }
+  return 1;
+}
+
+// fb.variants.build{name, preset_id | settings, seed, spoiler_log, game_id} -> request id. Progress and the result arrive as the
+// host event "variants.state" {id, state, progress, error}; failures that depend on the PC or the server are reported there, not as
+// Lua errors.
+int variantsBuild(lua_State* L) {
+  need(L, "variants.build");
+  luaL_checktype(L, 1, LUA_TTABLE);
+  const auto prov = variantsProvider(L);
+  if (!prov) luaL_error(L, "variants are not available");
+  Plugin* p = self(L);
+  VariantBuildRequest req;
+  req.name = varStr(L, 1, "name", QString(), 60).trimmed();
+  if (req.name.isEmpty()) luaL_error(L, "name is required (1 to 60 characters)");
+  req.presetId = varStr(L, 1, "preset_id", QString(), 32);
+  req.settings = varStr(L, 1, "settings", QString(), 4096);
+  if (req.presetId.isEmpty() == req.settings.isEmpty()) luaL_error(L, "give either preset_id or settings");
+  lua_getfield(L, 1, "seed");
+  if (lua_type(L, -1) == LUA_TNUMBER && lua_isinteger(L, -1)) req.seed = QString::number(static_cast<qlonglong>(lua_tointeger(L, -1)));
+  else if (lua_type(L, -1) == LUA_TSTRING) req.seed = QString::fromStdString(checkStr(L, lua_gettop(L)));
+  else if (!lua_isnil(L, -1)) luaL_error(L, "seed must be an integer or a string of digits");
+  lua_pop(L, 1);
+  if (!req.seed.isEmpty()) {
+    bool ok = false;
+    req.seed.toLongLong(&ok);
+    if (!ok || req.seed.startsWith(QLatin1Char('-'))) luaL_error(L, "seed must be a non-negative integer below 2^63");
+  }
+  lua_getfield(L, 1, "spoiler_log");
+  req.spoilerLog = lua_toboolean(L, -1) != 0;
+  lua_pop(L, 1);
+  req.gameId = p->engine->ctx.gameId;
+  if (p->engine->ctx.shell) req.gameId = varStr(L, 1, "game_id", QString(), 128);
+  if (req.gameId.isEmpty()) luaL_error(L, "no game: pass game_id in the shell context");
+  lua_pushinteger(L, static_cast<lua_Integer>(prov->build(p->id(), req)));
   return 1;
 }
 
@@ -1144,6 +1327,15 @@ void registerFbApi(PluginEngine& engine, Plugin& p) {
   setFn(L, "screens", videoScreens);
   setFn(L, "capture", videoCapture);
   lua_setfield(L, -2, "video");
+
+  if (p.info.manifest.hasPermission(QStringLiteral("variants.build"))) {
+    lua_newtable(L);  // fb.variants (only with the permission variants.build)
+    setFn(L, "register", variantsRegister);
+    setFn(L, "engine", variantsEngine);
+    setFn(L, "list", variantsList);
+    setFn(L, "build", variantsBuild);
+    lua_setfield(L, -2, "variants");
+  }
 
   lua_newtable(L);  // fb.codec (pure functions, no permission)
   setFn(L, "lz_decompress", codecLz);

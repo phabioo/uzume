@@ -51,6 +51,7 @@ std::optional<RunInfo> parseRun(const QJsonObject& o) {
   r.saveSlot = str(o, "save_slot");
   if (r.saveSlot.isEmpty()) r.saveSlot = runSaveSlot(r.runId);
   r.settings = o.value(QLatin1String("settings")).toObject();
+  r.randomizer = o.value(QLatin1String("randomizer")).toObject();
   r.lastSeq = static_cast<qint64>(o.value(QLatin1String("last_seq")).toDouble(0));
   r.playSeconds = qMax<qint64>(0, static_cast<qint64>(o.value(QLatin1String("play_seconds")).toDouble(0)));
   for (const QJsonValue& v : o.value(QLatin1String("plugins")).toArray()) {
@@ -68,6 +69,8 @@ std::optional<RunInfo> parseRun(const QJsonObject& o) {
     part.gameId = str(p, "game_id");
     part.playSeconds = qMax<qint64>(0, static_cast<qint64>(p.value(QLatin1String("play_seconds")).toDouble(0)));
     part.lastPlayedAt = str(p, "last_played_at");
+    part.variantKind = str(p, "variant_kind");
+    part.variantState = str(p, "variant_state");
     part.color = p.value(QLatin1String("color")).isDouble() ? p.value(QLatin1String("color")).toInt(-1) : -1;
     const QJsonObject sts = p.value(QLatin1String("states")).toObject();
     for (auto it = sts.begin(); it != sts.end(); ++it) {
@@ -96,6 +99,8 @@ QJsonObject participantToJson(const RunParticipant& p) {
           {QStringLiteral("color"), p.color < 0 ? QJsonValue(QJsonValue::Null) : QJsonValue(p.color)},
           {QStringLiteral("play_seconds"), static_cast<double>(p.playSeconds)},
           {QStringLiteral("last_played_at"), p.lastPlayedAt.isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(p.lastPlayedAt)},
+          {QStringLiteral("variant_kind"), p.variantKind},
+          {QStringLiteral("variant_state"), p.variantState},
           {QStringLiteral("states"), sts}};
 }
 
@@ -114,6 +119,7 @@ QJsonObject runToJson(const RunInfo& r) {
           {QStringLiteral("status_by"), r.statusBy},
           {QStringLiteral("save_slot"), r.saveSlot.isEmpty() ? runSaveSlot(r.runId) : r.saveSlot},
           {QStringLiteral("settings"), r.settings},
+          {QStringLiteral("randomizer"), r.randomizer},
           {QStringLiteral("plugins"), plugins},
           {QStringLiteral("participants"), parts},
           {QStringLiteral("play_seconds"), static_cast<double>(r.playSeconds)},

@@ -55,6 +55,8 @@ constexpr const char* kLibrarySortKey = "library_sort";
 constexpr const char* kLibraryReadyFirstKey = "library_ready_first";
 constexpr const char* kLibraryViewKey = "library_view";
 constexpr const char* kRomCacheLimitKey = "rom_cache_limit_bytes";
+constexpr const char* kVariantCacheLimitKey = "variant_cache_limit_bytes";
+constexpr const char* kVariantUnplayedDaysKey = "variant_unplayed_days";
 constexpr const char* kLibraryFoldersKey = "library_folders";
 constexpr const char* kLastPlayedKey = "last_played";  // { hub_id: { game_id: epoch ms } }
 constexpr const char* kAudioVolumeKey = "audio_volume";
@@ -130,6 +132,10 @@ PlayerSettings::PlayerSettings(const QString& baseDir)
   if (const QJsonValue v = raw_.value(QLatin1String(kRomCacheLimitKey)); v.isDouble() && v.toDouble() >= 0) {
     romCacheLimit_ = static_cast<qint64>(v.toDouble());
   }
+  if (const QJsonValue v = raw_.value(QLatin1String(kVariantCacheLimitKey)); v.isDouble() && v.toDouble() >= 0) {
+    variantCacheLimit_ = static_cast<qint64>(v.toDouble());
+  }
+  if (const int d = raw_.value(QLatin1String(kVariantUnplayedDaysKey)).toInt(0); d == 30 || d == 60 || d == 90) variantUnplayedDays_ = d;
   for (const QJsonValue& v : raw_.value(QLatin1String(kLibraryFoldersKey)).toArray()) {
     const QString f = QDir::cleanPath(v.toString());
     if (QDir::isAbsolutePath(f) && !libraryFolders_.contains(f)) libraryFolders_.append(f);
@@ -459,6 +465,20 @@ bool PlayerSettings::setRomCacheLimitBytes(qint64 bytes) {
   if (bytes < 0) return false;
   romCacheLimit_ = bytes;
   raw_.insert(QLatin1String(kRomCacheLimitKey), static_cast<double>(bytes));
+  return save();
+}
+
+bool PlayerSettings::setVariantCacheLimitBytes(qint64 bytes) {
+  if (bytes < 0) return false;
+  variantCacheLimit_ = bytes;
+  raw_.insert(QLatin1String(kVariantCacheLimitKey), static_cast<double>(bytes));
+  return save();
+}
+
+bool PlayerSettings::setVariantUnplayedDays(int days) {
+  if (days != 0 && days != 30 && days != 60 && days != 90) return false;
+  variantUnplayedDays_ = days;
+  raw_.insert(QLatin1String(kVariantUnplayedDaysKey), days);
   return save();
 }
 

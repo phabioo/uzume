@@ -7,6 +7,7 @@
 #include "fakehub.h"
 #include "gameview.h"
 #include "screenlayout.h"
+#include "variantcache.h"
 #include "testsupport.h"
 
 using namespace uzume;
@@ -264,6 +265,69 @@ class GameTest : public QObject {
     qInfo().noquote() << "Save dir content:"
                       << QDir(h.controller->profileStore()->hubDir(QStringLiteral("hub-game")) + QStringLiteral("/users/u_test_1/saves/t1"))
                              .entryList(QDir::Files).join(QLatin1Char(' '));
+    QCOMPARE(uitest::warningCount().load(), 0);
+  }
+
+  // 0.21: a built variant starts from its own ROM in its own save slot; the chosen slot comes back afterwards.
+  void playVariantInOwnSlot() {
+    if (qEnvironmentVariableIsEmpty("UZUME_MELONDS_DS_CORE")) {
+      UITEST_SKIP_NO_CORE("UZUME_MELONDS_DS_CORE not set");
+    }
+    if (uitest::previousHandler() == nullptr) uitest::installWarningCounter();
+    QFile rom(QStringLiteral(FB_TEST_ROM_PATH));
+    QVERIFY2(rom.open(QIODevice::ReadOnly), "Test ROM missing (target uzume_test_rom)");
+    const QByteArray romData = rom.readAll();
+    const QString sha = uitest::sha256Hex(romData);
+
+    FakeHub hub(QStringLiteral("a"));
+    hub.hubId = QStringLiteral("hub-variant");
+    hub.decision = FakeHub::Decision::Approve;
+    hub.games = QJsonObject{{QStringLiteral("games"), QJsonArray{uitest::gameJson(QStringLiteral("t1"), QStringLiteral("Arcade Uzume Test"), sha, romData.size(), QStringLiteral("uzume_test.nds"))}}};
+    // Main's ROM is NOT on the server: a variant start must not need it (it starts from the variant cache).
+    QVERIFY(hub.start());
+
+    Harness h;
+    QVERIFY(h.start(/*probeCores=*/true));
+    QTRY_COMPARE_WITH_TIMEOUT(h.controller->handshakeCores().size(), 1, 15000);
+    h.controller->addHub(hub.address());
+    QTRY_COMPARE(h.controller->connection()->state(), HubConnection::State::NeedsTrustConfirmation);
+    h.controller->confirmTrust();
+    QTRY_COMPARE(h.controller->connection()->state(), HubConnection::State::NeedsPairing);
+    h.controller->requestPairing();
+    QTRY_COMPARE_WITH_TIMEOUT(h.controller->screen(), QStringLiteral("library"), 8000);
+    QTRY_COMPARE(h.controller->libraryState(), QStringLiteral("ready"));
+
+    // A built variant in the cache (the ROM bytes are the homebrew test ROM; the build itself is tested elsewhere).
+    VariantCache* cache = h.controller->variantCache();
+    VariantRecipe r;
+    r.variantId = QStringLiteral("vtest1");
+    r.gameId = QStringLiteral("t1");
+    r.name = QStringLiteral("Variant");
+    r.slot = QStringLiteral("var-0a1b2c3d");
+    r.system = QStringLiteral("nds");
+    r.toolVersion = QStringLiteral("1.6.2");
+    r.settings = QStringLiteral("428x");
+    r.seed = QStringLiteral("42");
+    r.romFileName = QStringLiteral("uzume_test.nds");
+    QVERIFY(QDir().mkpath(cache->tempDir(r.variantId) + QStringLiteral("/out")));
+    QFile out(cache->tempDir(r.variantId) + QStringLiteral("/out/uzume_test.nds"));
+    QVERIFY(out.open(QIODevice::WriteOnly));
+    out.write(romData);
+    out.close();
+    QVERIFY(cache->commit(r));
+    QVERIFY(cache->isBuilt(r.variantId));
+
+    const QString before = h.controller->saveSync()->slotFor(QStringLiteral("t1"));
+    QVERIFY(before != r.slot);
+    emit h.controller->variants()->launchRequested(r.variantId);
+    QTRY_COMPARE_WITH_TIMEOUT(h.controller->screen(), QStringLiteral("game"), 20000);
+    QCOMPARE(h.controller->saveSync()->slotFor(QStringLiteral("t1")), r.slot);
+    QTRY_VERIFY_WITH_TIMEOUT(h.controller->gameSession()->frameNumber() >= 3, 10000);
+    QVERIFY(QDir(QDir(h.controller->profileStore()->hubDir(QStringLiteral("hub-variant"))).filePath(QStringLiteral("users/u_test_1/saves/t1"))).exists());
+
+    QVERIFY(h.click("endGameButton"));
+    QTRY_COMPARE(h.controller->screen(), QStringLiteral("library"));
+    QTRY_COMPARE(h.controller->saveSync()->slotFor(QStringLiteral("t1")), before);  // Main's slot is selected again
     QCOMPARE(uitest::warningCount().load(), 0);
   }
 };

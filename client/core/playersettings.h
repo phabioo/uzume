@@ -91,6 +91,14 @@ class PlayerSettings {
   qint64 romCacheLimitBytes() const { return romCacheLimit_; }
   bool setRomCacheLimitBytes(qint64 bytes);
 
+  // Variant cache (0.21, core/variantcache.h): size limit in bytes (default 8 GB, 0 = unlimited; least recently played variants are
+  // dropped first, their recipes stay) and "remove variants not played for N days" (0 = never, 30, 60 or 90).
+  static constexpr qint64 kDefaultVariantCacheLimitBytes = 8ll * 1024 * 1024 * 1024;
+  qint64 variantCacheLimitBytes() const { return variantCacheLimit_; }
+  bool setVariantCacheLimitBytes(qint64 bytes);  // false: negative
+  int variantUnplayedDays() const { return variantUnplayedDays_; }
+  bool setVariantUnplayedDays(int days);  // false: not 0, 30, 60 or 90
+
   // Library folders (0.12): folders scanned for local ROM files, per device. Stored as absolute, cleaned paths without
   // duplicates; relative or empty entries are rejected.
   QStringList libraryFolders() const { return libraryFolders_; }
@@ -221,6 +229,8 @@ class PlayerSettings {
   QString pluginLanguage_ = QStringLiteral("auto");
   bool pluginHudAllHidden_ = false;
   qint64 romCacheLimit_ = kDefaultRomCacheLimitBytes;
+  qint64 variantCacheLimit_ = kDefaultVariantCacheLimitBytes;
+  int variantUnplayedDays_ = 0;
   int audioVolume_ = kDefaultVolume;
   bool audioMuted_ = false;
   QString textSize_ = QStringLiteral("100");

@@ -688,6 +688,14 @@ void FakeHub::handle(QSslSocket* sock, const FakeRequest& req) {
     respond(sock, 204, {});
   } else if (!bearerIs(req, "fba_")) {
     respondError(sock, 401, QStringLiteral("unauthorized"));
+  } else if (customRoute && [&]() {
+               int st = 200;
+               QByteArray b, ct = "application/json";
+               if (!customRoute(req, st, b, ct)) return false;
+               respond(sock, st, b, ct);
+               return true;
+             }()) {
+    // answered by the test
   } else if (req.path.startsWith(QLatin1String("/api/v1/admin/")) || req.path.startsWith(QLatin1String("/api/v1/account/confirm"))) {
     // "Confirm it's you" belongs to the admin fake; the other /account paths are handled by handleAccount().
     handleAdmin(sock, req);
