@@ -45,6 +45,40 @@ func RunSaveSlot(runID string) string {
 	return b.String()
 }
 
+// FeatureRunRulesV1 is the handshake feature flag for the core run rules (`rules` on the run, PUT /runs/{run_id}/rules,
+// the run event rules.changed) and for the optional cheats_used marker on save uploads and history versions.
+const FeatureRunRulesV1 = "run_rules_v1"
+
+// Values of the run rules cheats and memory_write.
+const (
+	RuleOff    = "off"
+	RuleLogged = "logged"
+)
+
+// RunRules are the core rules of a run (not plugin settings); the app enforces them. Without a run everything is allowed.
+type RunRules struct {
+	States      bool   `json:"states"`
+	Rewind      bool   `json:"rewind"`
+	Cheats      string `json:"cheats"`
+	MemoryWrite string `json:"memory_write"`
+}
+
+// DefaultRunRules are the rules of a new run and of every run that existed before run_rules_v1.
+func DefaultRunRules() RunRules { return RunRules{Cheats: RuleOff, MemoryWrite: RuleOff} }
+
+// Validate checks the two enum fields.
+func (r RunRules) Validate() error {
+	for _, v := range []string{r.Cheats, r.MemoryWrite} {
+		if v != RuleOff && v != RuleLogged {
+			return badRequest("cheats and memory_write must be \"off\" or \"logged\"")
+		}
+	}
+	return nil
+}
+
+// Run event types that the app itself writes for the core features (no plugin needed, see AppendRunEvent).
+var coreRunEventTypes = map[string]bool{"cheat.enabled": true, "cheat.disabled": true, "memory.write": true, "state.loaded": true}
+
 // TopicRuns is published when a run changes (the app refreshes its Runs page).
 const TopicRuns = "runs"
 
@@ -165,6 +199,7 @@ type Run struct {
 	StatusBy     string           `json:"status_by"`
 	Settings     json.RawMessage  `json:"settings"`
 	SaveSlot     string           `json:"save_slot"`
+	Rules        RunRules         `json:"rules"`
 	Plugins      []RunPlugin      `json:"plugins"`
 	Participants []RunParticipant `json:"participants"`
 	LastSeq      int64            `json:"last_seq"`
@@ -421,7 +456,7 @@ func inList(ids []string) (string, []any) {
 
 func loadRunsChunked(ctx context.Context, q dbq, ids []string, withState bool, byID map[string]*Run) error {
 	in, args := inList(ids)
-	rows, err := q.QueryContext(ctx, `SELECT id, name, status, archived, created_by, created_at, updated_at, status_by, settings, last_seq
+	rows, err := q.QueryContext(ctx, `SELECT id, name, status, archived, created_by, created_at, updated_at, status_by, settings, last_seq, rules
 		FROM runs WHERE id IN `+in, args...)
 	if err != nil {
 		return internal(err)
@@ -430,11 +465,13 @@ func loadRunsChunked(ctx context.Context, q dbq, ids []string, withState bool, b
 		r := &Run{}
 		var created, updated int64
 		var archived int
-		var settings string
-		if err := rows.Scan(&r.ID, &r.Name, &r.Status, &archived, &r.CreatedBy, &created, &updated, &r.StatusBy, &settings, &r.LastSeq); err != nil {
+		var settings, rules string
+		if err := rows.Scan(&r.ID, &r.Name, &r.Status, &archived, &r.CreatedBy, &created, &updated, &r.StatusBy, &settings, &r.LastSeq, &rules); err != nil {
 			rows.Close()
 			return internal(err)
 		}
+		r.Rules = DefaultRunRules()
+		_ = json.Unmarshal([]byte(rules), &r.Rules) // a damaged value keeps the defaults
 		r.Archived, r.CreatedAt, r.UpdatedAt, r.Settings = archived != 0, unixTime(created), unixTime(updated), json.RawMessage(settings)
 		r.SaveSlot = RunSaveSlot(r.ID)
 		r.Plugins, r.Participants = []RunPlugin{}, []RunParticipant{}
@@ -693,6 +730,7 @@ type CreateRunInput struct {
 	GameID        string
 	InviteUserIDs []string
 	Settings      json.RawMessage
+	Rules         *RunRules // nil = DefaultRunRules
 }
 
 // CreateRun creates a run in status starting. The creator joins with GameID; invited users get run_updated.
@@ -710,6 +748,14 @@ func (s *Service) CreateRun(ctx context.Context, in CreateRunInput) (_ Run, err 
 	if err != nil {
 		return Run{}, err
 	}
+	rules := DefaultRunRules()
+	if in.Rules != nil {
+		rules = *in.Rules
+		if err := rules.Validate(); err != nil {
+			return Run{}, err
+		}
+	}
+	rulesJSON, _ := json.Marshal(rules)
 	seen := map[string]bool{}
 	plugins := make([]RunPlugin, 0, len(in.Plugins))
 	cat := s.pluginCatalog()
@@ -786,8 +832,8 @@ func (s *Service) CreateRun(ctx context.Context, in CreateRunInput) (_ Run, err 
 	defer tx.Rollback()
 	now := s.now().UTC()
 	id := uuid.NewString()
-	if _, err := tx.ExecContext(ctx, `INSERT INTO runs(id, name, status, archived, created_by, created_at, updated_at, status_by, settings, last_seq)
-		VALUES (?, ?, 'starting', 0, ?, ?, ?, ?, ?, 0)`, id, name, in.UserID, now.Unix(), now.Unix(), in.UserID, string(settings)); err != nil {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO runs(id, name, status, archived, created_by, created_at, updated_at, status_by, settings, last_seq, rules)
+		VALUES (?, ?, 'starting', 0, ?, ?, ?, ?, ?, 0, ?)`, id, name, in.UserID, now.Unix(), now.Unix(), in.UserID, string(settings), string(rulesJSON)); err != nil {
 		return Run{}, internal(err)
 	}
 	for i, p := range plugins {
@@ -1334,6 +1380,13 @@ func (s *Service) AppendRunEvent(ctx context.Context, in AppendRunEventInput) (s
 	if !runEventTypeRe.MatchString(in.Type) {
 		return 0, false, badRequest("type must match ^[a-z0-9_.-]{1,64}$")
 	}
+	core := coreRunEventTypes[in.Type]
+	if in.PluginID == "" && !core {
+		return 0, false, badRequest("plugin_id is required")
+	}
+	if in.PluginID != "" && (!runPluginIDRe.MatchString(in.PluginID) || len(in.PluginID) > 128) {
+		return 0, false, badRequest("Invalid plugin reference")
+	}
 	if utf8.RuneCountInString(in.Text) > MaxRunEventText {
 		return 0, false, badRequest("text is longer than %d characters", MaxRunEventText)
 	}
@@ -1341,12 +1394,14 @@ func (s *Service) AppendRunEvent(ctx context.Context, in AppendRunEventInput) (s
 	if err != nil {
 		return 0, false, err
 	}
-	var n int
-	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM run_plugins WHERE run_id = ? AND plugin_id = ?`, in.RunID, in.PluginID).Scan(&n); err != nil {
-		return 0, false, internal(err)
-	}
-	if n == 0 {
-		return 0, false, badRequest("plugin_id is not a plugin of this run")
+	if !core { // the app's own events (cheats, memory writes, state loads) may come without a plugin or from a plugin that is not part of the run
+		var n int
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM run_plugins WHERE run_id = ? AND plugin_id = ?`, in.RunID, in.PluginID).Scan(&n); err != nil {
+			return 0, false, internal(err)
+		}
+		if n == 0 {
+			return 0, false, badRequest("plugin_id is not a plugin of this run")
+		}
 	}
 	if err := requireActive(ctx, tx, in.RunID); err != nil {
 		return 0, false, err
@@ -1358,8 +1413,12 @@ func (s *Service) AppendRunEvent(ctx context.Context, in AppendRunEventInput) (s
 	if last >= MaxRunEvents {
 		return 0, false, conflict("The run has reached its limit of events")
 	}
-	user, dev, plug := in.UserID, in.DeviceID, in.PluginID
-	ev, err := insertEvent(ctx, tx, in.RunID, RunEvent{UserID: &user, UserName: userDisplayName(ctx, tx, in.UserID), DeviceID: &dev, PluginID: &plug,
+	user, dev := in.UserID, in.DeviceID
+	var plug *string
+	if in.PluginID != "" {
+		plug = &in.PluginID
+	}
+	ev, err := insertEvent(ctx, tx, in.RunID, RunEvent{UserID: &user, UserName: userDisplayName(ctx, tx, in.UserID), DeviceID: &dev, PluginID: plug,
 		Source: in.Source, Type: in.Type, Text: in.Text, Payload: payload, ClientID: in.ClientID}, s.now().UTC())
 	if err != nil {
 		return 0, false, err

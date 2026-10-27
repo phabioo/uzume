@@ -18,7 +18,7 @@ func TestOpenMigrateIdempotent(t *testing.T) {
 		t.Fatal(err)
 	}
 	v, _ := SchemaVersion(db)
-	if v != 23 {
+	if v != 24 {
 		t.Fatalf("version %d", v)
 	}
 	var fk int
@@ -32,7 +32,7 @@ func TestOpenMigrateIdempotent(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	if v, _ := SchemaVersion(db); v != 23 {
+	if v, _ := SchemaVersion(db); v != 24 {
 		t.Fatalf("version after restart %d", v)
 	}
 	if _, err := db.Exec(`INSERT INTO devices(id,user_id,name,platform,arch,player_version,credential_hash,status,created_at) VALUES('d','nouser','n','p','a','v','h','trusted',1)`); err == nil {
@@ -95,12 +95,12 @@ func TestBackupBeforeMigration(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	if v, _ := SchemaVersion(db); v != 23 {
+	if v, _ := SchemaVersion(db); v != 24 {
 		t.Fatalf("version %d", v)
 	}
 	bdir := filepath.Join(dir, "backups")
 	got := backupFiles(t, bdir)
-	if len(got) != 1 || got[0] != "hub-3-to-23-20261007T123045Z.db" {
+	if len(got) != 1 || got[0] != "hub-3-to-24-20261007T123045Z.db" {
 		t.Fatalf("backups: %v", got)
 	}
 	bk := rawDB(t, filepath.Join(bdir, got[0]))
@@ -183,7 +183,7 @@ func TestMigration0006KeepsSavesAndAllowsNewReasons(t *testing.T) {
 	}
 	for _, q := range []string{
 		`UPDATE save_slots SET reason = 'restore'`,
-		`INSERT INTO save_history VALUES ('u1','g1','default',3,2,'aa',3,'d1','restore','before_restore',NULL,11,'my label')`,
+		`INSERT INTO save_history VALUES ('u1','g1','default',3,2,'aa',3,'d1','restore','before_restore',NULL,11,'my label',0)`,
 	} {
 		if _, err := db.Exec(q); err != nil {
 			t.Fatal(q, err)
@@ -354,5 +354,47 @@ func TestMigration0017ExistingRowsGetDefaults(t *testing.T) {
 	}
 	if err := db.QueryRow(`SELECT for_user_id FROM invites WHERE id = 'i1'`).Scan(&forUser); err != nil || forUser.Valid {
 		t.Fatalf("invites.for_user_id %v (%v): existing invites create a new user", forUser, err)
+	}
+}
+
+func TestMigration0024RunRulesDefaultsAndStates(t *testing.T) {
+	db := rawDB(t, filepath.Join(t.TempDir(), "s.db"))
+	defer db.Close()
+	if err := migrate(db, "", 23); err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{
+		`INSERT INTO users(id, username, display_name, role, created_at) VALUES ('u1','a','A','admin',1)`,
+		`INSERT INTO runs(id, name, status, created_by, created_at, updated_at, status_by) VALUES ('r1','Old run','active','u1',1,1,'u1')`,
+		`INSERT INTO save_slots(user_id, game_id, slot, revision, sha256, size, device_id, reason, created_at) VALUES ('u1','g1','default',2,'aa',3,'d1','final',10)`,
+	} {
+		if _, err := db.Exec(q); err != nil {
+			t.Fatal(q, err)
+		}
+	}
+	if err := migrate(db, "", 0); err != nil {
+		t.Fatal(err)
+	}
+	// Runs that existed before get the defaults, saves are not marked.
+	var rules string
+	var cheats int
+	if err := db.QueryRow(`SELECT rules FROM runs WHERE id = 'r1'`).Scan(&rules); err != nil || rules != `{"states":false,"rewind":false,"cheats":"off","memory_write":"off"}` {
+		t.Fatalf("rules %q: %v", rules, err)
+	}
+	if err := db.QueryRow(`SELECT cheats_used FROM save_slots`).Scan(&cheats); err != nil || cheats != 0 {
+		t.Fatalf("cheats_used %d: %v", cheats, err)
+	}
+	// States: the number is limited to 0..10 and the primary key is user, game, slot and number.
+	ins := `INSERT INTO save_states(user_id, game_id, slot, n, core_id, core_version, size_bytes, sha256, device_id, created_at) VALUES ('u1','g1','default',?,'c','1',5,'aa','d1',1)`
+	for _, n := range []int{0, 10} {
+		if _, err := db.Exec(ins, n); err != nil {
+			t.Fatal(n, err)
+		}
+	}
+	if _, err := db.Exec(ins, 11); err == nil {
+		t.Fatal("state number 11 accepted")
+	}
+	if _, err := db.Exec(ins, 10); err == nil {
+		t.Fatal("duplicate state accepted")
 	}
 }

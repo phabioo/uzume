@@ -59,8 +59,9 @@ func (s *Service) RestoreSaveVersion(ctx context.Context, in RestoreInput) (_ Sa
 	}
 	var sha string
 	var size int64
-	err = tx.QueryRowContext(ctx, `SELECT sha256, size FROM save_history WHERE user_id = ? AND game_id = ? AND slot = ? AND version = ?`,
-		u, g, sl, in.Version).Scan(&sha, &size)
+	var cheats int
+	err = tx.QueryRowContext(ctx, `SELECT sha256, size, cheats_used FROM save_history WHERE user_id = ? AND game_id = ? AND slot = ? AND version = ?`,
+		u, g, sl, in.Version).Scan(&sha, &size, &cheats)
 	if errors.Is(err, sql.ErrNoRows) {
 		return SaveSlot{}, ErrNotFound
 	}
@@ -76,8 +77,8 @@ func (s *Service) RestoreSaveVersion(ctx context.Context, in RestoreInput) (_ Sa
 	if err := captureCheckpoint(ctx, tx, u, g, sl, cur, HistoryBeforeRestore); err != nil {
 		return SaveSlot{}, internal(err)
 	}
-	if _, err := tx.ExecContext(ctx, `UPDATE save_slots SET revision = ?, sha256 = ?, size = ?, device_id = ?, reason = ?, created_at = ?
-		WHERE user_id = ? AND game_id = ? AND slot = ?`, cur.Revision+1, sha, size, in.DeviceID, SyncRestore, s.now().Unix(), u, g, sl); err != nil {
+	if _, err := tx.ExecContext(ctx, `UPDATE save_slots SET revision = ?, sha256 = ?, size = ?, device_id = ?, reason = ?, created_at = ?, cheats_used = ?
+		WHERE user_id = ? AND game_id = ? AND slot = ?`, cur.Revision+1, sha, size, in.DeviceID, SyncRestore, s.now().Unix(), cheats, u, g, sl); err != nil {
 		return SaveSlot{}, internal(err)
 	}
 	out, err := loadSlot(ctx, tx, u, g, sl)
@@ -192,7 +193,7 @@ func (s *Service) UploadSaveFile(ctx context.Context, in UploadSaveInput) (_ Sav
 	if _, err := tx.ExecContext(ctx, `INSERT INTO save_slots(user_id, game_id, slot, revision, sha256, size, device_id, reason, created_at)
 		VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(user_id, game_id, slot) DO UPDATE SET revision = excluded.revision,
 		sha256 = excluded.sha256, size = excluded.size, device_id = excluded.device_id, reason = excluded.reason,
-		created_at = excluded.created_at`, u, g, sl, rev, sha, size, in.DeviceID, SyncUpload, s.now().Unix()); err != nil {
+		created_at = excluded.created_at, cheats_used = 0`, u, g, sl, rev, sha, size, in.DeviceID, SyncUpload, s.now().Unix()); err != nil {
 		return SaveSlot{}, internal(err)
 	}
 	out, err := loadSlot(ctx, tx, u, g, sl)
@@ -237,7 +238,7 @@ func (s *Service) CreateSaveSnapshot(ctx context.Context, userID, gameID, slot s
 		return SaveVersion{}, err
 	}
 	ver, err := addHistory(ctx, tx, userID, gameID, slot, historyEntry{revision: cur.Revision, sha: cur.SHA256, size: cur.Size,
-		deviceID: cur.DeviceID, syncReason: cur.Reason, reason: HistoryManualSnapshot, createdAt: s.now().Unix(), label: lbl})
+		deviceID: cur.DeviceID, syncReason: cur.Reason, reason: HistoryManualSnapshot, createdAt: s.now().Unix(), label: lbl, cheatsUsed: cur.CheatsUsed})
 	if err != nil {
 		return SaveVersion{}, internal(err)
 	}
@@ -346,8 +347,8 @@ func (s *Service) CreateSaveSlot(ctx context.Context, userID, gameID, fromSlot, 
 		}
 	}()
 	now := s.now().Unix()
-	if _, err := tx.ExecContext(ctx, `INSERT INTO save_slots(user_id, game_id, slot, revision, sha256, size, device_id, reason, created_at)
-		VALUES (?,?,?,?,?,?,?,?,?)`, userID, gameID, newSlot, 1, src.SHA256, src.Size, deviceID, SyncRestore, now); err != nil {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO save_slots(user_id, game_id, slot, revision, sha256, size, device_id, reason, created_at, cheats_used)
+		VALUES (?,?,?,?,?,?,?,?,?,?)`, userID, gameID, newSlot, 1, src.SHA256, src.Size, deviceID, SyncRestore, now, b2i(src.CheatsUsed)); err != nil {
 		return SaveSlot{}, internal(err)
 	}
 	label := fmt.Sprintf("From “%s”", fromSlot)
@@ -355,7 +356,7 @@ func (s *Service) CreateSaveSlot(ctx context.Context, userID, gameID, fromSlot, 
 		label = string(r[:MaxSnapshotLabel])
 	}
 	if _, err := addHistory(ctx, tx, userID, gameID, newSlot, historyEntry{revision: 1, sha: src.SHA256, size: src.Size,
-		deviceID: deviceID, syncReason: SyncRestore, reason: HistoryManualSnapshot, createdAt: now, label: &label}); err != nil {
+		deviceID: deviceID, syncReason: SyncRestore, reason: HistoryManualSnapshot, createdAt: now, label: &label, cheatsUsed: src.CheatsUsed}); err != nil {
 		return SaveSlot{}, internal(err)
 	}
 	out, err := loadSlot(ctx, tx, userID, gameID, newSlot)

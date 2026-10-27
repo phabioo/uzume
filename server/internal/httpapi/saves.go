@@ -19,7 +19,7 @@ func mustUUID(s string) uuid.UUID {
 
 func toAPICheckpoint(c hub.SaveCheckpoint) api.SaveCheckpoint {
 	return api.SaveCheckpoint{Revision: c.Revision, Sha256: c.SHA256, Size: c.Size, DeviceId: mustUUID(c.DeviceID),
-		DeviceName: c.DeviceName, CreatedAt: c.CreatedAt, Reason: api.SaveSyncReason(c.Reason)}
+		DeviceName: c.DeviceName, CreatedAt: c.CreatedAt, Reason: api.SaveSyncReason(c.Reason), CheatsUsed: optTrue(c.CheatsUsed)}
 }
 
 func toAPIConflict(c hub.SaveConflict) api.SaveConflict {
@@ -70,7 +70,7 @@ func (s *Server) PutSave(ctx context.Context, req api.PutSaveRequestObject) (api
 	p := principal(ctx)
 	res, err := s.svc.PutSave(ctx, hub.PutSaveInput{UserID: p.User.ID, DeviceID: p.Device.ID, GameID: req.GameId.String(),
 		Slot: req.Slot, BaseRevision: req.Params.XUzumeBaseRevision, SHA256: req.Params.XUzumeContentSHA256,
-		Reason: string(req.Params.XUzumeSyncReason), Body: req.Body})
+		Reason: string(req.Params.XUzumeSyncReason), CheatsUsed: req.Params.XUzumeCheatsUsed != nil && *req.Params.XUzumeCheatsUsed, Body: req.Body})
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +101,7 @@ func (s *Server) ListSaveHistory(ctx context.Context, req api.ListSaveHistoryReq
 	for _, v := range vs {
 		out.Versions = append(out.Versions, api.SaveHistoryVersion{Version: v.Version, Revision: v.Revision, Sha256: v.SHA256,
 			Size: v.Size, DeviceId: mustUUID(v.DeviceID), DeviceName: v.DeviceName, CreatedAt: v.CreatedAt,
-			Reason: api.SaveHistoryReason(v.Reason), Label: v.Label})
+			Reason: api.SaveHistoryReason(v.Reason), Label: v.Label, CheatsUsed: optTrue(v.CheatsUsed)})
 	}
 	return out, nil
 }
@@ -132,7 +132,7 @@ func (s *Server) ResolveSaveConflict(ctx context.Context, req api.ResolveSaveCon
 func toAPIVersion(v hub.SaveVersion) api.SaveHistoryVersion {
 	return api.SaveHistoryVersion{Version: v.Version, Revision: v.Revision, Sha256: v.SHA256, Size: v.Size,
 		DeviceId: mustUUID(v.DeviceID), DeviceName: v.DeviceName, CreatedAt: v.CreatedAt,
-		Reason: api.SaveHistoryReason(v.Reason), Label: v.Label}
+		Reason: api.SaveHistoryReason(v.Reason), Label: v.Label, CheatsUsed: optTrue(v.CheatsUsed)}
 }
 
 func (s *Server) RestoreSaveHistoryVersion(ctx context.Context, req api.RestoreSaveHistoryVersionRequestObject) (api.RestoreSaveHistoryVersionResponseObject, error) {
@@ -204,4 +204,12 @@ func (s *Server) DeleteSaveSlot(ctx context.Context, req api.DeleteSaveSlotReque
 		return nil, err
 	}
 	return api.DeleteSaveSlot204Response{}, nil
+}
+
+// optTrue is the optional cheats_used field: present only when true (an absent field reads as false).
+func optTrue(b bool) *bool {
+	if !b {
+		return nil
+	}
+	return &b
 }

@@ -60,6 +60,9 @@ func (s *Server) CreateRun(ctx context.Context, req api.CreateRunRequestObject) 
 	if b.Settings != nil {
 		in.Settings = json.RawMessage(*b.Settings)
 	}
+	if b.Rules != nil {
+		in.Rules = &hub.RunRules{States: b.Rules.States, Rewind: b.Rules.Rewind, Cheats: string(b.Rules.Cheats), MemoryWrite: string(b.Rules.MemoryWrite)}
+	}
 	run, err := s.svc.CreateRun(ctx, in)
 	if err != nil {
 		return nil, err
@@ -177,7 +180,10 @@ func (s *Server) AppendRunEvent(ctx context.Context, req api.AppendRunEventReque
 	}
 	b, p := req.Body, principal(ctx)
 	in := hub.AppendRunEventInput{UserID: p.User.ID, DeviceID: p.Device.ID, RunID: req.RunId.String(), ClientID: b.ClientId.String(),
-		PluginID: b.PluginId, Source: string(b.Source), Type: b.Type}
+		Source: string(b.Source), Type: b.Type}
+	if b.PluginId != nil {
+		in.PluginID = *b.PluginId
+	}
 	if b.Text != nil {
 		in.Text = *b.Text
 	}
@@ -227,4 +233,22 @@ func (s *Server) PutRunBoard(ctx context.Context, req api.PutRunBoardRequestObje
 		return nil, err
 	}
 	return api.PutRunBoard200JSONResponse{Rev: rev}, nil
+}
+
+func (s *Server) SetRunRules(ctx context.Context, req api.SetRunRulesRequestObject) (api.SetRunRulesResponseObject, error) {
+	if req.Body == nil {
+		return nil, hub.ErrBadRequest
+	}
+	p := principal(ctx)
+	b := req.Body
+	run, err := s.svc.SetRunRules(ctx, p.User.ID, req.RunId.String(), hub.RunRules{States: b.States, Rewind: b.Rewind,
+		Cheats: string(b.Cheats), MemoryWrite: string(b.MemoryWrite)}, p.User.Role == hub.RoleAdmin)
+	if err != nil {
+		return nil, err
+	}
+	ar, err := toAPIRun(run)
+	if err != nil {
+		return nil, err
+	}
+	return api.SetRunRules200JSONResponse(ar), nil
 }

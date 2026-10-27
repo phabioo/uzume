@@ -144,11 +144,11 @@ func TestSnapshotLabelAndErrors(t *testing.T) {
 	if v, err = snap(nil); err != nil || v.Label != nil || v.Version != 3 {
 		t.Fatalf("no label: %+v %v", v, err)
 	}
-	if v, err = snap(s(strings.Repeat("ä", 64))); err != nil || *v.Label != strings.Repeat("ä", 64) {
-		t.Fatalf("64 characters: %v", err)
+	if v, err = snap(s(strings.Repeat("ä", 120))); err != nil || *v.Label != strings.Repeat("ä", 120) {
+		t.Fatalf("120 characters: %v", err)
 	}
-	if _, err = snap(s(strings.Repeat("x", 65))); !errors.Is(err, hub.ErrBadRequest) {
-		t.Fatalf("65 characters: %v", err)
+	if _, err = snap(s(strings.Repeat("x", 121))); !errors.Is(err, hub.ErrBadRequest) {
+		t.Fatalf("121 characters: %v", err)
 	}
 	if _, err = e.svc.CreateSaveSnapshot(ctx, e.user.ID, e.game.ID, "nope", nil); !errors.Is(err, hub.ErrNotFound) {
 		t.Fatalf("unknown slot: %v", err)
