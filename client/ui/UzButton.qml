@@ -19,8 +19,10 @@ Button {
     property string value: ""
     property bool chevron: false
     property bool inverted: false
-    readonly property real extrasWidth: (value !== "" ? valueItem.implicitWidth + (labelItem.visible ? 8 : 0) : 0)
-                                        + (chevron ? 12 + (labelItem.visible || value !== "" ? 8 : 0) : 0)
+    // Whether the label shows; not `labelItem.visible`, which is also false while an ancestor is hidden and left a zero width behind.
+    readonly property bool showLabel: text !== "" || (value === "" && !chevron)
+    readonly property real extrasWidth: (value !== "" ? valueItem.implicitWidth + (showLabel ? 8 : 0) : 0)
+                                        + (chevron ? 12 + (showLabel || value !== "" ? 8 : 0) : 0)
     // Only the person may operate it: the debug MCP server (ADR 0032 D4) refuses to click it. Danger buttons are destructive by default;
     // set true on others that share, install or overwrite.
     property bool destructive: kind === "danger"
@@ -33,7 +35,7 @@ Button {
     implicitHeight: kind === "link" ? Theme.row28 : (size === "sm" ? Theme.row32 : Theme.row36)
     property real hPadding: kind === "link" ? 8 : (size === "sm" ? 24 : 32)   // total horizontal padding around the label (2 x space-1.5 / space-2)
     // Natural label width: from the label's implicitWidth, never from its assigned (possibly capped) width.
-    readonly property real labelNaturalWidth: (labelItem.visible ? labelItem.implicitWidth : 0) + extrasWidth + (control.working ? 20 : 0)
+    readonly property real labelNaturalWidth: (showLabel ? labelItem.implicitWidth : 0) + extrasWidth + (control.working ? 20 : 0)
     implicitWidth: Math.max(kind === "link" ? 0 : 72, labelNaturalWidth + hPadding)
     padding: 0
     // In a Flow/Row-like container the button never grows past the container (the label elides); layouts size it themselves.
@@ -80,7 +82,7 @@ Button {
             Text {
                 id: labelItem
                 objectName: "fbButtonLabel"
-                visible: control.text !== "" || (control.value === "" && !control.chevron)
+                visible: control.showLabel
                 textFormat: control.textFormat
                 text: control.text
                 font: control.font
