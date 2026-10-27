@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://uzume.invalid/schemas/ws-chat-send.schema.json",
+  "title": "ws-chat-send (app to server)",
+  "type": "object",
+  "required": [
+    "type",
+    "payload"
+  ],
+  "properties": {
+    "type": {
+      "const": "chat_send"
+    },
+    "id": {
+      "type": "string"
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "scope",
+        "id",
+        "client_id",
+        "text"
+      ],
+      "properties": {
+        "scope": {
+          "enum": [
+            "run",
+            "session"
+          ],
+          "description": "run: the joined participants of the run; session: the owner and the viewers of the Session."
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "client_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Chosen by the app (at most 100 characters). Sending the same client_id again returns the stored chat_message to the sender only."
+        },
+        "text": {
+          "type": "string",
+          "description": "Trimmed by the server; 1 to 500 Unicode characters afterwards. @name tokens are resolved to mentions."
+        }
+      }
+    }
+  },
+  "description": "A member sends a chat message to a run or Session. Non-members get error forbidden, bad text or client_id gets bad_request, more than 2 messages/s (burst 5) per user gets rate_limited. Needs together_v1."
+}

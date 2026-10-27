@@ -3463,6 +3463,28 @@ type AdminUserUpdate struct {
 	DisplayName string `json:"display_name"`
 }
 
+// ChatMessage defines model for ChatMessage.
+type ChatMessage struct {
+	ClientId string `json:"client_id"`
+
+	// Mentions User IDs of the members named with `@name`
+	Mentions []string  `json:"mentions"`
+	SentAt   time.Time `json:"sent_at"`
+
+	// Seq Per run or Session, from 1
+	Seq    int64  `json:"seq"`
+	Text   string `json:"text"`
+	UserId string `json:"user_id"`
+}
+
+// ChatMessageList defines model for ChatMessageList.
+type ChatMessageList struct {
+	Messages []ChatMessage `json:"messages"`
+
+	// NextAfterSeq Present when more messages follow
+	NextAfterSeq *int64 `json:"next_after_seq,omitempty"`
+}
+
 // CheatFormat defines model for CheatFormat.
 type CheatFormat string
 
@@ -5252,6 +5274,12 @@ type DownloadRomParams struct {
 	Range *string `json:"Range,omitempty"`
 }
 
+// ListRunChatParams defines parameters for ListRunChat.
+type ListRunChatParams struct {
+	AfterSeq *int64 `form:"after_seq,omitempty" json:"after_seq,omitempty"`
+	Limit    *int   `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // ListRunEventsParams defines parameters for ListRunEvents.
 type ListRunEventsParams struct {
 	After *int64 `form:"after,omitempty" json:"after,omitempty"`
@@ -6525,6 +6553,9 @@ type ServerInterface interface {
 	// Publish the plugin's board (building-block tree, at most 64 KiB) for the server web run page
 	// (PUT /api/v1/runs/{run_id}/boards/{plugin_id})
 	PutRunBoard(w http.ResponseWriter, r *http.Request, runId RunId, pluginId RunPluginId)
+	// Chat messages with seq greater than `after_seq`, in order (joined participants)
+	// (GET /api/v1/runs/{run_id}/chat)
+	ListRunChat(w http.ResponseWriter, r *http.Request, runId RunId, params ListRunChatParams)
 	// Decline the invite (only from invited; declining again is a no-op)
 	// (POST /api/v1/runs/{run_id}/decline)
 	DeclineRun(w http.ResponseWriter, r *http.Request, runId RunId)
@@ -6585,6 +6616,9 @@ type ServerInterface interface {
 	// Change the visibility (owner device); revokes viewers that are no longer allowed
 	// (PATCH /api/v1/sessions/{session_id})
 	UpdateSession(w http.ResponseWriter, r *http.Request, sessionId SessionId)
+	// The chat of a Session (owner and viewers)
+	// (GET /api/v1/sessions/{session_id}/chat)
+	ListSessionChat(w http.ResponseWriter, r *http.Request, sessionId SessionId)
 	// Decline the invite (invited user); the owner is notified via session_update
 	// (POST /api/v1/sessions/{session_id}/decline)
 	DeclineSession(w http.ResponseWriter, r *http.Request, sessionId SessionId)
@@ -12846,6 +12880,67 @@ func (siw *ServerInterfaceWrapper) PutRunBoard(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// ListRunChat operation middleware
+func (siw *ServerInterfaceWrapper) ListRunChat(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "run_id" -------------
+	var runId RunId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "run_id", r.PathValue("run_id"), &runId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "run_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListRunChatParams
+
+	// ------------- Optional query parameter "after_seq" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "after_seq", r.URL.Query(), &params.AfterSeq, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "after_seq"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "after_seq", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListRunChat(w, r, runId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // DeclineRun operation middleware
 func (siw *ServerInterfaceWrapper) DeclineRun(w http.ResponseWriter, r *http.Request) {
 
@@ -13479,6 +13574,38 @@ func (siw *ServerInterfaceWrapper) UpdateSession(w http.ResponseWriter, r *http.
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.UpdateSession(w, r, sessionId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListSessionChat operation middleware
+func (siw *ServerInterfaceWrapper) ListSessionChat(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "session_id" -------------
+	var sessionId SessionId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "session_id", r.PathValue("session_id"), &sessionId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "session_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListSessionChat(w, r, sessionId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -14454,6 +14581,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/runs", wrapper.CreateRun)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/runs/{run_id}", wrapper.GetRun)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/api/v1/runs/{run_id}/boards/{plugin_id}", wrapper.PutRunBoard)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/runs/{run_id}/chat", wrapper.ListRunChat)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/runs/{run_id}/decline", wrapper.DeclineRun)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/runs/{run_id}/events", wrapper.ListRunEvents)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/runs/{run_id}/events", wrapper.AppendRunEvent)
@@ -14474,6 +14602,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/api/v1/sessions/{session_id}", wrapper.EndSession)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/sessions/{session_id}", wrapper.GetSession)
 	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/api/v1/sessions/{session_id}", wrapper.UpdateSession)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/sessions/{session_id}/chat", wrapper.ListSessionChat)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/sessions/{session_id}/decline", wrapper.DeclineSession)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/api/v1/sessions/{session_id}/invites/{user_id}", wrapper.WithdrawSessionInvite)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/api/v1/sessions/{session_id}/invites/{user_id}", wrapper.InviteSessionUser)
@@ -27546,6 +27675,85 @@ func (response PutRunBoard429JSONResponse) VisitPutRunBoardResponse(w http.Respo
 	return err
 }
 
+type ListRunChatRequestObject struct {
+	RunId  RunId `json:"run_id"`
+	Params ListRunChatParams
+}
+
+type ListRunChatResponseObject interface {
+	VisitListRunChatResponse(w http.ResponseWriter) error
+}
+
+type ListRunChat200JSONResponse ChatMessageList
+
+func (response ListRunChat200JSONResponse) VisitListRunChatResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListRunChat400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response ListRunChat400JSONResponse) VisitListRunChatResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListRunChat401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListRunChat401JSONResponse) VisitListRunChatResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListRunChat403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListRunChat403JSONResponse) VisitListRunChatResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListRunChat404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ListRunChat404JSONResponse) VisitListRunChatResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type DeclineRunRequestObject struct {
 	RunId RunId `json:"run_id"`
 }
@@ -29156,6 +29364,84 @@ func (response UpdateSession413JSONResponse) VisitUpdateSessionResponse(w http.R
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(413)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListSessionChatRequestObject struct {
+	SessionId SessionId `json:"session_id"`
+}
+
+type ListSessionChatResponseObject interface {
+	VisitListSessionChatResponse(w http.ResponseWriter) error
+}
+
+type ListSessionChat200JSONResponse ChatMessageList
+
+func (response ListSessionChat200JSONResponse) VisitListSessionChatResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListSessionChat401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListSessionChat401JSONResponse) VisitListSessionChatResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListSessionChat403JSONResponse struct{ SessionForbiddenJSONResponse }
+
+func (response ListSessionChat403JSONResponse) VisitListSessionChatResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListSessionChat404JSONResponse struct{ SessionNotFoundJSONResponse }
+
+func (response ListSessionChat404JSONResponse) VisitListSessionChatResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListSessionChat410JSONResponse struct{ SessionEndedJSONResponse }
+
+func (response ListSessionChat410JSONResponse) VisitListSessionChatResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(410)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -31052,6 +31338,9 @@ type StrictServerInterface interface {
 	// Publish the plugin's board (building-block tree, at most 64 KiB) for the server web run page
 	// (PUT /api/v1/runs/{run_id}/boards/{plugin_id})
 	PutRunBoard(ctx context.Context, request PutRunBoardRequestObject) (PutRunBoardResponseObject, error)
+	// Chat messages with seq greater than `after_seq`, in order (joined participants)
+	// (GET /api/v1/runs/{run_id}/chat)
+	ListRunChat(ctx context.Context, request ListRunChatRequestObject) (ListRunChatResponseObject, error)
 	// Decline the invite (only from invited; declining again is a no-op)
 	// (POST /api/v1/runs/{run_id}/decline)
 	DeclineRun(ctx context.Context, request DeclineRunRequestObject) (DeclineRunResponseObject, error)
@@ -31112,6 +31401,9 @@ type StrictServerInterface interface {
 	// Change the visibility (owner device); revokes viewers that are no longer allowed
 	// (PATCH /api/v1/sessions/{session_id})
 	UpdateSession(ctx context.Context, request UpdateSessionRequestObject) (UpdateSessionResponseObject, error)
+	// The chat of a Session (owner and viewers)
+	// (GET /api/v1/sessions/{session_id}/chat)
+	ListSessionChat(ctx context.Context, request ListSessionChatRequestObject) (ListSessionChatResponseObject, error)
 	// Decline the invite (invited user); the owner is notified via session_update
 	// (POST /api/v1/sessions/{session_id}/decline)
 	DeclineSession(ctx context.Context, request DeclineSessionRequestObject) (DeclineSessionResponseObject, error)
@@ -36430,6 +36722,33 @@ func (sh *strictHandler) PutRunBoard(w http.ResponseWriter, r *http.Request, run
 	}
 }
 
+// ListRunChat operation middleware
+func (sh *strictHandler) ListRunChat(w http.ResponseWriter, r *http.Request, runId RunId, params ListRunChatParams) {
+	var request ListRunChatRequestObject
+
+	request.RunId = runId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListRunChat(ctx, request.(ListRunChatRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListRunChat")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListRunChatResponseObject); ok {
+		if err := validResponse.VisitListRunChatResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // DeclineRun operation middleware
 func (sh *strictHandler) DeclineRun(w http.ResponseWriter, r *http.Request, runId RunId) {
 	var request DeclineRunRequestObject
@@ -37002,6 +37321,32 @@ func (sh *strictHandler) UpdateSession(w http.ResponseWriter, r *http.Request, s
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(UpdateSessionResponseObject); ok {
 		if err := validResponse.VisitUpdateSessionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListSessionChat operation middleware
+func (sh *strictHandler) ListSessionChat(w http.ResponseWriter, r *http.Request, sessionId SessionId) {
+	var request ListSessionChatRequestObject
+
+	request.SessionId = sessionId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListSessionChat(ctx, request.(ListSessionChatRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListSessionChat")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListSessionChatResponseObject); ok {
+		if err := validResponse.VisitListSessionChatResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

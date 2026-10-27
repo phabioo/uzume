@@ -649,6 +649,7 @@ func (s *Service) endLocked(ctx context.Context, d *sessionData, reason string) 
 		s.cancelViewerGrace(v.id)
 	}
 	s.reconcileTogether(scopeSession, d.id, nil) // the ready check is cancelled and the pause cleared
+	s.dropSessionChat(d.id)
 	for _, c := range s.clients() {
 		if d.allows(c.userID, c.deviceID) {
 			c.sendMsg("session_ended", "", map[string]string{"session_id": d.id, "reason": reason})
@@ -663,6 +664,7 @@ func (s *Service) endLocked(ctx context.Context, d *sessionData, reason string) 
 func (s *Service) broadcastSession(before, after *sessionData, inviteUser string) {
 	if after.ended {
 		s.reconcileTogether(scopeSession, after.id, nil)
+		s.dropSessionChat(after.id)
 	} else {
 		s.reconcileTogether(scopeSession, after.id, sessionMembers(after))
 	}

@@ -64,6 +64,9 @@ type Options struct {
 	OwnerGrace time.Duration
 	// ReadyCheckTTL is how long a ready check stays open (default 30 s; injectable for tests).
 	ReadyCheckTTL time.Duration
+
+	// RunChatMax is the number of chat messages kept per run (default 10000; injectable for tests).
+	RunChatMax int
 	// CoreBuildbotURL is the libretro buildbot nightly base URL (default https://buildbot.libretro.com/nightly), CoreInfoURL
 	// the core info archive (default https://buildbot.libretro.com/assets/frontend/info.zip). Both https only (ADR 0020).
 	CoreBuildbotURL, CoreInfoURL string
@@ -150,6 +153,7 @@ type Service struct {
 	rep    reportState
 	play   playState
 	tg     togetherState
+	chat   chatState
 
 	child       bool       // running as the app's child process (Options.Child)
 	localMu     sync.Mutex // local setup defaults
@@ -190,6 +194,7 @@ func Open(ctx context.Context, db *sql.DB, o Options) (*Service, error) {
 	s.saveKeep = saveRetention{recent: o.SaveKeepRecent, daily: o.SaveKeepDaily, weekly: o.SaveKeepWeekly}
 	s.sess.init(o)
 	s.tg.init(o)
+	s.chat.max = o.RunChatMax
 	s.initPlay(o)
 	s.cores.init(o)
 	s.cheat.init(o)

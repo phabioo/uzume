@@ -296,3 +296,27 @@ func (s *Server) SetRunRules(ctx context.Context, req api.SetRunRulesRequestObje
 	}
 	return api.SetRunRules200JSONResponse(ar), nil
 }
+
+func toAPIChat(ms []hub.ChatMessage) []api.ChatMessage {
+	out := make([]api.ChatMessage, 0, len(ms))
+	for _, m := range ms {
+		out = append(out, api.ChatMessage{Seq: m.Seq, UserId: m.UserID, Text: m.Text, SentAt: m.SentAt, Mentions: m.Mentions, ClientId: m.ClientID})
+	}
+	return out
+}
+
+func (s *Server) ListRunChat(ctx context.Context, req api.ListRunChatRequestObject) (api.ListRunChatResponseObject, error) {
+	var after int64
+	limit := hub.DefaultChatPage
+	if req.Params.AfterSeq != nil {
+		after = *req.Params.AfterSeq
+	}
+	if req.Params.Limit != nil {
+		limit = *req.Params.Limit
+	}
+	msgs, next, err := s.svc.ListRunChat(ctx, principal(ctx).User.ID, req.RunId.String(), after, limit)
+	if err != nil {
+		return nil, err
+	}
+	return api.ListRunChat200JSONResponse{Messages: toAPIChat(msgs), NextAfterSeq: next}, nil
+}

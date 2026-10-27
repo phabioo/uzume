@@ -206,7 +206,7 @@ func (s *Server) authMiddleware(next api.StrictHandlerFunc, op string) api.Stric
 			"AddFavorite", "RemoveFavorite", "ListCollections", "CreateCollection", "RenameCollection", "DeleteCollection", "AddCollectionGame", "RemoveCollectionGame",
 			"ListTools", "GetToolPackage", "ListVariants", "ListGameVariants", "CreateVariant", "RenameVariant", "DeleteVariant", "GetRunVariant", "SetRunVariantState",
 			"ListAdminTools", "UpdateAdminTool", "SyncAdminTool", "InstallAdminToolVersion", "RemoveAdminToolVersion",
-			"ListRuns", "CreateRun", "GetRun", "JoinRun", "DeclineRun", "LeaveRun", "InviteRun", "SetRunStatus", "PutRunState", "AppendRunEvent", "ListRunEvents", "PutRunBoard":
+			"ListRuns", "CreateRun", "GetRun", "JoinRun", "DeclineRun", "LeaveRun", "InviteRun", "SetRunStatus", "PutRunState", "AppendRunEvent", "ListRunEvents", "PutRunBoard", "ListRunChat", "ListSessionChat":
 			p, err := s.svc.Authenticate(ctx, tok)
 			if err != nil {
 				return nil, err
