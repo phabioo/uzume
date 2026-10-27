@@ -38,3 +38,4 @@ New ADR: `docs/adr/NNNN-title.md` with status, date, deciders, context, decision
 | [0030](0030-one-app-one-server-uzume.md) | One app, one server, new name Uzume (0.18): Rename, no web admin, accounts, server commands | Accepted |
 | [0031](0031-game-variants-and-randomizer.md) | Game variants and the randomizer (0.21): Variants with own save slots, tools catalog | Proposed |
 | [0032](0032-debug-mcp-server.md) | Debug MCP server in the app: localhost, opt-in, token, tools to read and control | Accepted |
+| [0033](0033-together.md) | Together (0.23): presence, notifications, ready check, chat, viewer quality, mixer, voice chat, controller hand-over | Accepted for implementation |
