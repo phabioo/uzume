@@ -101,13 +101,19 @@ Item {
             id: rowLayout
             spacing: Theme.gapPx(root.node.gap)
             property int fillers: 0
+            // A row with an input: its texts keep their natural width, so the input takes the free space (otherwise the
+            // texts and the input share it and the left edge of the inputs differs from row to row).
+            property bool hasInput: false
             function countFillers() {
                 var n = 0
+                var input = false
                 for (var i = 0; i < root.kids.length; ++i) {
                     const k = root.kids[i] || ({})
                     if (root.shrinks(k.type) || (k.type === "image" && !!k.label)) ++n
+                    if (k.type === "textfield" || k.type === "textarea") input = true
                 }
                 fillers = n
+                hasInput = input
             }
             Component.onCompleted: countFillers()
             Connections { target: root; function onKidsChanged() { rowLayout.countFillers() } }
@@ -126,7 +132,7 @@ Item {
                     readonly property bool yields: kid.type === "badge" || kid.type === "chip"
                     // fillWidth + maximumWidth = natural width: never grows, but shrinks (a Layout item without fillWidth would not)
                     Layout.fillWidth: giveWay || yields
-                    Layout.maximumWidth: yields ? implicitWidth : Number.POSITIVE_INFINITY
+                    Layout.maximumWidth: yields || (rowLayout.hasInput && kid.type === "text") ? implicitWidth : Number.POSITIVE_INFINITY
                     Layout.minimumWidth: kid.type === "text" ? Math.min(implicitWidth, Math.round(96 * Theme.textScale))
                                          : giveWay || yields ? 0 : implicitWidth
                     Layout.fillHeight: root.node.align === "stretch"

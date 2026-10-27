@@ -202,7 +202,7 @@ Item {
     function toastAction(toast, act) {
         if (toast.host) {
             if (act.action === "restart") plugins.reloadPlugin(act.value)
-            else if (act.action === "details") root.detailsRequested()
+            else if (act.action === "details") { plugins.selectConsolePlugin(act.value); root.detailsRequested() }
         } else {
             plugins.sendAction(toast.pluginId, "toast", act.action, act.value)
         }

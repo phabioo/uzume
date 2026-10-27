@@ -369,6 +369,24 @@ class McpUiTest : public QObject {
     plugins->setDeveloperMode(false);
   }
 
+  // 0.22: game_start run_id starts the game through the run (Play on the run page); an unknown run answers run_unavailable.
+  void gameStartRunIdNeedsAPlayableRun() {
+    const ToolDef* def = registry.find(QStringLiteral("game_start"));
+    QVERIFY(def != nullptr);
+    QVERIFY(def->inputSchema.value("properties").toObject().contains("run_id"));
+    ui::PluginsController* plugins = h->controller->plugins();
+    plugins->setDeveloperMode(true);
+    const Answer both = call(QStringLiteral("game_start"), {{"gameId", "g1"}, {"run_id", "r1"}, {"slot", "Main"}});
+    QVERIFY(both.result.isError);
+    QVERIFY(both.text().contains(QStringLiteral("exclude each other")));
+    const Answer gone = call(QStringLiteral("game_start"),
+                             {{"gameId", "g1"}, {"run_id", "00000000-0000-0000-0000-000000000000"}, {"identity", QJsonObject{{"system", "3ds"}, {"code", "0004000000174600"}}}});
+    QVERIFY(gone.result.isError);
+    QVERIFY(gone.text().startsWith(QStringLiteral("run_unavailable")));
+    QVERIFY(plugins->identityOverride().isEmpty());  // nothing stays armed for a start that did not happen
+    plugins->setDeveloperMode(false);
+  }
+
   void noQmlWarnings() { QCOMPARE(uitest::warningCount().load(), 0); }
 };
 

@@ -85,7 +85,8 @@ UzDialog {
         contentHeight: body.implicitHeight
         clip: true
         boundsBehavior: Flickable.StopAtBounds
-        ScrollBar.vertical: ScrollBar {}
+        // Always visible while the form is taller than the dialog: the rule settings sit below the fold at 1280x800.
+        ScrollBar.vertical: ScrollBar { policy: scroller.contentHeight > scroller.height + 1 ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff }
         ColumnLayout {
             id: body
             width: scroller.width - Theme.space15

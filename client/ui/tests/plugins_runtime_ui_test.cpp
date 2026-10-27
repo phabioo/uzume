@@ -411,6 +411,12 @@ class PluginsRuntimeUiTest : public QObject {
     const QVariantMap model = m_pc->devConsole()->buildModel();
     QVERIFY(model.value("unpacked").toBool());
     QVERIFY(QDir(model.value("folder").toString()) == QDir(good));
+    // A second folder: the console switches to the plugin that was just loaded (not the first one it listed).
+    const QString second = writePlugin(m_src.path(), "net.test.second", {{"name", "Second Helper"}}, "fb.log.info('ok')");
+    QCOMPARE(m_pc->loadUnpacked(second).value("state").toString(), QStringLiteral("ok"));
+    QCOMPARE(m_pc->devConsole()->selectedId(), QStringLiteral("net.test.second"));
+    m_pc->selectConsolePlugin(QStringLiteral("net.test.good"));
+    QCOMPARE(m_pc->devConsole()->selectedId(), QStringLiteral("net.test.good"));
     // Developer mode off: nothing loads.
     m_pc->setDeveloperMode(false);
     QCOMPARE(m_pc->loadUnpacked(good).value("state").toString(), QStringLiteral("error"));
@@ -441,7 +447,11 @@ class PluginsRuntimeUiTest : public QObject {
     QVERIFY(m_pc->pluginsRunning());
     QCOMPARE(m_pc->devConsole()->buildModel().value("selected").toString(), QStringLiteral("net.test.gba"));
     QVERIFY(m_pc->identityOverride().isEmpty());  // used once
+    // A "paused after an error" notice of this game does not carry over into the next game.
+    emit m_pc->devConsole()->pausedAfterError(QStringLiteral("net.test.gba"), QStringLiteral("boom"));
+    QCOMPARE(m_pc->toasts().size(), 1);
     m_pc->gameStopped();
+    QCOMPARE(m_pc->toasts().size(), 0);
     m_pc->gameStarted("nds", QString(), QString(), "Test");  // the real identity matches no plugin
     QVERIFY(!m_pc->pluginsRunning());
     m_pc->gameStopped();

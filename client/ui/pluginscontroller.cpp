@@ -471,6 +471,7 @@ QVariantMap PluginsController::loadUnpacked(const QString& pathOrUrl) {
   if (!r.ok) return fail(mr.manifest.name, r.error);
   setPluginEnabled(r.id, true);
   refreshPlugins();
+  devConsole_->selectPlugin(r.id);  // the console shows what was just loaded, not the plugin that was selected before
   res.insert(QStringLiteral("state"), QStringLiteral("ok"));
   res.insert(QStringLiteral("id"), r.id);
   res.insert(QStringLiteral("title"), tr("%1 loaded").arg(mr.manifest.name));
@@ -749,6 +750,10 @@ void PluginsController::stopGame(bool restartShell) {
     for (const QString& id : std::as_const(runningIds_)) qCInfo(lcPlugins) << "plugin" << id << "stopped";
     running_ = false;
     runningIds_.clear();
+    if (!previewUi_ && !toasts_.isEmpty()) {  // notices of this game ("paused after an error", "Undo death") do not carry over into the next one
+      toasts_.clear();
+      emit toastsChanged();
+    }
     setConsoleAvailable(false);
     consoleRun_.reset();
     devConsole_->resetSeen();

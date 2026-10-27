@@ -120,7 +120,7 @@ FocusScope {
                     UzTag {
                         id: unpackedTag
                         objectName: "consoleUnpackedTag"
-                        visible: root.unpacked
+                        visible: root.unpacked && selectBtn.width >= 320  // narrow panel: the name wins; the folder row below says "unpacked" anyway
                         small: true
                         icon: "none"
                         text: qsTr("Unpacked")
@@ -415,7 +415,7 @@ FocusScope {
                         required property var modelData
                         objectName: "consoleEvent"
                         spacing: Theme.space1
-                        UzMono { textFormat: Text.PlainText; width: 76; text: modelData.time; font.pixelSize: Theme.roles.meta11.size; color: Theme.dim }
+                        UzMono { textFormat: Text.PlainText; width: 92; text: modelData.time; font.pixelSize: Theme.roles.meta11.size; color: Theme.dim }
                         UzTag {
                             width: Math.min(110, implicitWidth)
                             small: true
@@ -423,7 +423,7 @@ FocusScope {
                             icon: "none"
                             text: modelData.kind
                         }
-                        UzMono { textFormat: Text.PlainText; width: col.width - 76 - 110 - 16; text: modelData.text; font.pixelSize: Theme.roles.meta11.size; color: Theme.ink; elide: Text.ElideRight }
+                        UzMono { textFormat: Text.PlainText; width: col.width - 92 - 110 - 16; text: modelData.text; font.pixelSize: Theme.roles.meta11.size; color: Theme.ink; elide: Text.ElideRight }
                     }
                 }
             }
@@ -490,7 +490,7 @@ FocusScope {
                 Row {
                     visible: root.logLines.length > 0
                     spacing: Theme.space1
-                    UzMono { width: 76; text: qsTr("TIME"); font.pixelSize: Theme.roles.meta11.size; color: Theme.dim }
+                    UzMono { width: 92; text: qsTr("TIME"); font.pixelSize: Theme.roles.meta11.size; color: Theme.dim }
                     UzMono { width: 52; text: qsTr("LEVEL"); font.pixelSize: Theme.roles.meta11.size; color: Theme.dim }
                     UzMono { text: qsTr("MESSAGE"); font.pixelSize: Theme.roles.meta11.size; color: Theme.dim }
                 }
@@ -500,7 +500,7 @@ FocusScope {
                         required property var modelData
                         objectName: "consoleLog_" + modelData.level
                         spacing: Theme.space1
-                        UzMono { textFormat: Text.PlainText; width: 76; text: modelData.time; font.pixelSize: Theme.roles.meta11.size; color: Theme.dim }
+                        UzMono { textFormat: Text.PlainText; width: 92; text: modelData.time; font.pixelSize: Theme.roles.meta11.size; color: Theme.dim }
                         UzTag {
                             width: 52
                             small: true
@@ -508,7 +508,7 @@ FocusScope {
                             tone: modelData.level === "error" ? "danger" : modelData.level === "warn" ? "accent" : "neutral"
                             text: modelData.level
                         }
-                        UzMono { textFormat: Text.PlainText; width: col.width - 76 - 52 - 16; text: modelData.text; font.pixelSize: Theme.roles.meta11.size; color: root.levelColor(modelData.level); wrapMode: Text.WrapAnywhere }
+                        UzMono { textFormat: Text.PlainText; width: col.width - 92 - 52 - 16; text: modelData.text; font.pixelSize: Theme.roles.meta11.size; color: root.levelColor(modelData.level); wrapMode: Text.WrapAnywhere }
                     }
                 }
             }
@@ -619,8 +619,9 @@ FocusScope {
                         objectName: "consoleMemRow"
                         spacing: Theme.space1
                         UzMono { textFormat: Text.PlainText; width: 84; text: modelData.addr; font.pixelSize: Theme.roles.meta11.size; color: Theme.muted }
-                        UzMono { textFormat: Text.PlainText; width: 16 * 22; text: modelData.hex; font.pixelSize: Theme.roles.meta11.size; color: Theme.ink }
-                        UzMono { textFormat: Text.PlainText; text: modelData.ascii; font.pixelSize: Theme.roles.meta11.size; color: Theme.dim }
+                        // In the narrow game panel the 16 bytes wrap onto a second line instead of being cut off; the ASCII column needs room.
+                        UzMono { objectName: "consoleMemHex"; textFormat: Text.PlainText; width: Math.min(16 * 22, col.width - 84 - Theme.space1); text: modelData.hex; wrapMode: Text.WordWrap; font.pixelSize: Theme.roles.meta11.size; color: Theme.ink }
+                        UzMono { visible: col.width >= 84 + 16 * 22 + 16 * 8 + 2 * Theme.space1; textFormat: Text.PlainText; text: modelData.ascii; font.pixelSize: Theme.roles.meta11.size; color: Theme.dim }
                     }
                 }
                 Flow {

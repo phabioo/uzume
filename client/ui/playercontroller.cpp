@@ -846,8 +846,10 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
     saves_->finalSync(true);
     phase_ = PlayPhase::None;
     shareOnStart_ = false;
+    const bool fromRun = runStart_.pending();  // endGameContext() ends the run start
     endGameContext();
     startError_ = tr("The emulator could not start: %1").arg(msg);
+    if (fromRun) runs_->showLaunchProblem(startError_);  // "Play" on the run page: say why there, not only on the game page
     updateScreen();
     emit selectedGameChanged();
   });
@@ -855,8 +857,10 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
     // Runtime error in the game: back to the Library, error shown in the detail pane.
     if (gameActive_ && session_.state() == GameSession::Failed) {
       saves_->finalSync(true);
+      const bool fromRun = runStart_.pending();
       endGameContext();
       startError_ = tr("The emulator was terminated: %1").arg(session_.errorText());
+      if (fromRun) runs_->showLaunchProblem(startError_);
       updateScreen();
       emit selectedGameChanged();
     }
