@@ -4,6 +4,7 @@
 #include <QGuiApplication>
 
 #include "credentialstore.h"
+#include "envvar.h"
 #include "playersettings.h"
 #include "version.h"
 
@@ -50,6 +51,28 @@ void McpController::start() { apply(); }
 void McpController::enableForThisStart() {
   forced_ = true;
   apply();
+}
+
+bool McpController::setPortForThisStart(int port) {
+  if (port < 1024 || port > 65535) return false;
+  port_ = port;  // not written to the settings
+  return true;
+}
+
+QByteArray McpController::tokenFromEnvironment(bool mcpFlag) {
+  if (!mcpFlag) return {};
+  return env::bytes("UZUME_MCP_TOKEN").trimmed();
+}
+
+bool McpController::setTokenForThisStart(const QByteArray& token) {
+  if (token.size() < 32 || token.size() > 256) return false;
+  for (const char c : token) {
+    const bool ok = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '_';
+    if (!ok) return false;
+  }
+  token_ = token;
+  tokenFromEnv_ = true;
+  return true;
 }
 
 void McpController::setToolInstaller(const std::function<void(mcp::McpToolRegistry&)>& installer) {
@@ -111,6 +134,16 @@ void McpController::copySetupCommand() {
 void McpController::renewToken() {
   if (!credentials_) return;
   const QByteArray fresh = mcp::generateToken();
+  if (tokenFromEnv_) {  // the run's token came from the environment: the new one is kept in memory only
+    token_ = fresh;
+    if (server_.isListening()) {
+      server_.stop();
+      apply();
+    } else {
+      emit changed();
+    }
+    return;
+  }
   if (!credentials_->write(QString::fromLatin1(kTokenTarget), QString::fromLatin1(fresh))) {
     error_ = tr("The token could not be stored in the credential store.");
     emit changed();

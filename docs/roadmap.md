@@ -121,7 +121,7 @@ Decided by Fabio on 2026-10-21 (as 0.21; renumbered on 2026-10-22 and 2026-10-23
 
 ## 0.23 Together
 
-Decided by Fabio on 2026-10-21 (as 0.20; renumbered on 2026-10-22 and 2026-10-23). The UI is drawn in the Uzume design (speaking mark, mixer popover, People and Chat tabs, notifications); no own design round. Dependency chains: online status -> notifications -> ready check (same presence over WSS); chat -> audio mixer stage 2 -> voice chat; viewer role -> controller hand-over. Spike first for voice chat (echo and noise without libwebrtc).
+Decided by Fabio on 2026-10-21 (as 0.20; renumbered on 2026-10-22 and 2026-10-23). The UI is drawn in the Uzume design (speaking mark, mixer popover, People and Chat tabs, notifications); no own design round. Dependency chains: online status -> notifications -> ready check (same presence over WSS); chat -> audio mixer stage 2 -> voice chat; viewer role -> controller hand-over. Spike first for voice chat (echo and noise without libwebrtc). Decisions: [ADR 0033](adr/0033-together.md).
 
 - [ ] Online status: who is online and what they play, "Watch" and "Invite" from the list (S)
 - [ ] Notifications (app toasts and bell): Session started, invite, run event; switchable per kind (S-M)

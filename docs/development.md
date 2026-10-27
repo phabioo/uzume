@@ -52,6 +52,7 @@ Windows release builds use the `x64-windows-release` overlay triplet (Release-on
 - `scripts/e2e-hub-update.sh`: real install on a systemd host (`install-server.sh`, `.deb` migration, signed update round trip); skips without root/systemd.
 - All three run in the Linux CI job.
 - Screenshot tests (`ctest -R screenshots`) render all app screens at 1440x900 into the directory named by `UZUME_SCREENSHOT_DIR`.
+- Live tests (cloud session): `scripts/live-app.sh up [--apps N]` builds and starts a local server with test users (`lena`, `max`, `sam`) and a dummy game plus N apps under Xvfb, each with the debug MCP server (`--mcp --mcp-port`, `UZUME_MCP_TOKEN`), and writes ports, tokens and passwords to `~/.cache/uzume/live/live.env`; `down` stops it. `scripts/mcp-call.sh <app> <tool> '<json>'` calls one tool (for example `server_sign_in`, `app_screenshot`, see [Claude debugging](guides/app.md#claude-debugging-mcp)).
 - OpenGL tests need a GL 3.3 context (Linux CI uses Mesa llvmpipe under xvfb) and are skipped without one (ADR 0013). `UZUME_DISABLE_HW_RENDER=1` forces the cores' software path.
 - Windows test package: unpack the CI artifact `uzume-app-windows-x64` from the Windows job and start `Uzume.exe` (it ships no core; the server provides it on first game start).
 
