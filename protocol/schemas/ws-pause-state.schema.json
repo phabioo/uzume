@@ -38,10 +38,10 @@
         },
         "by": {
           "type": "string",
-          "description": "User ID of the member who paused or resumed."
+          "description": "User ID of the member who paused or resumed; empty when the server cleared the pause because the run left the active state."
         }
       }
     }
   },
-  "description": "Sent to every connected device of every member when the shared pause changes. A device that connects while paused receives paused=true. The pause lives in memory and ends with the Session or when the run has no joined member left. The run status paused of the run lifecycle is unrelated."
+  "description": "Sent to every connected device of every member when the shared pause changes. A device that connects while paused receives paused=true. The pause lives in memory and ends with the Session or when the run has no joined member left. A run that is paused (lifecycle), finished, abandoned or archived cancels its open ready check and clears the pause with paused=false."
 }

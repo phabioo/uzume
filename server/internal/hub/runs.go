@@ -678,7 +678,11 @@ func (s *Service) pushRunUpdated(run Run) {
 			joinedUsers = append(joinedUsers, p.UserID)
 		}
 	}
-	s.reconcileTogether(scopeRun, run.ID, joinedUsers)
+	if run.Status == RunPaused || run.Finished() || run.Archived { // left the active state: ready check and pause end
+		s.endTogether(scopeRun, run.ID, joinedUsers)
+	} else {
+		s.reconcileTogether(scopeRun, run.ID, joinedUsers)
+	}
 	joined := map[string]bool{}
 	users := map[string]bool{}
 	for _, p := range run.Participants {

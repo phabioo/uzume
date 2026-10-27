@@ -420,3 +420,17 @@ func (s *Service) togetherCatchUp(c *Client) {
 		c.sendMsg(it.typ, "", it.payload)
 	}
 }
+
+// endTogether ends the ready check (cancelled) and clears the pause of a scope that is over for Together (a run that
+// finished, was abandoned, archived or paused by the run lifecycle). A cleared pause is announced to recipients.
+func (s *Service) endTogether(scope, id string, recipients []string) {
+	t := &s.tg
+	k := scopeKey{scope, id}
+	t.mu.Lock()
+	_, wasPaused := t.pauses[k]
+	t.mu.Unlock()
+	s.reconcileTogether(scope, id, nil) // cancels the check, clears the pause
+	if wasPaused {
+		s.sendToUsers(recipients, "pause_state", "", map[string]any{"scope": scope, "id": id, "paused": false, "by": ""})
+	}
+}

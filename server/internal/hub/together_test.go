@@ -356,3 +356,34 @@ func TestSessionReadyCheckPauseAndEnd(t *testing.T) {
 		t.Fatalf("pause survived the session: %+v", ps)
 	}
 }
+
+func TestRunLeavingActiveStateEndsCheckAndPause(t *testing.T) {
+	for _, to := range []string{hub.RunPaused, hub.RunFinished} {
+		t.Run(to, func(t *testing.T) {
+			f := newTogetherFx(t, nil)
+			if _, err := f.svc.SetRunStatus(ctx, f.admin.ID, f.run.ID, hub.RunActive); err != nil {
+				t.Fatal(err)
+			}
+			f.start(t, f.cAdmin)
+			send(t, f.cAnna, "pause_request", fmt.Sprintf(`{"scope":"run","id":%q,"paused":true}`, f.run.ID))
+			got(f.cAdmin)
+			got(f.cAnna)
+			if _, err := f.svc.SetRunStatus(ctx, f.admin.ID, f.run.ID, to); err != nil {
+				t.Fatal(err)
+			}
+			for _, c := range []*hub.Client{f.cAdmin, f.cAnna} {
+				cs, ps, _ := got(c)
+				if len(cs) == 0 || cs[len(cs)-1].Status != "cancelled" {
+					t.Fatalf("check must be cancelled: %+v", cs)
+				}
+				if len(ps) != 1 || ps[0]["paused"] != false {
+					t.Fatalf("pause must be cleared: %+v", ps)
+				}
+			}
+			again := connect(t, f.svc, principal(t, f.svc, f.anna.ID, "Anna-2"))
+			if cs, ps, _ := got(again); len(ps) != 0 || len(cs) != 0 {
+				t.Fatalf("no catch-up after the run left active: %+v %+v", cs, ps)
+			}
+		})
+	}
+}
