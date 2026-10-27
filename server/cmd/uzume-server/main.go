@@ -13,7 +13,8 @@
 //	uzume-server grant-folder <path>          Windows: let the server service account read a folder (needs administrator)
 //	uzume-server renew-cert                   renew the self-generated TLS certificate now and exit
 //	uzume-server import-cores <dir>           import libretro buildbot core zips from a directory (offline) and exit
-//	uzume-server import-plugins <dir>         offer every *.fbplugin file of a directory to apps (offline) and exit
+//	uzume-server import-cheats <zip>          import a libretro-database archive for the cheat database (offline) and exit
+//	uzume-server import-plugins <dir>       offer every *.fbplugin file of a directory to apps (offline) and exit
 //	uzume-server diagnostics <out.zip>        write the diagnostics bundle (logs, configuration; no database access) and exit
 //	uzume-server backup [--out DIR]           make a backup now; also: backup list | config | verify <file>
 //	uzume-server restore <file>               restore a backup (the server must be stopped; makes a safety backup first)
@@ -149,6 +150,8 @@ func dispatch(args []string) error {
 		return runRenewCert(rest, os.Stdout)
 	case "import-cores":
 		return runImportCores(rest, os.Stdout)
+	case "import-cheats":
+		return runImportCheats(rest, os.Stdout)
 	case "import-plugins":
 		return runImportPlugins(rest, os.Stdout)
 	case "import-data":
@@ -192,7 +195,7 @@ func openService(ctx context.Context, cfg *config.Config, serving bool) (*hub.Se
 		return nil, nil, err
 	}
 	svc, err := hub.Open(ctx, db, hub.Options{CleanStaging: serving, DataDir: cfg.DataDir, Name: cfg.Name, HubVersion: version.String(), ICEServers: cfg.ICEServers,
-		CoreBuildbotURL: cfg.CoreBuildbotURL, CoreInfoURL: cfg.CoreInfoURL, CoreTrustKeys: keys,
+		CoreBuildbotURL: cfg.CoreBuildbotURL, CoreInfoURL: cfg.CoreInfoURL, CoreTrustKeys: keys, CheatDBURL: cfg.CheatDBURL, CheatDB3DSURL: cfg.CheatDB3DSURL,
 		SaveKeepRecent: cfg.SaveKeepRecent, SaveKeepDaily: cfg.SaveKeepDaily, SaveKeepWeekly: cfg.SaveKeepWeekly,
 		UpdateIndexURL: cfg.UpdateIndexURL, PluginIndexURL: cfg.PluginIndex(), UpdateRequestDir: cfg.UpdateRequestDir, UpdateChannel: version.Channel,
 		BackupExtras: backupExtras(cfg), Child: cfg.Child})
@@ -346,6 +349,46 @@ func runImportCores(args []string, out io.Writer) error {
 	if len(sum.Problems) > 0 {
 		return fmt.Errorf("%d core(s) could not be imported", len(sum.Problems))
 	}
+	return nil
+}
+
+// runImportCheats installs a libretro-database archive (zip with cht/ and metadat/) as the cheat database (offline
+// fallback, like import-cores). Restart is not needed.
+func runImportCheats(args []string, out io.Writer) error {
+	file := ""
+	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		file, args = args[0], args[1:]
+	}
+	fs := flag.NewFlagSet("import-cheats", flag.ContinueOnError)
+	cfg := config.Register(fs, os.Getenv)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if file == "" && fs.NArg() == 1 {
+		file = fs.Arg(0)
+	} else if fs.NArg() > 0 {
+		return errors.New("usage: uzume-server import-cheats <zip> [flags]")
+	}
+	if file == "" {
+		return errors.New("usage: uzume-server import-cheats <zip> [flags]")
+	}
+	if err := cfg.Validate(); err != nil {
+		return err
+	}
+	ctx := context.Background()
+	svc, closeFn, err := openService(ctx, cfg, false)
+	if err != nil {
+		return err
+	}
+	defer closeFn()
+	if err := svc.ImportCheats(ctx, file); err != nil {
+		return err
+	}
+	st, err := svc.CheatDBStatus(ctx)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(out, "Imported cheat database from %s: %d cheat list(s), %d DAT file(s)\n", file, st.Lists, st.Dats)
 	return nil
 }
 
@@ -710,6 +753,17 @@ func serve(ctx context.Context, cfg *config.Config, log *slog.Logger) error {
 			}
 			for _, e := range r.UpdateErrors {
 				log.Warn("core auto-update failed", "err", e)
+			}
+		})
+	}()
+
+	// Cheat database: downloaded in the background like the core catalog; "none" = off.
+	bg.Add(1)
+	go func() {
+		defer bg.Done()
+		svc.RunCheatDBRefresh(ctx, func(err error) {
+			if err != nil {
+				log.Warn("cheat database refresh failed", "err", err)
 			}
 		})
 	}()

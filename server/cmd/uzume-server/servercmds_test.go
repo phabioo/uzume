@@ -420,7 +420,7 @@ func TestHelpListsEveryCommand(t *testing.T) {
 	var out strings.Builder
 	printHelp(&out)
 	for _, c := range []string{"setup-code", "code", "reset-admin", "status", "update", "backup", "restore <file>", "reset", "setup-admin", "rollback", "renew-cert",
-		"import-cores", "import-plugins", "diagnostics", "grant-folder", "version", "help"} {
+		"import-cores", "import-cheats", "import-plugins", "diagnostics", "grant-folder", "version", "help"} {
 		if !strings.Contains(out.String(), "uzume-server "+c) {
 			t.Errorf("help lacks %q:\n%s", c, out.String())
 		}

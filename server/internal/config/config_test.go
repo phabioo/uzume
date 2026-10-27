@@ -391,3 +391,28 @@ func TestChildFlag(t *testing.T) {
 		t.Fatal("flag must override the environment")
 	}
 }
+
+func TestCheatDBConfig(t *testing.T) {
+	const def = "https://github.com/libretro/libretro-database/archive/refs/heads/master.zip"
+	if c := parse(t, nil); c.CheatDBURL != def || c.Validate() != nil {
+		t.Fatalf("default: %+v", c)
+	}
+	if c := parse(t, map[string]string{"UZUME_CHEAT_DB_URL": "https://mirror.example/db.zip"}); c.CheatDBURL != "https://mirror.example/db.zip" || c.Validate() != nil {
+		t.Fatalf("env: %+v", c)
+	}
+	// The flag wins over the environment; "none" switches the database off.
+	if c := parse(t, map[string]string{"UZUME_CHEAT_DB_URL": "https://env.example/db.zip"}, "-cheat-db-url", "none"); c.CheatDBURL != "none" || c.Validate() != nil {
+		t.Fatalf("flag: %+v", c)
+	}
+	for _, bad := range []string{"http://x.example/db.zip", "ftp://x/y", "not a url", "https://"} {
+		if parse(t, nil, "-cheat-db-url", bad).Validate() == nil || parse(t, nil, "-cheat-db-3ds-url", bad).Validate() == nil {
+			t.Fatalf("%q accepted", bad)
+		}
+	}
+	if c := parse(t, nil); c.CheatDB3DSURL != "none" {
+		t.Fatalf("3DS source must be off by default: %+v", c)
+	}
+	if c := parse(t, map[string]string{"UZUME_CHEAT_DB_3DS_URL": "https://mirror.example/3ds.zip"}); c.CheatDB3DSURL != "https://mirror.example/3ds.zip" || c.Validate() != nil {
+		t.Fatalf("env: %+v", c)
+	}
+}

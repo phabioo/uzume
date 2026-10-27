@@ -166,6 +166,24 @@ func (e AdminBackupSettingsUpdateMode) Valid() bool {
 	}
 }
 
+// Defines values for AdminCheatDbSource.
+const (
+	AdminCheatDbSourceImported         AdminCheatDbSource = "imported"
+	AdminCheatDbSourceLibretroDatabase AdminCheatDbSource = "libretro-database"
+)
+
+// Valid indicates whether the value is a known member of the AdminCheatDbSource enum.
+func (e AdminCheatDbSource) Valid() bool {
+	switch e {
+	case AdminCheatDbSourceImported:
+		return true
+	case AdminCheatDbSourceLibretroDatabase:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AdminCoreUpdateAutoUpdate.
 const (
 	AdminCoreUpdateAutoUpdateAuto AdminCoreUpdateAutoUpdate = "auto"
@@ -823,6 +841,39 @@ func (e AdminUserRoleChangeRole) Valid() bool {
 	}
 }
 
+// Defines values for CheatFormat.
+const (
+	ArDs      CheatFormat = "ar_ds"
+	ArGba     CheatFormat = "ar_gba"
+	Cb        CheatFormat = "cb"
+	GameGenie CheatFormat = "game_genie"
+	Gateway   CheatFormat = "gateway"
+	Gsa       CheatFormat = "gsa"
+	Raw       CheatFormat = "raw"
+)
+
+// Valid indicates whether the value is a known member of the CheatFormat enum.
+func (e CheatFormat) Valid() bool {
+	switch e {
+	case ArDs:
+		return true
+	case ArGba:
+		return true
+	case Cb:
+		return true
+	case GameGenie:
+		return true
+	case Gateway:
+		return true
+	case Gsa:
+		return true
+	case Raw:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CoreOrigin.
 const (
 	LegacyMirror     CoreOrigin = "legacy-mirror"
@@ -931,6 +982,8 @@ const (
 	ErrorCodeSetupCodeExpired     ErrorCode = "setup_code_expired"
 	ErrorCodeStateConflict        ErrorCode = "state_conflict"
 	ErrorCodeStateQuotaExceeded   ErrorCode = "state_quota_exceeded"
+	ErrorCodeStoreConflict        ErrorCode = "store_conflict"
+	ErrorCodeStoreQuotaExceeded   ErrorCode = "store_quota_exceeded"
 	ErrorCodeTooLarge             ErrorCode = "too_large"
 	ErrorCodeUnauthorized         ErrorCode = "unauthorized"
 	ErrorCodeUploadsDisabled      ErrorCode = "uploads_disabled"
@@ -1026,6 +1079,10 @@ func (e ErrorCode) Valid() bool {
 		return true
 	case ErrorCodeStateQuotaExceeded:
 		return true
+	case ErrorCodeStoreConflict:
+		return true
+	case ErrorCodeStoreQuotaExceeded:
+		return true
 	case ErrorCodeTooLarge:
 		return true
 	case ErrorCodeUnauthorized:
@@ -1078,6 +1135,48 @@ func (e GameGameCodeKind) Valid() bool {
 	case N3dsTitleid:
 		return true
 	case NdsGamecode:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GameCheatsMatchedBy.
+const (
+	Hash    GameCheatsMatchedBy = "hash"
+	Name    GameCheatsMatchedBy = "name"
+	TitleId GameCheatsMatchedBy = "title_id"
+)
+
+// Valid indicates whether the value is a known member of the GameCheatsMatchedBy enum.
+func (e GameCheatsMatchedBy) Valid() bool {
+	switch e {
+	case Hash:
+		return true
+	case Name:
+		return true
+	case TitleId:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GameCheatsSource.
+const (
+	GameCheatsSourceImported         GameCheatsSource = "imported"
+	GameCheatsSourceLibretroDatabase GameCheatsSource = "libretro-database"
+	GameCheatsSourceNone             GameCheatsSource = "none"
+)
+
+// Valid indicates whether the value is a known member of the GameCheatsSource enum.
+func (e GameCheatsSource) Valid() bool {
+	switch e {
+	case GameCheatsSourceImported:
+		return true
+	case GameCheatsSourceLibretroDatabase:
+		return true
+	case GameCheatsSourceNone:
 		return true
 	default:
 		return false
@@ -1804,6 +1903,49 @@ type AdminBackupStatus struct {
 type AdminCertificate struct {
 	Fingerprint string    `json:"fingerprint"`
 	NotAfter    time.Time `json:"not_after"`
+}
+
+// AdminCheatDb defines model for AdminCheatDb.
+type AdminCheatDb struct {
+	// Dats No-Intro DAT files stored
+	Dats int `json:"dats"`
+
+	// Enabled At least one source is on
+	Enabled     bool       `json:"enabled"`
+	LastCheck   *time.Time `json:"last_check,omitempty"`
+	LastError   *string    `json:"last_error,omitempty"`
+	LastSuccess *time.Time `json:"last_success,omitempty"`
+
+	// Lists Cheat lists stored
+	Lists int `json:"lists"`
+
+	// Lists3ds Gateway lists downloaded from `url_3ds`
+	Lists3ds int `json:"lists_3ds"`
+
+	// SizeBytes Size of the stored lists and DATs
+	SizeBytes int64 `json:"size_bytes"`
+
+	// Source Where the stored lists came from; absent when nothing is stored
+	Source    *AdminCheatDbSource `json:"source,omitempty"`
+	UpdatedAt *time.Time          `json:"updated_at,omitempty"`
+
+	// Url Effective source: the admin setting, else the flag, else the libretro-database archive; `none` = off
+	Url string `json:"url"`
+
+	// Url3ds Source of the 3DS Gateway lists (zip of `<TITLEID>.txt` files); `none` = off (default)
+	Url3ds string `json:"url_3ds"`
+}
+
+// AdminCheatDbSource Where the stored lists came from; absent when nothing is stored
+type AdminCheatDbSource string
+
+// AdminCheatDbUpdate At least one of the two; a missing one stays as it is.
+type AdminCheatDbUpdate struct {
+	// Url https URL of a libretro-database archive zip, or `none`
+	Url *string `json:"url,omitempty"`
+
+	// Url3ds https URL of a zip with 3DS Gateway lists (`<TITLEID>.txt` anywhere in it), or `none`
+	Url3ds *string `json:"url_3ds,omitempty"`
 }
 
 // AdminCode defines model for AdminCode.
@@ -2960,6 +3102,9 @@ type AdminUserUpdate struct {
 	DisplayName string `json:"display_name"`
 }
 
+// CheatFormat defines model for CheatFormat.
+type CheatFormat string
+
 // Collection defines model for Collection.
 type Collection struct {
 	CreatedAt time.Time `json:"created_at"`
@@ -3123,6 +3268,35 @@ type Game struct {
 
 // GameGameCodeKind Kind of `game_code`; empty when unknown. `gba-gamecode`: 4-character GBA game code; `gb-title`: Game Boy / Game Boy Color header title (only with a valid header checksum).
 type GameGameCodeKind string
+
+// GameCheat defines model for GameCheat.
+type GameCheat struct {
+	// Code As in the list; several lines or parts are joined with a line break
+	Code        string      `json:"code"`
+	FormatGuess CheatFormat `json:"format_guess"`
+	Name        string      `json:"name"`
+}
+
+// GameCheats defines model for GameCheats.
+type GameCheats struct {
+	Cheats []GameCheat `json:"cheats"`
+
+	// ListName Name of the matched list (the No-Intro name or the title ID)
+	ListName *string `json:"list_name,omitempty"`
+
+	// MatchedBy How the game was matched; absent when no list was found
+	MatchedBy *GameCheatsMatchedBy `json:"matched_by,omitempty"`
+	Source    GameCheatsSource     `json:"source"`
+
+	// UpdatedAt When the stored lists were fetched or imported
+	UpdatedAt *time.Time `json:"updated_at,omitempty"`
+}
+
+// GameCheatsMatchedBy How the game was matched; absent when no list was found
+type GameCheatsMatchedBy string
+
+// GameCheatsSource defines model for GameCheats.Source.
+type GameCheatsSource string
 
 // GamePersonal What the calling user has with one game (0.19). `play_seconds` and `sessions` count the plays the server saw from
 // the app's presence (`in_game`); an open play counts up to now, plays shorter than 10 s are not counted.
@@ -3420,6 +3594,62 @@ type PluginRunSettingOption struct {
 	// Label i18n key, see `run_settings_strings`
 	Label string `json:"label"`
 	Value string `json:"value"`
+}
+
+// PluginStoreConflictError Error body of the store 409. `revision` is 0 and `value` absent when the key does not exist (any more).
+type PluginStoreConflictError struct {
+	Error struct {
+		// Code `save_not_snapshot` is no longer returned since `saves_v6` (any history version can be deleted).
+		Code    ErrorCode `json:"code"`
+		Message string    `json:"message"`
+	} `json:"error"`
+	Revision *int64 `json:"revision,omitempty"`
+
+	// Value Any JSON value; the server stores it compactly and never interprets it.
+	Value PluginStoreJson `json:"value,omitempty"`
+}
+
+// PluginStoreEntry defines model for PluginStoreEntry.
+type PluginStoreEntry struct {
+	Key string `json:"key"`
+
+	// Revision Counts the writes of the key
+	Revision  int64     `json:"revision"`
+	SizeBytes int64     `json:"size_bytes"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// PluginStoreJson Any JSON value; the server stores it compactly and never interprets it.
+type PluginStoreJson = json.RawMessage
+
+// PluginStoreList defines model for PluginStoreList.
+type PluginStoreList struct {
+	Keys []PluginStoreEntry `json:"keys"`
+
+	// QuotaBytes Limit per person and plugin (16 MiB)
+	QuotaBytes int64 `json:"quota_bytes"`
+
+	// UsedBytes All values of the caller for this plugin
+	UsedBytes int64 `json:"used_bytes"`
+}
+
+// PluginStorePut defines model for PluginStorePut.
+type PluginStorePut struct {
+	// BaseRevision The revision this change is based on; 0 = the key does not exist yet
+	BaseRevision int64 `json:"base_revision"`
+
+	// Value Any JSON value; the server stores it compactly and never interprets it.
+	Value PluginStoreJson `json:"value"`
+}
+
+// PluginStoreValue defines model for PluginStoreValue.
+type PluginStoreValue struct {
+	Key       string    `json:"key"`
+	Revision  int64     `json:"revision"`
+	UpdatedAt time.Time `json:"updated_at"`
+
+	// Value Any JSON value; the server stores it compactly and never interprets it.
+	Value PluginStoreJson `json:"value"`
 }
 
 // RegisterGameRequest defines model for RegisterGameRequest.
@@ -4181,6 +4411,9 @@ type GameId = openapi_types.UUID
 // PluginId defines model for PluginId.
 type PluginId = string
 
+// PluginStoreKey defines model for PluginStoreKey.
+type PluginStoreKey = string
+
 // PluginVersion defines model for PluginVersion.
 type PluginVersion = string
 
@@ -4371,6 +4604,11 @@ type PutSaveStateMultipartBody struct {
 	State   openapi_types.File  `json:"state"`
 }
 
+// DeletePluginStoreValueParams defines parameters for DeletePluginStoreValue.
+type DeletePluginStoreValueParams struct {
+	BaseRevision *int64 `form:"base_revision,omitempty" json:"base_revision,omitempty"`
+}
+
 // GetPluginFileParams defines parameters for GetPluginFile.
 type GetPluginFileParams struct {
 	IfNoneMatch *string `json:"If-None-Match,omitempty"`
@@ -4418,6 +4656,9 @@ type UpdateAdminAccountSettingsJSONRequestBody = AdminAccountSettings
 
 // UpdateAdminBackupSettingsJSONRequestBody defines body for UpdateAdminBackupSettings for application/json ContentType.
 type UpdateAdminBackupSettingsJSONRequestBody = AdminBackupSettingsUpdate
+
+// UpdateAdminCheatDbJSONRequestBody defines body for UpdateAdminCheatDb for application/json ContentType.
+type UpdateAdminCheatDbJSONRequestBody = AdminCheatDbUpdate
 
 // UpdateAdminCoreSettingsJSONRequestBody defines body for UpdateAdminCoreSettings for application/json ContentType.
 type UpdateAdminCoreSettingsJSONRequestBody = AdminCoreSettingsUpdate
@@ -4544,6 +4785,9 @@ type LocalSetupJSONRequestBody = LocalPairRequest
 
 // CreatePairingRequestJSONRequestBody defines body for CreatePairingRequest for application/json ContentType.
 type CreatePairingRequestJSONRequestBody = PairingRequestCreate
+
+// PutPluginStoreValueJSONRequestBody defines body for PutPluginStoreValue for application/json ContentType.
+type PutPluginStoreValueJSONRequestBody = PluginStorePut
 
 // CreateReportMultipartRequestBody defines body for CreateReport for multipart/form-data ContentType.
 type CreateReportMultipartRequestBody CreateReportMultipartBody
@@ -5125,6 +5369,15 @@ type ServerInterface interface {
 	// Restore a backup (admin)
 	// (POST /api/v1/admin/backups/{name}/restore)
 	RestoreAdminBackup(w http.ResponseWriter, r *http.Request, name AdminBackupName)
+	// State of the cheat database (admin, `cheat_db_v1`)
+	// (GET /api/v1/admin/cheat-db)
+	GetAdminCheatDb(w http.ResponseWriter, r *http.Request)
+	// Change the source of the cheat database (admin, `cheat_db_v1`)
+	// (PUT /api/v1/admin/cheat-db)
+	UpdateAdminCheatDb(w http.ResponseWriter, r *http.Request)
+	// Refresh the cheat database now (admin, `cheat_db_v1`)
+	// (POST /api/v1/admin/cheat-db/refresh)
+	RefreshAdminCheatDb(w http.ResponseWriter, r *http.Request)
 	// Change the server default of the automatic core update (admin)
 	// (PATCH /api/v1/admin/cores/settings)
 	UpdateAdminCoreSettings(w http.ResponseWriter, r *http.Request)
@@ -5461,6 +5714,9 @@ type ServerInterface interface {
 	// Single game
 	// (GET /api/v1/games/{game_id})
 	GetGame(w http.ResponseWriter, r *http.Request, gameId openapi_types.UUID)
+	// The cheat list of the server's cheat database for a game (`cheat_db_v1`)
+	// (GET /api/v1/games/{game_id}/cheats)
+	GetGameCheats(w http.ResponseWriter, r *http.Request, gameId GameId)
 	// Remove a game from the caller's favorites (idempotent)
 	// (DELETE /api/v1/games/{game_id}/favorite)
 	RemoveFavorite(w http.ResponseWriter, r *http.Request, gameId openapi_types.UUID)
@@ -5554,6 +5810,18 @@ type ServerInterface interface {
 	// Plugin versions this server offers to apps (`plugins_v1`, any trusted device)
 	// (GET /api/v1/plugins)
 	ListPlugins(w http.ResponseWriter, r *http.Request)
+	// The keys of the caller's own store of a plugin (`plugin_store_v1`)
+	// (GET /api/v1/plugins/{plugin_id}/store)
+	ListPluginStore(w http.ResponseWriter, r *http.Request, pluginId PluginId)
+	// Delete a key (`plugin_store_v1`)
+	// (DELETE /api/v1/plugins/{plugin_id}/store/{key})
+	DeletePluginStoreValue(w http.ResponseWriter, r *http.Request, pluginId PluginId, key PluginStoreKey, params DeletePluginStoreValueParams)
+	// One value of the caller's store (`plugin_store_v1`)
+	// (GET /api/v1/plugins/{plugin_id}/store/{key})
+	GetPluginStoreValue(w http.ResponseWriter, r *http.Request, pluginId PluginId, key PluginStoreKey)
+	// Write a value against a base revision (`plugin_store_v1`)
+	// (PUT /api/v1/plugins/{plugin_id}/store/{key})
+	PutPluginStoreValue(w http.ResponseWriter, r *http.Request, pluginId PluginId, key PluginStoreKey)
 	// Download the `.fbplugin` file of an offered plugin version (`plugins_v1`, any trusted device)
 	// (GET /api/v1/plugins/{plugin_id}/{version}/file)
 	GetPluginFile(w http.ResponseWriter, r *http.Request, pluginId PluginId, version PluginVersion, params GetPluginFileParams)
@@ -6155,6 +6423,66 @@ func (siw *ServerInterfaceWrapper) RestoreAdminBackup(w http.ResponseWriter, r *
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.RestoreAdminBackup(w, r, name)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminCheatDb operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminCheatDb(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminCheatDb(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateAdminCheatDb operation middleware
+func (siw *ServerInterfaceWrapper) UpdateAdminCheatDb(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateAdminCheatDb(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RefreshAdminCheatDb operation middleware
+func (siw *ServerInterfaceWrapper) RefreshAdminCheatDb(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RefreshAdminCheatDb(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -9838,6 +10166,38 @@ func (siw *ServerInterfaceWrapper) GetGame(w http.ResponseWriter, r *http.Reques
 	handler.ServeHTTP(w, r)
 }
 
+// GetGameCheats operation middleware
+func (siw *ServerInterfaceWrapper) GetGameCheats(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "game_id" -------------
+	var gameId GameId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "game_id", r.PathValue("game_id"), &gameId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "game_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetGameCheats(w, r, gameId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // RemoveFavorite operation middleware
 func (siw *ServerInterfaceWrapper) RemoveFavorite(w http.ResponseWriter, r *http.Request) {
 
@@ -11103,6 +11463,177 @@ func (siw *ServerInterfaceWrapper) ListPlugins(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListPlugins(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListPluginStore operation middleware
+func (siw *ServerInterfaceWrapper) ListPluginStore(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "plugin_id" -------------
+	var pluginId PluginId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "plugin_id", r.PathValue("plugin_id"), &pluginId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "plugin_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListPluginStore(w, r, pluginId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeletePluginStoreValue operation middleware
+func (siw *ServerInterfaceWrapper) DeletePluginStoreValue(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "plugin_id" -------------
+	var pluginId PluginId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "plugin_id", r.PathValue("plugin_id"), &pluginId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "plugin_id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "key" -------------
+	var key PluginStoreKey
+
+	err = runtime.BindStyledParameterWithOptions("simple", "key", r.PathValue("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "key", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeletePluginStoreValueParams
+
+	// ------------- Optional query parameter "base_revision" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "base_revision", r.URL.Query(), &params.BaseRevision, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "base_revision"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "base_revision", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeletePluginStoreValue(w, r, pluginId, key, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetPluginStoreValue operation middleware
+func (siw *ServerInterfaceWrapper) GetPluginStoreValue(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "plugin_id" -------------
+	var pluginId PluginId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "plugin_id", r.PathValue("plugin_id"), &pluginId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "plugin_id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "key" -------------
+	var key PluginStoreKey
+
+	err = runtime.BindStyledParameterWithOptions("simple", "key", r.PathValue("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "key", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetPluginStoreValue(w, r, pluginId, key)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutPluginStoreValue operation middleware
+func (siw *ServerInterfaceWrapper) PutPluginStoreValue(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "plugin_id" -------------
+	var pluginId PluginId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "plugin_id", r.PathValue("plugin_id"), &pluginId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "plugin_id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "key" -------------
+	var key PluginStoreKey
+
+	err = runtime.BindStyledParameterWithOptions("simple", "key", r.PathValue("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "key", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutPluginStoreValue(w, r, pluginId, key)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -12532,6 +13063,9 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/api/v1/admin/backups/{name}", wrapper.DeleteAdminBackup)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/admin/backups/{name}/download", wrapper.DownloadAdminBackup)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/admin/backups/{name}/restore", wrapper.RestoreAdminBackup)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/admin/cheat-db", wrapper.GetAdminCheatDb)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/api/v1/admin/cheat-db", wrapper.UpdateAdminCheatDb)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/admin/cheat-db/refresh", wrapper.RefreshAdminCheatDb)
 	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/api/v1/admin/cores/settings", wrapper.UpdateAdminCoreSettings)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/admin/cores/sync", wrapper.SyncAdminCores)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/admin/devices", wrapper.ListAdminDevices)
@@ -12644,6 +13178,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/games", wrapper.UploadGame)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/games/register", wrapper.RegisterGame)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/games/{game_id}", wrapper.GetGame)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/games/{game_id}/cheats", wrapper.GetGameCheats)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/api/v1/games/{game_id}/favorite", wrapper.RemoveFavorite)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/api/v1/games/{game_id}/favorite", wrapper.AddFavorite)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/api/v1/games/{game_id}/registration", wrapper.DeleteGameRegistration)
@@ -12675,6 +13210,10 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/pairing/requests", wrapper.CreatePairingRequest)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/pairing/requests/{request_id}", wrapper.GetPairingRequest)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/plugins", wrapper.ListPlugins)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/plugins/{plugin_id}/store", wrapper.ListPluginStore)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/api/v1/plugins/{plugin_id}/store/{key}", wrapper.DeletePluginStoreValue)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/plugins/{plugin_id}/store/{key}", wrapper.GetPluginStoreValue)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/api/v1/plugins/{plugin_id}/store/{key}", wrapper.PutPluginStoreValue)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/plugins/{plugin_id}/{version}/file", wrapper.GetPluginFile)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/reports", wrapper.CreateReport)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/roms/{sha256}", wrapper.DownloadRom)
@@ -13969,6 +14508,176 @@ func (response RestoreAdminBackup409JSONResponse) VisitRestoreAdminBackupRespons
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminCheatDbRequestObject struct {
+}
+
+type GetAdminCheatDbResponseObject interface {
+	VisitGetAdminCheatDbResponse(w http.ResponseWriter) error
+}
+
+type GetAdminCheatDb200JSONResponse AdminCheatDb
+
+func (response GetAdminCheatDb200JSONResponse) VisitGetAdminCheatDbResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminCheatDb401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetAdminCheatDb401JSONResponse) VisitGetAdminCheatDbResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminCheatDb403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetAdminCheatDb403JSONResponse) VisitGetAdminCheatDbResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminCheatDbRequestObject struct {
+	Body *UpdateAdminCheatDbJSONRequestBody
+}
+
+type UpdateAdminCheatDbResponseObject interface {
+	VisitUpdateAdminCheatDbResponse(w http.ResponseWriter) error
+}
+
+type UpdateAdminCheatDb200JSONResponse AdminCheatDb
+
+func (response UpdateAdminCheatDb200JSONResponse) VisitUpdateAdminCheatDbResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminCheatDb400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UpdateAdminCheatDb400JSONResponse) VisitUpdateAdminCheatDbResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminCheatDb401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateAdminCheatDb401JSONResponse) VisitUpdateAdminCheatDbResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAdminCheatDb403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateAdminCheatDb403JSONResponse) VisitUpdateAdminCheatDbResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RefreshAdminCheatDbRequestObject struct {
+}
+
+type RefreshAdminCheatDbResponseObject interface {
+	VisitRefreshAdminCheatDbResponse(w http.ResponseWriter) error
+}
+
+type RefreshAdminCheatDb202Response struct {
+}
+
+func (response RefreshAdminCheatDb202Response) VisitRefreshAdminCheatDbResponse(w http.ResponseWriter) error {
+	w.WriteHeader(202)
+	return nil
+}
+
+type RefreshAdminCheatDb400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response RefreshAdminCheatDb400JSONResponse) VisitRefreshAdminCheatDbResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RefreshAdminCheatDb401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response RefreshAdminCheatDb401JSONResponse) VisitRefreshAdminCheatDbResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RefreshAdminCheatDb403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response RefreshAdminCheatDb403JSONResponse) VisitRefreshAdminCheatDbResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -21853,6 +22562,56 @@ func (response GetGame404JSONResponse) VisitGetGameResponse(w http.ResponseWrite
 	return err
 }
 
+type GetGameCheatsRequestObject struct {
+	GameId GameId `json:"game_id"`
+}
+
+type GetGameCheatsResponseObject interface {
+	VisitGetGameCheatsResponse(w http.ResponseWriter) error
+}
+
+type GetGameCheats200JSONResponse GameCheats
+
+func (response GetGameCheats200JSONResponse) VisitGetGameCheatsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetGameCheats401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetGameCheats401JSONResponse) VisitGetGameCheatsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetGameCheats404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetGameCheats404JSONResponse) VisitGetGameCheatsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type RemoveFavoriteRequestObject struct {
 	GameId openapi_types.UUID `json:"game_id"`
 }
@@ -24212,6 +24971,275 @@ func (response ListPlugins401JSONResponse) VisitListPluginsResponse(w http.Respo
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListPluginStoreRequestObject struct {
+	PluginId PluginId `json:"plugin_id"`
+}
+
+type ListPluginStoreResponseObject interface {
+	VisitListPluginStoreResponse(w http.ResponseWriter) error
+}
+
+type ListPluginStore200JSONResponse PluginStoreList
+
+func (response ListPluginStore200JSONResponse) VisitListPluginStoreResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListPluginStore400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response ListPluginStore400JSONResponse) VisitListPluginStoreResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListPluginStore401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListPluginStore401JSONResponse) VisitListPluginStoreResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeletePluginStoreValueRequestObject struct {
+	PluginId PluginId       `json:"plugin_id"`
+	Key      PluginStoreKey `json:"key"`
+	Params   DeletePluginStoreValueParams
+}
+
+type DeletePluginStoreValueResponseObject interface {
+	VisitDeletePluginStoreValueResponse(w http.ResponseWriter) error
+}
+
+type DeletePluginStoreValue204Response struct {
+}
+
+func (response DeletePluginStoreValue204Response) VisitDeletePluginStoreValueResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeletePluginStoreValue400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response DeletePluginStoreValue400JSONResponse) VisitDeletePluginStoreValueResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeletePluginStoreValue401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeletePluginStoreValue401JSONResponse) VisitDeletePluginStoreValueResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeletePluginStoreValue404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeletePluginStoreValue404JSONResponse) VisitDeletePluginStoreValueResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeletePluginStoreValue409JSONResponse PluginStoreConflictError
+
+func (response DeletePluginStoreValue409JSONResponse) VisitDeletePluginStoreValueResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPluginStoreValueRequestObject struct {
+	PluginId PluginId       `json:"plugin_id"`
+	Key      PluginStoreKey `json:"key"`
+}
+
+type GetPluginStoreValueResponseObject interface {
+	VisitGetPluginStoreValueResponse(w http.ResponseWriter) error
+}
+
+type GetPluginStoreValue200JSONResponse PluginStoreValue
+
+func (response GetPluginStoreValue200JSONResponse) VisitGetPluginStoreValueResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPluginStoreValue400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response GetPluginStoreValue400JSONResponse) VisitGetPluginStoreValueResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPluginStoreValue401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetPluginStoreValue401JSONResponse) VisitGetPluginStoreValueResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPluginStoreValue404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetPluginStoreValue404JSONResponse) VisitGetPluginStoreValueResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutPluginStoreValueRequestObject struct {
+	PluginId PluginId       `json:"plugin_id"`
+	Key      PluginStoreKey `json:"key"`
+	Body     *PutPluginStoreValueJSONRequestBody
+}
+
+type PutPluginStoreValueResponseObject interface {
+	VisitPutPluginStoreValueResponse(w http.ResponseWriter) error
+}
+
+type PutPluginStoreValue200JSONResponse PluginStoreEntry
+
+func (response PutPluginStoreValue200JSONResponse) VisitPutPluginStoreValueResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutPluginStoreValue400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response PutPluginStoreValue400JSONResponse) VisitPutPluginStoreValueResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutPluginStoreValue401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response PutPluginStoreValue401JSONResponse) VisitPutPluginStoreValueResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutPluginStoreValue409JSONResponse PluginStoreConflictError
+
+func (response PutPluginStoreValue409JSONResponse) VisitPutPluginStoreValueResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutPluginStoreValue413JSONResponse Error
+
+func (response PutPluginStoreValue413JSONResponse) VisitPutPluginStoreValueResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(413)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -27304,6 +28332,15 @@ type StrictServerInterface interface {
 	// Restore a backup (admin)
 	// (POST /api/v1/admin/backups/{name}/restore)
 	RestoreAdminBackup(ctx context.Context, request RestoreAdminBackupRequestObject) (RestoreAdminBackupResponseObject, error)
+	// State of the cheat database (admin, `cheat_db_v1`)
+	// (GET /api/v1/admin/cheat-db)
+	GetAdminCheatDb(ctx context.Context, request GetAdminCheatDbRequestObject) (GetAdminCheatDbResponseObject, error)
+	// Change the source of the cheat database (admin, `cheat_db_v1`)
+	// (PUT /api/v1/admin/cheat-db)
+	UpdateAdminCheatDb(ctx context.Context, request UpdateAdminCheatDbRequestObject) (UpdateAdminCheatDbResponseObject, error)
+	// Refresh the cheat database now (admin, `cheat_db_v1`)
+	// (POST /api/v1/admin/cheat-db/refresh)
+	RefreshAdminCheatDb(ctx context.Context, request RefreshAdminCheatDbRequestObject) (RefreshAdminCheatDbResponseObject, error)
 	// Change the server default of the automatic core update (admin)
 	// (PATCH /api/v1/admin/cores/settings)
 	UpdateAdminCoreSettings(ctx context.Context, request UpdateAdminCoreSettingsRequestObject) (UpdateAdminCoreSettingsResponseObject, error)
@@ -27640,6 +28677,9 @@ type StrictServerInterface interface {
 	// Single game
 	// (GET /api/v1/games/{game_id})
 	GetGame(ctx context.Context, request GetGameRequestObject) (GetGameResponseObject, error)
+	// The cheat list of the server's cheat database for a game (`cheat_db_v1`)
+	// (GET /api/v1/games/{game_id}/cheats)
+	GetGameCheats(ctx context.Context, request GetGameCheatsRequestObject) (GetGameCheatsResponseObject, error)
 	// Remove a game from the caller's favorites (idempotent)
 	// (DELETE /api/v1/games/{game_id}/favorite)
 	RemoveFavorite(ctx context.Context, request RemoveFavoriteRequestObject) (RemoveFavoriteResponseObject, error)
@@ -27733,6 +28773,18 @@ type StrictServerInterface interface {
 	// Plugin versions this server offers to apps (`plugins_v1`, any trusted device)
 	// (GET /api/v1/plugins)
 	ListPlugins(ctx context.Context, request ListPluginsRequestObject) (ListPluginsResponseObject, error)
+	// The keys of the caller's own store of a plugin (`plugin_store_v1`)
+	// (GET /api/v1/plugins/{plugin_id}/store)
+	ListPluginStore(ctx context.Context, request ListPluginStoreRequestObject) (ListPluginStoreResponseObject, error)
+	// Delete a key (`plugin_store_v1`)
+	// (DELETE /api/v1/plugins/{plugin_id}/store/{key})
+	DeletePluginStoreValue(ctx context.Context, request DeletePluginStoreValueRequestObject) (DeletePluginStoreValueResponseObject, error)
+	// One value of the caller's store (`plugin_store_v1`)
+	// (GET /api/v1/plugins/{plugin_id}/store/{key})
+	GetPluginStoreValue(ctx context.Context, request GetPluginStoreValueRequestObject) (GetPluginStoreValueResponseObject, error)
+	// Write a value against a base revision (`plugin_store_v1`)
+	// (PUT /api/v1/plugins/{plugin_id}/store/{key})
+	PutPluginStoreValue(ctx context.Context, request PutPluginStoreValueRequestObject) (PutPluginStoreValueResponseObject, error)
 	// Download the `.fbplugin` file of an offered plugin version (`plugins_v1`, any trusted device)
 	// (GET /api/v1/plugins/{plugin_id}/{version}/file)
 	GetPluginFile(ctx context.Context, request GetPluginFileRequestObject) (GetPluginFileResponseObject, error)
@@ -28462,6 +29514,85 @@ func (sh *strictHandler) RestoreAdminBackup(w http.ResponseWriter, r *http.Reque
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(RestoreAdminBackupResponseObject); ok {
 		if err := validResponse.VisitRestoreAdminBackupResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminCheatDb operation middleware
+func (sh *strictHandler) GetAdminCheatDb(w http.ResponseWriter, r *http.Request) {
+	var request GetAdminCheatDbRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminCheatDb(ctx, request.(GetAdminCheatDbRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminCheatDb")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminCheatDbResponseObject); ok {
+		if err := validResponse.VisitGetAdminCheatDbResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateAdminCheatDb operation middleware
+func (sh *strictHandler) UpdateAdminCheatDb(w http.ResponseWriter, r *http.Request) {
+	var request UpdateAdminCheatDbRequestObject
+
+	var body UpdateAdminCheatDbJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateAdminCheatDb(ctx, request.(UpdateAdminCheatDbRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateAdminCheatDb")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateAdminCheatDbResponseObject); ok {
+		if err := validResponse.VisitUpdateAdminCheatDbResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RefreshAdminCheatDb operation middleware
+func (sh *strictHandler) RefreshAdminCheatDb(w http.ResponseWriter, r *http.Request) {
+	var request RefreshAdminCheatDbRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RefreshAdminCheatDb(ctx, request.(RefreshAdminCheatDbRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RefreshAdminCheatDb")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RefreshAdminCheatDbResponseObject); ok {
+		if err := validResponse.VisitRefreshAdminCheatDbResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -31588,6 +32719,32 @@ func (sh *strictHandler) GetGame(w http.ResponseWriter, r *http.Request, gameId 
 	}
 }
 
+// GetGameCheats operation middleware
+func (sh *strictHandler) GetGameCheats(w http.ResponseWriter, r *http.Request, gameId GameId) {
+	var request GetGameCheatsRequestObject
+
+	request.GameId = gameId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetGameCheats(ctx, request.(GetGameCheatsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetGameCheats")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetGameCheatsResponseObject); ok {
+		if err := validResponse.VisitGetGameCheatsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // RemoveFavorite operation middleware
 func (sh *strictHandler) RemoveFavorite(w http.ResponseWriter, r *http.Request, gameId openapi_types.UUID) {
 	var request RemoveFavoriteRequestObject
@@ -32486,6 +33643,121 @@ func (sh *strictHandler) ListPlugins(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListPluginsResponseObject); ok {
 		if err := validResponse.VisitListPluginsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListPluginStore operation middleware
+func (sh *strictHandler) ListPluginStore(w http.ResponseWriter, r *http.Request, pluginId PluginId) {
+	var request ListPluginStoreRequestObject
+
+	request.PluginId = pluginId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListPluginStore(ctx, request.(ListPluginStoreRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListPluginStore")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListPluginStoreResponseObject); ok {
+		if err := validResponse.VisitListPluginStoreResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeletePluginStoreValue operation middleware
+func (sh *strictHandler) DeletePluginStoreValue(w http.ResponseWriter, r *http.Request, pluginId PluginId, key PluginStoreKey, params DeletePluginStoreValueParams) {
+	var request DeletePluginStoreValueRequestObject
+
+	request.PluginId = pluginId
+	request.Key = key
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeletePluginStoreValue(ctx, request.(DeletePluginStoreValueRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeletePluginStoreValue")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeletePluginStoreValueResponseObject); ok {
+		if err := validResponse.VisitDeletePluginStoreValueResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetPluginStoreValue operation middleware
+func (sh *strictHandler) GetPluginStoreValue(w http.ResponseWriter, r *http.Request, pluginId PluginId, key PluginStoreKey) {
+	var request GetPluginStoreValueRequestObject
+
+	request.PluginId = pluginId
+	request.Key = key
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetPluginStoreValue(ctx, request.(GetPluginStoreValueRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetPluginStoreValue")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetPluginStoreValueResponseObject); ok {
+		if err := validResponse.VisitGetPluginStoreValueResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutPluginStoreValue operation middleware
+func (sh *strictHandler) PutPluginStoreValue(w http.ResponseWriter, r *http.Request, pluginId PluginId, key PluginStoreKey) {
+	var request PutPluginStoreValueRequestObject
+
+	request.PluginId = pluginId
+	request.Key = key
+
+	var body PutPluginStoreValueJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutPluginStoreValue(ctx, request.(PutPluginStoreValueRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutPluginStoreValue")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutPluginStoreValueResponseObject); ok {
+		if err := validResponse.VisitPutPluginStoreValueResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
