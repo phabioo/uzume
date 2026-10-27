@@ -19,6 +19,7 @@
 #include <cstring>
 
 #include "hw_render.h"
+#include "vk_render.h"
 #include "third_party/libretro/libretro.h"
 
 namespace uzume::emu {
@@ -236,6 +237,7 @@ bool LibretroBackend::loadCore(const QString& libraryPath, QString* error) {
   }
 
   m_supportsNoGame = false;
+  m_vkProbe = -1;
   a.set_environment(&LibretroBackend::environmentCb);
   a.set_video_refresh(&LibretroBackend::videoRefreshCb);
   a.set_audio_sample(&LibretroBackend::audioSampleCb);
@@ -267,6 +269,7 @@ void LibretroBackend::unloadCore() {
   m_coreLoaded = false;
   s_active.store(nullptr);
   m_hw.reset();
+  m_vk.reset();
 }
 
 bool LibretroBackend::isCoreLoaded() const { return m_coreLoaded; }
@@ -308,7 +311,7 @@ bool LibretroBackend::loadGame(const QString& path, QString* error) {
       teardownHw();
       return fail(QStringLiteral("Core could not start without a game"));
     }
-    if (m_hwActive) {
+    if (m_hwActive || m_vkActive) {
       retro_system_av_info hwAv{};
       m_api->get_system_av_info(&hwAv);
       QString hwErr;
@@ -339,7 +342,7 @@ bool LibretroBackend::loadGame(const QString& path, QString* error) {
     return fail(QStringLiteral("Core could not load the game"));
   }
 
-  if (m_requireHw && !m_hwActive) {
+  if (m_requireHw && !m_hwActive && !m_vkActive) {
     m_api->unload_game();
     teardownHw();
     return fail(QStringLiteral("This game needs hardware rendering (OpenGL Core 3.3 or newer), which is not available here. "
@@ -347,7 +350,7 @@ bool LibretroBackend::loadGame(const QString& path, QString* error) {
   }
   retro_system_av_info av{};
   m_api->get_system_av_info(&av);
-  if (m_hwActive) {
+  if (m_hwActive || m_vkActive) {
     QString hwErr;
     if (!finishHwSetup(av.geometry.max_width, av.geometry.max_height, &hwErr)) {
       m_api->unload_game();
@@ -508,6 +511,10 @@ void LibretroBackend::unloadGame() {
   }
   if (m_hwActive) {
     m_hw->makeCurrent();
+    if (m_hwResetDone && m_hwContextDestroy) m_hwContextDestroy();
+    m_hwResetDone = false;
+  }
+  if (m_vkActive) {
     if (m_hwResetDone && m_hwContextDestroy) m_hwContextDestroy();
     m_hwResetDone = false;
   }
@@ -684,6 +691,7 @@ bool LibretroBackend::setupHwRender(void* data) {
     m_render.hwActive = false;
     m_render.fallbackReason = QString::fromLatin1(reason);
   };
+  if (cb->context_type == RETRO_HW_CONTEXT_VULKAN) return setupVulkan(cb);
   if (cb->context_type != RETRO_HW_CONTEXT_OPENGL && cb->context_type != RETRO_HW_CONTEXT_OPENGL_CORE) {
     if (cb->context_type == RETRO_HW_CONTEXT_NONE) return false;  // melonDS DS announces "no hardware" for software mode
     qCInfo(lcCore) << "Hardware render API" << static_cast<int>(cb->context_type) << "not supported; core falls back to software";
@@ -723,8 +731,78 @@ bool LibretroBackend::setupHwRender(void* data) {
   return true;
 }
 
+bool LibretroBackend::vulkanPreferred() const {
+  const QString env = uzume::env::get("UZUME_RENDERER").trimmed().toLower();
+  if (env == QLatin1String("vulkan")) return true;
+  if (env == QLatin1String("opengl")) return false;
+  return m_preferredRenderer.trimmed().toLower() == QLatin1String("vulkan");
+}
+
+bool LibretroBackend::vulkanAvailable() {
+  if (m_vkProbe < 0) m_vkProbe = VkRenderContext::probe() ? 1 : 0;
+  return m_vkProbe == 1;
+}
+
+// Vulkan (ADR 0034): only checks that a device exists here; instance and device are created in finishHwSetup, after
+// retro_load_game, because a core may announce its negotiation interface after SET_HW_RENDER.
+bool LibretroBackend::setupVulkan(void* data) {
+  auto* cb = static_cast<retro_hw_render_callback*>(data);
+  auto fallback = [this](const char* reason) {
+    QMutexLocker l(&m_renderMutex);
+    m_render.hwRequested = true;
+    m_render.hwActive = false;
+    m_render.fallbackReason = QString::fromLatin1(reason);
+  };
+  if (!HwRenderContext::allowed()) {
+    qCInfo(lcCore) << "Hardware rendering disabled (no GUI application or UZUME_DISABLE_HW_RENDER=1); core falls back to software";
+    fallback(uzume::env::get("UZUME_DISABLE_HW_RENDER") == QLatin1String("1") ? kFallbackDisabled : kFallbackNoContext);
+    return false;
+  }
+  if (!VkRenderContext::compiledIn() || !vulkanAvailable()) {
+    qCInfo(lcCore) << "No Vulkan device; core falls back to software";
+    fallback(kFallbackNoVulkan);
+    return false;
+  }
+  if (!m_vk) m_vk = std::make_unique<VkRenderContext>();
+  m_vk->setRequiredApiVersion(cb->version_major);
+  m_hwContextReset = cb->context_reset;
+  m_hwContextDestroy = cb->context_destroy;
+  m_hwBottomLeft = false;
+  m_vkActive = true;
+  m_hwResetDone = false;
+  {
+    QMutexLocker l(&m_renderMutex);
+    m_render.hwRequested = true;
+    m_render.hwActive = true;
+    m_render.vulkan = true;
+    m_render.fallbackReason.clear();
+    m_render.api = QStringLiteral("Vulkan");
+    m_render.gpu.clear();
+  }
+  return true;
+}
+
 // After retro_load_game: size the FBO from the core's maximum geometry, then context_reset.
 bool LibretroBackend::finishHwSetup(unsigned maxWidth, unsigned maxHeight, QString* error) {
+  if (m_vkActive) {
+    QString err;
+    if (!m_vk->create(&err)) {
+      qCWarning(lcCore).noquote() << "Vulkan context could not be created:" << err;
+      if (error) *error = QStringLiteral("Vulkan hardware rendering could not be started: %1").arg(err);
+      QMutexLocker l(&m_renderMutex);
+      m_render.hwActive = false;
+      m_render.fallbackReason = QString::fromLatin1(kFallbackNoVulkan);
+      return false;
+    }
+    {
+      QMutexLocker l(&m_renderMutex);
+      m_render.api = m_vk->apiText();
+      m_render.gpu = m_vk->gpuText();
+    }
+    if (m_hwContextReset) m_hwContextReset();
+    m_hwResetDone = true;
+    return true;
+  }
   if (!m_hw->makeCurrent() ||
       !m_hw->ensureSize(static_cast<int>(maxWidth), static_cast<int>(maxHeight))) {
     if (error) *error = QStringLiteral("Hardware render framebuffer could not be created");
@@ -739,6 +817,11 @@ bool LibretroBackend::finishHwSetup(unsigned maxWidth, unsigned maxHeight, QStri
 }
 
 void LibretroBackend::teardownHw() {
+  if (m_vk) {
+    if (m_vk->hasContext() && m_hwResetDone && m_hwContextDestroy) m_hwContextDestroy();
+    m_vk->destroy();
+  }
+  m_vkActive = false;
   if (m_hw && m_hw->hasContext()) {
     m_hw->makeCurrent();
     if (m_hwResetDone && m_hwContextDestroy) m_hwContextDestroy();
@@ -904,6 +987,23 @@ int16_t LibretroBackend::inputStateCb(unsigned port, unsigned device, unsigned i
 
 void LibretroBackend::handleVideo(const void* data, unsigned width, unsigned height, size_t pitch) {
   if (!m_videoWanted.load()) {  // frame is not shown: no readback, no conversion; the last image stays
+    ++m_frameCount;
+    if (m_vkActive && data == RETRO_HW_FRAME_BUFFER_VALID && width != 0 && height != 0)
+      m_vk->presentFrame(static_cast<int>(width), static_cast<int>(height), QSize(), false);  // the core's work still runs
+    return;
+  }
+  if (m_vkActive && (!data || data == RETRO_HW_FRAME_BUFFER_VALID)) {  // Vulkan: readback only (ADR 0034)
+    if (data == RETRO_HW_FRAME_BUFFER_VALID && width != 0 && height != 0) {
+      m_sourceSize.store(pack(QSize(static_cast<int>(width), static_cast<int>(height))));
+      const bool readbackOn = m_readbackEnabled.load();
+      const auto t0 = std::chrono::steady_clock::now();
+      const QImage img = m_vk->presentFrame(static_cast<int>(width), static_cast<int>(height), unpack(m_readbackLimit.load()), readbackOn);
+      m_lastReadbackNs = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - t0).count();
+      if (readbackOn) ++m_hwReadbacks;
+      if (!img.isNull()) m_frame = img;
+    } else {
+      m_vk->presentDuplicate();
+    }
     ++m_frameCount;
     return;
   }
@@ -1140,9 +1240,33 @@ bool LibretroBackend::handleEnvironment(unsigned rawCmd, void* data) {
     case RETRO_ENVIRONMENT_SET_HW_RENDER: return setupHwRender(data);
     case RETRO_ENVIRONMENT_GET_PREFERRED_HW_RENDER: {
       if (!HwRenderContext::allowed()) return false;
+      if (vulkanPreferred() && VkRenderContext::compiledIn() && vulkanAvailable()) {
+        *static_cast<unsigned*>(data) = RETRO_HW_CONTEXT_VULKAN;
+        return true;
+      }
       if (!m_hw) m_hw = std::make_unique<HwRenderContext>();
       if (!m_hw->available()) return false;
       *static_cast<unsigned*>(data) = RETRO_HW_CONTEXT_OPENGL_CORE;
+      return true;
+    }
+    case RETRO_ENVIRONMENT_SET_HW_RENDER_CONTEXT_NEGOTIATION_INTERFACE & ~RETRO_ENVIRONMENT_EXPERIMENTAL: {
+      if (!data || !VkRenderContext::compiledIn()) return false;
+      if (static_cast<const retro_hw_render_context_negotiation_interface*>(data)->interface_type !=
+          RETRO_HW_RENDER_CONTEXT_NEGOTIATION_INTERFACE_VULKAN)
+        return false;
+      if (!m_vk) m_vk = std::make_unique<VkRenderContext>();
+      m_vk->setNegotiationInterface(data);
+      return true;
+    }
+    case RETRO_ENVIRONMENT_GET_HW_RENDER_CONTEXT_NEGOTIATION_INTERFACE_SUPPORT & ~RETRO_ENVIRONMENT_EXPERIMENTAL: {
+      auto* q = static_cast<retro_hw_render_context_negotiation_interface*>(data);
+      if (!q || !VkRenderContext::compiledIn() || q->interface_type != RETRO_HW_RENDER_CONTEXT_NEGOTIATION_INTERFACE_VULKAN) return false;
+      q->interface_version = std::min(q->interface_version, 2u);  // create_instance / create_device2 are served
+      return true;
+    }
+    case RETRO_ENVIRONMENT_GET_HW_RENDER_INTERFACE & ~RETRO_ENVIRONMENT_EXPERIMENTAL: {
+      if (!data || !m_vkActive || !m_vk || !m_vk->hasContext()) return false;
+      *static_cast<const void**>(data) = m_vk->renderInterface();
       return true;
     }
     case RETRO_ENVIRONMENT_SET_HW_SHARED_CONTEXT & ~RETRO_ENVIRONMENT_EXPERIMENTAL: return false;  // no shared contexts offered

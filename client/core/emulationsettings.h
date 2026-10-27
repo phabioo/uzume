@@ -22,6 +22,11 @@ namespace uzume {
 class EmulationSettings {
  public:
   static constexpr const char* kCoreKey = "uzume.core";  // core id chosen for a system / a game
+  // Renderer for hardware-rendered cores (ADR 0034): "opengl" (default) | "vulkan". Stored at system level (that is the
+  // core's level) or game level like any other key; no UI yet. UZUME_RENDERER overrides it at launch.
+  static constexpr const char* kRendererKey = "uzume.renderer";
+  static QString normalizeRenderer(const QString& value);  // "vulkan" -> "vulkan", anything else -> "opengl"
+  QString renderer(const QString& systemId, const QString& gameId) const;
   enum class Level { Global, System, Game };
   enum class Source { Game, System, Global, Manifest, Core };
 

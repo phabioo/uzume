@@ -5,7 +5,13 @@
 // What it does (layout of the frame and of the data row: test_core_layout.h):
 //   - loads a game file (any file: the generated homebrew test ROM or a dummy), fails on a missing file;
 //   - 256x384 XRGB8888 frames (two NDS-like screens stacked), or scaled OpenGL hardware frames in "opengl" render mode
-//     (falls back to software when the frontend rejects SET_HW_RENDER);
+//     (falls back to software when the frontend rejects SET_HW_RENDER); or Vulkan hardware frames in "vulkan" render mode
+//     (generic flavor): SET_HW_RENDER VULKAN + context negotiation interface (FB_TEST_CORE_VK_NEG = v1 (default) | v2 |
+//     none), GET_HW_RENDER_INTERFACE, an own B8G8R8A8 image (FB_TEST_CORE_VK_FORMAT=rgba: R8G8B8A8) filled by a buffer copy
+//     with the same quadrants as the OpenGL mode plus a moving cyan marker (vkMarkerX in test_core_layout.h), set_image +
+//     video_refresh(VALID). Own queue submit by default, FB_TEST_CORE_VK_CMDBUFS=1 uses set_command_buffers,
+//     FB_TEST_CORE_VK_LAYOUT=general hands the image over in VK_IMAGE_LAYOUT_GENERAL. Also falls back to software when
+//     the frontend rejects SET_HW_RENDER. uzume_test_core_vk_state() reports what the frontend exercised;
 //   - 800 (or rate/fps) stereo audio frames per retro_run;
 //   - SAVE_RAM (not in the desmume flavor, which manages its save itself);
 //   - joypad via one RETRO_DEVICE_ID_JOYPAD_MASK word (GET_INPUT_BITMASKS) or per button, both ports, plus the pointer;
@@ -38,6 +44,13 @@
 #include "test_core_layout.h"
 #include "third_party/libretro/libretro.h"
 
+#if UZUME_HAVE_VULKAN
+#define VK_NO_PROTOTYPES 1
+#include <vulkan/vulkan.h>
+
+#include "third_party/libretro/libretro_vulkan.h"
+#endif
+
 #if defined(_WIN32)
 #define FB_EXPORT extern "C" __declspec(dllexport)
 #define FB_GL __stdcall
@@ -61,7 +74,7 @@ struct OptSpec {
 
 const OptSpec kGenericOptions[] = {
     {"test_text_mode", "Text mode", "video", "alpha", "alpha|beta|gamma"},
-    {"test_render_mode", "Render mode", "video", "software", "software|opengl"},
+    {"test_render_mode", "Render mode", "video", "software", "software|opengl|vulkan|auto"},
     {"test_gl_scale", "GL scale", "video", "1", "1|2|3|4"},
     {"test_audio", "Audio", "audio", "on", "on|off"},
     {"test_hidden_by_core", "Hidden by the core", "video", "x", "x|y"},
@@ -375,6 +388,296 @@ void drawHardware() {
   glFill(W / 2, 96 * k, W / 2, 96 * k, 1.f, 1.f, 1.f);
 }
 
+
+// ---------------------------------------------------------------- Vulkan render mode
+bool g_vk = false;  // the hardware frames of this game come from Vulkan
+int g_vkState[5] = {0, 0, 0, 0, 0};  // create_device (v1) calls, create_device2 calls, create_instance calls, frames presented, GET_PREFERRED_HW_RENDER answer (0 none, 1 + context type)
+
+#if UZUME_HAVE_VULKAN
+namespace vkc {
+const retro_hw_render_interface_vulkan* g_if = nullptr;
+VkImage g_image = VK_NULL_HANDLE;
+VkDeviceMemory g_imageMem = VK_NULL_HANDLE;
+VkImageView g_view = VK_NULL_HANDLE;
+VkBuffer g_buf = VK_NULL_HANDLE;
+VkDeviceMemory g_bufMem = VK_NULL_HANDLE;
+void* g_mapped = nullptr;
+VkCommandPool g_pool = VK_NULL_HANDLE;
+VkCommandBuffer g_cmd = VK_NULL_HANDLE;
+VkFence g_fence = VK_NULL_HANDLE;
+VkImageLayout g_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+retro_vulkan_image g_retroImage{};
+bool g_rgba = false;
+bool g_cmdbufs = false;
+bool g_general = false;
+bool g_ready = false;
+
+#define VKC_FNS(X)                                                                                                         \
+  X(vkCreateImage) X(vkDestroyImage) X(vkGetImageMemoryRequirements) X(vkAllocateMemory) X(vkFreeMemory)                   \
+  X(vkBindImageMemory) X(vkCreateImageView) X(vkDestroyImageView) X(vkCreateBuffer) X(vkDestroyBuffer)                     \
+  X(vkGetBufferMemoryRequirements) X(vkBindBufferMemory) X(vkMapMemory) X(vkUnmapMemory) X(vkCreateCommandPool)            \
+  X(vkDestroyCommandPool) X(vkAllocateCommandBuffers) X(vkResetCommandBuffer) X(vkBeginCommandBuffer)                      \
+  X(vkEndCommandBuffer) X(vkCmdPipelineBarrier) X(vkCmdCopyBufferToImage) X(vkQueueSubmit) X(vkCreateFence)                \
+  X(vkDestroyFence) X(vkWaitForFences) X(vkResetFences) X(vkDeviceWaitIdle)
+#define VKC_DECL(n) PFN_##n n##_ = nullptr;
+VKC_FNS(VKC_DECL)
+#undef VKC_DECL
+PFN_vkGetPhysicalDeviceMemoryProperties getMemProps_ = nullptr;
+
+uint32_t memType(uint32_t bits, VkMemoryPropertyFlags want) {
+  VkPhysicalDeviceMemoryProperties mp{};
+  getMemProps_(g_if->gpu, &mp);
+  for (uint32_t i = 0; i < mp.memoryTypeCount; ++i)
+    if ((bits & (1u << i)) && (mp.memoryTypes[i].propertyFlags & want) == want) return i;
+  return ~0u;
+}
+
+// ---- context negotiation (v1 create_device, v2 create_instance / create_device2)
+const VkApplicationInfo* RETRO_CALLCONV appInfo() {
+  static const VkApplicationInfo a = {VK_STRUCTURE_TYPE_APPLICATION_INFO, nullptr, "Uzume Test Core", 1, "Uzume Test Core", 1, VK_API_VERSION_1_1};
+  return &a;
+}
+
+bool makeDevice(retro_vulkan_context* ctx, VkInstance inst, VkPhysicalDevice gpu, PFN_vkGetInstanceProcAddr gipa,
+                retro_vulkan_create_device_wrapper_t wrapper, void* opaque) {
+  if (gpu == VK_NULL_HANDLE) return false;
+  auto getQf = reinterpret_cast<PFN_vkGetPhysicalDeviceQueueFamilyProperties>(gipa(inst, "vkGetPhysicalDeviceQueueFamilyProperties"));
+  auto createDev = reinterpret_cast<PFN_vkCreateDevice>(gipa(inst, "vkCreateDevice"));
+  auto getDevProc = reinterpret_cast<PFN_vkGetDeviceProcAddr>(gipa(inst, "vkGetDeviceProcAddr"));
+  if (!getQf || !createDev || !getDevProc) return false;
+  uint32_t n = 0;
+  getQf(gpu, &n, nullptr);
+  std::vector<VkQueueFamilyProperties> qf(n);
+  getQf(gpu, &n, qf.data());
+  int fam = -1;
+  for (uint32_t i = 0; i < n && fam < 0; ++i)
+    if ((qf[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) && (qf[i].queueFlags & VK_QUEUE_COMPUTE_BIT)) fam = static_cast<int>(i);
+  for (uint32_t i = 0; i < n && fam < 0; ++i)
+    if (qf[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) fam = static_cast<int>(i);
+  if (fam < 0) return false;
+  const float prio = 1.f;
+  VkDeviceQueueCreateInfo qi = {VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO, nullptr, 0, static_cast<uint32_t>(fam), 1, &prio};
+  VkDeviceCreateInfo di = {};
+  di.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+  di.queueCreateInfoCount = 1;
+  di.pQueueCreateInfos = &qi;
+  VkDevice dev = VK_NULL_HANDLE;
+  if (wrapper) {
+    dev = wrapper(gpu, opaque, &di);
+  } else if (createDev(gpu, &di, nullptr, &dev) != VK_SUCCESS) {
+    dev = VK_NULL_HANDLE;
+  }
+  if (dev == VK_NULL_HANDLE) return false;
+  auto getQueue = reinterpret_cast<PFN_vkGetDeviceQueue>(getDevProc(dev, "vkGetDeviceQueue"));
+  VkQueue q = VK_NULL_HANDLE;
+  getQueue(dev, static_cast<uint32_t>(fam), 0, &q);
+  ctx->gpu = gpu;
+  ctx->device = dev;
+  ctx->queue = q;
+  ctx->queue_family_index = static_cast<uint32_t>(fam);
+  ctx->presentation_queue = q;
+  ctx->presentation_queue_family_index = static_cast<uint32_t>(fam);
+  return true;
+}
+bool RETRO_CALLCONV createDeviceV1(retro_vulkan_context* ctx, VkInstance inst, VkPhysicalDevice gpu, VkSurfaceKHR,
+                                   PFN_vkGetInstanceProcAddr gipa, const char**, unsigned, const char**, unsigned,
+                                   const VkPhysicalDeviceFeatures*) {
+  ++g_vkState[0];
+  return makeDevice(ctx, inst, gpu, gipa, nullptr, nullptr);
+}
+bool RETRO_CALLCONV createDevice2(retro_vulkan_context* ctx, VkInstance inst, VkPhysicalDevice gpu, VkSurfaceKHR,
+                                  PFN_vkGetInstanceProcAddr gipa, retro_vulkan_create_device_wrapper_t wrapper, void* opaque) {
+  ++g_vkState[1];
+  return makeDevice(ctx, inst, gpu, gipa, wrapper, opaque);
+}
+VkInstance RETRO_CALLCONV createInstance(PFN_vkGetInstanceProcAddr, const VkApplicationInfo* app,
+                                         retro_vulkan_create_instance_wrapper_t wrapper, void* opaque) {
+  ++g_vkState[2];
+  VkInstanceCreateInfo ci = {};
+  ci.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+  ci.pApplicationInfo = app;
+  return wrapper(opaque, &ci);
+}
+void RETRO_CALLCONV destroyDevice() {}
+
+retro_hw_render_context_negotiation_interface_vulkan g_neg{};
+bool negotiate() {
+  const char* mode = std::getenv("FB_TEST_CORE_VK_NEG");
+  const std::string m = mode ? mode : "v1";
+  if (m == "none") return true;
+  g_neg = {};
+  g_neg.interface_type = RETRO_HW_RENDER_CONTEXT_NEGOTIATION_INTERFACE_VULKAN;
+  g_neg.get_application_info = appInfo;
+  g_neg.destroy_device = destroyDevice;
+  if (m == "v2") {
+    g_neg.interface_version = 2;
+    g_neg.create_instance = createInstance;
+    g_neg.create_device2 = createDevice2;
+  } else {
+    g_neg.interface_version = 1;
+    g_neg.create_device = createDeviceV1;
+  }
+  return g_env && g_env(RETRO_ENVIRONMENT_SET_HW_RENDER_CONTEXT_NEGOTIATION_INTERFACE, &g_neg);
+}
+
+// ---- resources
+void destroyResources() {
+  if (!g_if || !g_ready) return;
+  const VkDevice d = g_if->device;
+  vkDeviceWaitIdle_(d);
+  if (g_fence) vkDestroyFence_(d, g_fence, nullptr);
+  if (g_pool) vkDestroyCommandPool_(d, g_pool, nullptr);
+  if (g_view) vkDestroyImageView_(d, g_view, nullptr);
+  if (g_image) vkDestroyImage_(d, g_image, nullptr);
+  if (g_imageMem) vkFreeMemory_(d, g_imageMem, nullptr);
+  if (g_mapped) vkUnmapMemory_(d, g_bufMem);
+  if (g_buf) vkDestroyBuffer_(d, g_buf, nullptr);
+  if (g_bufMem) vkFreeMemory_(d, g_bufMem, nullptr);
+  g_fence = VK_NULL_HANDLE; g_pool = VK_NULL_HANDLE; g_view = VK_NULL_HANDLE; g_image = VK_NULL_HANDLE;
+  g_imageMem = VK_NULL_HANDLE; g_mapped = nullptr; g_buf = VK_NULL_HANDLE; g_bufMem = VK_NULL_HANDLE; g_cmd = VK_NULL_HANDLE;
+  g_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+  g_ready = false;
+}
+
+void RETRO_CALLCONV contextReset() {
+  g_ready = false;
+  const void* iface = nullptr;
+  if (!g_env || !g_env(RETRO_ENVIRONMENT_GET_HW_RENDER_INTERFACE, &iface) || !iface) return;
+  g_if = static_cast<const retro_hw_render_interface_vulkan*>(iface);
+  if (g_if->interface_type != RETRO_HW_RENDER_INTERFACE_VULKAN || g_if->interface_version < 5) return;
+  const VkDevice d = g_if->device;
+#define VKC_LOAD(n) n##_ = reinterpret_cast<PFN_##n>(g_if->get_device_proc_addr(d, #n));
+  VKC_FNS(VKC_LOAD)
+#undef VKC_LOAD
+  getMemProps_ = reinterpret_cast<PFN_vkGetPhysicalDeviceMemoryProperties>(g_if->get_instance_proc_addr(g_if->instance, "vkGetPhysicalDeviceMemoryProperties"));
+  const char* fmtEnv = std::getenv("FB_TEST_CORE_VK_FORMAT");
+  g_rgba = fmtEnv && std::string(fmtEnv) == "rgba";
+  g_cmdbufs = std::getenv("FB_TEST_CORE_VK_CMDBUFS") != nullptr;
+  const char* lay = std::getenv("FB_TEST_CORE_VK_LAYOUT");
+  g_general = lay && std::string(lay) == "general";
+  const uint32_t W = tc::kWidth * g_scale, H = tc::kHeight * g_scale;
+
+  VkImageCreateInfo ii = {};
+  ii.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+  ii.flags = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
+  ii.imageType = VK_IMAGE_TYPE_2D;
+  ii.format = g_rgba ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_B8G8R8A8_UNORM;
+  ii.extent = {W, H, 1};
+  ii.mipLevels = 1;
+  ii.arrayLayers = 1;
+  ii.samples = VK_SAMPLE_COUNT_1_BIT;
+  ii.tiling = VK_IMAGE_TILING_OPTIMAL;
+  ii.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+  ii.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+  if (vkCreateImage_(d, &ii, nullptr, &g_image) != VK_SUCCESS) return;
+  VkMemoryRequirements mr{};
+  vkGetImageMemoryRequirements_(d, g_image, &mr);
+  VkMemoryAllocateInfo ma = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, nullptr, mr.size, memType(mr.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)};
+  if (ma.memoryTypeIndex == ~0u) ma.memoryTypeIndex = memType(mr.memoryTypeBits, 0);
+  if (vkAllocateMemory_(d, &ma, nullptr, &g_imageMem) != VK_SUCCESS || vkBindImageMemory_(d, g_image, g_imageMem, 0) != VK_SUCCESS) return;
+
+  VkImageViewCreateInfo vi = {};
+  vi.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+  vi.image = g_image;
+  vi.viewType = VK_IMAGE_VIEW_TYPE_2D;
+  vi.format = ii.format;
+  vi.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+  if (vkCreateImageView_(d, &vi, nullptr, &g_view) != VK_SUCCESS) return;
+  g_retroImage.image_view = g_view;
+  g_retroImage.image_layout = g_general ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+  g_retroImage.create_info = vi;
+
+  VkBufferCreateInfo bi = {};
+  bi.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+  bi.size = static_cast<VkDeviceSize>(W) * H * 4;
+  bi.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+  bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+  if (vkCreateBuffer_(d, &bi, nullptr, &g_buf) != VK_SUCCESS) return;
+  vkGetBufferMemoryRequirements_(d, g_buf, &mr);
+  ma = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, nullptr, mr.size,
+        memType(mr.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)};
+  if (ma.memoryTypeIndex == ~0u) return;
+  if (vkAllocateMemory_(d, &ma, nullptr, &g_bufMem) != VK_SUCCESS || vkBindBufferMemory_(d, g_buf, g_bufMem, 0) != VK_SUCCESS ||
+      vkMapMemory_(d, g_bufMem, 0, VK_WHOLE_SIZE, 0, &g_mapped) != VK_SUCCESS)
+    return;
+
+  VkCommandPoolCreateInfo pi = {VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO, nullptr, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT, g_if->queue_index};
+  if (vkCreateCommandPool_(d, &pi, nullptr, &g_pool) != VK_SUCCESS) return;
+  VkCommandBufferAllocateInfo ca = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO, nullptr, g_pool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1};
+  if (vkAllocateCommandBuffers_(d, &ca, &g_cmd) != VK_SUCCESS) return;
+  VkFenceCreateInfo fi = {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, nullptr, 0};
+  if (vkCreateFence_(d, &fi, nullptr, &g_fence) != VK_SUCCESS) return;
+  g_ready = true;
+}
+void RETRO_CALLCONV contextDestroy() {
+  destroyResources();
+  g_if = nullptr;
+}
+
+uint32_t pixel(int x, int y, int k, uint64_t frame) {
+  const int W = tc::kWidth * k;
+  const int mx = tc::vkMarkerX(frame, k);
+  if (y < 8 * k && x >= mx && x < mx + 8 * k) return 0xFF00FFFFu;  // cyan marker
+  if (y < 96 * k) return x < W / 2 ? 0xFFFF0000u : 0xFF00FF00u;
+  if (y < 192 * k) return x < W / 2 ? 0xFF0000FFu : 0xFFFFFFFFu;
+  return 0xFFFF00FFu;  // magenta backdrop
+}
+
+void drawFrame() {
+  const int k = static_cast<int>(g_scale);
+  const int W = tc::kWidth * k, H = tc::kHeight * k;
+  const VkDevice d = g_if->device;
+  if (g_cmdbufs) g_if->wait_sync_index(g_if->handle);
+  auto* px = static_cast<uint32_t*>(g_mapped);
+  for (int y = 0; y < H; ++y)
+    for (int x = 0; x < W; ++x) {
+      const uint32_t p = pixel(x, y, k, static_cast<uint64_t>(g_frames));  // 0xAARRGGBB
+      px[static_cast<size_t>(y) * W + x] = g_rgba ? ((p & 0xFF00FF00u) | ((p >> 16) & 0xFFu) | ((p & 0xFFu) << 16)) : p;
+    }
+  vkResetCommandBuffer_(g_cmd, 0);
+  VkCommandBufferBeginInfo bi = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, nullptr, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, nullptr};
+  vkBeginCommandBuffer_(g_cmd, &bi);
+  VkImageMemoryBarrier b = {};
+  b.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+  b.srcQueueFamilyIndex = b.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  b.image = g_image;
+  b.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+  b.oldLayout = g_layout;
+  b.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+  b.srcAccessMask = 0;
+  b.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+  vkCmdPipelineBarrier_(g_cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &b);
+  VkBufferImageCopy region = {};
+  region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+  region.imageExtent = {static_cast<uint32_t>(W), static_cast<uint32_t>(H), 1};
+  vkCmdCopyBufferToImage_(g_cmd, g_buf, g_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+  b.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+  b.newLayout = g_retroImage.image_layout;
+  b.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+  b.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+  vkCmdPipelineBarrier_(g_cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &b);
+  vkEndCommandBuffer_(g_cmd);
+  g_layout = g_retroImage.image_layout;
+  if (g_cmdbufs) {
+    g_if->set_command_buffers(g_if->handle, 1, &g_cmd);
+  } else {
+    VkSubmitInfo si = {};
+    si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    si.commandBufferCount = 1;
+    si.pCommandBuffers = &g_cmd;
+    g_if->lock_queue(g_if->handle);
+    const VkResult r = vkQueueSubmit_(g_if->queue, 1, &si, g_fence);
+    g_if->unlock_queue(g_if->handle);
+    if (r == VK_SUCCESS) {
+      vkWaitForFences_(d, 1, &g_fence, VK_TRUE, UINT64_MAX);
+      vkResetFences_(d, 1, &g_fence);
+    }
+  }
+  g_if->set_image(g_if->handle, &g_retroImage, 0, nullptr, VK_QUEUE_FAMILY_IGNORED);
+}
+}  // namespace vkc
+#endif  // UZUME_HAVE_VULKAN
+
 void writeDataRow() {
   uint32_t* row = &g_fb[static_cast<size_t>(tc::kDataRow) * tc::kWidth];
   bool ff = false;
@@ -575,6 +878,7 @@ FB_EXPORT bool retro_load_game(const retro_game_info* info) {
   registerOptions();  // like melonDS DS: only here, also for the no-game probe (info == NULL)
   g_frames = 0;
   g_hw = false;
+  g_vk = false;
   g_scale = 1;
   g_masks[0] = g_masks[1] = 0;
 
@@ -618,8 +922,42 @@ FB_EXPORT bool retro_load_game(const retro_game_info* info) {
     g_env(RETRO_ENVIRONMENT_SET_FASTFORWARDING_OVERRIDE, &o);
   }
 
+  // Render mode "auto" (generic flavor): ask the frontend (GET_PREFERRED_HW_RENDER) and request what it answers.
+  bool wantVk = false;
+  bool wantGl = getVar(renderKey()) == hwValue();
+  if (flavor() == Flavor::Generic) {
+    const std::string mode = getVar("test_render_mode");
+    g_vkState[4] = 0;
+    wantVk = mode == "vulkan";
+    if (mode == "auto") {
+      unsigned pref = 0;
+      const bool ok = g_env && g_env(RETRO_ENVIRONMENT_GET_PREFERRED_HW_RENDER, &pref);
+      g_vkState[4] = ok ? static_cast<int>(1 + pref) : 0;
+      wantVk = ok && pref == RETRO_HW_CONTEXT_VULKAN;
+      wantGl = ok && !wantVk;
+    }
+  }
+#if UZUME_HAVE_VULKAN
+  // Vulkan render mode (generic flavor): hardware frames from our own VkImage; falls back to software like OpenGL.
+  if (wantVk) {
+    g_scale = scaleFromOption();
+    std::memset(&g_hwCb, 0, sizeof g_hwCb);
+    g_hwCb.context_type = RETRO_HW_CONTEXT_VULKAN;
+    g_hwCb.version_major = VK_MAKE_VERSION(1, 1, 0);
+    g_hwCb.version_minor = 0;
+    g_hwCb.context_reset = vkc::contextReset;
+    g_hwCb.context_destroy = vkc::contextDestroy;
+    g_hw = g_env && g_env(RETRO_ENVIRONMENT_SET_HW_RENDER, &g_hwCb);
+    if (g_hw) {
+      g_vk = true;
+      vkc::negotiate();  // after SET_HW_RENDER, like Azahar
+    } else {
+      g_scale = 1;
+    }
+  }
+#endif
   // OpenGL render mode: hardware frames; when the frontend rejects SET_HW_RENDER the core falls back to software.
-  if (getVar(renderKey()) == hwValue()) {
+  if (!g_hw && wantGl) {
     g_scale = scaleFromOption();
     std::memset(&g_hwCb, 0, sizeof g_hwCb);
     g_hwCb.context_type = RETRO_HW_CONTEXT_OPENGL_CORE;
@@ -636,7 +974,10 @@ FB_EXPORT bool retro_load_game(const retro_game_info* info) {
   g_gameLoaded = true;
   return true;
 }
-FB_EXPORT void retro_unload_game() { g_gameLoaded = false; g_hw = false; }
+FB_EXPORT void retro_unload_game() { g_gameLoaded = false; g_hw = false; g_vk = false; }
+
+// Test hook: what the frontend exercised in Vulkan mode (0 create_device calls, 1 create_device2, 2 create_instance, 3 frames, 4 preferred answer).
+FB_EXPORT int uzume_test_core_vk_state(int what) { return what >= 0 && what < 5 ? g_vkState[what] : -1; }
 
 FB_EXPORT void retro_run() {
   if (!g_gameLoaded) return;
@@ -659,6 +1000,18 @@ FB_EXPORT void retro_run() {
   pollInput();
   if (g_sramWrite >= 0 && g_frames > g_sramDelay && !g_sram.empty()) g_sram[0] = static_cast<uint8_t>(g_sramWrite);
   sendAudio(static_cast<unsigned>(std::lround(sampleRate() / fps())), sampleRate());
+#if UZUME_HAVE_VULKAN
+  if (g_vk) {
+    if (!vkc::g_ready) {
+      if (g_video) g_video(nullptr, tc::kWidth * g_scale, tc::kHeight * g_scale, 0);  // context not ready: duplicate
+      return;
+    }
+    vkc::drawFrame();
+    ++g_vkState[3];
+    if (g_video) g_video(RETRO_HW_FRAME_BUFFER_VALID, tc::kWidth * g_scale, tc::kHeight * g_scale, 0);
+    return;
+  }
+#endif
   if (g_hw) {
     if (!glBindFramebuffer_) {
       if (g_video) g_video(nullptr, tc::kWidth * g_scale, tc::kHeight * g_scale, 0);  // context not ready: duplicate

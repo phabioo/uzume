@@ -134,7 +134,7 @@ Decided by Fabio on 2026-10-21 (as 0.20; renumbered on 2026-10-22 and 2026-10-23
 
 ## 0.24 Platforms
 
-Decided by Fabio on 2026-10-21 (as 0.22; renumbered on 2026-10-22 and 2026-10-23). May be split into 0.24 and 0.25, one milestone per topic. Spike first for Vulkan (which cores offer the libretro Vulkan path: melonDS DS, Azahar?). Browser watching was dropped on 2026-10-22. The UI follows the Uzume boards ([ADR 0030](adr/0030-one-app-one-server-uzume.md) D8).
+Decided by Fabio on 2026-10-21 (as 0.22; renumbered on 2026-10-22 and 2026-10-23). May be split into 0.24 and 0.25, one milestone per topic. Spike first for Vulkan (which cores offer the libretro Vulkan path: melonDS DS, Azahar?). Browser watching was dropped on 2026-10-22. The UI follows the Uzume boards ([ADR 0030](adr/0030-one-app-one-server-uzume.md) D8). Decisions: [ADR 0034](adr/0034-linux-app-and-vulkan.md).
 
 - Moved to 0.18: the Hub setup assistant is built as the setup assistant in the app (0.18 package 8).
 - [ ] Linux app package (Flatpak or AppImage): Secret Service instead of in-memory credentials, updater and core distribution for Linux (buildbot platform mapping, [ADR 0020](adr/0020-cores-from-the-libretro-buildbot.md)), check gamepads and audio, check the Steam Deck (L)
