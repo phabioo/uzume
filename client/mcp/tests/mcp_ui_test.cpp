@@ -229,6 +229,63 @@ class McpUiTest : public QObject {
     delete box;
   }
 
+  // hold_ms keeps the key down: the press arrives at once, the release only after the hold (rewind needs a held key).
+  void keyCanBeHeld() {
+    QQuickItem* box = inject(R"QML(
+      Item { objectName: "mcpHoldProbe"; x: 20; y: 20; width: 100; height: 36; focus: true
+        property int downs: 0
+        property int ups: 0
+        Keys.onPressed: (e) => { if (!e.isAutoRepeat) downs++ }
+        Keys.onReleased: (e) => { if (!e.isAutoRepeat) ups++ } }
+    )QML");
+    QVERIFY(box != nullptr);
+    box->forceActiveFocus();
+    QElapsedTimer timer;
+    timer.start();
+    const Answer a = call(QStringLiteral("ui_key"), {{"key", "Backspace"}, {"hold_ms", 400}, {"target", "mcpHoldProbe"}});
+    QVERIFY2(!a.result.isError, qPrintable(a.text()));
+    QVERIFY(timer.elapsed() >= 380);
+    QCOMPARE(a.json().value(QStringLiteral("held_ms")).toInt(), 400);
+    QCOMPARE(box->property("downs").toInt(), 1);
+    QCOMPARE(box->property("ups").toInt(), 1);
+    delete box;
+  }
+
+  // ui_type on a plugin text block lands in the text field inside it, not in the wrapper (the keys would become game hotkeys).
+  void typeReachesTextFieldInsidePluginBlock() {
+    QQuickItem* box = inject(R"QML(
+      Item { objectName: "plugin_ta_probe"; x: 20; y: 80; width: 240; height: 80
+        TextArea { objectName: "innerArea"; anchors.fill: parent } }
+    )QML");
+    QVERIFY(box != nullptr);
+    const Answer a = call(QStringLiteral("ui_type"), {{"target", "plugin_ta_probe"}, {"text", "Mine"}});
+    QVERIFY2(!a.result.isError, qPrintable(a.text()));
+    QCOMPARE(h->item("innerArea")->property("text").toString(), QStringLiteral("Mine"));
+    delete box;
+  }
+
+  // confirm: true lifts the brake only in a test run (UZUME_MCP_CONFIRM=1 at start); without it the answer stays a refusal.
+  void confirmNeedsTheTestRunSwitch() {
+    QQuickItem* root = inject(R"QML(
+      Item { x: 10; y: 80; width: 400; height: 100
+        property int clicks: 0
+        UzButton { objectName: "probeDanger2"; x: 0; y: 0; kind: "danger"; text: "Delete slot"; onClicked: parent.clicks++ }
+      }
+    )QML");
+    QVERIFY(root != nullptr);
+    QTRY_VERIFY(h->item("probeDanger2")->isVisible());
+    qunsetenv("UZUME_MCP_CONFIRM");
+    QVERIFY(call(QStringLiteral("ui_click"), {{"target", "probeDanger2"}, {"confirm", true}}).result.isError);
+    QCOMPARE(root->property("clicks").toInt(), 0);
+    qputenv("UZUME_MCP_CONFIRM", "1");
+    QVERIFY(call(QStringLiteral("ui_click"), {{"target", "probeDanger2"}}).result.isError);  // confirm itself is still needed
+    const Answer ok = call(QStringLiteral("ui_click"), {{"target", "probeDanger2"}, {"confirm", true}});
+    qunsetenv("UZUME_MCP_CONFIRM");
+    QVERIFY2(!ok.result.isError, qPrintable(ok.text()));
+    QTRY_COMPARE(root->property("clicks").toInt(), 1);
+    delete root;
+  }
+
   // App shortcuts fire from ui_key like from the keyboard (Ctrl+4 controllers, Ctrl+, settings, Ctrl+1 library).
   void shortcutsFire() {
     call(QStringLiteral("navigate"), {{"to", "library"}});

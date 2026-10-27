@@ -1,6 +1,6 @@
 # Roadmap
 
-Status and plan of Uzume after the proof of concept: what is finished, what comes next up to 1.0 and what is deliberately left for later. Work is cut into one work package per thread and PR (see [workflow](workflow.md)). Next up: 0.20 (emulation); 0.21 (randomizer) is built, its real-engine test and the 3DS updates are open. Finished milestones and the decisions behind the old numbering are in [history](history.md); what the product does today is in [features](features.md).
+Status and plan of Uzume after the proof of concept: what is finished, what comes next up to 1.0 and what is deliberately left for later. Work is cut into one work package per thread and PR (see [workflow](workflow.md)). 0.20 to 0.24 are built in parallel and all ship as betas 0.20.N; when all features and fixes are in, one release PR raises `VERSION` to 0.21.0, the first stable release ([ADR 0016](adr/0016-release-numbering-and-promotion.md), amendment 2026-10-27). 0.20 and 0.24 are finished (their leftovers and Fabio's tests are below), 0.21 is built (real-engine test and 3DS updates open), 0.22 and 0.23 are open. Finished milestones and the decisions behind the old numbering are in [history](history.md); what the product does today is in [features](features.md).
 
 ## Goal 1.0
 
@@ -40,8 +40,9 @@ Decided by Fabio on 2026-10-11: 1.0 is reached when a group of friends completes
 | 0.19 | App comfort and library | [ADR 0030](adr/0030-one-app-one-server-uzume.md) D8 |
 | 0.19.x | Readable UI pass (design system r6) | [decisions](design/uzume/decisions.md#sheet-6--readable-pass-2026-10-26) |
 | 0.19.x | In-game redesign (sheet 7): control bar, Quick menu, Game tab | [decisions](design/uzume/decisions.md#sheet-7--in-game-redesign-2026-10-26) |
+| 0.20 | Emulation: save states, rewind, run-ahead, `memory.write`, snapshots, cheats, plugin store | [ADR 0023](adr/0023-plugins.md), [cheats design](design/uzume/cheats.md) |
 | 0.24 | Platforms: Linux AppImage, Secret Service, Vulkan | [ADR 0034](adr/0034-linux-app-and-vulkan.md) |
-| 0.20 to 0.23, 1.0 | Planned, see below | |
+| 0.21 to 0.23, 1.0 | Planned, see below | |
 
 Not all items of the finished milestones are closed. Open leftovers are recorded in their [history](history.md) sections, among them: the 0.11 plugin open points (non-admin plugin upload, Azahar memory maps), the 0.16 "What's new" screen and plugin repository PR templates, the 0.10.x library speed with many games.
 
@@ -71,41 +72,24 @@ Tests only Fabio can do at the end: audio on Windows (volume, mute, mute in back
 
 Tests only Fabio can do at the end: Azahar with Vulkan on a real GPU (and the Renderer row switching it); OpenGL unchanged on NVIDIA, AMD and Intel; the AppImage on a desktop (X11 and Wayland); audio through PipeWire and PulseAudio; gamepads; the Steam Deck in desktop mode and as a non-Steam game in game mode; GNOME Keyring and KWallet (sign-in survives a restart); the AppImage self-update and its restore of `.previous`; "Only on this PC" with the bundled server on Linux.
 
+## 0.20 leftovers
+
+- Real-core checks are open: save-state serialization (size, time, determinism) on melonDS DS, DeSmuME and Azahar, run-ahead on a real core, and `retro_cheat_set` per format, including the Azahar Gateway engine from the `phabioo/azahar` fork. CI covers all of it only with the test core.
+- The Pokémon editor's ORAS offsets and encodings (plugin `uzume-plugin-pokemon-editor` v0.1.0 with `uzume-plugin-soullink-core` v0.5.0) are unverified on real hardware.
+- Run-ahead is off for 3DS by design; rewind and states on Azahar depend on the real-core check above.
+
+Tests only Fabio can do at the end: save states, rewind and run-ahead in a real game on Windows (hotkeys, preview images, Undo after a load, frame pacing); cheats from the database in a DS, GBA and 3DS game, and switching `rules.cheats` to off in a running run; a plugin memory write with the consent, the "Before memory changes" copy and the run log; "Before gym N" from SoulLink; Windows hardware checks of the new Game rules and Cheat database screens.
+
 ## Open milestones
 
 Planned, in this order. Each section is the work list; check an item off here and, when the milestone is finished, move the section to [history](history.md) and add a row above.
 
 | Version | Theme |
 |---|---|
-| [0.20](#020-emulation) | Emulation: save states, rewind, run-ahead, `memory.write`, snapshots, cheats |
 | [0.21](#021-randomizer) | Randomizer: game variants, tools catalog, plugin, runs with their own randomized game |
 | [0.22](#022-plugins) | Plugins: developer console, run recap, Discord Rich Presence, tracker plugins |
 | [0.23](#023-together) | Together: online status, notifications, ready check, chat, viewer role, audio mixer, voice chat, controller hand-over |
 | [1.0](#10-test-phase) | Test phase and the SoulLink run |
-
-## 0.20 Emulation
-
-Decided by Fabio on 2026-10-21 (as 0.19; renumbered on 2026-10-22). Spike first for save states. Dependency chain: save states -> rewind -> run-ahead (all use `retro_serialize`). The UI parts are drawn in the Uzume design; no own design round.
-
-- [ ] Spike: serialization in melonDS DS, DeSmuME, Azahar, mGBA and Gambatte (size, time, determinism), with a note, then cut the packages (S)
-- [ ] Save states: slots per game, stored on the server next to saves (own limit), hotkeys, preview image; run rule "states allowed" through `run_settings`, run log event on use (M-L)
-- [ ] Rewind: ring buffer, hold a hotkey, memory limit, can be blocked in runs by rule (M)
-- [ ] `memory.write` in the plugin API: consent per game, one write queue, snapshot before the first write, run log, run rule, as described in [12-plugins.md](architecture/12-plugins.md) (M)
-- [ ] Automatic snapshot: plugin API `fb.save.snapshot(reason)` (usable without `memory.write`); SoulLink triggers it before gym battles. Later the editor plugin builds on `memory.write` (S)
-
-Cheats (decided by Fabio on 2026-10-23). Action Replay and the other formats run in the cores' own cheat engines (`retro_cheat_set`), not in Lua; `memory.write` is only needed for raw codes a core cannot handle. Everything works the same with "Only on this PC" (the app's own child server) and with a shared server. No cheat lists of real games in any repository. Order: core cheats and Azahar fork first, then rules and snapshots together with the save state rules, then the plugin API, then the database, then the plugin `uzume-plugin-cheats` v0.1 in its own repository.
-
-- [x] Design addition in the Uzume canvas: family 11 (11a to 11h) on sheet 4, 11e and 11f linked on sheet 3, spec [design/uzume/cheats.md](design/uzume/cheats.md) (S)
-- [ ] Spike: which formats `retro_cheat_set` accepts in melonDS DS, DeSmuME, mGBA and Gambatte (synthetic codes on homebrew or the test core); size and layout of libretro-database `cht/` and `metadat/` (S)
-- [ ] Core cheats in the app: load `retro_cheat_reset`/`retro_cheat_set` optionally, re-apply the active list between frames after every change, reset and state load; core profile block `cheats` with the supported formats (a core without it has no cheats, even with the symbol) (S-M)
-- [ ] Azahar fork (`phabioo/azahar`): connect `retro_cheat_set` to the existing Gateway engine (`GatewayCheat`), Azahar's own cheat file stays unused; core profile format `gateway` (S)
-- [ ] Run rule `rules.cheats` (`off` by default, `logged`) owned by the core, not by a plugin; the run creator sets it at the start and changes it at any time (`PUT /runs/{id}/rules`, pushed live over the run WSS, `rules.changed` in the run log); switching to `off` clears all active cheats at once; run log events `cheat.enabled`/`cheat.disabled` written by the app (S-M)
-- [ ] Snapshot "Before cheats" at the first active cheat of a play session; later save versions carry `cheats_used`, shown as a badge in the save history (S)
-- [ ] Plugin API: permission `cheats`, `fb.cheats.formats()`, `fb.cheats.apply(list)`, `fb.cheats.clear()`, event `cheats.blocked`; consent per game, snapshot and run log stay in the app (M)
-- [ ] UI building blocks: multi-line `textarea` and `fb.ui.pick_file` (the plugin only gets the content of the picked file) (S-M)
-- [ ] Plugin user store on the server: `fb.store.get/put` per user and plugin with revisions and a local copy in the app (works offline and with "Only on this PC"); on a conflict both versions are kept (M)
-- [ ] Cheat database: the server downloads libretro-database `cht/` and the No-Intro DATs at runtime (`-cheat-db-url`, `none` turns it off; refreshed like the core catalog), offline `import-cheats <zip>`; match by ROM hash -> No-Intro name, 3DS by title ID; `GET /games/{id}/cheats` (M)
-- [ ] Run-ahead: 1-2 frames, only for cores with fast serialization, off for 3DS (M)
 
 ## 0.21 Randomizer
 

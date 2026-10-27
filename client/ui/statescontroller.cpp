@@ -222,7 +222,9 @@ QList<StateRecord> StatesController::records() const {
 }
 
 QString StatesController::versionTag(const QString& recordVersion, const QString& currentVersion) {
+  const QString unknown = QStringLiteral("unknown");  // sent for a core without a version (StateApi)
   if (recordVersion.isEmpty() || currentVersion.isEmpty() || recordVersion == currentVersion) return {};
+  if (recordVersion == unknown || currentVersion == unknown) return {};
   const QList<int> a = versionParts(recordVersion), b = versionParts(currentVersion);
   if (a.isEmpty() || b.isEmpty() || a == b) return tr("Other core version");
   return a < b ? tr("Older core") : tr("Newer core");
@@ -279,9 +281,16 @@ void StatesController::rebuild() {
     m.insert(QStringLiteral("canSave"), n >= 1 && play && block.isEmpty());
     slots_.append(m);
   }
-  const QString where = serverStates() ? (serverName_.isEmpty() ? tr("on the server") : tr("on %1").arg(serverName_)) : tr("on this PC only");
+  // "On the server" only for states the server really holds; waiting or refused ones are named as what they are.
+  int onSrv = 0;
+  for (const QVariant& v : std::as_const(slots_))
+    if (v.toMap().value(QStringLiteral("n")).toInt() >= 1 && v.toMap().value(QStringLiteral("onServer")).toBool()) ++onSrv;
+  const QString srv = serverName_.isEmpty() ? tr("on the server") : tr("on %1").arg(serverName_);
+  QString where;
+  if (!serverStates() || (filled > 0 && onSrv == 0)) where = anyPending && serverStates() ? tr("waiting for the server") : tr("on this PC only");
+  else if (onSrv == filled) where = srv;
+  else where = tr("%1 %2").arg(onSrv).arg(srv);
   summary_ = tr("%1 of %2 · %3").arg(filled).arg(kStateSlotCount).arg(where).toUpper();
-  Q_UNUSED(anyPending)
   Q_UNUSED(anyServer)
   emit changed();
 }
@@ -438,6 +447,9 @@ void StatesController::ensureBlob(const StateRecord& rec, std::function<void(con
 void StatesController::showToast(const QString& text, const QString& kind, const QString& action, int ms) {
   toast_ = QVariantMap{{QStringLiteral("text"), text}, {QStringLiteral("kind"), kind}, {QStringLiteral("action"), action}, {QStringLiteral("token"), static_cast<qulonglong>(++toastToken_)}};
   toastTimer_.start(action.isEmpty() ? ms : kUndoMs);
+  toastLog_.append(QVariantMap{{QStringLiteral("source"), QStringLiteral("states")}, {QStringLiteral("text"), text}, {QStringLiteral("kind"), kind},
+                               {QStringLiteral("action"), action}, {QStringLiteral("time"), QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs)}});
+  while (toastLog_.size() > 20) toastLog_.removeFirst();
   emit toastChanged();
 }
 

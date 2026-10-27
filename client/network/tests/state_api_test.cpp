@@ -73,6 +73,20 @@ class StateApiTest : public QObject {
     QVERIFY(!api_->available());
   }
 
+  // The server requires core_version; a core without one sends "unknown".
+  void coreWithoutVersionSendsAFallback() {
+    const QByteArray body = StateApi::multipartBody("b", QStringLiteral("melonds"), QString(), QByteArray("S"), QByteArray());
+    QVERIFY(body.contains("\"core_version\":\"unknown\""));
+    const QByteArray real = StateApi::multipartBody("b", QStringLiteral("melonds"), QStringLiteral("1.2.3"), QByteArray("S"), QByteArray());
+    QVERIFY(real.contains("\"core_version\":\"1.2.3\""));
+    connectHub({QStringLiteral("saves_v1"), QStringLiteral("states_v1")});
+    StateRecord m = meta(1);
+    m.coreVersion.clear();
+    const auto put = await([&](auto cb) { api_->put(m, QByteArray(100, 'x'), QByteArray(), cb); });
+    QVERIFY(put.ok());
+    QCOMPARE(hub_->states.size(), 1);
+  }
+
   void putListGetPreviewDelete() {
     connectHub({QStringLiteral("saves_v1"), QStringLiteral("states_v1")});
     QVERIFY(api_->available());

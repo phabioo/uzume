@@ -10,7 +10,7 @@ Uzume (formerly FrameBeam) is a self-hosted retro gaming platform. The **Uzume s
 
 > The server manages. The app emulates. Audio and video flow directly between apps wherever possible.
 
-Current version: 0.19 — status and plan: [roadmap](docs/roadmap.md). Platforms: Windows app; Linux server (Debian, Pi), also Windows and Docker.
+Current version: 0.20 — status and plan: [roadmap](docs/roadmap.md). Platforms: Windows app; Linux server (Debian, Pi), also Windows and Docker.
 
 ## Highlights
 

@@ -155,7 +155,7 @@ func TestCheatDBImportAndMatching(t *testing.T) {
 		t.Fatal(err)
 	}
 	l, err := svc.GameCheats(ctx, admin.ID, demo.ID)
-	if err != nil || l.Source != "none" || len(l.Cheats) != 0 || l.Cheats == nil {
+	if err != nil || l.Source != "unavailable" || len(l.Cheats) != 0 || l.Cheats == nil {
 		t.Fatalf("%+v %v", l, err)
 	}
 	st, err := svc.CheatDBStatus(ctx)

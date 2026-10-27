@@ -6,7 +6,8 @@ import Uzume.App
 // In-game plugin screen (docs/design/legacy/plugins.md, "In-game screen sheet"): opened by fb.ui.open("screen"). Covers the body
 // below the GameHeader (play area and side panel; in fullscreen the play area). In the active theme (the game view is dark). The game keeps running
 // underneath. Top bar: "← Back to game", plugin icon, screen title and plugin name, key hint Esc; below it the plugin's
-// "screen" tree (max 1100 wide, or 560 with `width = "dialog"` on its root column; centered, scrolling vertically). Esc and Back emit closeRequested().
+// "screen" tree (max 1100 wide; centered, scrolling vertically). With `width = "dialog"` on its root column the sheet is a 560 px dialog,
+// centered over the scrim, and the game stays visible around it. Esc and Back emit closeRequested().
 // The sheet is a focus scope: opening it moves the focus to "Back to game" and Tab / Shift+Tab walk through its own controls (Back,
 // the tabs and buttons of the screen); the host keeps what the sheet covers out of the tab chain while it is open.
 FocusScope {
@@ -27,6 +28,7 @@ FocusScope {
         return false
     }
     property var tree: ({})
+    readonly property bool asDialog: root.tree.width === "dialog"
     signal closeRequested()
 
     visible: open
@@ -34,8 +36,9 @@ FocusScope {
 
     function refresh() { root.tree = root.pluginId !== "" ? root.player.plugins.slotTree(root.pluginId, "screen") : ({}) }
     // The focus goes to "Back to game" (first stop of the sheet); Esc still reaches the sheet's key handler from there.
+    // The sheet takes it at once (Esc works right away), the button once the tree is built.
     function takeFocus() { backButton.forceActiveFocus() }
-    onPluginIdChanged: { refresh(); if (pluginId !== "") Qt.callLater(root.takeFocus) }
+    onPluginIdChanged: { refresh(); if (pluginId !== "") { root.forceActiveFocus(); Qt.callLater(root.takeFocus) } }
     Component.onCompleted: refresh()
     Connections {
         target: root.player.plugins
@@ -49,13 +52,27 @@ FocusScope {
 
     Keys.onEscapePressed: (e) => { e.accepted = true; if (!e.isAutoRepeat) root.closeRequested() }
 
-    Rectangle { anchors.fill: parent; color: Theme.ground }
+    Rectangle { anchors.fill: parent; color: root.asDialog ? Theme.scrim : Theme.ground }
 
     // The sheet is opaque to the play area below
     MouseArea { anchors.fill: parent; acceptedButtons: Qt.AllButtons; onWheel: (w) => w.accepted = true }
 
+    // Full sheet, or in dialog mode a framed panel in the middle (height follows the content, at most the body minus a margin).
+    Rectangle {
+        id: panel
+        objectName: "pluginScreenPanel"
+        width: root.asDialog ? Math.min(Theme.dialogLg + 2 * Theme.space3, root.width - 2 * Theme.space3) : root.width
+        height: root.asDialog ? Math.min(root.height - 2 * Theme.space4, sheetColumn.implicitHeight + 2) : root.height
+        x: (root.width - width) / 2
+        y: (root.height - height) / 2
+        color: root.asDialog ? Theme.surface : "transparent"
+        border.width: root.asDialog ? 1 : 0
+        border.color: Theme.rule
+        clip: true
     ColumnLayout {
+        id: sheetColumn
         anchors.fill: parent
+        anchors.margins: root.asDialog ? 1 : 0
         spacing: 0
 
         Rectangle {
@@ -133,6 +150,7 @@ FocusScope {
             objectName: "pluginScreenSheetFlick"
             Layout.fillWidth: true
             Layout.fillHeight: true
+            implicitHeight: content.implicitHeight + 2 * Theme.space3
             clip: true
             contentWidth: width
             contentHeight: content.implicitHeight + 2 * Theme.space3
@@ -172,5 +190,6 @@ FocusScope {
                 }
             }
         }
+    }
     }
 }

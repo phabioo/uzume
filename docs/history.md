@@ -58,6 +58,7 @@ Milestone sections in order. Names of the products in old text (FrameBeam Hub, P
 - [0.18 Uzume: one app, one server, new name](#018-uzume-one-app-one-server-new-name)
 - [0.19 Player comfort and library](#019-player-comfort-and-library)
 - [0.19.x Readable UI pass](#019x-readable-ui-pass)
+- [0.20 Emulation](#020-emulation)
 - [0.24 Platforms](#024-platforms)
 
 ### 0.1.1 Finish the PoC
@@ -454,9 +455,25 @@ Not built: the panel tabs Run · Chat · Saves of board 3g-1-r6 (Chat comes with
 
 Tests only Fabio can do: the gamepad on the shell pages with a real pad, Text size TV on a TV, the wide Windows font, Kinari and Sumi visually.
 
+### 0.20 Emulation
+
+Decided by Fabio on 2026-10-21 (as 0.19; renumbered on 2026-10-22). Cheats added on 2026-10-23. Decisions: [ADR 0023](adr/0023-plugins.md) (plugin API), design [cheats](design/uzume/cheats.md). Built in six packages plus a final fixes PR; leftovers and Fabio's tests are in the [roadmap](roadmap.md#020-leftovers). Dependency chain: save states -> rewind -> run-ahead (all use `retro_serialize`). Behaviour: [features](features.md), [app guide](guides/app.md), [plugin API](guides/plugin-api.md).
+
+- [x] Done (PR #247, package 1, app): emulation foundation, optional `retro_serialize` and `retro_cheat_*` in the libretro backend, core profile block `cheats` with the supported formats (S-M)
+- [x] Done (PR #243, package 2): server save states (slots, own quota, preview PNG), core run rules (`rules.states`, `rewind`, `cheats`, `memory`) with `PUT /runs/{id}/rules` pushed live and `rules.changed` in the run log, the `cheats_used` save marker, migration 0024, OpenAPI 1.39.0 (M-L)
+- [x] Done (PR #245, package 3): plugin user store with revisions and kept conflicts, cheat database from libretro-database `cht/` and the No-Intro DATs (`-cheat-db-url`, `import-cheats`), `GET /games/{id}/cheats`, migration 0026, OpenAPI 1.41.0 (M)
+- [x] Done (PR #254, package 4, app): save states with slots and hotkeys, Auto state with Undo, rewind (ring buffer, memory limit), run-ahead (1-2 frames, off for 3DS), sync with `states_v1` and offline cache; blocked by run rules (M)
+- [x] Done (PR #248, package 5, app): plugin API `memory.write` (consent per game, one write queue, snapshot "Before memory changes", run log), `cheats` (`fb.cheats.*`, "Before cheats"), `fb.save.snapshot`, `fb.store` with local copy, `textarea` and `fb.ui.pick_file` (M-L)
+- [x] Done (PR #257, package 6, app): "Game rules" block in Start a run and "Rules…" in the run view, Cheat database settings, "Changes the game" tag on permissions, live-check fixes (M)
+- [x] Done (PR #259, app): cheats marker and automatic snapshots in the save history (design 11g), slot tabs outside the scroll area (S)
+- [x] Done (PR #263, final fixes): plugins in runs, states upload without a core version, cheat database "unavailable" state (OpenAPI 1.42.0), rewind caps, dialog-width screens, MCP tools for the new screens (S-M)
+- [x] Done (own repositories): `uzume-plugin-cheats` v0.1.2 (per-game lists in `fb.store`, database, import), `uzume-plugin-pokemon-editor` v0.1.0 (Creature Editor on `memory.write`), `uzume-plugin-soullink-core` v0.5.0 (write helpers), `uzume-plugin-soullink` v0.8.2 (snapshot "Before gym N")
+
+The Azahar Gateway connection (fork `phabioo/azahar`) and the per-format behaviour of `retro_cheat_set` can only be verified with the real cores; see the leftovers.
+
 ### 0.24 Platforms
 
-Decided by Fabio on 2026-10-21 (as 0.22; renumbered on 2026-10-22 and 2026-10-23). Decisions: [ADR 0034](adr/0034-linux-app-and-vulkan.md). Finished while 0.20 to 0.23 were still open; leftovers and Fabio's tests are in the [roadmap](roadmap.md#024-leftovers). Browser watching was dropped on 2026-10-22 ([ADR 0030](adr/0030-one-app-one-server-uzume.md) D2).
+Decided by Fabio on 2026-10-21 (as 0.22; renumbered on 2026-10-22 and 2026-10-23). Decisions: [ADR 0034](adr/0034-linux-app-and-vulkan.md). Finished while 0.20 to 0.23 were still open; shipped in betas 0.20.5 to 0.20.13 (ADR 0016 amendment 2026-10-27); leftovers and Fabio's tests are in the [roadmap](roadmap.md#024-leftovers). Browser watching was dropped on 2026-10-22 ([ADR 0030](adr/0030-one-app-one-server-uzume.md) D2).
 
 - [x] Done (PR #252): Linux credential store in the freedesktop Secret Service over QtDBus (GNOME Keyring, KWallet), memory only without a session bus; ADR 0034 (S-M)
 - [x] Done (PR #255): Vulkan hardware rendering next to OpenGL: libretro Vulkan hardware interface with readback display and encode (Azahar offers it; melonDS DS stays OpenGL) (L)

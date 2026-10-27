@@ -1206,6 +1206,7 @@ const (
 	GameCheatsSourceImported         GameCheatsSource = "imported"
 	GameCheatsSourceLibretroDatabase GameCheatsSource = "libretro-database"
 	GameCheatsSourceNone             GameCheatsSource = "none"
+	GameCheatsSourceUnavailable      GameCheatsSource = "unavailable"
 )
 
 // Valid indicates whether the value is a known member of the GameCheatsSource enum.
@@ -1216,6 +1217,8 @@ func (e GameCheatsSource) Valid() bool {
 	case GameCheatsSourceLibretroDatabase:
 		return true
 	case GameCheatsSourceNone:
+		return true
+	case GameCheatsSourceUnavailable:
 		return true
 	default:
 		return false
@@ -3644,7 +3647,9 @@ type GameCheats struct {
 
 	// MatchedBy How the game was matched; absent when no list was found
 	MatchedBy *GameCheatsMatchedBy `json:"matched_by,omitempty"`
-	Source    GameCheatsSource     `json:"source"`
+
+	// Source `none` = the cheat database is off; `unavailable` = it is on but holds no lists yet (not loaded, or the update failed)
+	Source GameCheatsSource `json:"source"`
 
 	// UpdatedAt When the stored lists were fetched or imported
 	UpdatedAt *time.Time `json:"updated_at,omitempty"`
@@ -3653,7 +3658,7 @@ type GameCheats struct {
 // GameCheatsMatchedBy How the game was matched; absent when no list was found
 type GameCheatsMatchedBy string
 
-// GameCheatsSource defines model for GameCheats.Source.
+// GameCheatsSource `none` = the cheat database is off; `unavailable` = it is on but holds no lists yet (not loaded, or the update failed)
 type GameCheatsSource string
 
 // GamePersonal What the calling user has with one game (0.19). `play_seconds` and `sessions` count the plays the server saw from

@@ -122,6 +122,7 @@ class StatesController : public QObject {
   bool askBeforeLoad() const;
   void setAskBeforeLoad(bool on);
   QVariantMap toast() const { return toast_; }
+  QVariantList toastLog() const { return toastLog_; }  // the last 20 toasts, oldest first (debug MCP toasts_list)
   QString rewindText() const { return rewindText_; }
   bool rewindAvailable() const;
   QList<StateRecord> records() const;  // the viewed game's states (not the ones waiting to be deleted), by number
@@ -210,6 +211,7 @@ class StatesController : public QObject {
   QString summary_;
   QVariantMap loadRequest_;
   QVariantMap toast_;
+  QVariantList toastLog_;
   quint64 toastToken_ = 0;
   QTimer toastTimer_;
   QString rewindText_;

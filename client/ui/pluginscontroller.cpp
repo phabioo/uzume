@@ -20,6 +20,7 @@
 #include "gamesession.h"
 #include "hubconnection.h"
 #include "playersettings.h"
+#include "runtypes.h"
 #include "system_manifest.h"
 #include "semver.h"
 #include "plugin_language.h"
@@ -130,6 +131,7 @@ PluginsController::PluginsController(PlayerSettings* settings, const QString& da
   });
   connect(emulation_.get(), &PluginEmulationService::consentRequestChanged, this, &PluginsController::consentRequestChanged);
   connect(emulation_.get(), &PluginEmulationService::cheatsOnChanged, this, &PluginsController::cheatsOnChanged);
+  connect(emulation_.get(), &PluginEmulationService::runRulesChanged, this, &PluginsController::refreshRunExtras);
   connect(emulation_.get(), &PluginEmulationService::noticeRaised, this, &PluginsController::addAppNotice);
   manager_ = std::make_unique<plugins::PluginManager>(QDir(dataDir).filePath(QStringLiteral("plugins")));
   manager_->setDeveloperMode(settings_ != nullptr && settings_->developerMode());
@@ -731,7 +733,11 @@ void PluginsController::gameStarted(const QString& system, const QString& romPat
   ensureStore();
   ctx.store = store_;
   ctx.emulation = emulation_;
-  const plugins::GameResolution res = run.bridge ? manager_->resolveForRun(run.pins) : manager_->resolveForGame(ctx.system, ctx.code);
+  gameCtx_ = ctx;
+  gameSystem_ = ctx.system;
+  gameCode_ = ctx.code;
+  runLaunch_ = run;
+  const plugins::GameResolution res = resolveGameSet();
   for (auto it = res.problems.begin(); it != res.problems.end(); ++it)
     qCInfo(lcPlugins) << "plugin" << it.key() << "not started:" << it.value().join(QStringLiteral("; "));
   // The service of the app (run rules, consent, cheat list) is there for every game, with or without a plugin: the run rule lives in
@@ -742,11 +748,49 @@ void PluginsController::gameStarted(const QString& system, const QString& romPat
     return;
   }
 
+  startGameSet(res);
+  rebuildUiModels();
+}
+
+// The plugins of a game: without a run the enabled plugins of the game; in a run the plugins pinned to the run (run.state), plus the
+// person's own enabled plugins that change the game (permission cheats / memory.write) while the run's rules allow that.
+plugins::GameResolution PluginsController::resolveGameSet() const {
+  if (!runLaunch_.bridge) return manager_->resolveForGame(gameSystem_, gameCode_);
+  plugins::GameResolution res = manager_->resolveForRun(runLaunch_.pins);
+  const RunRules rules = parseRunRules(runLaunch_.bridge->current().value(QStringLiteral("rules")).toObject());
+  const bool cheats = rules.cheatsAllowed();
+  const bool memory = rules.memoryWriteAllowed();
+  if (!cheats && !memory) return res;
+  const plugins::GameResolution own = manager_->resolveForGame(gameSystem_, gameCode_);
+  QSet<QString> have;  // pinned server copies win over a local copy with the same id
+  QMap<QString, plugins::PluginInfo> byId;
+  for (const plugins::PluginInfo& p : res.start) have.insert(p.manifest.id);
+  for (const plugins::PluginInfo& p : own.start) byId.insert(p.manifest.id, p);
+  QSet<QString> want;
+  QStringList queue;
+  for (const plugins::PluginInfo& p : own.start) {
+    if (have.contains(p.manifest.id)) continue;
+    if ((cheats && p.manifest.permissions.contains(QStringLiteral("cheats"))) ||
+        (memory && p.manifest.permissions.contains(QStringLiteral("memory.write"))))
+      queue << p.manifest.id;
+  }
+  while (!queue.isEmpty()) {
+    const QString id = queue.takeFirst();
+    if (want.contains(id) || have.contains(id) || !byId.contains(id)) continue;
+    want.insert(id);
+    for (const plugins::Dependency& d : byId.value(id).manifest.dependencies) queue << d.id;
+  }
+  for (const plugins::PluginInfo& p : own.start)  // dependency order of the resolver
+    if (want.contains(p.manifest.id)) res.start.append(p);
+  return res;
+}
+
+void PluginsController::startGameSet(const plugins::GameResolution& res) {
   runningIds_.clear();
   for (const plugins::PluginInfo& p : res.start) runningIds_ << p.manifest.id;
   loggedStatus_.clear();
   devConsole_->resetSeen();
-  consoleRun_ = run.bridge;
+  consoleRun_ = runLaunch_.bridge;
   running_ = true;
   if (storeSync_) {
     for (const plugins::PluginInfo& p : res.start)
@@ -755,14 +799,40 @@ void PluginsController::gameStarted(const QString& system, const QString& romPat
   adapter_->bind(session_ != nullptr ? session_->memoryWatch() : nullptr);
   if (session_ != nullptr) {
     video_ = std::make_shared<VideoCaptureAdapter>(session_);
-    ctx.video = video_;
+    gameCtx_.video = video_;
   }
-  host_->start(ctx, adapter_, res.start);  // asynchronous: the game does not wait for the plugins
+  host_->start(gameCtx_, adapter_, res.start);  // asynchronous: the game does not wait for the plugins
   postInitialEvents();
-  rebuildUiModels();
   setConsoleAvailable(developerMode());
   devConsole_->schedule();
   devConsole_->memoryRefresh();
+}
+
+void PluginsController::stopGameSet() {
+  host_->stop();
+  video_.reset();
+  adapter_->clear();
+  adapter_->bind(nullptr);
+  for (const QString& id : std::as_const(runningIds_)) qCInfo(lcPlugins) << "plugin" << id << "stopped";
+  running_ = false;
+  runningIds_.clear();
+  setConsoleAvailable(false);
+  consoleRun_.reset();
+  devConsole_->resetSeen();
+  devConsole_->memoryRefresh();
+}
+
+// The rules of the run changed while the game runs: the person's own cheats / memory plugins start or stop with them. The pinned run
+// plugins keep running when the set stays the same.
+void PluginsController::refreshRunExtras() {
+  if (!inGame_ || !runLaunch_.bridge) return;
+  const plugins::GameResolution res = resolveGameSet();
+  QStringList ids;
+  for (const plugins::PluginInfo& p : res.start) ids << p.manifest.id;
+  if (ids == runningIds_) return;
+  if (running_) stopGameSet();
+  if (!res.start.isEmpty()) startGameSet(res);
+  rebuildUiModels();
 }
 
 void PluginsController::gameStopped() { stopGame(true); }
@@ -771,21 +841,11 @@ void PluginsController::stopGame(bool restartShell) {
   if (!inGame_ && !running_) return;
   if (running_) {
     emulation_->gameStopped();
-    host_->stop();
-    video_.reset();
-    adapter_->clear();
-    adapter_->bind(nullptr);
-    for (const QString& id : std::as_const(runningIds_)) qCInfo(lcPlugins) << "plugin" << id << "stopped";
-    running_ = false;
-    runningIds_.clear();
+    stopGameSet();
     if (!previewUi_ && !toasts_.isEmpty()) {  // notices of this game ("paused after an error", "Undo death") do not carry over into the next one
       toasts_.clear();
       emit toastsChanged();
     }
-    setConsoleAvailable(false);
-    consoleRun_.reset();
-    devConsole_->resetSeen();
-    devConsole_->memoryRefresh();
   } else if (emulation_) {
     emulation_->gameStopped();  // a game without plugins still had the app's service running
   }
@@ -1434,6 +1494,7 @@ void PluginsController::collectToasts() {
     toast.insert(QStringLiteral("pluginName"), info ? info->manifest.name : id);
     toast.insert(QStringLiteral("origin"), info ? info->origin : QStringLiteral("local"));
     toasts_.append(toast);
+    logToast(toast);
     while (toasts_.size() > 10) toasts_.removeFirst();
     changed = true;
   }
@@ -1468,17 +1529,30 @@ void PluginsController::addAppNotice(const PluginEmulationService::Notice& n) {
     if (mutedAlways_.contains(n.pluginId) || mutedSession_.contains(n.pluginId)) return;
     if (mutedImportant_.contains(n.pluginId) && n.tone != QLatin1String("important")) return;
   }
-  toasts_.append(QVariantMap{{QStringLiteral("toastId"), --hostToastId_},
-                             {QStringLiteral("host"), true},
-                             {QStringLiteral("pluginId"), n.pluginId},
-                             {QStringLiteral("pluginName"), n.pluginName.isEmpty() ? tr("Uzume") : n.pluginName},
-                             {QStringLiteral("tone"), n.tone},
-                             {QStringLiteral("title"), n.title},
-                             {QStringLiteral("text"), n.text},
-                             {QStringLiteral("actions"), QVariantList()},
-                             {QStringLiteral("origin"), QStringLiteral("official")}});
+  const QVariantMap toast{{QStringLiteral("toastId"), --hostToastId_},
+                          {QStringLiteral("host"), true},
+                          {QStringLiteral("pluginId"), n.pluginId},
+                          {QStringLiteral("pluginName"), n.pluginName.isEmpty() ? tr("Uzume") : n.pluginName},
+                          {QStringLiteral("tone"), n.tone},
+                          {QStringLiteral("title"), n.title},
+                          {QStringLiteral("text"), n.text},
+                          {QStringLiteral("actions"), QVariantList()},
+                          {QStringLiteral("origin"), QStringLiteral("official")}};
+  toasts_.append(toast);
+  logToast(toast);
   while (toasts_.size() > 10) toasts_.removeFirst();
   emit toastsChanged();
+}
+
+void PluginsController::logToast(const QVariantMap& t) {
+  toastLog_.append(QVariantMap{{QStringLiteral("source"), t.value(QStringLiteral("pluginId")).toString().isEmpty() ? QStringLiteral("app") : QStringLiteral("plugin")},
+                               {QStringLiteral("pluginId"), t.value(QStringLiteral("pluginId")).toString()},
+                               {QStringLiteral("pluginName"), t.value(QStringLiteral("pluginName")).toString()},
+                               {QStringLiteral("tone"), t.value(QStringLiteral("tone")).toString()},
+                               {QStringLiteral("title"), t.value(QStringLiteral("title")).toString()},
+                               {QStringLiteral("text"), t.value(QStringLiteral("text")).toString()},
+                               {QStringLiteral("time"), QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs)}});
+  while (toastLog_.size() > 20) toastLog_.removeFirst();
 }
 
 // The local copy of the plugin data follows the connected server and user; without a profile it is the "local" one.

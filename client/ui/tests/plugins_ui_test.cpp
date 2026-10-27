@@ -247,7 +247,9 @@ class PluginsUiTest : public QObject {
     QVERIFY(h.item("consoleLoadUnpacked")->isVisible());
     QVERIFY(h.item("consoleReload")->isVisible());
     QCOMPARE(h.item("consoleRestart")->property("text").toString(), QStringLiteral("Reload and resume"));
-    QVERIFY(h.item("consoleUnpackedTag")->isVisible());
+    // The tag only shows while the select is at least 320 px wide (with a wide font the buttons take the room; the folder row
+    // below still says "unpacked"), so the check follows the select's width instead of the font of the machine.
+    QCOMPARE(h.item("consoleUnpackedTag")->isVisible(), h.item("consoleSelect")->width() >= 320);
     QCOMPARE(h.item("consoleFolder")->property("text").toString(), QStringLiteral("/home/dev/item-helper"));
     QVERIFY(h.item("consoleReloadOnChange")->isVisible());
     QCOMPARE(h.items("consolePermGranted").size(), 1);

@@ -26,7 +26,7 @@ How the server and the Windows app update themselves, and how a beta is promoted
 - Same check (10 s after start, then hourly on beta, daily on stable). Settings, section "Updates": channel and automatic install.
 - Stable shows a banner and installs after "Install and restart". Beta downloads in the background and applies at the next start, never during a game.
 - The app installs the index kind `msi`. It updates itself when `uzume-app.msi-installed` is in its folder; the portable zip and dev builds only show availability. The MSI is unsigned (SmartScreen warning).
-- Apply: the app copies its launcher to a temp folder and starts it with `--apply-msi-update <msi> <scope>`. The copy waits until no app runs, runs `msiexec /i <msi> /qn /norestart` with `MSIINSTALLPERUSER=1 ALLUSERS=2` (per user) or `ALLUSERS=1` (per machine, elevated, plus `INSTALL_HUB=1` when the server is installed), then starts the installed app.
+- Apply: the app copies its launcher to a temp folder and starts it with `--apply-msi-update <msi> <scope>`. The copy waits until no app runs, runs `msiexec /i <msi> /qn /norestart` with `MSIINSTALLPERUSER=1 ALLUSERS=2` (per user) or `ALLUSERS=1` (per machine, elevated, plus `INSTALL_HUB=1` when the server is installed), then starts the installed app. If another Windows installation is running, the copy waits for it up to 5 minutes in total (also retrying on error 1618) before it reports the failure.
 - The Windows app is a windowless (GUI-subsystem) app; no console opens on start.
 
 ## App (Linux AppImage)

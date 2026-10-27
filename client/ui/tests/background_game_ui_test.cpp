@@ -4,6 +4,7 @@
 #include <QtTest>
 
 #include "fakehub.h"
+#include "statescontroller.h"
 #include "testsupport.h"
 
 using namespace uzume;
@@ -188,6 +189,7 @@ class BackgroundGameUiTest : public QObject {
     c->quitGame();
     QCOMPARE(c->screen(), QStringLiteral("library"));
     QVERIFY(!gs->isActive());
+    QVERIFY(c->states() != nullptr && !c->states()->playing());  // the game page must not offer Save/Load for a stopped game
     QVERIFY(c->backgroundGame().isEmpty());
     QVERIFY(c->selectedGame().value(QStringLiteral("running")).toBool() == false);
     QQuickTest::qWaitForPolish(h.window);

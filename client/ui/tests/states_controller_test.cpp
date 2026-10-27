@@ -115,6 +115,7 @@ class StatesControllerTest : public QObject {
     conn_.reset();
     hub_.reset();
     QDir(dir_.filePath(QStringLiteral("states"))).removeRecursively();
+    QDir(dir_.filePath(QStringLiteral("data"))).removeRecursively();  // a fresh profile store: every server test starts at "trust this server"
   }
 
   void fiveRowsAutoFirstAllEmptyAtStart() {
@@ -304,6 +305,26 @@ class StatesControllerTest : public QObject {
     st_->remove(1, [&](const Result& x) { r = x; done = true; });
     QTRY_VERIFY_WITH_TIMEOUT(done, 5000);
     QTRY_VERIFY_WITH_TIMEOUT(hub_->states.isEmpty(), 10000);
+  }
+
+  // 0.20 final live check: a core without a version (UZUME_*_CORE, app folder) still uploads; the header names only what the server holds.
+  void coreWithoutVersionUploadsAndSummaryIsHonest() {
+    connectHub();
+    if (QTest::currentTestFailed()) return;
+    startGame(QString());
+    if (QTest::currentTestFailed()) return;
+    QVERIFY(save(1).ok);
+    QTRY_COMPARE_WITH_TIMEOUT(hub_->states.size(), 1, 10000);
+    QTRY_VERIFY_WITH_TIMEOUT(row(1).value("onServer").toBool(), 10000);
+    QVERIFY2(st_->summary().contains(QStringLiteral("ON ")) && !st_->summary().contains(QStringLiteral("THIS PC")), qPrintable(st_->summary()));
+    QCOMPARE(row(1).value("tag").toString(), QString());  // "unknown" never shows as another core version
+    // The server takes no more: the state stays on this PC and the header says so instead of "on the server".
+    hub_->stateQuotaBytes = 0;
+    QVERIFY(save(2).ok);
+    QTRY_VERIFY_WITH_TIMEOUT(!row(2).value("pending").toBool(), 10000);
+    QVERIFY(!row(2).value("onServer").toBool());
+    QVERIFY2(st_->summary().startsWith(QStringLiteral("2 OF 4")), qPrintable(st_->summary()));
+    QVERIFY2(st_->summary().contains(QStringLiteral("1 ON")), qPrintable(st_->summary()));
   }
 
   void worksWithoutAServer() {

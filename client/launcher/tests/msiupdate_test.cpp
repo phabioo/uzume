@@ -109,6 +109,20 @@ class MsiUpdateTest : public QObject {
     QVERIFY(scopeNeedsElevation(L"setup-hub"));
   }
   void quoting() { QVERIFY(quoteArgs({L"C:\\a b\\p.exe", L"--x"}) == L"\"C:\\a b\\p.exe\" \"--x\""); }
+  void retryOnlyOnBusyWithinBudget() {
+    QVERIFY(shouldRetryMsi(1618, 0));
+    QVERIFY(shouldRetryMsi(1618, kMsiBusyBudgetMs - 1));
+    QVERIFY(!shouldRetryMsi(1618, kMsiBusyBudgetMs));
+    QVERIFY(!shouldRetryMsi(0, 0));
+    QVERIFY(!shouldRetryMsi(1603, 0));
+    QVERIFY(!shouldRetryMsi(3010, 0));
+  }
+  void failureMessage() {
+    QVERIFY(msiFailureMessage(1618) ==
+            L"Another program was being installed, so the Uzume update could not be installed (code 1618). "
+            L"Start the update again from Settings when that installation has finished.");
+    QVERIFY(msiFailureMessage(1603) == L"The Uzume update could not be installed (code 1603).");
+  }
 };
 
 QTEST_GUILESS_MAIN(MsiUpdateTest)
