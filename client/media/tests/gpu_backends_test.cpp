@@ -72,6 +72,31 @@ class GpuBackendsTest : public QObject {
     QCOMPARE(spec.colorRange, static_cast<int>(AVCOL_RANGE_MPEG));
   }
 
+  // Vulkan games on NVIDIA (ADR 0034 D9): BGRA D3D11 frames go to h264_nvenc when the frames context carries the marker.
+  void specMapsMarkedD3d11FramesToNvenc() {
+    const auto spec = VideoEncoder::gpuEncoderSpec(AV_PIX_FMT_D3D11, AV_PIX_FMT_BGRA, /*nvencD3d11=*/true);
+    QCOMPARE(spec.encoder, QStringLiteral("h264_nvenc"));
+    QCOMPARE(spec.framesLabel, QStringLiteral("D3D11"));
+    const auto cuda = VideoEncoder::gpuEncoderSpec(AV_PIX_FMT_CUDA, AV_PIX_FMT_RGB0);
+    QCOMPARE(spec.options, cuda.options);  // the same low-latency set as the CUDA path
+    QCOMPARE(spec.colorSpace, static_cast<int>(AVCOL_SPC_SMPTE170M));  // BGRA is converted: BT.601 limited like AMF
+    QCOMPARE(spec.colorRange, static_cast<int>(AVCOL_RANGE_MPEG));
+    // The flag changes nothing for the other frame kinds.
+    QCOMPARE(VideoEncoder::gpuEncoderSpec(AV_PIX_FMT_CUDA, AV_PIX_FMT_RGB0, true).framesLabel, QStringLiteral("CUDA"));
+    QCOMPARE(VideoEncoder::gpuEncoderSpec(AV_PIX_FMT_QSV, AV_PIX_FMT_NV12, true).encoder, QStringLiteral("h264_qsv"));
+    QVERIFY(VideoEncoder::gpuEncoderSpec(AV_PIX_FMT_D3D11, AV_PIX_FMT_NV12, true).encoder.isEmpty());
+  }
+
+  void specOfAFramesContextReadsTheMarker() {
+    AVBufferRef* ref = fakeFramesContext(AV_PIX_FMT_D3D11, AV_PIX_FMT_BGRA, 1280, 960);
+    auto* fc = reinterpret_cast<AVHWFramesContext*>(ref->data);
+    QCOMPARE(VideoEncoder::gpuEncoderSpecOf(ref).encoder, QStringLiteral("h264_amf"));
+    fc->user_opaque = const_cast<void*>(VideoEncoder::nvencD3d11Marker());
+    QCOMPARE(VideoEncoder::gpuEncoderSpecOf(ref).encoder, QStringLiteral("h264_nvenc"));
+    QVERIFY(VideoEncoder::gpuEncoderSpecOf(nullptr).encoder.isEmpty());
+    av_buffer_unref(&ref);
+  }
+
   void specMapsQsvFramesToQsv() {
     const auto spec = VideoEncoder::gpuEncoderSpec(AV_PIX_FMT_QSV, AV_PIX_FMT_NV12);
     QCOMPARE(spec.encoder, QStringLiteral("h264_qsv"));
@@ -202,8 +227,12 @@ class GpuBackendsTest : public QObject {
     using Kind = D3d11EncodeCapture::Kind;
     QCOMPARE(D3d11EncodeCapture::kindForVendor(0x1002), Kind::Amf);
     QCOMPARE(D3d11EncodeCapture::kindForVendor(0x8086), Kind::Qsv);
-    QCOMPARE(D3d11EncodeCapture::kindForVendor(0x10DE), Kind::None);  // NVIDIA keeps CUDA
+    QCOMPARE(D3d11EncodeCapture::kindForVendor(0x10DE), Kind::None);  // NVIDIA keeps CUDA for OpenGL games
     QCOMPARE(D3d11EncodeCapture::kindForVendor(0), Kind::None);
+    QCOMPARE(D3d11EncodeCapture::kindForVendor(0x10DE, true), Kind::Nvenc);  // ... and takes D3D11 frames for Vulkan games
+    QCOMPARE(D3d11EncodeCapture::kindForVendor(0x1002, true), Kind::Amf);
+    QCOMPARE(D3d11EncodeCapture::kindForVendor(0x8086, true), Kind::Qsv);
+    QCOMPARE(D3d11EncodeCapture::kindForVendor(0, true), Kind::None);
     QCOMPARE(D3d11EncodeCapture::alignedSize(1280, Kind::Qsv), 1280);
     QCOMPARE(D3d11EncodeCapture::alignedSize(1278, Kind::Qsv), 1280);
     QCOMPARE(D3d11EncodeCapture::alignedSize(1, Kind::Qsv), 16);

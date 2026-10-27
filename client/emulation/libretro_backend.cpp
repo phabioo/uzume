@@ -540,7 +540,7 @@ bool LibretroBackend::runFrame() {
   m_lastDisplayNs = 0;
   m_lastDisplayed = false;
   if (m_hwActive && !m_hw->makeCurrent()) return false;
-  if (m_vkActive) applyTargetChange();  // the display target (encode targets are GL-only)
+  if (m_vkActive) applyTargetChange();  // display and encode targets (the encode capture runs right after the Vulkan submit, handleVideo)
   if (m_hwActive) {
     applyTargetChange();
     // The frame blitted by the previous runFrame is complete once the target has copied it (ADR 0019): capture it now,
@@ -631,7 +631,7 @@ void LibretroBackend::setGpuEncodeTarget(std::shared_ptr<GpuEncodeTarget> target
 }
 
 void LibretroBackend::applyTargetChange() {
-  if (m_hwActive && m_targetChanged.load()) {
+  if ((m_hwActive || (m_vkActive && m_vk && m_vk->hasContext())) && m_targetChanged.load()) {
     std::shared_ptr<GpuEncodeTarget> next;
     {
       QMutexLocker l(&m_targetMutex);
@@ -639,7 +639,8 @@ void LibretroBackend::applyTargetChange() {
       m_nextTarget.reset();
       m_targetChanged.store(false);  // under the lock: a setter running meanwhile is never lost
     }
-    m_hw->setEncodeTarget(std::move(next));
+    if (m_vkActive) m_vk->setEncodeTarget(std::move(next));  // Vulkan: blit into the target's external image (ADR 0034 D9)
+    else m_hw->setEncodeTarget(std::move(next));
   }
   if ((m_hwActive || (m_vkActive && m_vk && m_vk->hasContext())) && m_displayChanged.load()) {
     std::shared_ptr<GpuDisplayTarget> next;
@@ -812,7 +813,7 @@ bool LibretroBackend::finishHwSetup(unsigned maxWidth, unsigned maxHeight, QStri
     QString err;
     {
       QMutexLocker l(&m_targetMutex);
-      m_vk->setExternalMemoryWanted(m_nextDisplay != nullptr);  // a display target is waiting: the device gets the interop extensions
+      m_vk->setExternalMemoryWanted(m_nextDisplay != nullptr || m_nextTarget != nullptr);  // a display or encode target is waiting: the device gets the interop extensions
     }
     if (!m_vk->create(&err)) {
       qCWarning(lcCore).noquote() << "Vulkan context could not be created:" << err;
@@ -1030,9 +1031,15 @@ void LibretroBackend::handleVideo(const void* data, unsigned width, unsigned hei
       const auto t0 = std::chrono::steady_clock::now();
       bool displayed = false;
       const bool hadDisplay = m_vk->hasDisplayTarget();
-      // The GPU copy into the display target (zero-copy, ADR 0034 D8) runs in the same submit as the readback copy.
+      VkRenderContext::EncodeOutcome encoded;
+      // The GPU copies into the display target (zero-copy, ADR 0034 D8) and the Session encode image (D9) run in the same
+      // submit as the readback copy; the encode target captures right after it (no frame is pending at the next runFrame).
       const QImage img = m_vk->presentFrame(static_cast<int>(width), static_cast<int>(height), unpack(m_readbackLimit.load()), readbackOn,
-                                            unpack(m_displayLimit.load()), &displayed);
+                                            unpack(m_displayLimit.load()), &displayed, true, &encoded);
+      if (encoded.captured) {
+        m_lastGpuCaptured = true;
+        m_lastGpuCopyNs += encoded.ns;
+      }
       const qint64 ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - t0).count();
       m_lastDisplayed = displayed;
       if (hadDisplay) m_lastDisplayNs = ns;  // display and readback share one submit: the whole call counts for both
@@ -1041,6 +1048,7 @@ void LibretroBackend::handleVideo(const void* data, unsigned width, unsigned hei
       if (!img.isNull()) m_frame = img;
     } else {
       m_vk->presentDuplicate();
+      if (m_vk->repeatEncode()) m_lastGpuCaptured = true;  // the Session still gets one frame per displayed frame
     }
     ++m_frameCount;
     return;

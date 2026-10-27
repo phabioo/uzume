@@ -2,12 +2,26 @@
 
 #include <QOpenGLContext>
 #include <QOpenGLFunctions>
+#include <cstring>
 #include <utility>
 
 #include "d3d11encodecapture.h"
 #include "d3d11glbridge.h"
 
 namespace uzume::ui {
+
+VulkanBackend chooseVulkanBackend(unsigned vendorId, const GpuEncodeAllowed& allowed) {
+  switch (vendorId) {
+    case 0x1002:
+      return allowed.amf ? VulkanBackend::Amf : VulkanBackend::None;
+    case 0x8086:
+      return allowed.qsv ? VulkanBackend::Qsv : VulkanBackend::None;
+    case 0x10DE:
+      return allowed.cuda ? VulkanBackend::Nvenc : VulkanBackend::None;
+    default:
+      return VulkanBackend::None;
+  }
+}
 
 GpuEncodePlan planGpuEncode(bool shared, bool hwGame, bool encoderRunning, bool gpuAllowed, bool gpuActive) {
   GpuEncodePlan p;
@@ -66,10 +80,30 @@ class D3d11Capture final : public GpuCapture {
  public:
   explicit D3d11Capture(D3d11EncodeCapture::BridgeProvider provider) : capture_(std::move(provider)) {}
   Status attach(unsigned tex, int w, int h) override { return fromD3d11(capture_.attach(tex, w, h)); }
+  Status attachShared(int w, int h, const unsigned char* luid, unsigned vendorId, SharedImage* out) override {
+    D3d11EncodeCapture::SharedImage img;
+    const Status st = fromD3d11(capture_.attachShared(w, h, luid, vendorId, &img));
+    if (st == Status::Ok) {
+      out->ntHandle = img.ntHandle;
+      out->width = img.width;
+      out->height = img.height;
+    }
+    return st;
+  }
+  std::shared_ptr<AVFrame> repeat() override { return capture_.repeat(); }
   void detach(bool glCurrent) override { capture_.detach(glCurrent); }
   std::shared_ptr<AVFrame> capture() override { return capture_.capture(); }
   QString reason() const override { return capture_.reason(); }
-  Backend backend() const override { return capture_.kind() == D3d11EncodeCapture::Kind::Qsv ? Backend::Qsv : Backend::Amf; }
+  Backend backend() const override {
+    switch (capture_.kind()) {
+      case D3d11EncodeCapture::Kind::Qsv:
+        return Backend::Qsv;
+      case D3d11EncodeCapture::Kind::Nvenc:
+        return Backend::Nvenc;
+      default:
+        return Backend::Amf;
+    }
+  }
 
  private:
   D3d11EncodeCapture capture_;
@@ -213,16 +247,81 @@ bool GpuEncodeBridge::capture() {
     transition(State::Failed, why.isEmpty() ? QStringLiteral("capture failed") : why);
     return false;
   }
+  publish(std::move(frame));
+  return true;
+}
+
+void GpuEncodeBridge::publish(std::shared_ptr<AVFrame> frame) {
   std::shared_ptr<AVFrame> old;
   {
     std::lock_guard<std::mutex> lock(mutex_);
     if (!wanted_.load()) {
-      return true;  // not wanted any more: the frame goes back to the pool below, outside the lock
+      return;  // not wanted any more: the frame goes back to the pool below, outside the lock
     }
     old = std::exchange(latest_, std::move(frame));
   }
-  return true;  // `old` (an untaken frame) is released here, outside the lock
+  // `old` (an untaken frame) is released here, outside the lock
 }
+
+bool GpuEncodeBridge::repeat() {
+  std::shared_ptr<AVFrame> frame = capture_ ? capture_->repeat() : nullptr;
+  if (!frame) {
+    return false;
+  }
+  publish(std::move(frame));
+  return true;
+}
+
+emu::GpuEncodeTarget::Attach GpuEncodeBridge::attachExternal(int width, int height, const VulkanDevice& device, emu::ExternalImage* out) {
+  if (!capture_) {
+    const VulkanBackend choice = chooseVulkanBackend(device.vendorId, options_.allowed);
+    if (choice == VulkanBackend::None) {
+      QString why;
+      switch (device.vendorId) {
+        case 0x1002: why = QStringLiteral("h264_amf is not available for GPU-direct encoding"); break;
+        case 0x8086: why = QStringLiteral("h264_qsv is not available for GPU-direct encoding"); break;
+        case 0x10DE: why = QStringLiteral("h264_nvenc is not available for GPU-direct encoding"); break;
+        default: why = QStringLiteral("not an AMD, Intel or NVIDIA GPU"); break;
+      }
+      return finish(GpuCapture::Status::Unavailable, why);
+    }
+    // The Vulkan device's adapter is the one the capture's own D3D11 device opens: no display bridge.
+    capture_ = options_.makeD3d11 ? options_.makeD3d11({}) : std::make_unique<D3d11Capture>(D3d11EncodeCapture::BridgeProvider{});
+  }
+  GpuCapture::SharedImage img;
+  const GpuCapture::Status st = capture_->attachShared(width, height, device.luid.valid ? device.luid.bytes : nullptr, device.vendorId, &img);
+  if (st != GpuCapture::Status::Ok) {
+    return finish(st, capture_->reason());
+  }
+  if (img.ntHandle != sharedHandle_ || QSize(img.width, img.height) != sharedSize_) {  // a new texture: the importer drops what it imported before
+    sharedHandle_ = img.ntHandle;
+    sharedSize_ = QSize(img.width, img.height);
+    ++generation_;
+  }
+  out->handleType = emu::ExternalImage::HandleType::D3D11TextureNt;
+  out->handle = reinterpret_cast<qintptr>(img.ntHandle);
+  out->texSize = QSize(img.width, img.height);
+  out->generation = generation_;
+  out->slot = 0;
+  out->bgra = true;
+  out->keyedMutex = true;
+  out->acquireKey = 0;  // the Vulkan submit takes the producer's key ...
+  out->releaseKey = 1;  // ... and hands the texture to the capture, which takes key 1 and gives key 0 back
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    luid_ = emu::AdapterLuid{};
+    luid_.valid = device.luid.valid;
+    std::memcpy(luid_.bytes, device.luid.bytes, 8);
+  }
+  return Attach::Ok;
+}
+
+emu::AdapterLuid GpuEncodeBridge::adapterLuid() const {
+  std::lock_guard<std::mutex> lock(mutex_);
+  return luid_;
+}
+
+void GpuEncodeBridge::markUnavailable(const QString& reason) { transition(State::Unavailable, reason); }
 
 void GpuEncodeBridge::fail(const QString& reason) { transition(State::Failed, reason); }
 

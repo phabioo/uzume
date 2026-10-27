@@ -155,6 +155,17 @@ if(BUILD_TESTING)
   add_dependencies(test_emulation_vk_display uzume_test_rom)
   set_tests_properties(emulation_vk_display PROPERTIES SKIP_RETURN_CODE 77)
 
+  # GPU-direct Session encoding for Vulkan games (ADR 0034 D9): the same test core frame blitted fitted into the external
+  # B8G8R8A8 image (opaque fd) of a fake emu::GpuEncodeTarget, captured and read back there. SKIP/77 without a device,
+  # except with UZUME_REQUIRE_VULKAN=1 (Linux CI).
+  uzume_add_test(emulation_vk_encode tests/vk_encode_test.cpp LIBS uzume_emulation Qt6::Gui TEST_CORE TEST_CORE_FLAVOR generic)
+  target_include_directories(test_emulation_vk_encode PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
+  target_include_directories(test_emulation_vk_encode SYSTEM PRIVATE ${UZUME_VULKAN_TEST_INCLUDES})
+  target_compile_definitions(test_emulation_vk_encode PRIVATE FB_TEST_CORE_PATH="$<TARGET_FILE:uzume_test_core>"
+                                                              FB_TEST_ROM_PATH="${FB_TEST_ROM}")
+  add_dependencies(test_emulation_vk_encode uzume_test_rom)
+  set_tests_properties(emulation_vk_encode PROPERTIES SKIP_RETURN_CODE 77)
+
   # Input mapping chain (Uzume input -> system profile -> libretro mask) ending in the test core, e.g. ZR -> R2.
   uzume_add_test(emulation_test_core_input tests/test_core_input_test.cpp LIBS uzume_emulation uzume_input uzume_sdl3 TEST_CORE TEST_CORE_FLAVOR generic)
   target_include_directories(test_emulation_test_core_input PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)

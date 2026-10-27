@@ -51,6 +51,11 @@ class VideoEncoder {
   // (FFmpeg built with libvpl). Cached.
   static bool amfInputSupported();
   static bool qsvInputSupported();
+  // Likewise h264_nvenc with AV_PIX_FMT_D3D11 frames (Vulkan games on Windows, ADR 0034 D9). Cached.
+  static bool nvencD3d11InputSupported();
+  // Set as AVHWFramesContext::user_opaque by the D3D11 capture of an NVIDIA GPU: BGRA D3D11 frames then go to h264_nvenc
+  // instead of h264_amf (the two share a frames format; the frames context is the only thing the encoder is chosen by).
+  static const void* nvencD3d11Marker();
   // `order` (empty = preferredEncoders()) without h264_nvenc when cudaDead; unchanged if that would leave it empty.
   static QStringList effectiveOrder(const QStringList& order, bool cudaDead);
 
@@ -59,6 +64,7 @@ class VideoEncoder {
   // GPU-direct encoders by frames context (ADR 0019, ADR 0027 D6). Pure; `hwFormat`/`swFormat` are AVPixelFormat values.
   //   AV_PIX_FMT_CUDA / RGB0   -> h264_nvenc ("CUDA frames")
   //   AV_PIX_FMT_D3D11 / BGRA  -> h264_amf   ("D3D11 frames"), colorspace SMPTE170M, color_range MPEG
+  //   AV_PIX_FMT_D3D11 / BGRA with `nvencD3d11` -> h264_nvenc ("D3D11 frames"), the CUDA path's low-latency options, same colours
   //   AV_PIX_FMT_QSV   / NV12  -> h264_qsv   ("QSV frames")
   // encoder is empty for any other combination.
   struct GpuEncoderSpec {
@@ -68,7 +74,10 @@ class VideoEncoder {
     int colorSpace = -1;                      // AVColorSpace of the codec context, -1 = leave unspecified
     int colorRange = -1;                      // AVColorRange, -1 = leave unspecified
   };
-  static GpuEncoderSpec gpuEncoderSpec(int hwFormat, int swFormat);
+  static GpuEncoderSpec gpuEncoderSpec(int hwFormat, int swFormat, bool nvencD3d11 = false);
+  // The same for a frames context (AVHWFramesContext in framesCtx->data): format, sw_format and the nvenc marker. Empty spec
+  // for null or an unsupported context.
+  static GpuEncoderSpec gpuEncoderSpecOf(const AVBufferRef* framesCtx);
   // Opens the encoder gpuEncoderSpec() names for the frames of `framesCtx` (even size 16..8192). No other encoder is
   // tried. `visible`: the picture size when it is smaller than the frames (QSV frames are 16-aligned; the encoder crops to
   // it), else the frames size. *why: the reason when false.

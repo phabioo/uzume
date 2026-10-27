@@ -4,10 +4,11 @@
 //
 // The Vulkan loader is never linked: it is loaded at runtime (QLibrary) and every function comes from
 // vkGetInstanceProcAddr. No window-system extensions, no surface. The core renders into its own image; per frame the
-// image is copied into a host-visible buffer and converted to an RGB32 QImage (readback; no GPU-direct encoding for
-// Vulkan). With an emu::GpuDisplayTarget that offers acquireExternal() the same image is also blitted on the GPU into
-// the target's external-memory image (zero-copy game view, ADR 0034 D8); any failure there drops the target and the
-// readback goes on. Without the Vulkan headers at build time (UZUME_HAVE_VULKAN undefined) every call reports
+// image is copied into a host-visible buffer and converted to an RGB32 QImage (readback). With an
+// emu::GpuDisplayTarget that offers acquireExternal() the same image is also blitted on the GPU into the target's
+// external-memory image (zero-copy game view, ADR 0034 D8); with an emu::GpuEncodeTarget that offers attachExternal() it is
+// blitted fitted into the target's encode image in the same submit and the target captures it right after (GPU-direct
+// Session encoding, ADR 0034 D9). Any failure there drops the target and the readback goes on. Without the Vulkan headers at build time (UZUME_HAVE_VULKAN undefined) every call reports
 // "unavailable".
 //
 // Thread rules: probe()/create()/destroy()/frame calls all run on the emulation thread.
@@ -22,6 +23,7 @@
 namespace uzume::emu {
 
 class GpuDisplayTarget;
+class GpuEncodeTarget;
 
 class VkRenderContext {
  public:
@@ -66,8 +68,8 @@ class VkRenderContext {
   // value, or a plain major number (1 = Vulkan 1.0).
   void setRequiredApiVersion(unsigned versionMajor);
 
-  // Zero-copy display (ADR 0034 D8). `wanted` = a display target is going to be set: create() then enables the
-  // external-memory extensions the device supports (own device and through the negotiation interface). Call before
+  // Zero-copy display (ADR 0034 D8) and GPU-direct encoding (D9). `wanted` = a display or encode target is going to be set:
+  // create() then enables the external-memory extensions the device supports (own device and through the negotiation interface). Call before
   // create(); extensions that are missing are not an error here, the target is told Unavailable at its first frame.
   void setExternalMemoryWanted(bool wanted);
   // Emulation thread, after create(). Replaces the target: the old one is released (release(true)) and what was imported
@@ -75,6 +77,14 @@ class VkRenderContext {
   void setDisplayTarget(std::shared_ptr<GpuDisplayTarget> target);
   bool hasDisplayTarget() const;
   quint64 displayBlitCount() const;  // frames handed to the target so far (tests, diagnostics)
+
+  // GPU-direct Session encoding (ADR 0034 D9). Emulation thread, after create(); same rules as setDisplayTarget(): the old
+  // target is detached (detach(true)) and what was imported for it is freed, nullptr = none; the context destroys it too.
+  void setEncodeTarget(std::shared_ptr<GpuEncodeTarget> target);
+  bool hasEncodeTarget() const;
+  quint64 encodeBlitCount() const;  // frames captured by the target so far (tests, diagnostics)
+  // video_refresh with NULL (duplicate frame): the target publishes its last frame once more. true: it did.
+  bool repeatEncode();
 
   // Creates instance, device and queue (through the core's negotiation interface where it offers one) and the frame
   // resources. After retro_load_game, before context_reset.
@@ -97,9 +107,16 @@ class VkRenderContext {
   // With a display target the frame is also blitted (scaled to displayLimit like the readback, aspect kept, never
   // upscaled) into the image the target hands out, in the same submit; *displayed tells whether a frame was presented.
   // When the target is dropped during this call the frame is read back after all, whatever `read` says.
-  // withDisplay=false (the frame is not shown anywhere) skips the display copy and leaves the target alone.
+  // With an encode target the frame is also blitted fitted (HwRenderContext::encodeSizeFor of the target's maxSize()) into
+  // its encode image in that submit; after the submit completed target->capture() runs, its duration and result go to
+  // *encode (capture right after the submit, not at the next frame: the submit waits for its fence, so nothing is pending).
+  // withTargets=false (the frame is not shown anywhere) skips the display copy and the encode copy and leaves both targets alone.
+  struct EncodeOutcome {
+    bool captured = false;
+    qint64 ns = 0;  // blit-side work is part of the submit; this is the target's capture() call
+  };
   QImage presentFrame(int w, int h, const QSize& maxSize, bool read, const QSize& displayLimit = QSize(),
-                      bool* displayed = nullptr, bool withDisplay = true);
+                      bool* displayed = nullptr, bool withTargets = true, EncodeOutcome* encode = nullptr);
   // video_refresh with NULL (duplicate frame): command buffers the core queued with set_command_buffers still run once.
   void presentDuplicate();
   quint64 frameCount() const;

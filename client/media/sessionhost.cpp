@@ -337,10 +337,7 @@ class EncodeWorker {
     sendPackets(packets);
   }
 
-  static VideoEncoder::GpuEncoderSpec gpuSpecOf(AVBufferRef* fc) {
-    const auto* frames = fc && fc->data ? reinterpret_cast<const AVHWFramesContext*>(fc->data) : nullptr;
-    return frames ? VideoEncoder::gpuEncoderSpec(frames->format, frames->sw_format) : VideoEncoder::GpuEncoderSpec();
-  }
+  static VideoEncoder::GpuEncoderSpec gpuSpecOf(AVBufferRef* fc) { return VideoEncoder::gpuEncoderSpecOf(fc); }
   static QString gpuEncoderName(AVBufferRef* fc) {
     const QString n = gpuSpecOf(fc).encoder;
     return n.isEmpty() ? QStringLiteral("h264_nvenc") : n;
