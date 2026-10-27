@@ -2,3 +2,4 @@
 server/internal/pluginpkg/testdata/** -text
 client/plugins/tests/testdata/** -text
 *.fbplugin binary
+*.uzplugin binary

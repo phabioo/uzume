@@ -32,7 +32,7 @@ func PluginKeys() []ed25519.PublicKey {
 	return []ed25519.PublicKey{pub}
 }
 
-// PluginZip builds an unsigned .fbplugin with a manifest, main.lua and the extra files (path -> content).
+// PluginZip builds an unsigned .uzplugin with a manifest, main.lua and the extra files (path -> content).
 func PluginZip(t testing.TB, id, version string, perms []string, extra map[string]string) []byte {
 	t.Helper()
 	return PluginZipWith(t, id, version, perms, nil, extra)
@@ -77,7 +77,7 @@ func sortedKeys(m map[string]string) []string {
 	return ks
 }
 
-// SignPlugin signs a .fbplugin with PluginSeed.
+// SignPlugin signs a .uzplugin with PluginSeed.
 func SignPlugin(t testing.TB, data []byte) []byte {
 	t.Helper()
 	out, err := pluginpkg.Sign(data, PluginSeed())
@@ -97,7 +97,7 @@ func PluginIndex(t testing.TB, dir string, badSig bool, signedFiles ...[]byte) s
 		if err != nil {
 			t.Fatal(err)
 		}
-		name := filepath.Join(dir, fmt.Sprintf("plugin-%d.fbplugin", i))
+		name := filepath.Join(dir, fmt.Sprintf("plugin-%d.uzplugin", i))
 		if err := os.WriteFile(name, data, 0o644); err != nil {
 			t.Fatal(err)
 		}

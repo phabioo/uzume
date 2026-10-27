@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-// The signature test vector (testdata/signature-vector.json and testdata/vector.fbplugin) lets the app
+// The signature test vector (testdata/signature-vector.json and testdata/vector.uzplugin) lets the app
 // implementation reproduce the exact bytes of the signed message and the signature. Seed: bytes 0x00..0x1f.
 // Regenerate with UZUME_UPDATE_VECTOR=1 go test ./internal/pluginpkg -run TestSignatureVector.
 
@@ -59,7 +59,7 @@ func buildVector(t *testing.T) (vector, []byte) {
 		Description: "Ed25519 over the signed message; the seed is public test data, never a real key. Message = 'uzume-plugin-v1\\n' + for each file sorted by path (byte order) '<sha256>  <path>\\n'.",
 		SeedBase64:  base64.StdEncoding.EncodeToString(seed),
 		PublicKey:   base64.StdEncoding.EncodeToString(keys[0]),
-		Plugin:      "vector.fbplugin",
+		Plugin:      "vector.uzplugin",
 	}
 	for _, f := range files {
 		v.Files = append(v.Files, vectorFile{Path: f.name, Body: f.body, SHA256: p.Hashes[f.name]})
@@ -90,7 +90,7 @@ func TestSignatureVector(t *testing.T) {
 	want = append(want, '\n')
 	if os.Getenv("UZUME_UPDATE_VECTOR") == "1" {
 		os.WriteFile("testdata/signature-vector.json", want, 0o644)
-		os.WriteFile("testdata/vector.fbplugin", plugin, 0o644)
+		os.WriteFile("testdata/vector.uzplugin", plugin, 0o644)
 	}
 	gotJSON, err := os.ReadFile("testdata/signature-vector.json")
 	if err != nil {
@@ -100,7 +100,7 @@ func TestSignatureVector(t *testing.T) {
 		t.Fatalf("testdata/signature-vector.json is stale; regenerate with UZUME_UPDATE_VECTOR=1")
 	}
 	// The committed file verifies independently of how this test builds it.
-	data, err := os.ReadFile("testdata/vector.fbplugin")
+	data, err := os.ReadFile("testdata/vector.uzplugin")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +110,7 @@ func TestSignatureVector(t *testing.T) {
 	}
 	pub, _ := base64.StdEncoding.DecodeString(v.PublicKey)
 	if verdict := p.Verify([]ed25519.PublicKey{pub}); !verdict.Official() {
-		t.Fatalf("committed vector.fbplugin: %+v", verdict)
+		t.Fatalf("committed vector.uzplugin: %+v", verdict)
 	}
 	// And the documented message is what is signed.
 	sig, _ := base64.StdEncoding.DecodeString(v.Signature)

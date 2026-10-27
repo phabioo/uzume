@@ -335,9 +335,9 @@ ColumnLayout {
                 wrapMode: Text.WordWrap
                 text: {
                     if (!root.ctl.hubSupported)
-                        return qsTr("Plugins add panels and tools to your games. Install a .fbplugin file from this PC.")
+                        return qsTr("Plugins add panels and tools to your games. Install a .uzplugin file from this PC.")
                     const n = root.ctl.hubPlugins.length
-                    if (n === 0) return qsTr("%1 offers no plugins yet. Its admin chooses what is offered. You can also install a .fbplugin file from this PC.").arg(root.hubLabel)
+                    if (n === 0) return qsTr("%1 offers no plugins yet. Its admin chooses what is offered. You can also install a .uzplugin file from this PC.").arg(root.hubLabel)
                     return qsTr("%1 offers %2. They are listed below under Available on %1.")
                         .arg(root.hubLabel).arg(Theme.plural(n, qsTr("plugin"), qsTr("plugins")))
                 }
@@ -610,7 +610,7 @@ ColumnLayout {
             id: pathField
             objectName: "pluginFolderPathField"
             Layout.fillWidth: true
-            placeholderText: root.pathMode === "file" ? qsTr("Plugin file (.fbplugin) or folder path") : root.pathMode === "link" ? qsTr("Folder with manifest.json") : qsTr("Plugin folder path")
+            placeholderText: root.pathMode === "file" ? qsTr("Plugin file (.uzplugin) or folder path") : root.pathMode === "link" ? qsTr("Folder with manifest.json") : qsTr("Plugin folder path")
             onAccepted: applyPath.clicked()
         }
         UzButton {

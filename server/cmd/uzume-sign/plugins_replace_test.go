@@ -25,7 +25,7 @@ func TestPluginAddRefusesDifferentFileForSameVersion(t *testing.T) {
 		return run(args, func(k string) string { return env[k] }, &out, now)
 	}
 	signZip := func(name string, extra map[string]string) string {
-		raw, signed := filepath.Join(dir, name+".raw"), filepath.Join(dir, name+".fbplugin")
+		raw, signed := filepath.Join(dir, name+".raw"), filepath.Join(dir, name+".uzplugin")
 		os.WriteFile(raw, pluginZip(t, "1.2.0", extra), 0o644)
 		if err := runE("plugin-sign", "-in", raw, "-out", signed); err != nil {
 			t.Fatal(err)
@@ -33,7 +33,7 @@ func TestPluginAddRefusesDifferentFileForSameVersion(t *testing.T) {
 		return signed
 	}
 	idxFile := filepath.Join(dir, "plugin-index.json")
-	url := "https://example.org/tracker-1.2.0.fbplugin"
+	url := "https://example.org/tracker-1.2.0.uzplugin"
 	a, b := signZip("a", nil), signZip("b", map[string]string{"extra.txt": "different"})
 	if err := runE("plugin-add", "-index", idxFile, "-plugin", a, "-url", url); err != nil {
 		t.Fatal(err)

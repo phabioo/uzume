@@ -8,7 +8,7 @@
 #include <functional>
 
 #include "fakehub.h"
-#include "fbplugin_testutil.h"
+#include "uzplugin_testutil.h"
 #include "testsupport.h"
 
 using namespace uzume;
@@ -391,7 +391,7 @@ class PluginsUiTest : public QObject {
     hub.decision = FakeHub::Decision::Approve;
     hub.features = {QStringLiteral("saves_v1"), QStringLiteral("plugins_v1")};
     const auto offer = [&hub](const FbSpec& spec) {
-      const QByteArray file = makeFbPlugin(spec);
+      const QByteArray file = makeUzPlugin(spec);
       hub.pluginList.append(QJsonObject{{"plugin_id", spec.id}, {"version", spec.version}, {"name", spec.name}, {"description", ""}, {"api", 1},
                                         {"origin", "unverified"}, {"sha256", sha256Hex(file)}, {"size", file.size()},
                                         {"permissions", QJsonArray::fromStringList(spec.permissions)}, {"requires", spec.requires_},
@@ -526,7 +526,7 @@ class PluginsUiTest : public QObject {
     hub.decision = FakeHub::Decision::Approve;
     hub.features = {QStringLiteral("saves_v1"), QStringLiteral("plugins_v1")};
     const auto offer = [&hub](const FbSpec& spec, const QByteArray& served = {}) {
-      const QByteArray file = makeFbPlugin(spec);
+      const QByteArray file = makeUzPlugin(spec);
       hub.pluginList.append(QJsonObject{{"plugin_id", spec.id}, {"version", spec.version}, {"name", spec.name}, {"description", "Does a thing"},
                                         {"api", 1}, {"origin", spec.sign ? "official" : "unverified"}, {"sha256", sha256Hex(file)},
                                         {"size", file.size()}, {"permissions", QJsonArray::fromStringList(spec.permissions)},
@@ -549,7 +549,7 @@ class PluginsUiTest : public QObject {
     brokenServed.lua = "fb.log.info('HELLO')\n";  // same length: the size check passes, the SHA-256 pin does not
     offer(official);
     offer(community);
-    offer(broken, makeFbPlugin(brokenServed));
+    offer(broken, makeUzPlugin(brokenServed));
     QVERIFY(hub.start());
     Harness h;
     QVERIFY(h.start());
@@ -635,15 +635,15 @@ class PluginsUiTest : public QObject {
     for (const QVariant& v : pc->hubPlugins())
       if (v.toMap().value("id").toString() == QLatin1String("net.example.broken")) QCOMPARE(v.toMap().value("state").toString(), QStringLiteral("install"));
 
-    // A local .fbplugin: unsigned = Local file, needs Developer mode; signed = Official, needs none.
+    // A local .uzplugin: unsigned = Local file, needs Developer mode; signed = Official, needs none.
     FbSpec localSpec;
     localSpec.id = "net.example.localfile";
     localSpec.name = "Local Thing";
-    const QString localFile = src_.filePath("local.fbplugin");
+    const QString localFile = src_.filePath("local.uzplugin");
     {
       QFile f(localFile);
       QVERIFY(f.open(QIODevice::WriteOnly));
-      f.write(makeFbPlugin(localSpec));
+      f.write(makeUzPlugin(localSpec));
     }
     pc->installFromPath(QUrl::fromLocalFile(localFile).toString());
     QVERIFY2(!pc->messageIsError(), qPrintable(pc->message()));
@@ -659,11 +659,11 @@ class PluginsUiTest : public QObject {
     signedSpec.id = "net.example.signedfile";
     signedSpec.name = "Signed Thing";
     signedSpec.sign = true;
-    const QString signedFile = src_.filePath("signed.fbplugin");
+    const QString signedFile = src_.filePath("signed.uzplugin");
     {
       QFile f(signedFile);
       QVERIFY(f.open(QIODevice::WriteOnly));
-      f.write(makeFbPlugin(signedSpec));
+      f.write(makeUzPlugin(signedSpec));
     }
     pc->installFromPath(signedFile);
     QVERIFY2(!pc->messageIsError(), qPrintable(pc->message()));
@@ -674,7 +674,7 @@ class PluginsUiTest : public QObject {
         QVERIFY(v.toMap().value("problemsText").toString().isEmpty());
       }
     // not a plugin file
-    const QString junk = src_.filePath("junk.fbplugin");
+    const QString junk = src_.filePath("junk.uzplugin");
     {
       QFile f(junk);
       QVERIFY(f.open(QIODevice::WriteOnly));

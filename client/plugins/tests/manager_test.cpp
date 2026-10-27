@@ -2,7 +2,7 @@
 #include <QTemporaryDir>
 #include <QtTest>
 
-#include "fbplugin_testutil.h"
+#include "uzplugin_testutil.h"
 #include "plugin_manager.h"
 #include "plugin_test_util.h"
 
@@ -278,7 +278,7 @@ class ManagerTest : public QObject {
     QVERIFY(QFileInfo(dir + "/main.lua").isFile());
   }
 
-  // ---- .fbplugin files and origins (contract sections 1, 2, 7)
+  // ---- .uzplugin files and origins (contract sections 1, 2, 7)
 
   static QString writeFile(const QString& path, const QByteArray& bytes) {
     QFile f(path);
@@ -295,7 +295,7 @@ class ManagerTest : public QObject {
     FbSpec s;
     s.id = "net.test.official";
     s.sign = true;
-    const InstallResult r = m.installFromFile(writeFile(src.filePath("o.fbplugin"), makeFbPlugin(s)));
+    const InstallResult r = m.installFromFile(writeFile(src.filePath("o.uzplugin"), makeUzPlugin(s)));
     QVERIFY2(r.ok, qPrintable(r.error));
     QCOMPARE(r.origin, QString("official"));
     QCOMPARE(r.id, QString("net.test.official"));
@@ -316,7 +316,7 @@ class ManagerTest : public QObject {
     m.setTrustedKeys({fixedTestKey().pub});
     FbSpec s;
     s.id = "net.test.unsigned";
-    const InstallResult r = m.installFromFile(writeFile(src.filePath("u.fbplugin"), makeFbPlugin(s)));
+    const InstallResult r = m.installFromFile(writeFile(src.filePath("u.uzplugin"), makeUzPlugin(s)));
     QVERIFY2(r.ok, qPrintable(r.error));
     QCOMPARE(r.origin, QString("local"));
     QVERIFY(m.setEnabled("net.test.unsigned", true));
@@ -335,7 +335,7 @@ class ManagerTest : public QObject {
     s.id = "net.test.badsig";
     s.sign = true;
     s.key = fixedTestKey(3);
-    const InstallResult r = m.installFromFile(writeFile(src.filePath("b.fbplugin"), makeFbPlugin(s)));
+    const InstallResult r = m.installFromFile(writeFile(src.filePath("b.uzplugin"), makeUzPlugin(s)));
     QVERIFY2(r.ok, qPrintable(r.error));
     QCOMPARE(r.origin, QString("local"));
     QVERIFY(!r.signatureNote.isEmpty());
@@ -348,7 +348,7 @@ class ManagerTest : public QObject {
     FbSpec s;
     s.id = "net.test.forged";
     s.extra["origin.json"] = R"({"origin":"official","sha256":"x"})";
-    QVERIFY(m.installFromFile(writeFile(src.filePath("f.fbplugin"), makeFbPlugin(s))).ok);
+    QVERIFY(m.installFromFile(writeFile(src.filePath("f.uzplugin"), makeUzPlugin(s))).ok);
     QCOMPARE(m.list().first().origin, QString("local"));
     // and a folder that brings an origin.json (or a SIGNATURE.json) along is local as well
     PluginSpec ps;
@@ -367,11 +367,19 @@ class ManagerTest : public QObject {
     QVERIFY(m.installFromPath(writePlugin(src.path(), ps)).ok);
     FbSpec s;
     s.id = "net.test.file";
-    QVERIFY(m.installFromPath(writeFile(src.filePath("x.fbplugin"), makeFbPlugin(s))).ok);
+    QVERIFY(m.installFromPath(writeFile(src.filePath("x.uzplugin"), makeUzPlugin(s))).ok);
     QCOMPARE(m.list().size(), 2);
-    const InstallResult bad = m.installFromPath(writeFile(src.filePath("junk.fbplugin"), "junk"));
+    // Legacy file name: a package named *.fbplugin (same zip format) still installs.
+    FbSpec legacy;
+    legacy.id = "net.test.legacy";
+    QVERIFY(m.installFromFile(writeFile(src.filePath("x.fbplugin"), makeUzPlugin(legacy))).ok);
+    QVERIFY(m.installFromPath(writeFile(src.filePath("y.fbplugin"), makeUzPlugin(legacy))).ok);
+    QCOMPARE(m.list().size(), 3);
+    QVERIFY(m.uninstall(QStringLiteral("net.test.legacy")));
+    QCOMPARE(m.list().size(), 2);
+    const InstallResult bad = m.installFromPath(writeFile(src.filePath("junk.uzplugin"), "junk"));
     QVERIFY(!bad.ok);
-    QVERIFY(!m.installFromPath(src.filePath("missing.fbplugin")).ok);
+    QVERIFY(!m.installFromPath(src.filePath("missing.uzplugin")).ok);
     QCOMPARE(m.list().size(), 2);
     QVERIFY(!QFileInfo::exists(root.path() + "/installed/.tmp-net.test.file"));
   }
@@ -381,7 +389,7 @@ class ManagerTest : public QObject {
     PluginManager m(root.path());
     FbSpec s;
     s.id = "net.test.hub";
-    const QByteArray file = makeFbPlugin(s);
+    const QByteArray file = makeUzPlugin(s);
     const InstallResult r = m.installHubCopy(file, "net.test.hub", "1.0.0", sha256Hex(file));
     QVERIFY2(r.ok, qPrintable(r.error));
     QCOMPARE(r.origin, QString("unverified"));
@@ -398,7 +406,7 @@ class ManagerTest : public QObject {
     PluginManager m(root.path());
     FbSpec s;
     s.id = "net.test.hub";
-    const QByteArray file = makeFbPlugin(s);
+    const QByteArray file = makeUzPlugin(s);
     const InstallResult r = m.installHubCopy(file, "net.test.hub", "1.0.0", QString(64, 'a'));
     QVERIFY(!r.ok);
     QVERIFY(r.error.contains("SHA-256"));
@@ -413,7 +421,7 @@ class ManagerTest : public QObject {
     QTemporaryDir root;
     FbSpec s;
     s.id = "net.test.hub";
-    const QByteArray file = makeFbPlugin(s);
+    const QByteArray file = makeUzPlugin(s);
     {
       PluginManager m(root.path());
       QVERIFY(m.installHubCopy(file, "net.test.hub", "1.0.0", sha256Hex(file)).ok);
@@ -430,7 +438,7 @@ class ManagerTest : public QObject {
     FbSpec s;
     s.id = "net.test.both";
     s.version = "2.0.0";
-    const QByteArray file = makeFbPlugin(s);
+    const QByteArray file = makeUzPlugin(s);
     QVERIFY(m.installHubCopy(file, "net.test.both", "2.0.0", sha256Hex(file)).ok);
     PluginSpec ps;
     ps.id = "net.test.both";

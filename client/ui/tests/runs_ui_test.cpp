@@ -14,7 +14,7 @@
 
 #include "fakehub.h"
 #include "keyedrowsmodel.h"
-#include "fbplugin_testutil.h"
+#include "uzplugin_testutil.h"
 #include "runrecapcontroller.h"
 #include "runscontroller.h"
 #include "savehistorycontroller.h"
@@ -107,7 +107,7 @@ class RunsUiTest : public QObject {
     spec.name = "Run Notes";
     spec.permissions = {"run.state"};
     spec.recap = QJsonArray{QJsonObject{{"type", "tide.catch"}, {"glyph", "catch"}}, QJsonObject{{"type", "tide.badge"}, {"glyph", "badge"}}};
-    const QByteArray file = makeFbPlugin(spec);
+    const QByteArray file = makeUzPlugin(spec);
     const QString sha = sha256Hex(file);
     hub.pluginList.append(QJsonObject{{"plugin_id", spec.id}, {"version", spec.version}, {"name", spec.name}, {"description", "Notes for runs"}, {"api", 1},
                                       {"origin", "unverified"}, {"sha256", sha}, {"size", file.size()}, {"permissions", QJsonArray{"run.state"}},
@@ -453,7 +453,7 @@ class RunsUiTest : public QObject {
     spec.lua = "local c = fb.run.current()\n"
                "local ok, err = fb.run.setState({a = 1})\n"
                "fb.ui.set('run', {type = 'text', text = 'view=' .. tostring(c.view) .. ' ' .. tostring(c.name) .. ' ' .. tostring(err)})\n";
-    const QByteArray file = makeFbPlugin(spec);
+    const QByteArray file = makeUzPlugin(spec);
     const QString sha = sha256Hex(file);
     hub.pluginList.append(QJsonObject{{"plugin_id", spec.id}, {"version", spec.version}, {"name", spec.name}, {"description", "Notes for runs"}, {"api", 1},
                                       {"origin", "unverified"}, {"sha256", sha}, {"size", file.size()}, {"permissions", QJsonArray{"run.state", "ui"}},
@@ -544,7 +544,7 @@ class RunsUiTest : public QObject {
     spec.lua = "fb.ui.set('screen', {type = 'text', text = 'screen ' .. tostring(fb.run.current().view)})\n"
                "fb.ui.set('run', {type = 'text', text = 'run tree'})\n"
                "fb.ui.badge(3)\n";
-    const QByteArray file = makeFbPlugin(spec);
+    const QByteArray file = makeUzPlugin(spec);
     const QString sha = sha256Hex(file);
     hub.pluginList.append(QJsonObject{{"plugin_id", spec.id}, {"version", spec.version}, {"name", spec.name}, {"description", ""}, {"api", 1},
                                       {"origin", "unverified"}, {"sha256", sha}, {"size", file.size()}, {"permissions", QJsonArray{"run.state", "ui"}},
@@ -950,7 +950,7 @@ class RunsUiTest : public QObject {
         fs.permissions = {};
         for (const QJsonValue& pv : perms) fs.permissions << pv.toString();
         for (auto rq = req.begin(); rq != req.end(); ++rq) fs.requires_.insert(rq.key(), rq.value());
-        const QByteArray file = makeFbPlugin(fs);
+        const QByteArray file = makeUzPlugin(fs);
         sha = sha256Hex(file);
         size = file.size();
         hub.pluginFiles.insert(id + "/" + ver, file);

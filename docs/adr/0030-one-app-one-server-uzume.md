@@ -1,6 +1,6 @@
 # ADR 0030: One app, one server, new name Uzume (0.18)
 
-- Status: Accepted. Name, no web admin, server commands instead of an emergency web, accounts for all users, runs without a plugin and the milestone order were decided by Fabio on 2026-10-22. Fabio decided on 2026-10-22 (later the same day) that browser watching goes too and the code keeps no browser components. The timing of the web admin removal (D2), the plugin IDs (D7) and the waves without their own design round (D8) follow the recommendations of the 0.18 plan, taken on 2026-10-22; Fabio may still change them. On the same day he decided that the rename has no backward compatibility (amendment of D1).
+- Status: Accepted. Name, no web admin, server commands instead of an emergency web, accounts for all users, runs without a plugin and the milestone order were decided by Fabio on 2026-10-22. Fabio decided on 2026-10-22 (later the same day) that browser watching goes too and the code keeps no browser components. The timing of the web admin removal (D2), the plugin IDs (D7) and the waves without their own design round (D8) follow the recommendations of the 0.18 plan, taken on 2026-10-22; Fabio may still change them. On the same day he decided that the rename has no backward compatibility (amendment of D1). On 2026-10-27 he decided the package extension `.uzplugin` and the editor plugin `uzume.monster-editor` (second amendment of D1).
 - Date: 2026-10-22
 - Deciders: Fabio
 
@@ -19,7 +19,7 @@ This ADR supersedes parts of [ADR 0015](0015-hub-ui-pass.md) (Hub web UI), [ADR 
 - The product is **Uzume**. The app (formerly FrameBeam Player) is called "Uzume", the server (formerly FrameBeam Hub) "Uzume server", in running text "the server". The terms Hub and Player leave the UI and the docs; the code directories `client/` and `server/` keep their names.
 - "Session" stays the term for a shared running game.
 - Package 2 of 0.18 renames every identifier, with no compatibility to FrameBeam (see the amendment below): Go module path `github.com/phabioo/uzume`, programs `Uzume` and `uzume-server`, Windows services `UzumeServer` and `UzumeServerUpdater`, install and data folders, environment variables `UZUME_*` (`FRAMEBEAM_*` are not read), links `uzume://`, Docker image `ghcr.io/<owner>/uzume-server` only, invite codes `UZ-` only, wire names, database file `uzume.db`, signed-data contexts, update and plugin index URLs on the new repository.
-- What stays: the product keys `player` and `hub` in the signed update index (they are not FrameBeam strings), the plugin API namespace `fb.*`, the release signing key, the `.fbplugin` package format.
+- What stays: the product keys `player` and `hub` in the signed update index (they are not FrameBeam strings), the plugin API namespace `fb.*`, the release signing key, the plugin package format (extension changed by the amendment of 2026-10-27).
 - Never create a repository with an old name again: that would break GitHub's redirect for old links.
 
 #### Amendment (package 2, 2026-10-22): no compatibility
@@ -46,6 +46,13 @@ Consequences:
 - The plugin index and the plugins must be signed again with "Publish plugin" so that they verify again; old signatures do not.
 - Docker users switch to the `uzume-server` image and `UZUME_*` variables, with a new volume.
 - Old backups (`framebeam-hub-*.tar`) cannot be restored.
+
+#### Amendment (2026-10-27, decided by Fabio): package extension `.uzplugin`, editor plugin `uzume.monster-editor`
+
+- The plugin package extension becomes `.uzplugin` (the "What stays" line above no longer lists the extension). Format, `SIGNATURE.json` and the signature context `uzume-plugin-v1` are unchanged, so existing signatures stay valid.
+- `.fbplugin` is read as legacy input only (app install from file, server upload and import, workflow "Publish plugin"). The server renames stored `<id>/<version>.fbplugin` files to `.uzplugin` at start.
+- The editor plugin id `uzume.pokemon-editor` (D7) becomes `uzume.monster-editor`; the repository is `phabioo/uzume-plugin-monster-editor` (renamed from `uzume-plugin-pokemon-editor`, the old URL redirects).
+- The releases `plugin-index` and `updates-index` are titled "Uzume plugin index" and "Uzume update index".
 
 ### D2 One app, no web admin
 
@@ -113,7 +120,7 @@ Consequences:
 
 - Runs are always visible under PLAY, also without a run plugin. A run has its own save slot "Run: <Name>"; the main slot stays untouched.
 - A run plugin is chosen under "Rules" when creating the run; its screens become run tabs. Plugins get no sidebar entries any more; the plugin API's sidebar slot becomes a run-tab slot.
-- Plugin IDs: `uzume.soullink-core` and `uzume.soullink` (later `uzume.pokemon-editor`, `uzume.cheats`). There are no open runs, so the IDs change without a migration; the plugin index is republished without the old IDs. SoulLink and Nuzlocke become one plugin "SoulLink & Nuzlocke" with a mode.
+- Plugin IDs: `uzume.soullink-core` and `uzume.soullink` (later `uzume.monster-editor`, `uzume.cheats`; the editor was renamed on 2026-10-27, see the amendment in D1). There are no open runs, so the IDs change without a migration; the plugin index is republished without the old IDs. SoulLink and Nuzlocke become one plugin "SoulLink & Nuzlocke" with a mode.
 
 ### D8 Design
 

@@ -1,5 +1,5 @@
 #pragma once
-// .fbplugin files: a zip with manifest.json, the entry file, assets and an optional SIGNATURE.json (0.11 package 3
+// .uzplugin files: a zip with manifest.json, the entry file, assets and an optional SIGNATURE.json (0.11 package 3
 // contract, section 1; docs/architecture/12-plugins.md 16.10). Reading validates the archive completely and in memory
 // before anything is written to disk; the Hub validates the same rules.
 //
@@ -17,12 +17,12 @@
 
 namespace uzume::plugins {
 
-inline constexpr qint64 kFbPluginMaxFileBytes = 32ll * 1024 * 1024;
-inline constexpr qint64 kFbPluginMaxUnpackedBytes = 64ll * 1024 * 1024;
-inline constexpr int kFbPluginMaxEntries = 2000;
-inline constexpr int kFbPluginMaxNameBytes = 255;
-inline constexpr const char* kFbPluginSignatureFile = "SIGNATURE.json";
-inline constexpr const char* kFbPluginSignaturePrefix = "uzume-plugin-v1\n";
+inline constexpr qint64 kUzPluginMaxFileBytes = 32ll * 1024 * 1024;
+inline constexpr qint64 kUzPluginMaxUnpackedBytes = 64ll * 1024 * 1024;
+inline constexpr int kUzPluginMaxEntries = 2000;
+inline constexpr int kUzPluginMaxNameBytes = 255;
+inline constexpr const char* kUzPluginSignatureFile = "SIGNATURE.json";
+inline constexpr const char* kUzPluginSignaturePrefix = "uzume-plugin-v1\n";
 
 enum class SignatureState {
   None,     // no SIGNATURE.json
@@ -30,25 +30,25 @@ enum class SignatureState {
   Invalid,  // SIGNATURE.json present but broken, wrong key or the files do not match: never official
 };
 
-struct FbPluginPackage {
+struct UzPluginPackage {
   Manifest manifest;
   QMap<QString, QByteArray> files;  // every non-directory entry (including manifest.json and SIGNATURE.json)
   SignatureState signature = SignatureState::None;
   QString signatureError;           // why the signature is Invalid
-  QString sha256;                   // lowercase hex of the whole .fbplugin file
-  qint64 size = 0;                  // size of the .fbplugin file
+  QString sha256;                   // lowercase hex of the whole .uzplugin file
+  qint64 size = 0;                  // size of the .uzplugin file
   bool official() const { return signature == SignatureState::Valid; }
 };
 
-struct FbPluginResult {
+struct UzPluginResult {
   bool ok = false;
-  FbPluginPackage package;
+  UzPluginPackage package;
   QString error;  // clear English message when !ok
 };
 
-// Parses and validates `file` (the bytes of a .fbplugin). A broken signature does not fail the read: it is reported in
+// Parses and validates `file` (the bytes of a .uzplugin). A broken signature does not fail the read: it is reported in
 // package.signature (Invalid), never as Valid. `trustedKeys` = raw 32-byte Ed25519 public keys.
-FbPluginResult readFbPlugin(const QByteArray& file, const QList<QByteArray>& trustedKeys);
+UzPluginResult readUzPlugin(const QByteArray& file, const QList<QByteArray>& trustedKeys);
 
 // Signature part on its own. `files` = all non-directory entries. Returns Valid / Invalid / None, *error says why Invalid.
 SignatureState verifyPluginSignature(const QMap<QString, QByteArray>& files, const QList<QByteArray>& trustedKeys, QString* error = nullptr);
@@ -56,6 +56,6 @@ SignatureState verifyPluginSignature(const QMap<QString, QByteArray>& files, con
 QByteArray pluginSignatureMessage(const QMap<QString, QString>& sha256ByPath);
 
 // Writes every file of `pkg` below `destDir` (created; must not contain anything yet). false + *error on failure.
-bool extractFbPlugin(const FbPluginPackage& pkg, const QString& destDir, QString* error);
+bool extractUzPlugin(const UzPluginPackage& pkg, const QString& destDir, QString* error);
 
 }  // namespace uzume::plugins

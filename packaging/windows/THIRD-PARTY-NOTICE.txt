@@ -16,7 +16,7 @@ Further bundled libraries (built via vcpkg, see client/vcpkg.json):
 - libjuice, MPL-2.0, https://github.com/paullouisageneau/libjuice
 - libsrtp, BSD-3-Clause, https://github.com/cisco/libsrtp
 - Lua 5.4.7 (plugin runtime), MIT, Copyright (C) 1994-2024 Lua.org, PUC-Rio, https://www.lua.org/ (source: https://www.lua.org/ftp/)
-- zlib puff.c (altered, inflate for .fbplugin files), zlib license, Copyright (C) 2002-2013 Mark Adler, https://zlib.net/ (source: client/plugins/fbplugin.cpp)
+- zlib puff.c (altered, inflate for .uzplugin files), zlib license, Copyright (C) 2002-2013 Mark Adler, https://zlib.net/ (source: client/plugins/uzplugin.cpp)
 - usrsctp, BSD-3-Clause, https://github.com/sctplab/usrsctp
 - Opus, BSD-3-Clause, https://opus-codec.org/ (source: https://gitlab.xiph.org/xiph/opus)
 - SDL3 (gamepad input only), zlib, https://libsdl.org/ (source: https://github.com/libsdl-org/SDL)

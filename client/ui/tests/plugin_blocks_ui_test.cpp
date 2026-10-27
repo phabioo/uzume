@@ -238,7 +238,7 @@ class PluginBlocksUiTest : public QObject {
     uitest::warningCount() = 0;
     engine_ = new QQmlEngine(this);
     engine_->addImportPath(QStringLiteral("qrc:/qt/qml"));
-    engine_->addImageProvider(QStringLiteral("fbplugin"), new TestProvider);
+    engine_->addImageProvider(QStringLiteral("uzplugin"), new TestProvider);
     win_ = new QQuickWindow;
     win_->resize(760, 900);
     win_->show();

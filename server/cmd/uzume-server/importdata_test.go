@@ -27,7 +27,7 @@ func importSource(t *testing.T) string {
 	setSetting(t, dir, "backup_dir", elsewhere)
 	setSetting(t, dir, "tricky", dir+"-other") // shares the prefix, is not inside
 	for rel, content := range map[string]string{
-		"saves/u/g/main/aaaa": "synthetic save", "roms/ab/abcd.nds": "dummy rom", "plugins/p/1.fbplugin": "plugin",
+		"saves/u/g/main/aaaa": "synthetic save", "roms/ab/abcd.nds": "dummy rom", "plugins/p/1.uzplugin": "plugin",
 		"logs/hub.log": "log", "backups/old.db": "old", "hub.lock": "lock", "imports/a.txt": "x",
 	} {
 		p := filepath.Join(dir, rel)
@@ -83,7 +83,7 @@ func TestImportData(t *testing.T) {
 	if strings.TrimSpace(out.String()) != dest {
 		t.Fatalf("stdout %q", out.String())
 	}
-	for _, rel := range []string{"uzume.db", "saves/u/g/main/aaaa", "roms/ab/abcd.nds", "plugins/p/1.fbplugin", "logs/hub.log", "backups/old.db", "imports/a.txt"} {
+	for _, rel := range []string{"uzume.db", "saves/u/g/main/aaaa", "roms/ab/abcd.nds", "plugins/p/1.uzplugin", "logs/hub.log", "backups/old.db", "imports/a.txt"} {
 		if !exists(filepath.Join(dest, rel)) {
 			t.Errorf("%s not copied", rel)
 		}

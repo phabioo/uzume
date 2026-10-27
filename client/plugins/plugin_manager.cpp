@@ -374,7 +374,7 @@ InstallResult PluginManager::installFromFolder(const QString& srcDir) {
   return r;
 }
 
-InstallResult PluginManager::installPackage(const FbPluginPackage& pkg, const QString& dest, const QString& tmp, const QString& origin,
+InstallResult PluginManager::installPackage(const UzPluginPackage& pkg, const QString& dest, const QString& tmp, const QString& origin,
                                             const QString& sourceSha, const QString& signatureNote) {
   InstallResult r;
   r.id = pkg.manifest.id;
@@ -384,7 +384,7 @@ InstallResult PluginManager::installPackage(const FbPluginPackage& pkg, const QS
   QDir().mkpath(QFileInfo(tmp).absolutePath());
   QDir().mkpath(QFileInfo(dest).absolutePath());
   QString err;
-  if (!extractFbPlugin(pkg, tmp, &err)) {
+  if (!extractUzPlugin(pkg, tmp, &err)) {
     QDir(tmp).removeRecursively();
     r.error = err;
     return r;
@@ -424,22 +424,22 @@ InstallResult PluginManager::installPackage(const FbPluginPackage& pkg, const QS
   return r;
 }
 
-InstallResult PluginManager::installFromFile(const QString& fbpluginPath) {
+InstallResult PluginManager::installFromFile(const QString& packagePath) {
   InstallResult r;
-  QFile f(fbpluginPath);
+  QFile f(packagePath);
   if (!f.exists()) {
-    r.error = QStringLiteral("%1 does not exist").arg(fbpluginPath);
+    r.error = QStringLiteral("%1 does not exist").arg(packagePath);
     return r;
   }
-  if (f.size() > kFbPluginMaxFileBytes) {
-    r.error = QStringLiteral("the plugin file is larger than %1 MiB").arg(kFbPluginMaxFileBytes >> 20);
+  if (f.size() > kUzPluginMaxFileBytes) {
+    r.error = QStringLiteral("the plugin file is larger than %1 MiB").arg(kUzPluginMaxFileBytes >> 20);
     return r;
   }
   if (!f.open(QIODevice::ReadOnly)) {
-    r.error = QStringLiteral("cannot read %1").arg(fbpluginPath);
+    r.error = QStringLiteral("cannot read %1").arg(packagePath);
     return r;
   }
-  const FbPluginResult pr = readFbPlugin(f.readAll(), m_keys);
+  const UzPluginResult pr = readUzPlugin(f.readAll(), m_keys);
   if (!pr.ok) {
     r.error = pr.error;
     return r;
@@ -454,7 +454,7 @@ InstallResult PluginManager::installFromPath(const QString& path) {
   return QFileInfo(path).isDir() ? installFromFolder(path) : installFromFile(path);
 }
 
-InstallResult PluginManager::installHubCopy(const QByteArray& fbplugin, const QString& pluginId, const QString& version, const QString& sha256) {
+InstallResult PluginManager::installHubCopy(const QByteArray& packageBytes, const QString& pluginId, const QString& version, const QString& sha256) {
   InstallResult r;
   r.id = pluginId;
   const QString nv = normVersion(version);
@@ -463,11 +463,11 @@ InstallResult PluginManager::installHubCopy(const QByteArray& fbplugin, const QS
     r.error = QStringLiteral("invalid plugin id or version from the server");
     return r;
   }
-  if (QString::fromLatin1(QCryptographicHash::hash(fbplugin, QCryptographicHash::Sha256).toHex()) != pin) {
+  if (QString::fromLatin1(QCryptographicHash::hash(packageBytes, QCryptographicHash::Sha256).toHex()) != pin) {
     r.error = QStringLiteral("the downloaded file does not match the SHA-256 the server announced");
     return r;
   }
-  const FbPluginResult pr = readFbPlugin(fbplugin, m_keys);
+  const UzPluginResult pr = readUzPlugin(packageBytes, m_keys);
   if (!pr.ok) {
     r.error = pr.error;
     return r;

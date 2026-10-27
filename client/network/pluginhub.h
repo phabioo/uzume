@@ -15,7 +15,7 @@
 
 namespace uzume {
 
-inline constexpr qint64 kMaxPluginDownloadBytes = 32ll * 1024 * 1024;  // same limit as a .fbplugin file
+inline constexpr qint64 kMaxPluginDownloadBytes = 32ll * 1024 * 1024;  // same limit as a .uzplugin file
 
 // One entry of a plugin's `run_settings` (manifest field and Hub plugin list; the Hub enforces the same rules).
 struct RunSettingOption {
@@ -46,7 +46,7 @@ struct HubPluginInfo {
   QString description;
   int api = 1;
   QString origin;  // as the Hub classified it: "official" | "unverified" (the Player checks the signature itself)
-  QString sha256;  // lowercase hex of the .fbplugin file: the pin of the download
+  QString sha256;  // lowercase hex of the .uzplugin file: the pin of the download
   qint64 size = 0;
   QStringList permissions;
   QJsonObject requires_;

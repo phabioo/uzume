@@ -14,7 +14,7 @@
 //	uzume-server renew-cert                   renew the self-generated TLS certificate now and exit
 //	uzume-server import-cores <dir>           import libretro buildbot core zips from a directory (offline) and exit
 //	uzume-server import-cheats <zip>          import a libretro-database archive for the cheat database (offline) and exit
-//	uzume-server import-plugins <dir>         offer every *.fbplugin file of a directory to apps (offline) and exit
+//	uzume-server import-plugins <dir>         offer every *.uzplugin file of a directory to apps (offline; legacy .fbplugin accepted) and exit
 //	uzume-server import-tools <zip>...        add randomizer engine release zips (UPR_FVX-v1_6_2-Windows.zip, ...) to the tools catalog (offline) and exit
 //	uzume-server diagnostics <out.zip>        write the diagnostics bundle (logs, configuration; no database access) and exit
 //	uzume-server backup [--out DIR]           make a backup now; also: backup list | config | verify <file>
@@ -395,7 +395,7 @@ func runImportCheats(args []string, out io.Writer) error {
 	return nil
 }
 
-// runImportPlugins offers every *.fbplugin file of a directory to apps (offline fallback, like import-cores).
+// runImportPlugins offers every *.uzplugin file of a directory to apps (offline fallback, like import-cores).
 // Running the command is the admin's confirmation of the requested permissions. Restart is not needed.
 func runImportPlugins(args []string, out io.Writer) error {
 	dir := ""

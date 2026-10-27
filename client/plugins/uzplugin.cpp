@@ -1,4 +1,4 @@
-// .fbplugin reader. The inflate part (struct Bits ... inflateRaw) is derived from puff.c of zlib and altered: output cap,
+// .uzplugin reader. The inflate part (struct Bits ... inflateRaw) is derived from puff.c of zlib and altered: output cap,
 // complete-code checks reduced to over-subscription, C++ with Qt types. Original notice of puff.c:
 //
 //   puff.c  Copyright (C) 2002-2013 Mark Adler, all rights reserved  version 2.3, 21 Jan 2013
@@ -17,7 +17,7 @@
 //   3. This notice may not be removed or altered from any source distribution.
 //
 //   Mark Adler    madler@alumni.caltech.edu
-#include "fbplugin.h"
+#include "uzplugin.h"
 
 #include <QCryptographicHash>
 #include <QDir>
@@ -227,7 +227,7 @@ bool inflateRaw(const QByteArray& in, qsizetype limit, QByteArray* out) {
 // Empty = fine, otherwise the reason. `name` is a file entry (no trailing '/').
 QString nameProblem(const QByteArray& raw, QString* nameOut) {
   if (raw.isEmpty()) return QStringLiteral("empty entry name");
-  if (raw.size() > kFbPluginMaxNameBytes) return QStringLiteral("entry name longer than %1 bytes").arg(kFbPluginMaxNameBytes);
+  if (raw.size() > kUzPluginMaxNameBytes) return QStringLiteral("entry name longer than %1 bytes").arg(kUzPluginMaxNameBytes);
   QStringDecoder dec(QStringDecoder::Utf8, QStringDecoder::Flag::Stateless);
   const QString name = dec.decode(raw);
   if (dec.hasError()) return QStringLiteral("entry name is not valid UTF-8");
@@ -251,8 +251,8 @@ QString nameProblem(const QByteArray& raw, QString* nameOut) {
   return {};
 }
 
-FbPluginResult fail(const QString& msg) {
-  FbPluginResult r;
+UzPluginResult fail(const QString& msg) {
+  UzPluginResult r;
   r.error = msg;
   return r;
 }
@@ -263,7 +263,7 @@ QByteArray pluginSignatureMessage(const QMap<QString, QString>& sha256ByPath) {
   QList<QPair<QByteArray, QString>> items;
   for (auto it = sha256ByPath.begin(); it != sha256ByPath.end(); ++it) items.append({it.key().toUtf8(), it.value()});
   std::sort(items.begin(), items.end(), [](const auto& a, const auto& b) { return a.first < b.first; });  // QByteArray: byte order
-  QByteArray msg(kFbPluginSignaturePrefix);
+  QByteArray msg(kUzPluginSignaturePrefix);
   for (const auto& i : items) msg += i.second.toLatin1() + "  " + i.first + "\n";
   return msg;
 }
@@ -273,7 +273,7 @@ SignatureState verifyPluginSignature(const QMap<QString, QByteArray>& files, con
     if (error != nullptr) *error = m;
     return SignatureState::Invalid;
   };
-  const QString sigName = QString::fromLatin1(kFbPluginSignatureFile);
+  const QString sigName = QString::fromLatin1(kUzPluginSignatureFile);
   auto sigIt = files.constFind(sigName);
   if (sigIt == files.constEnd()) return SignatureState::None;
   if (sigIt->size() > 4 * 1024 * 1024) return bad(QStringLiteral("SIGNATURE.json is too large"));
@@ -315,8 +315,8 @@ SignatureState verifyPluginSignature(const QMap<QString, QByteArray>& files, con
   return bad(QStringLiteral("signature does not match any trusted Uzume key"));
 }
 
-FbPluginResult readFbPlugin(const QByteArray& b, const QList<QByteArray>& trustedKeys) {
-  if (b.size() > kFbPluginMaxFileBytes) return fail(QStringLiteral("the plugin file is larger than %1 MiB").arg(kFbPluginMaxFileBytes >> 20));
+UzPluginResult readUzPlugin(const QByteArray& b, const QList<QByteArray>& trustedKeys) {
+  if (b.size() > kUzPluginMaxFileBytes) return fail(QStringLiteral("the plugin file is larger than %1 MiB").arg(kUzPluginMaxFileBytes >> 20));
   if (b.size() < 22) return fail(QStringLiteral("not a plugin file (not a zip archive)"));
 
   // End of central directory: the last signature whose comment length reaches exactly to the end of the file.
@@ -333,7 +333,7 @@ FbPluginResult readFbPlugin(const QByteArray& b, const QList<QByteArray>& truste
   if (get16(b, eocd + 8) != count) return fail(QStringLiteral("damaged zip archive (entry counts differ)"));
   if (count == 0xFFFF || get32(b, eocd + 12) == 0xFFFFFFFFu || get32(b, eocd + 16) == 0xFFFFFFFFu)
     return fail(QStringLiteral("zip64 archives are not supported"));
-  if (count > kFbPluginMaxEntries) return fail(QStringLiteral("the plugin file has more than %1 entries").arg(kFbPluginMaxEntries));
+  if (count > kUzPluginMaxEntries) return fail(QStringLiteral("the plugin file has more than %1 entries").arg(kUzPluginMaxEntries));
   const qsizetype cdSize = get32(b, eocd + 12);
   qsizetype p = get32(b, eocd + 16);
   if (p + cdSize > eocd) return fail(QStringLiteral("damaged zip archive (central directory)"));
@@ -348,10 +348,10 @@ FbPluginResult readFbPlugin(const QByteArray& b, const QList<QByteArray>& truste
       if (!(nlen > 0 && b[q + 46 + nlen - 1] == '/')) declared += get32(b, q + 24);
       q += 46 + nlen + xlen + clen;
     }
-    if (declared > kFbPluginMaxUnpackedBytes) return fail(QStringLiteral("the plugin is larger than %1 MiB unpacked").arg(kFbPluginMaxUnpackedBytes >> 20));
+    if (declared > kUzPluginMaxUnpackedBytes) return fail(QStringLiteral("the plugin is larger than %1 MiB unpacked").arg(kUzPluginMaxUnpackedBytes >> 20));
   }
 
-  FbPluginPackage pkg;
+  UzPluginPackage pkg;
   pkg.size = b.size();
   pkg.sha256 = sha256Hex(b);
   QSet<QString> seenLower;
@@ -388,7 +388,7 @@ FbPluginResult readFbPlugin(const QByteArray& b, const QList<QByteArray>& truste
     if (csize == 0xFFFFFFFFu || size == 0xFFFFFFFFu || lho == 0xFFFFFFFFu) return fail(QStringLiteral("zip64 archives are not supported"));
     if (method != 0 && method != 8) return fail(QStringLiteral("'%1' uses an unsupported compression method").arg(name));
     unpacked += size;
-    if (unpacked > kFbPluginMaxUnpackedBytes) return fail(QStringLiteral("the plugin is larger than %1 MiB unpacked").arg(kFbPluginMaxUnpackedBytes >> 20));
+    if (unpacked > kUzPluginMaxUnpackedBytes) return fail(QStringLiteral("the plugin is larger than %1 MiB unpacked").arg(kUzPluginMaxUnpackedBytes >> 20));
 
     // Local header -> data
     if (static_cast<qsizetype>(lho) + 30 > b.size() || get32(b, lho) != 0x04034b50) return fail(QStringLiteral("damaged zip archive (local header of '%1')").arg(name));
@@ -420,13 +420,13 @@ FbPluginResult readFbPlugin(const QByteArray& b, const QList<QByteArray>& truste
 
   pkg.signature = verifyPluginSignature(pkg.files, trustedKeys, &pkg.signatureError);
 
-  FbPluginResult r;
+  UzPluginResult r;
   r.ok = true;
   r.package = std::move(pkg);
   return r;
 }
 
-bool extractFbPlugin(const FbPluginPackage& pkg, const QString& destDir, QString* error) {
+bool extractUzPlugin(const UzPluginPackage& pkg, const QString& destDir, QString* error) {
   const auto bad = [error](const QString& m) {
     if (error != nullptr) *error = m;
     return false;

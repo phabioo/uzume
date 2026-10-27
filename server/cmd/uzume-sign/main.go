@@ -1,11 +1,11 @@
 // Command uzume-sign creates and signs the core index, the updates index and the plugin index of Uzume and
-// signs .fbplugin files.
+// signs .uzplugin files.
 //
 //	uzume-sign keygen -out <seed-file>
 //	uzume-sign add -index <cores-index.json> -package <package.json>
 //	uzume-sign release-add -index <updates-index.json> -release <release.json> [-keep 5]
-//	uzume-sign plugin-sign -in <x.fbplugin> -out <y.fbplugin>      (adds/replaces SIGNATURE.json; seed from env UZUME_SIGNING_KEY)
-//	uzume-sign plugin-add -index <plugin-index.json> -plugin <signed.fbplugin> -url <https url> [-replace]   (refuses a different file for an existing id+version unless -replace)
+//	uzume-sign plugin-sign -in <x.uzplugin> -out <y.uzplugin>      (adds/replaces SIGNATURE.json; seed from env UZUME_SIGNING_KEY)
+//	uzume-sign plugin-add -index <plugin-index.json> -plugin <signed.uzplugin> -url <https url> [-replace]   (refuses a different file for an existing id+version unless -replace)
 //	uzume-sign sign -index <cores-index.json|updates-index.json|plugin-index.json> [-out <file>.sig] [-bundle <file>.signed]   (seed from env UZUME_SIGNING_KEY)
 //	uzume-sign index-refresh -index <updates-index.json|plugin-index.json>   (new generated_at/expires_at, content unchanged)
 //	uzume-sign verify -index <file> (-sig <file> | -bundle <file>) -pub <base64 public key>
@@ -73,15 +73,15 @@ func run(args []string, getenv func(string) string, out io.Writer, now func() ti
 		}
 		return releaseAdd(*idx, *rel, *keep, *allowFile, now)
 	case "plugin-sign":
-		in := fs.String("in", "", "input .fbplugin")
-		o := fs.String("out", "", "output .fbplugin (may equal -in)")
+		in := fs.String("in", "", "input .uzplugin")
+		o := fs.String("out", "", "output .uzplugin (may equal -in)")
 		if err := fs.Parse(args[1:]); err != nil {
 			return err
 		}
 		return pluginSign(*in, *o, getenv)
 	case "plugin-add":
 		idx := fs.String("index", "", "plugin-index.json (created when missing)")
-		pl := fs.String("plugin", "", "signed .fbplugin")
+		pl := fs.String("plugin", "", "signed .uzplugin")
 		u := fs.String("url", "", "https URL where the file will be published")
 		allowFile := fs.Bool("allow-file-urls", false, "accept a file:// -url (tests only; default https only)")
 		replace := fs.Bool("replace", false, "replace an existing id+version whose sha256 differs (dangerous, see docs/guides/plugin-api.md)")

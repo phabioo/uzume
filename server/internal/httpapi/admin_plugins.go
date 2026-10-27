@@ -45,7 +45,7 @@ func (s *Server) ListAdminPlugins(ctx context.Context, _ api.ListAdminPluginsReq
 	return api.ListAdminPlugins200JSONResponse(out), nil
 }
 
-// StageAdminPlugin takes the raw .fbplugin body (the request cap for this route is the plugin file limit).
+// StageAdminPlugin takes the raw .uzplugin body (the request cap for this route is the plugin file limit).
 func (s *Server) StageAdminPlugin(ctx context.Context, req api.StageAdminPluginRequestObject) (api.StageAdminPluginResponseObject, error) {
 	if err := requireAdmin(ctx); err != nil {
 		return nil, err

@@ -5,7 +5,7 @@
 #include <atomic>
 #include <mutex>
 
-#include "fbplugin_testutil.h"
+#include "uzplugin_testutil.h"
 #include "plugin_host.h"
 #include "plugin_manager.h"
 #include "plugin_test_util.h"
@@ -205,12 +205,12 @@ class VariantsPluginTest : public QObject {
     FbSpec unsigned_;
     unsigned_.id = "net.test.unsigned";
     unsigned_.permissions = {"variants.build"};
-    QVERIFY(m.installFromFile(writeFile(src.filePath("u.fbplugin"), makeFbPlugin(unsigned_))).ok);
+    QVERIFY(m.installFromFile(writeFile(src.filePath("u.uzplugin"), makeUzPlugin(unsigned_))).ok);
     FbSpec official;
     official.id = "net.test.official";
     official.permissions = {"variants.build"};
     official.sign = true;
-    QVERIFY(m.installFromFile(writeFile(src.filePath("o.fbplugin"), makeFbPlugin(official))).ok);
+    QVERIFY(m.installFromFile(writeFile(src.filePath("o.uzplugin"), makeUzPlugin(official))).ok);
     m.setDeveloperMode(false);
     const QString msg = "permission variants.build needs a signed official plugin or Developer mode";
     QVERIFY(m.info("net.test.unsigned")->problems.contains(msg));

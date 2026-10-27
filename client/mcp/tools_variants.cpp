@@ -1,5 +1,5 @@
 // Variant tools of the debug MCP server (Uzume 0.21, ADR 0031/0032): the randomizer engine from the server's tools catalog, game
-// variants (list, build, status, files, start, delete) and run variants, plus two plugin helpers (install a .fbplugin file, turn a
+// variants (list, build, status, files, start, delete) and run variants, plus two plugin helpers (install a .uzplugin file, turn a
 // plugin on or off). The handlers drive the same VariantsController the UI uses. Nothing here reads or returns spoiler text: the
 // spoiler log has no tool, and variant_files lists only the built files (name, size, SHA-256).
 #include <QCryptographicHash>
@@ -381,9 +381,9 @@ void installVariantTools(McpToolRegistry& registry, ui::PlayerController& player
     ToolDef t;
     t.name = QStringLiteral("plugin_install_file");
     t.description = QStringLiteral(
-        "Installs a plugin from a .fbplugin file or a plugin folder on this PC (like Settings > Plugins > Install). A valid Uzume signature "
+        "Installs a plugin from a .uzplugin file (legacy .fbplugin is accepted too) or a plugin folder on this PC (like Settings > Plugins > Install). A valid Uzume signature "
         "makes it official; anything else is a local plugin that needs developer mode. The plugin stays off until plugin_set_enabled.");
-    t.inputSchema = schema({{QStringLiteral("path"), typeStr(QStringLiteral("Absolute path of a .fbplugin file or a plugin folder."))}}, {QStringLiteral("path")});
+    t.inputSchema = schema({{QStringLiteral("path"), typeStr(QStringLiteral("Absolute path of a .uzplugin file (legacy .fbplugin accepted) or a plugin folder."))}}, {QStringLiteral("path")});
     t.handler = [pc](const QJsonObject& a, ToolReply reply) {
       if (!pc) return reply(ToolResult::error(QStringLiteral("app_closing")));
       const QString path = a.value(QStringLiteral("path")).toString();

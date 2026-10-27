@@ -217,7 +217,7 @@ class ZipWriter {
   std::vector<Entry> entries_;
 };
 
-// ---- minimal inflate (after zlib's puff.c, Copyright (C) 2002-2013 Mark Adler, zlib license, altered; full notice in plugins/fbplugin.cpp), for readZip only ----
+// ---- minimal inflate (after zlib's puff.c, Copyright (C) 2002-2013 Mark Adler, zlib license, altered; full notice in plugins/uzplugin.cpp), for readZip only ----
 
 struct Bits {
   const QByteArray& in;

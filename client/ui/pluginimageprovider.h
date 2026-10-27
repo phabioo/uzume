@@ -1,5 +1,5 @@
 #pragma once
-// image://fbplugin/<pluginId>/cache/<path> and image://fbplugin/<pluginId>/asset/<path>: PNG icons of plugins for the
+// image://uzplugin/<pluginId>/cache/<path> and image://uzplugin/<pluginId>/asset/<path>: PNG icons of plugins for the
 // plugin blocks. Reads only inside the plugin's cache folder or its declared assets; rejects "..", symlinks that leave
 // the folder, files larger than 8 MiB and images larger than 4096x4096. Called from QML image threads: the sources are
 // kept in a mutex-protected registry that the PluginsController updates.

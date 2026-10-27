@@ -1,5 +1,5 @@
 #pragma once
-// Test helpers for .fbplugin files: a zip writer that can also build hostile archives, an Ed25519 test key (fixed seed,
+// Test helpers for .uzplugin files: a zip writer that can also build hostile archives, an Ed25519 test key (fixed seed,
 // never the release key) and a builder for signed and unsigned plugin files. Synthetic data only.
 
 #include <QByteArray>
@@ -14,7 +14,7 @@
 
 #include <openssl/evp.h>
 
-#include "fbplugin.h"
+#include "uzplugin.h"
 
 namespace uzume::plugins::testutil {
 
@@ -185,7 +185,7 @@ inline QMap<QString, QByteArray> fbFiles(const FbSpec& s) {
   return files;
 }
 
-inline QByteArray makeFbPlugin(const FbSpec& s) {
+inline QByteArray makeUzPlugin(const FbSpec& s) {
   QMap<QString, QByteArray> files = fbFiles(s);
   if (s.sign) files.insert(QStringLiteral("SIGNATURE.json"), signatureJson(files, s.key));
   QList<ZipEntrySpec> entries;

@@ -37,7 +37,7 @@ const pluginStageTTL = time.Hour
 
 var stageIDRe = regexp.MustCompile(`^[0-9a-f]{32}$`)
 
-// ErrPluginUploadTooLarge: the uploaded file exceeds the limit of a .fbplugin file.
+// ErrPluginUploadTooLarge: the uploaded file exceeds the limit of a .uzplugin file.
 var ErrPluginUploadTooLarge = &Error{Code: CodePayloadTooLarge, Message: "Plugin file exceeds 32 MiB"}
 
 type pluginState struct {
@@ -53,6 +53,51 @@ type pluginState struct {
 func (s *Service) initPlugins(o Options) {
 	s.plug.idx.init(o)
 	s.plug.inUse = func(context.Context, string, string) (bool, error) { return false, nil }
+	s.migrateLegacyPluginFiles()
+}
+
+// legacyPluginExt is the former file extension; stored files with it are renamed at start, imports still accept it.
+const legacyPluginExt = ".fbplugin"
+
+// pluginExt is the extension of a plugin package file.
+const pluginExt = ".uzplugin"
+
+// migrateLegacyPluginFiles renames <dataDir>/plugins/<id>/<version>.fbplugin to .uzplugin when the new name does not
+// exist yet. Idempotent; only valid id and version names map to paths (same rule as pluginPath); errors are skipped
+// (the file stays readable through the next start).
+func (s *Service) migrateLegacyPluginFiles() {
+	base := filepath.Join(s.dataDir, "plugins")
+	dirs, err := os.ReadDir(base)
+	if err != nil {
+		return
+	}
+	for _, d := range dirs {
+		if !d.IsDir() || !pluginpkg.ValidID(d.Name()) {
+			continue
+		}
+		files, err := os.ReadDir(filepath.Join(base, d.Name()))
+		if err != nil {
+			continue
+		}
+		for _, f := range files {
+			version, ok := strings.CutSuffix(f.Name(), legacyPluginExt)
+			if !ok || f.IsDir() {
+				continue
+			}
+			oldP, err := s.pluginPathExt(d.Name(), version, legacyPluginExt)
+			if err != nil {
+				continue
+			}
+			newP, err := s.pluginPathExt(d.Name(), version, pluginExt)
+			if err != nil {
+				continue
+			}
+			if _, err := os.Lstat(newP); err == nil {
+				continue
+			}
+			os.Rename(oldP, newP)
+		}
+	}
 }
 
 // SetPluginInUseCheck installs the check behind PluginVersionInUse. The runs part calls it once at startup.
@@ -209,11 +254,16 @@ func (s *Service) GetPlugin(ctx context.Context, id, version string) (Plugin, er
 // pluginPath builds the on-disk path of an offered version and refuses anything that is not a valid id and version
 // or that would leave <dataDir>/plugins.
 func (s *Service) pluginPath(id, version string) (string, error) {
+	return s.pluginPathExt(id, version, pluginExt)
+}
+
+// pluginPathExt is pluginPath with an explicit extension (pluginExt or legacyPluginExt).
+func (s *Service) pluginPathExt(id, version, ext string) (string, error) {
 	if !safePluginRef(id, version) {
 		return "", errors.New("invalid plugin reference")
 	}
 	base := filepath.Join(s.dataDir, "plugins")
-	p := filepath.Clean(filepath.Join(base, id, version+".fbplugin"))
+	p := filepath.Clean(filepath.Join(base, id, version+ext))
 	if !strings.HasPrefix(p, base+string(filepath.Separator)) {
 		return "", errors.New("plugin path escapes the plugin directory")
 	}
@@ -225,7 +275,7 @@ func safePluginRef(id, version string) bool {
 	return pluginpkg.ValidID(id) && updates.ValidSemVer(version)
 }
 
-// OpenPluginFile opens the stored .fbplugin file of an offered version; the caller closes it.
+// OpenPluginFile opens the stored .uzplugin file of an offered version; the caller closes it.
 func (s *Service) OpenPluginFile(ctx context.Context, id, version string) (*os.File, Plugin, error) {
 	if !safePluginRef(id, version) {
 		return nil, Plugin{}, pluginErrNotFound()
@@ -348,6 +398,9 @@ func (s *Service) removePluginLocked(ctx context.Context, id, version string) er
 	}
 	if path, err := s.pluginPath(id, version); err == nil {
 		os.Remove(path)
+		if legacy, err := s.pluginPathExt(id, version, legacyPluginExt); err == nil {
+			os.Remove(legacy)
+		}
 		os.Remove(filepath.Dir(path)) // only when empty
 	}
 	return nil
@@ -416,7 +469,7 @@ type PluginStaged struct {
 
 func (s *Service) stageDir() string { return filepath.Join(s.dataDir, "tmp", "plugin-stage") }
 
-// StagePluginUpload reads an uploaded .fbplugin (at most 32 MiB), validates it and keeps it for the confirmation
+// StagePluginUpload reads an uploaded .uzplugin (at most 32 MiB), validates it and keeps it for the confirmation
 // step. Nothing is offered yet.
 func (s *Service) StagePluginUpload(ctx context.Context, r io.Reader) (PluginStaged, error) {
 	data, err := io.ReadAll(io.LimitReader(r, pluginpkg.MaxCompressedBytes+1))
@@ -439,7 +492,7 @@ func (s *Service) StagePluginUpload(ctx context.Context, r io.Reader) (PluginSta
 		return PluginStaged{}, internal(err)
 	}
 	id := hex.EncodeToString(raw[:])
-	if err := writeFileAtomic(filepath.Join(s.stageDir(), id+".fbplugin"), data); err != nil {
+	if err := writeFileAtomic(filepath.Join(s.stageDir(), id+pluginExt), data); err != nil {
 		return PluginStaged{}, internal(err)
 	}
 	st := s.describeStaged(ctx, id, p)
@@ -478,7 +531,7 @@ func (s *Service) readStaged(stageID string) (*pluginpkg.Package, error) {
 	if !stageIDRe.MatchString(stageID) {
 		return nil, badRequest("The upload is no longer available. Please upload the file again.")
 	}
-	data, err := os.ReadFile(filepath.Join(s.stageDir(), stageID+".fbplugin"))
+	data, err := os.ReadFile(filepath.Join(s.stageDir(), stageID+pluginExt))
 	if err != nil {
 		return nil, badRequest("The upload is no longer available. Please upload the file again.")
 	}
@@ -501,7 +554,7 @@ func (s *Service) StagedPlugin(ctx context.Context, stageID string) (PluginStage
 // DiscardStagedPlugin deletes a staged upload.
 func (s *Service) DiscardStagedPlugin(stageID string) {
 	if stageIDRe.MatchString(stageID) {
-		os.Remove(filepath.Join(s.stageDir(), stageID+".fbplugin"))
+		os.Remove(filepath.Join(s.stageDir(), stageID+pluginExt))
 	}
 }
 
@@ -539,7 +592,13 @@ type PluginImportSummary struct {
 	Problems         []string
 }
 
-// ImportPlugins offers every *.fbplugin file in dir (not recursive; offline servers, like import-cores). The same checks
+// isPluginFileName reports a *.uzplugin or legacy *.fbplugin name (case-insensitive).
+func isPluginFileName(name string) bool {
+	ext := filepath.Ext(name)
+	return strings.EqualFold(ext, pluginExt) || strings.EqualFold(ext, legacyPluginExt)
+}
+
+// ImportPlugins offers every *.uzplugin file (legacy *.fbplugin too) in dir (not recursive; offline servers, like import-cores). The same checks
 // as for an upload apply, except the permission ticks: running the command is the admin's confirmation. A file
 // without a valid Uzume signature is imported as unverified.
 func (s *Service) ImportPlugins(ctx context.Context, dir string) (PluginImportSummary, error) {
@@ -549,7 +608,7 @@ func (s *Service) ImportPlugins(ctx context.Context, dir string) (PluginImportSu
 		return sum, err
 	}
 	for _, e := range ents {
-		if e.IsDir() || !strings.EqualFold(filepath.Ext(e.Name()), ".fbplugin") {
+		if e.IsDir() || !isPluginFileName(e.Name()) {
 			continue
 		}
 		full := filepath.Join(dir, e.Name())

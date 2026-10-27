@@ -69,7 +69,7 @@ func pluginInfo(p hub.Plugin) api.PluginInfo {
 	return info
 }
 
-// GetPluginFile streams a stored .fbplugin file (ETag = "<sha256>", If-None-Match answers 304); 404 when unknown.
+// GetPluginFile streams a stored .uzplugin file (ETag = "<sha256>", If-None-Match answers 304); 404 when unknown.
 func (s *Server) GetPluginFile(ctx context.Context, req api.GetPluginFileRequestObject) (api.GetPluginFileResponseObject, error) {
 	f, p, err := s.svc.OpenPluginFile(ctx, string(req.PluginId), string(req.Version))
 	if err != nil {

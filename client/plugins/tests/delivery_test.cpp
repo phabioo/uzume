@@ -9,7 +9,7 @@
 
 #include "credentialstore.h"
 #include "fakehub.h"
-#include "fbplugin_testutil.h"
+#include "uzplugin_testutil.h"
 #include "hubconnection.h"
 #include "plugin_delivery.h"
 #include "plugin_test_util.h"
@@ -40,7 +40,7 @@ class DeliveryTest : public QObject {
 
   // Offers a file on the fake Hub; `served` = what the file endpoint returns (default: the same bytes).
   QString offer(const FbSpec& s, const QByteArray& served = {}, const QString& pinOverride = {}) {
-    const QByteArray file = makeFbPlugin(s);
+    const QByteArray file = makeUzPlugin(s);
     const QString sha = pinOverride.isEmpty() ? sha256Hex(file) : pinOverride;
     hub_->pluginList.append(QJsonObject{{"plugin_id", s.id}, {"version", s.version}, {"name", s.name.isEmpty() ? s.id : s.name},
                                         {"description", "d"}, {"api", 1}, {"origin", s.sign ? "official" : "unverified"},
@@ -146,7 +146,7 @@ class DeliveryTest : public QObject {
     FbSpec evil = s;
     evil.lua = "os.execute('evil')";
     // The Hub announces the hash of the good file but serves another one.
-    const QString sha = offer(s, makeFbPlugin(evil));
+    const QString sha = offer(s, makeUzPlugin(evil));
     const DeliveryResult r = ensure(kId, "1.0.0", sha);
     QVERIFY(!r.ok);
     QCOMPARE(r.problem, QString("invalid_hash"));
@@ -169,14 +169,14 @@ class DeliveryTest : public QObject {
   void fileOfAnotherPluginOrVersionIsRejected() {
     FbSpec other;
     other.id = "net.test.other";
-    const QByteArray file = makeFbPlugin(other);
+    const QByteArray file = makeUzPlugin(other);
     hub_->pluginFiles.insert("net.test.plugin/1.0.0", file);
     const DeliveryResult r = ensure(kId, "1.0.0", sha256Hex(file));
     QVERIFY(!r.ok);
     QCOMPARE(r.problem, QString("invalid_plugin"));
     FbSpec v2;
     v2.version = "2.0.0";
-    const QByteArray f2 = makeFbPlugin(v2);
+    const QByteArray f2 = makeUzPlugin(v2);
     hub_->pluginFiles.insert("net.test.plugin/1.0.0", f2);
     QVERIFY(!ensure(kId, "1.0.0", sha256Hex(f2)).ok);
     QVERIFY(mgr_->hubCopies().isEmpty());
@@ -218,7 +218,7 @@ class DeliveryTest : public QObject {
     // The same version is now offered as a different file whose download is damaged.
     FbSpec changed = s;
     changed.lua = "-- changed\n";
-    const QByteArray good = makeFbPlugin(changed);
+    const QByteArray good = makeUzPlugin(changed);
     hub_->pluginFiles.insert("net.test.plugin/1.0.0", good.left(good.size() - 3));
     const DeliveryResult r = ensure(kId, "1.0.0", sha256Hex(good));
     QVERIFY(!r.ok);
@@ -291,7 +291,7 @@ class DeliveryTest : public QObject {
     FbSpec s;
     FbSpec evil = s;
     evil.lua = "fb.log.info('HELLO')\n";  // same length: the size check passes, the hash does not
-    offer(s, makeFbPlugin(evil));
+    offer(s, makeUzPlugin(evil));
     client_->refresh();
     QTRY_VERIFY_WITH_TIMEOUT(client_->state() == PluginHubClient::State::Ready, 8000);
     QSignalSpy spy(delivery_.get(), &PluginDelivery::finished);

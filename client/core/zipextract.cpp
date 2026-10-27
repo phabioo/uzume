@@ -9,7 +9,7 @@
 #include <vector>
 
 // The inflate part follows zlib's puff.c (Copyright (C) 2002-2013 Mark Adler, zlib license; full notice in
-// plugins/fbplugin.cpp), changed to write into a buffer of known size.
+// plugins/uzplugin.cpp), changed to write into a buffer of known size.
 
 namespace uzume {
 

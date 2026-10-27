@@ -1,4 +1,4 @@
-// Package pluginpkg is the .fbplugin file format of Uzume plugins (0.11, docs/architecture/12-plugins.md
+// Package pluginpkg is the .uzplugin file format of Uzume plugins (0.11, docs/architecture/12-plugins.md
 // section 16.10): validation of the zip, the manifest rules shared with the app (client/plugins/manifest.cpp),
 // the optional SIGNATURE.json with its Ed25519 signature, and the signed plugin index.
 package pluginpkg
@@ -25,7 +25,7 @@ import (
 	"github.com/phabioo/uzume/server/internal/updates"
 )
 
-// Limits of a .fbplugin file (identical in the server and the app).
+// Limits of a .uzplugin file (identical in the server and the app).
 const (
 	MaxCompressedBytes   = 32 << 20
 	MaxUncompressedBytes = 64 << 20
@@ -81,7 +81,7 @@ type Manifest struct {
 	RunSettings []RunSetting `json:"run_settings,omitempty"`
 }
 
-// Package is a validated .fbplugin file held in memory (at most 32 MiB).
+// Package is a validated .uzplugin file held in memory (at most 32 MiB).
 type Package struct {
 	Manifest    Manifest
 	RawManifest []byte
@@ -155,7 +155,7 @@ func reservedWindowsName(seg string) bool {
 	return len(stem) == 4 && (strings.HasPrefix(stem, "COM") || strings.HasPrefix(stem, "LPT")) && stem[3] >= '1' && stem[3] <= '9'
 }
 
-// Open validates a .fbplugin file completely: zip limits and names, manifest and entry file. All files are read once
+// Open validates a .uzplugin file completely: zip limits and names, manifest and entry file. All files are read once
 // (enforcing the uncompressed limit on the real sizes) to compute the SHA-256 of each. SIGNATURE.json is kept
 // aside and judged only by Verify.
 func Open(data []byte) (*Package, error) {
