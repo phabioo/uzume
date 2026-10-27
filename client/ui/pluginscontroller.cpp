@@ -785,7 +785,7 @@ void PluginsController::startGameSet(const plugins::GameResolution& res) {
   for (const plugins::PluginInfo& p : res.start) runningIds_ << p.manifest.id;
   loggedStatus_.clear();
   devConsole_->resetSeen();
-  consoleRun_ = run.bridge;
+  consoleRun_ = runLaunch_.bridge;
   running_ = true;
   if (storeSync_) {
     for (const plugins::PluginInfo& p : res.start)
