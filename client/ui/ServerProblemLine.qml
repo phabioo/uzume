@@ -23,7 +23,8 @@ ColumnLayout {
                                    : root.player.versionRelation === "server_older" ? "server_older"
                                    : root.player.versionRelation === "app_older" ? "app_older" : ""
     readonly property string serverName: root.player.hubName !== "" ? root.player.hubName : qsTr("The server")
-    visible: root.kind !== ""
+    property bool suppressed: false   // the game page is open
+    visible: root.kind !== "" && !suppressed
     spacing: Theme.space05
 
     RowLayout {

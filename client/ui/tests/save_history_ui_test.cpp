@@ -32,15 +32,16 @@ class SaveHistoryUiTest : public QObject {
     QTRY_COMPARE_WITH_TIMEOUT(h.controller->connection()->state(), S::NeedsPairing, 8000);
     h.controller->requestPairing();
     QTRY_COMPARE_WITH_TIMEOUT(h.controller->libraryState(), QStringLiteral("ready"), 8000);
+    QVERIFY(h.openGame());   // every test here works on the game page of the one game
   }
-  // Play is off while a restore / delete / upload confirmation is open (decision af): the DetailPane's `confirming`, and the
+  // Play is off while a restore / delete / upload confirmation is open (decision af): the game page's `confirming`, and the
   // button is disabled in any case (these tests run without a core, so Play is never enabled).
   static bool playBlockedByConfirmation(Harness& h) {
-    QQuickItem* pane = h.item("detailPane");
+    QQuickItem* pane = h.item("gamePage");
     return pane != nullptr && pane->property("confirming").toBool() && h.item("playButton") != nullptr && !h.item("playButton")->isEnabled();
   }
-  static bool confirming(Harness& h) { return h.item("detailPane") != nullptr && h.item("detailPane")->property("confirming").toBool(); }
-  // Detail column -> saves view ("Manage saves →").
+  static bool confirming(Harness& h) { return h.item("gamePage") != nullptr && h.item("gamePage")->property("confirming").toBool(); }
+  // Game page overview -> saves view ("All saves and versions").
   static void openSavesView(Harness& h) {
     QTRY_VERIFY_WITH_TIMEOUT(h.item("manageSavesLink") != nullptr && h.item("manageSavesLink")->isVisible(), 8000);
     QVERIFY(h.click("manageSavesLink"));
@@ -90,7 +91,7 @@ class SaveHistoryUiTest : public QObject {
       QVERIFY2(it != nullptr, name);
       const QPointF right = it->mapToItem(h.window->contentItem(), QPointF(it->width(), 0));
       QVERIFY2(right.x() <= h.window->width(), name);
-      QVERIFY2(it->width() <= 392, name);  // never wider than the detail pane
+      QVERIFY2(it->width() <= h.item("gamePage")->width() + 0.5, name);  // never wider than the game page
     }
 
     // Restore needs a confirmation; cancel changes nothing

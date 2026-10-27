@@ -2,11 +2,11 @@ import QtQuick
 import QtQuick.Layouts
 import Uzume.App
 
-// Library, admin part 2 (accounts-and-server.md 3j-app-1, 3j-app-2): the details section for the selected game, under the grid:
+// Library, admin part 2 (accounts-and-server.md 3j-app-1, 3j-app-2): the details section for the selected game, in the Manage tab of the game page:
 // Uploaded by, File (the API carries the file name, not a path on the server's disk), SHA-256 with Copy, Saves (people, slots from
 // GET /admin/saves?game_id=). Actions: Rename... (display name only: PATCH /admin/games/{id}; the file keeps its name) and
 // Delete game... (danger: DELETE /admin/games/{id}; the file goes for everyone, the saves stay; the server asks "Confirm it's you"
-// itself). The Library list is read again after each change. The caller shows it for admins with a selected game.
+// itself). The Library list is read again after each change. The game page shows it for admins in its Manage tab.
 // objectNames: libraryAdminDetails, libraryAdminUploader, libraryAdminFile, libraryAdminSha, libraryAdminCopy, libraryAdminSaves,
 // libraryAdminRename, libraryAdminDelete, libraryAdminNote.
 Item {
@@ -21,6 +21,7 @@ Item {
     property string note: ""
     property string noteKind: "done"
     property string copied: ""
+    signal gameRemoved(string note)   // the game was deleted: the game page it sits in closes and the Library says so
 
     AdminCall { id: api; admin: root.admin }
     AdminPeople { id: people; admin: root.admin }
@@ -84,6 +85,7 @@ Item {
                     root.noteKind = "done"
                     root.note = qsTr("Deleted %1. Its saves are kept.").arg(title)
                     root.player.reloadLibrary()
+                    root.gameRemoved(root.note)
                 }
                 finish(ok, ok ? "" : code === "confirmation_cancelled" ? qsTr("Not confirmed. Nothing was deleted.")
                                       : api.failText(qsTr("Could not delete"), message))

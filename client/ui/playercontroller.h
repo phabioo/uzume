@@ -120,6 +120,10 @@ class PlayerController : public QObject {
   // Library view "list" | "grid" (saved per device) and the last "Remove from library" ({title} while its Undo is offered, else empty).
   Q_PROPERTY(QString libraryView READ libraryView WRITE setLibraryView NOTIFY libraryViewChanged)
   Q_PROPERTY(QVariantMap removedFromLibrary READ removedFromLibrary NOTIFY removedFromLibraryChanged)
+  // The game page (usability pass 5): the Library column shows the selected game instead of the list. The screen stays "library".
+  // gamePageTab: "overview" | "saves" | "settings" | "manage" (the tab to show when the page opens or is asked for).
+  Q_PROPERTY(bool gamePageOpen READ gamePageOpen NOTIFY gamePageChanged)
+  Q_PROPERTY(QString gamePageTab READ gamePageTab NOTIFY gamePageChanged)
   // One row per library folder (Settings): [{path, exists, count (game files found in it), scannedText ("5 min ago", "" = not
   // scanned yet), scannedFull, scanning}] and the number of game files over all folders.
   Q_PROPERTY(QVariantList libraryFolderInfo READ libraryFolderInfo NOTIFY libraryFolderInfoChanged)
@@ -366,6 +370,11 @@ class PlayerController : public QObject {
   Q_INVOKABLE void switchToHub(const QString& hubId);  // Settings -> Hubs: switchHub() + connectProfile()
   Q_INVOKABLE void reloadLibrary();
   Q_INVOKABLE void selectGame(const QString& gameId);
+  // Opens the game page of a library game (selects it, shows the Library) on a tab; closeGamePage() returns to the list.
+  Q_INVOKABLE void openGamePage(const QString& gameId, const QString& tab = QString());
+  Q_INVOKABLE void closeGamePage();
+  bool gamePageOpen() const { return gamePageOpen_; }
+  QString gamePageTab() const { return gamePageTab_; }
   Q_INVOKABLE void playSelected();
   // "Play and share Session": starts the game and publishes it with the last chosen visibility.
   Q_INVOKABLE void playAndShareSelected();
@@ -468,6 +477,7 @@ class PlayerController : public QObject {
   void libraryFoldersChanged();
   void libraryScanChanged();
   void libraryViewChanged();
+  void gamePageChanged();
   void removedFromLibraryChanged();
   void libraryFolderInfoChanged();
   void stopSaveErrorChanged();
@@ -610,6 +620,8 @@ class PlayerController : public QObject {
   QHash<QString, qint64> lastProgressMs_;  // sha -> last accepted progress (clock ms + 1)
   QHash<QString, int> shownPercent_;       // sha -> last percent that reached selectedGame
   PlayPhase phase_ = PlayPhase::None;
+  bool gamePageOpen_ = false;
+  QString gamePageTab_ = QStringLiteral("overview");
   bool gameActive_ = false;
   bool background_ = false;      // gameActive_ and paused behind the Library (input blocked)
   QString backgroundId_;

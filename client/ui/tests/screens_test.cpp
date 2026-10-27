@@ -350,7 +350,7 @@ class ScreensTest : public QObject {
     QTRY_COMPARE(lib->data(lib->index(lib->rowOfGame(QStringLiteral("g5"))), LibraryModel::StateKindRole).toString(),
                  QStringLiteral("mismatch"));
 
-    // Detail pane: core missing (path hint), firmware not required, Play disabled.
+    // Game page: core missing (path hint), firmware not required, Play disabled.
     h.controller->selectGame(QStringLiteral("g1"));  // the preselected game follows the sort order
     QVariantMap g = h.controller->selectedGame();
     QCOMPARE(g.value(QStringLiteral("title")).toString(), QStringLiteral("Lumen Drift"));
@@ -370,7 +370,8 @@ class ScreensTest : public QObject {
     QCOMPARE(g.value(QStringLiteral("title")).toString(), QStringLiteral("Paper Wizards"));
     QCOMPARE(g.value(QStringLiteral("romText")).toString(), QStringLiteral("Download needed · 128 MB"));
     // R-P1: the status rows of a game that is not downloaded stay compact (a 1 px wide wrapped value once made them 300 px high).
-    QVERIFY(h.click("tab_Details"));  // the facts (ROM, core, firmware) are the Details tab
+    QVERIFY(h.openGame(QStringLiteral("g2")));
+    QVERIFY(h.click("tab_Manage"));  // the facts (ROM, core, firmware) are the Manage tab
     QTRY_VERIFY(h.items("detailRowValue").size() >= 3);
     QTRY_VERIFY(([&h]() {
       const QList<QQuickItem*> values = h.items("detailRowValue");
@@ -438,7 +439,9 @@ class ScreensTest : public QObject {
       tile->forceActiveFocus();
       QTest::keyClick(h.window, Qt::Key_Return);
       QCOMPARE(h.controller->selectedGameId(), QStringLiteral("g3"));
-      QVERIFY(h.item("tileFocusRing")->isVisible());
+      QTRY_VERIFY(h.controller->gamePageOpen());   // Enter on a row opens its page; closing it puts the focus back on the row
+      h.controller->closeGamePage();
+      QTRY_VERIFY(h.item("tileFocusRing") != nullptr && h.item("tileFocusRing")->isVisible());
 
       QQuickItem* nav = h.item("navSettings");
       QVERIFY(nav != nullptr && nav->activeFocusOnTab());

@@ -162,12 +162,13 @@ ColumnLayout {
                         current: root.shownValue(rowItem.modelData)
                         changed: rowItem.modelData.isSet || root.isLive(rowItem.modelData)
                         onValuePicked: value => {
-                            root.emu.setGameOption(root.gameId, rowItem.modelData.key, value)
+                            // Live first: the change reloads the rows and destroys this delegate, so nothing may use `root` after it.
                             root.applyLive(rowItem.modelData.key, value)   // the running game follows the dialog
+                            root.emu.setGameOption(root.gameId, rowItem.modelData.key, value)
                         }
                         onResetRequested: {
-                            root.emu.resetGameOption(root.gameId, rowItem.modelData.key)
                             root.applyLive(rowItem.modelData.key, rowItem.modelData.defaultValue)
+                            root.emu.resetGameOption(root.gameId, rowItem.modelData.key)
                         }
                     }
                 }

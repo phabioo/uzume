@@ -277,7 +277,7 @@ class PersonalUiTest : public QObject {
     Harness h;
     QVERIFY(h.start());
     pair(h, hub);
-    selectGame(h, QStringLiteral("g2"));
+    QVERIFY(h.openGame(QStringLiteral("g2")));
     QTRY_VERIFY(shown(h, "personalFacts"));
     QCOMPARE(textOf(h, "factPlayTime"), QStringLiteral("45 min"));
     QCOMPARE(textOf(h, "factSessions"), QStringLiteral("2"));
@@ -302,7 +302,9 @@ class PersonalUiTest : public QObject {
     QTRY_VERIFY(!h.item("favoriteButton")->property("on").toBool());
 
     // Add to collection: checkboxes, then New collection
-    QVERIFY(h.click("addToCollection"));
+    QVERIFY(h.click("detailMoreButton"));   // Add to collection is in the ⋯ menu of the game page
+    QTRY_VERIFY(shown(h, "menuItem_addToCollection"));
+    QVERIFY(h.click("menuItem_addToCollection"));
     QTRY_VERIFY(shown(h, "collectionAddDialog"));
     QVERIFY(h.item("collectionCheck_c1")->property("checked").toBool());
     QVERIFY(h.item("collectionCheck_c2")->property("checked").toBool());
@@ -407,9 +409,11 @@ class PersonalUiTest : public QObject {
     QTest::qWait(300);
     QVERIFY(!h.controller->personal()->supported());
     QVERIFY(!shown(h, "scopeChip_favorites"));
+    QVERIFY(!shown(h, "tileLastPlayed"));
+    QVERIFY(h.openGame(QStringLiteral("g1")));
     QVERIFY(!shown(h, "favoriteButton"));
     QVERIFY(!shown(h, "personalFacts"));
-    QVERIFY(!shown(h, "tileLastPlayed"));
+    h.controller->closeGamePage();
     // Today's local last played still orders the list
     h.controller->library()->setLastPlayed({{"g3", 9000}});
     QCOMPARE(order(h).first(), QStringLiteral("g3"));

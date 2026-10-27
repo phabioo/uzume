@@ -207,6 +207,10 @@ class McpUiTest : public QObject {
     const Answer back = call(QStringLiteral("navigate"), {{"to", "game"}, {"gameId", "g1"}});
     QVERIFY2(!back.result.isError, qPrintable(back.text()));
     QCOMPARE(back.json().value(QStringLiteral("selectedGameId")).toString(), QStringLiteral("g1"));
+    QCOMPARE(back.json().value(QStringLiteral("screen")).toString(), QStringLiteral("library"));   // the game page lives in the Library screen
+    QTRY_VERIFY_WITH_TIMEOUT(!findNode(call(QStringLiteral("ui_tree")).json(), QStringLiteral("gamePage")).isEmpty(), 8000);
+    QVERIFY(!call(QStringLiteral("navigate"), {{"to", "library"}}).result.isError);
+    QTRY_VERIFY_WITH_TIMEOUT(findNode(call(QStringLiteral("ui_tree")).json(), QStringLiteral("gamePage")).isEmpty(), 8000);
     QVERIFY(call(QStringLiteral("navigate"), {{"to", "game"}, {"gameId", "unknown"}}).result.isError);
   }
 

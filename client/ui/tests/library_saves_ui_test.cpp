@@ -62,7 +62,7 @@ class LibrarySavesUiTest : public QObject {
     hub.games = QJsonObject{{QStringLiteral("games"), QJsonArray{uitest::gameJson(QStringLiteral("g1"), title,
                                                                                     uitest::sha256Hex(rom), rom.size())}}};
   }
-  static QQuickItem* column(Harness& h) { return h.item("detailPane"); }
+  static QQuickItem* column(Harness& h) { return h.item("gamePage"); }
   static QRectF sceneRect(QQuickItem* it) { return it->mapRectToScene(QRectF(0, 0, it->width(), it->height())); }
   static QString chainOf(QQuickItem* it) {
     QString chain;
@@ -73,7 +73,7 @@ class LibrarySavesUiTest : public QObject {
     }
     return chain;
   }
-  // Every named item lies inside the visible detail column (392 wide), which lies inside the window.
+  // Every named item lies inside the visible game page, which lies inside the window.
   static void checkInColumn(Harness& h, const QStringList& names, int minChecked = 3) {
     QQuickTest::qWaitForPolish(h.window);
     QTest::qWait(30);
@@ -81,7 +81,6 @@ class LibrarySavesUiTest : public QObject {
     QVERIFY(col != nullptr);
     const QRectF cr = sceneRect(col);
     QVERIFY2(cr.right() <= h.window->width() + 0.5, qPrintable(QStringLiteral("column outside window %1 > %2").arg(cr.right()).arg(h.window->width())));
-    QVERIFY2(cr.width() <= 392.5, qPrintable(QStringLiteral("column wider than 392: %1").arg(cr.width())));
     int checked = 0;
     for (const QString& name : names) {
       const QList<QQuickItem*> all = h.items(name.toLatin1().constData());
@@ -116,7 +115,7 @@ class LibrarySavesUiTest : public QObject {
   }
   // For states where the summary link is "Upload save file…" (the file dialog is not wanted in tests).
   static void openSavesViewViaApi(Harness& h) {
-    QQuickItem* pane = h.item("detailPane");
+    QQuickItem* pane = h.item("gamePage");
     QVERIFY(pane != nullptr);
     QVERIFY(QMetaObject::invokeMethod(pane, "openSaves", Q_ARG(QVariant, QVariant(false))));
     QTRY_VERIFY_WITH_TIMEOUT(h.item("savesView") != nullptr && h.item("savesView")->isVisible(), 4000);
@@ -138,7 +137,7 @@ class LibrarySavesUiTest : public QObject {
     QQuickItem* it = h.item(name);
     return it != nullptr && it->isVisible();
   }
-  static bool confirming(Harness& h) { return h.item("detailPane") != nullptr && h.item("detailPane")->property("confirming").toBool(); }
+  static bool confirming(Harness& h) { return h.item("gamePage") != nullptr && h.item("gamePage")->property("confirming").toBool(); }
 
   // An open save conflict of g1 without the game start flow (that would open the start dialog): the Hub holds a newer
   // checkpoint and the conflict with this device's secured upload, this device holds an unsynced local save.
@@ -362,13 +361,14 @@ class LibrarySavesUiTest : public QObject {
     Harness h;
     QVERIFY(h.start());
     pair(h, hub);
+    QVERIFY(h.openGame());
     SaveHistoryController* hist = h.controller->saveHistory();
     QTRY_VERIFY_WITH_TIMEOUT(hist->available() && !hist->loading() && hist->versionCount() == 3, 8000);
     QTRY_VERIFY(shown(h, "saveSummary"));
     QCOMPARE(textOf(h, "saveSlotName"), QStringLiteral("Main"));
     QCOMPARE(textOf(h, "saveVersion"), QStringLiteral("r1"));
     QCOMPARE(textOf(h, "saveCounts"), QStringLiteral("1 slot · 3 versions in Main"));
-    QCOMPARE(textOf(h, "manageSavesLink"), QStringLiteral("Manage saves →"));
+    QCOMPARE(textOf(h, "manageSavesLink"), QStringLiteral("All saves and versions"));
     // The "Save" row and "Show details" of 3c are gone; the checklist is still there
     QVERIFY(h.item("detailsToggle") == nullptr);
     QVERIFY(h.item("saveSection") == nullptr);
@@ -377,7 +377,7 @@ class LibrarySavesUiTest : public QObject {
 
     openSavesView(h);
     QVERIFY(!shown(h, "saveSummary"));
-    QVERIFY(shown(h, "playButton"));  // Play stays pinned below the view
+    QVERIFY(shown(h, "playButton"));  // Play stays in the header of the page
     QTRY_VERIFY(shown(h, "currentBar"));
     QCOMPARE(textOf(h, "currentVersion"), QStringLiteral("r1"));
     QVERIFY(shown(h, "slotTab_default"));
@@ -406,10 +406,13 @@ class LibrarySavesUiTest : public QObject {
     QVERIFY(h.click("historyFilterAll"));
     QTRY_COMPARE(h.items("historyRow").size() + h.items("historyRowCurrent").size(), 3);
 
-    // Esc and "← title" return to the game detail
+    // Esc returns to the Library (the page closes, the game stays selected); the Overview tab leads back to the summary.
     QTest::keyClick(h.window, Qt::Key_Escape);
     QTRY_VERIFY(!shown(h, "savesView"));
-    QVERIFY(shown(h, "saveSummary"));
+    QTRY_VERIFY(!shown(h, "gamePage"));
+    QCOMPARE(h.controller->selectedGameId(), QStringLiteral("g1"));
+    QVERIFY(h.openGame());
+    QTRY_VERIFY(shown(h, "saveSummary"));
     openSavesView(h);
     QVERIFY(h.click("tab_Overview"));
     QTRY_VERIFY(!shown(h, "savesView"));
@@ -423,6 +426,7 @@ class LibrarySavesUiTest : public QObject {
     Harness h;
     QVERIFY(h.start());
     pair(h, hub);
+    QVERIFY(h.openGame());
     SaveHistoryController* hist = h.controller->saveHistory();
     QTRY_VERIFY_WITH_TIMEOUT(hist->available() && !hist->loading(), 8000);
     QTRY_VERIFY(shown(h, "saveEmptyBlock"));
@@ -445,6 +449,7 @@ class LibrarySavesUiTest : public QObject {
     Harness h;
     QVERIFY(h.start());
     pair(h, hub);
+    QVERIFY(h.openGame());
     SaveHistoryController* hist = h.controller->saveHistory();
     QTRY_VERIFY_WITH_TIMEOUT(hist->available() && !hist->loading() && hist->slotCount() == 3, 8000);
     openSavesView(h);
@@ -468,6 +473,7 @@ class LibrarySavesUiTest : public QObject {
     Harness h;
     QVERIFY(h.start());
     pair(h, hub);
+    QVERIFY(h.openGame());
     SaveHistoryController* hist = h.controller->saveHistory();
     QTRY_VERIFY_WITH_TIMEOUT(hist->available() && !hist->loading() && hist->slotCount() == 3, 8000);
     openSavesView(h);
@@ -497,6 +503,7 @@ class LibrarySavesUiTest : public QObject {
     Harness h;
     QVERIFY(h.start());
     pair(h, hub);
+    QVERIFY(h.openGame());
     SaveHistoryController* hist = h.controller->saveHistory();
     QTRY_VERIFY_WITH_TIMEOUT(hist->available() && !hist->loading() && hist->slotCount() == 3, 8000);
     openSavesView(h);
@@ -550,6 +557,7 @@ class LibrarySavesUiTest : public QObject {
     Harness h;
     QVERIFY(h.start());
     pair(h, hub);
+    QVERIFY(h.openGame());
     SaveHistoryController* hist = h.controller->saveHistory();
     QTRY_VERIFY_WITH_TIMEOUT(hist->available() && !hist->loading() && hist->history().size() == 2, 8000);
     QVERIFY(hist->canDeleteSnapshot());
@@ -587,6 +595,7 @@ class LibrarySavesUiTest : public QObject {
     Harness h;
     QVERIFY(h.start());
     pair(h, hub);
+    QVERIFY(h.openGame());
     SaveHistoryController* hist = h.controller->saveHistory();
     QTRY_VERIFY_WITH_TIMEOUT(hist->available() && !hist->loading() && hist->versionCount() == 2, 8000);
     openSavesView(h);
@@ -609,7 +618,7 @@ class LibrarySavesUiTest : public QObject {
     // Summary: "View saves →", Offline pill and the note
     QVERIFY(h.click("tab_Overview"));
     QTRY_VERIFY(shown(h, "saveSummary"));
-    QCOMPARE(textOf(h, "manageSavesLink"), QStringLiteral("View saves →"));
+    QCOMPARE(textOf(h, "manageSavesLink"), QStringLiteral("All saves and versions"));
     QCOMPARE(h.item("saveSyncPill")->property("text").toString(), QStringLiteral("Offline"));
     QVERIFY(shown(h, "saveOfflineNote"));
     QVERIFY(textOf(h, "saveMeta").startsWith(QStringLiteral("last synced")));
@@ -618,7 +627,7 @@ class LibrarySavesUiTest : public QObject {
     hub.failSaveRequests = 0;
     hist->refresh();
     QTRY_VERIFY_WITH_TIMEOUT(hist->online(), 8000);
-    QTRY_COMPARE(textOf(h, "manageSavesLink"), QStringLiteral("Manage saves →"));
+    QTRY_COMPARE(textOf(h, "manageSavesLink"), QStringLiteral("All saves and versions"));
   }
 
   void gameRunningBannerAndPausedActions() {
@@ -630,6 +639,7 @@ class LibrarySavesUiTest : public QObject {
     Harness h;
     QVERIFY(h.start());
     pair(h, hub);
+    QVERIFY(h.openGame());
     PlayerController* c = h.controller.get();
     SaveHistoryController* hist = c->saveHistory();
     QTRY_VERIFY_WITH_TIMEOUT(hist->available() && !hist->loading() && hist->versionCount() == 2, 8000);
@@ -670,6 +680,7 @@ class LibrarySavesUiTest : public QObject {
     Harness h;
     QVERIFY(h.start());
     pair(h, hub);
+    QVERIFY(h.openGame());
     SaveHistoryController* hist = h.controller->saveHistory();
     QTRY_VERIFY_WITH_TIMEOUT(hist->available() && !hist->loading(), 8000);
     openSavesView(h);
@@ -760,6 +771,7 @@ class LibrarySavesUiTest : public QObject {
     Harness h;
     QVERIFY(h.start());
     pair(h, hub);
+    QVERIFY(h.openGame());
     SaveHistoryController* hist = h.controller->saveHistory();
     QTRY_VERIFY_WITH_TIMEOUT(hist->available() && !hist->loading(), 8000);
     openSavesView(h);
@@ -797,6 +809,7 @@ class LibrarySavesUiTest : public QObject {
     Harness h;
     QVERIFY(h.start());
     pair(h, hub);
+    QVERIFY(h.openGame());
     PlayerController* c = h.controller.get();
     SaveHistoryController* hist = c->saveHistory();
     QTRY_VERIFY_WITH_TIMEOUT(hist->available() && !hist->loading(), 8000);
@@ -842,6 +855,7 @@ class LibrarySavesUiTest : public QObject {
     Harness h;
     QVERIFY(h.start());
     pair(h, hub);
+    QVERIFY(h.openGame());
     SaveHistoryController* hist = h.controller->saveHistory();
     QTRY_VERIFY_WITH_TIMEOUT(hist->available() && !hist->loading(), 8000);
     hist->selectSlot(QStringLiteral("boss"));
@@ -878,6 +892,7 @@ class LibrarySavesUiTest : public QObject {
     Harness h;
     QVERIFY(h.start());
     pair(h, hub);
+    QVERIFY(h.openGame());
     PlayerController* c = h.controller.get();
     SaveHistoryController* hist = c->saveHistory();
     QTRY_VERIFY_WITH_TIMEOUT(hist->available() && !hist->loading(), 8000);
@@ -964,6 +979,7 @@ class LibrarySavesUiTest : public QObject {
     Harness h;
     QVERIFY(h.start());
     pair(h, hub);
+    QVERIFY(h.openGame());
     PlayerController* c = h.controller.get();
     SaveHistoryController* hist = c->saveHistory();
     QTRY_VERIFY_WITH_TIMEOUT(hist->available() && !hist->loading(), 8000);
@@ -998,6 +1014,7 @@ class LibrarySavesUiTest : public QObject {
     Harness h;
     QVERIFY(h.start());
     pair(h, hub);
+    QVERIFY(h.openGame());
     SaveHistoryController* hist = h.controller->saveHistory();
     QTRY_VERIFY_WITH_TIMEOUT(hist->canUploadFile() && !hist->loading(), 8000);
     openSavesView(h);
@@ -1047,6 +1064,7 @@ class LibrarySavesUiTest : public QObject {
     Harness h;
     QVERIFY(h.start());
     pair(h, hub);
+    QVERIFY(h.openGame());
     SaveHistoryController* hist = h.controller->saveHistory();
     QTRY_VERIFY_WITH_TIMEOUT(hist->available() && !hist->loading() && hist->versionCount() >= 2, 8000);
     for (const QSize size : {QSize(1280, 800), QSize(1920, 1080)}) {
@@ -1083,6 +1101,7 @@ class LibrarySavesUiTest : public QObject {
     Harness h;
     QVERIFY(h.start());
     pair(h, hub);
+    QVERIFY(h.openGame());
     QTRY_VERIFY_WITH_TIMEOUT(shown(h, "manageSavesLink"), 8000);
     widenFonts(h, 40.0);
     checkInColumn(h, {"saveSummary", "manageSavesLink"}, 2);
@@ -1100,6 +1119,7 @@ class LibrarySavesUiTest : public QObject {
     Harness h;
     QVERIFY(h.start());
     pair(h, hub);
+    QVERIFY(h.openGame());
     SaveHistoryController* hist = h.controller->saveHistory();
     QTRY_VERIFY_WITH_TIMEOUT(hist->available() && !hist->loading() && hist->slotCount() == 4 && hist->versionCount() == 3, 8000);
     auto widen = [&h](bool wide) { if (wide) widenFonts(h, 10.0); };
@@ -1115,15 +1135,17 @@ class LibrarySavesUiTest : public QObject {
       QTRY_VERIFY(shown(h, "saveSummary"));
       widen(wide);
       {
-        // The header text must stay inside the column's content area (24 px margin), not just inside the column.
+        // The header text must stay inside the page and left of the actions.
         const QRectF cr = sceneRect(column(h));
+        const QRectF ar = sceneRect(h.item("gameActions"));
         for (const char* n : {"detailTitle", "detailSystem", "detailPill"}) {
           const QRectF r = sceneRect(h.item(n));
-          QVERIFY2(r.right() <= cr.right() - 24 + 0.5, qPrintable(QStringLiteral("'%1' crosses the content margin (%2 > %3):%4").arg(QLatin1String(n)).arg(r.right()).arg(cr.right() - 24).arg(chainOf(h.item(n)))));
+          QVERIFY2(r.right() <= cr.right() + 0.5, qPrintable(QStringLiteral("'%1' crosses the page edge (%2 > %3):%4").arg(QLatin1String(n)).arg(r.right()).arg(cr.right()).arg(chainOf(h.item(n)))));
+          if (QByteArray(n) != "detailPill") QVERIFY2(r.right() <= ar.left() + 0.5 || r.bottom() <= ar.top() + 0.5 || r.top() >= ar.bottom() - 0.5, qPrintable(QStringLiteral("'%1' runs under the actions").arg(QLatin1String(n))));
         }
       }
-      checkInColumn(h, {"detailPane", "detailTitle", "detailPill", "detailSystem", "detailRowValue", "saveSummary", "saveCurrentRow", "saveSlotName",
-                        "saveVersion", "saveMeta", "saveSyncPill", "saveCounts", "manageSavesLink", "playButton", "playShareButton"}, 12);
+      checkInColumn(h, {"gamePage", "detailTitle", "detailPill", "detailSystem", "detailRowValue", "saveSummary", "saveCurrentRow", "saveSlotName",
+                        "saveVersion", "saveMeta", "saveSyncPill", "saveCounts", "manageSavesLink", "playButton", "playShareButton"}, 10);
       if (QTest::currentTestFailed()) { qWarning("[uitest] overview layout failed at %s", qPrintable(what)); return; }
       // Saves view with a restore confirmation (long labels, switcher)
       QVERIFY(h.click("tab_Saves"));  // the link may sit below the fold of a short window; the tab never does

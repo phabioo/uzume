@@ -213,7 +213,7 @@ ColumnLayout {
                 text: root.emu.defaultsSelected
                       ? qsTr("Systems use these unless you change them there.")
                       : root.emu.gameSelected
-                        ? qsTr("Only what you change here applies to this game; everything else follows the system.")
+                        ? qsTr("Only what you change applies to this game; everything else follows the system. Open the game to change it.")
                         : qsTr("Only options this core reports.")
                 color: Theme.muted
                 font.pixelSize: Theme.roles.small.size
@@ -261,7 +261,8 @@ ColumnLayout {
                 displayText: root.emu.selectedGame === "" ? qsTr("Pick a game…") : root.emu.game.label
                 model: root.emu.gamePicker
                 current: root.emu.selectedGame
-                onPicked: value => root.emu.selectGame(value)
+                // A game's own settings live on its game page (Settings tab): the picker leads there.
+                onPicked: value => root.player.openGamePage(value, "settings")
             }
             Text {
                 objectName: "gameChangedCount"
@@ -279,11 +280,38 @@ ColumnLayout {
             objectName: "gamePickerHint"
             visible: root.emu.selectedGame === ""
             Layout.fillWidth: true
-            text: root.emu.gameCount > 0 ? qsTr("Choose a game to give it its own core or options. Games without changes follow their system.")
+            text: root.emu.gameCount > 0 ? qsTr("Choose a game to open its page on the Settings tab: its own core and options live there. Games without changes follow their system.")
                                             : qsTr("No games in the library yet.")
             color: Theme.muted
             font.pixelSize: Theme.roles.small.size
             wrapMode: Text.WordWrap
+        }
+        // Games that keep their own values: one row each, "Open" leads to the Settings tab of the game page.
+        Repeater {
+            model: root.emu.games.filter(g => g.changedCount > 0)
+            delegate: Item {
+                id: ovr
+                required property var modelData
+                objectName: "gameOverride_" + modelData.id
+                Layout.fillWidth: true
+                Layout.maximumWidth: 460
+                implicitHeight: Theme.row44
+                Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.rule2 }
+                RowLayout {
+                    anchors.fill: parent
+                    spacing: Theme.space2
+                    UzLabel { Layout.fillWidth: true; Layout.minimumWidth: 0; elide: Text.ElideRight; text: ovr.modelData.title; font.pixelSize: Theme.roles.input.size }
+                    UzMono { text: qsTr("%1 changed").arg(ovr.modelData.changedCount); font.capitalization: Font.AllUppercase; color: Theme.dim }
+                    UzButton {
+                        objectName: "gameOverrideOpen_" + ovr.modelData.id
+                        kind: "link"
+                        Layout.fillWidth: false
+                        text: qsTr("Open")
+                        Accessible.name: qsTr("Open settings of %1").arg(ovr.modelData.title)
+                        onClicked: root.player.openGamePage(ovr.modelData.id, "settings")
+                    }
+                }
+            }
         }
     }
 

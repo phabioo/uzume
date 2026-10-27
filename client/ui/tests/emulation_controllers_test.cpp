@@ -1109,11 +1109,20 @@ class EmulationControllersTest : public QObject {
     QVERIFY(visible(h, "gamePickerHint"));  // no game picked yet
     QVERIFY(emu->groups().isEmpty());
 
-    // Pick the game: its system's core group appears; the core row offers "Use system default" first.
+    // Pick the game: the picker leads to its game page on the Settings tab (the per-game rows live there, not on this page).
     pick(h, "gameSelect", QStringLiteral("g1"));
+    QVERIFY(h.controller->gamePageOpen());
+    QCOMPARE(h.controller->gamePageTab(), QStringLiteral("settings"));
+    QCOMPARE(h.controller->selectedGameId(), QStringLiteral("g1"));
+    QCOMPARE(h.controller->screen(), QStringLiteral("library"));
+    QTRY_VERIFY(visible(h, "gamePage"));
+    QTRY_VERIFY(visible(h, "gameSettingsContent"));
+    QCOMPARE(h.item("gameSettingsContent")->property("gameId").toString(), QStringLiteral("g1"));
+    if (h.item("gameOptionSelect_uzume.core") == nullptr && h.item("tab_Core") != nullptr) QVERIFY(h.click("tab_Core"));
+    QTRY_VERIFY(h.item("gameOptionSelect_uzume.core") != nullptr);
+    // The Emulation page keeps working on the same game through the controller: its core group, "Use system default" first.
+    emu->selectGame(QStringLiteral("g1"));
     QCOMPARE(emu->selectedGame(), QStringLiteral("g1"));
-    QVERIFY(!visible(h, "gamePickerHint"));
-    QVERIFY(h.item("optionSelect_uzume.core") != nullptr);
     QVariantMap coreRow;
     for (const QVariant& g : emu->groups()) {
       for (const QVariant& o : g.toMap().value(QStringLiteral("options")).toList()) {
@@ -1124,19 +1133,19 @@ class EmulationControllersTest : public QObject {
     QCOMPARE(coreRow.value(QStringLiteral("value")).toString(), QString());
     QCOMPARE(coreRow.value(QStringLiteral("values")).toList().size(), 3);  // default + two cores
 
-    // Choose DeSmuME for this game only: stored at game level, not for the system.
-    pick(h, "optionSelect_uzume.core", QStringLiteral("desmume"));
+    // Choose DeSmuME for this game only (on the game page): stored at game level, not for the system.
+    pick(h, "gameOptionSelect_uzume.core", QStringLiteral("desmume"));
     QCOMPARE(emu->settings()->value(L::Game, QStringLiteral("g1"), key), QStringLiteral("desmume"));
     QVERIFY(!emu->settings()->hasValue(L::System, QStringLiteral("nds"), key));
     QCOMPARE(emu->system().value(QStringLiteral("coreId")).toString(), QStringLiteral("melondsds"));  // the system is unchanged
     QCOMPARE(emu->game().value(QStringLiteral("changedCount")).toInt(), 1);
     QCOMPARE(emu->gameOverrideCount(), 1);
     QCOMPARE(emu->changedCount(), 1);
-    QVERIFY(visible(h, "changedDot_uzume.core"));
+    QVERIFY(visible(h, "optionReset_uzume.core"));   // the row on the game page shows it changed
 
     // A per-game Uzume option (speed-up) overrides system and global for this game only.
     const QString ratio = QString::fromLatin1(EmulationController::kSpeedUpRatioKey);
-    pick(h, "optionSelect_uzume.speedup_ratio", QStringLiteral("4"));
+    emu->setGameOption(QStringLiteral("g1"), ratio, QStringLiteral("4"));
     QCOMPARE(emu->uzumeValue(ratio, QStringLiteral("nds"), QStringLiteral("g1")), QStringLiteral("4"));
     QCOMPARE(emu->uzumeValue(ratio, QStringLiteral("nds"), QString()), QStringLiteral("2"));
     QCOMPARE(emu->changedCount(), 2);
@@ -1145,16 +1154,31 @@ class EmulationControllersTest : public QObject {
     emu->resetOption(key);
     QVERIFY(!emu->settings()->hasValue(L::Game, QStringLiteral("g1"), key));
     QCOMPARE(emu->changedCount(), 1);
-    QVERIFY(visible(h, "resetAllChanged"));
+    QTRY_VERIFY(visible(h, "gamePageResetAll"));   // the Settings tab of the game page offers "Reset all…"
     emu->resetAllChanged();
     QVERIFY(emu->settings()->values(L::Game, QStringLiteral("g1")).isEmpty());
     QCOMPARE(emu->gameOverrideCount(), 0);
     // Choosing "Use system default" stores nothing.
-    pick(h, "optionSelect_uzume.core", QStringLiteral("desmume"));
-    pick(h, "optionSelect_uzume.core", QString());
+    emu->setOption(key, QStringLiteral("desmume"));
+    emu->setOption(key, QString());
     QVERIFY(!emu->settings()->hasValue(L::Game, QStringLiteral("g1"), key));
 
+    // The Emulation page lists the games that keep their own values; "Open" leads to the Settings tab of the game page.
+    emu->setGameOption(QStringLiteral("g1"), ratio, QStringLiteral("4"));
+    emu->selectGame(QString());
+    h.controller->closeGamePage();
+    h.controller->showEmulation();
+    emu->setLevel(QStringLiteral("game"));
+    QTRY_VERIFY(visible(h, "gameOverride_g1"));
+    QVERIFY(h.click("gameOverrideOpen_g1"));
+    QTRY_VERIFY(h.controller->gamePageOpen());
+    QCOMPARE(h.controller->gamePageTab(), QStringLiteral("settings"));
+    QCOMPARE(h.controller->selectedGameId(), QStringLiteral("g1"));
+    QCOMPARE(h.controller->screen(), QStringLiteral("library"));
+    QTRY_VERIFY(visible(h, "gameSettingsContent"));
+
     // Back on a system: the game section stays out of the way.
+    h.controller->showEmulation();
     emu->setLevel(QStringLiteral("system"));
     QVERIFY(!visible(h, "gamePicker"));
   }

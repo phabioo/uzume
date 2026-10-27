@@ -244,7 +244,8 @@ class HubFeaturesUiTest : public QObject {
     QVERIFY2(hint.contains(QStringLiteral("ARM9 BIOS")) && hint.contains(QStringLiteral("DS Firmware")) && !hint.contains(QStringLiteral("ARM7")), qPrintable(hint));
     QCOMPARE(game(h).value(QStringLiteral("firmwareTone")).toString(), QStringLiteral("error"));
     QVERIFY(!game(h).value(QStringLiteral("canPlay")).toBool());
-    QVERIFY(h.item("firmwareRecheck") != nullptr && h.item("firmwareRecheck")->isVisible());
+    QVERIFY(h.openGame());
+    QTRY_VERIFY(h.item("firmwareRecheck") != nullptr && h.item("firmwareRecheck")->isVisible());
     uitest::saveShot(h.window, QStringLiteral("5-firmware-missing"));
 
     h.controller->playSelected();

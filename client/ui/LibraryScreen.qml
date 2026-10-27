@@ -3,7 +3,7 @@ import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import Uzume.App
 
-// 3c: Library (reduced): shell, game grid, detail pane.
+// 3c: Library (reduced): shell, game list or grid, and the game page that replaces them when a game is opened.
 Rectangle {
     id: root
     required property PlayerController player
@@ -33,9 +33,11 @@ Rectangle {
     readonly property var statusIds: ["all", "ready", "attention", "download"]
     readonly property var statusLabels: ({ all: qsTr("Any status"), ready: qsTr("Ready"), attention: qsTr("Needs attention"), download: qsTr("Not downloaded") })
     readonly property bool gridView: root.player.libraryView === "grid"
-    // Grid view: the detail column opens when a tile is chosen (the grid has five tiles per row at 1280 without it).
-    property bool detailOpen: false
-    readonly property bool detailShown: !root.gridView || root.detailOpen
+    // A game is open: the game page (GamePage) replaces the toolbar, the Continue row and the list. The list keeps its scroll
+    // position and selection underneath, so closing the page lands on the same row.
+    readonly property bool pageOpen: root.player.gamePageOpen
+    // An admin deleted the game of the open page: the page closed, this says what happened (Manage › Delete game…).
+    property string deletedNote: ""
     // One scope at a time from the chips and the Systems… menu: everything, favourites, a system, a collection or a status.
     function setScope(kind, value) {
         const lib = root.player.library
@@ -89,13 +91,20 @@ Rectangle {
         else if (v.startsWith("col:")) root.setScope("collection", v.substring(4))
     }
     function chooseGame(gameId) {
-        root.player.selectGame(gameId)
-        if (root.gridView) root.detailOpen = true
+        root.player.openGamePage(gameId)
     }
-    // Esc / B / Left from the page: the open detail column of the grid closes first.
+    // The page closed: the focus returns to the row of the game (when its row exists; the list is virtualized).
+    function focusSelectedRow() {
+        const id = root.player.selectedGameId
+        const t = grid.tileFor(id) ?? gridRest.tileFor(id)
+        if (t) t.forceActiveFocus(Qt.TabFocusReason)
+        else root.forceActiveFocus()
+    }
+    onPageOpenChanged: if (!root.pageOpen) Qt.callLater(root.focusSelectedRow)
+    // Esc / B / Left from the page: the open game page closes first (back to the list with the same row selected).
     function handleBack() {
-        if (root.gridView && root.detailOpen) {
-            root.detailOpen = false
+        if (root.pageOpen) {
+            root.player.closeGamePage()
             return true
         }
         return false
@@ -107,13 +116,13 @@ Rectangle {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        search: true; filter: true
+        search: !root.pageOpen; filter: !root.pageOpen
     }
 
     // Pad commands (Y, L, R): search field, previous / next status filter.
     Connections {
         target: root.player.controllers
-        enabled: root.visible
+        enabled: root.visible && !root.pageOpen
         function onPadCommand(command: string) {
             if (command === "search") {
                 search.forceActiveFocus()
@@ -138,17 +147,16 @@ Rectangle {
             player: root.player
         }
 
-        // The list area takes what the sidebar and the detail pane leave and shrinks first (wide fonts): its content
-        // minimum must not push the detail pane past the window edge. The content stops at Theme.gridMaxWidth (1680 +
-        // margins), left-aligned; on a 4K screen the space between it and the detail column stays empty (P7).
+        // The page area takes what the sidebar leaves and shrinks first (wide fonts). The content stops at Theme.gridMaxWidth
+        // (1680 + margins), left-aligned.
         Item {
             Layout.fillWidth: true
             Layout.minimumWidth: 0
             Layout.preferredWidth: 1
             Layout.fillHeight: true
 
-        // The page column scrolls when banners, the Continue card and the admin block leave the list less than its minimum
-        // height; otherwise it fills the area as before.
+        // The page column scrolls when banners and the Continue card leave the list less than its minimum height (or the game
+        // page less than its own); otherwise it fills the area.
         Flickable {
             id: pageScroll
             objectName: "libraryPageScroll"
@@ -178,6 +186,7 @@ Rectangle {
             UzPageHeader {
                 id: header
                 objectName: "libraryHeader"
+                visible: !root.pageOpen
                 titleName: "libraryTitle"
                 eyebrowName: "librarySectionLabel"
                 Layout.fillWidth: true
@@ -203,7 +212,7 @@ Rectangle {
 
             UzLabel {
                 objectName: "libraryOnThisPcNote"
-                visible: root.thisPcOnly
+                visible: root.thisPcOnly && !root.pageOpen
                 Layout.fillWidth: true
                 Layout.minimumWidth: 0
                 wrapMode: Text.WordWrap
@@ -228,6 +237,7 @@ Rectangle {
             Item {
                 id: toolbarBox
                 objectName: "libraryToolbar"
+                visible: !root.pageOpen
                 Layout.fillWidth: true
                 Layout.minimumWidth: 0
                 readonly property int gap: Theme.space1
@@ -349,7 +359,7 @@ Rectangle {
                             segmentHeight: Theme.row28
                             current: root.player.libraryView
                             options: [{ value: "list", label: qsTr("List"), name: "viewList" }, { value: "grid", label: qsTr("Grid"), name: "viewGrid" }]
-                            onPicked: (value) => { root.player.libraryView = value; root.detailOpen = false }
+                            onPicked: (value) => root.player.libraryView = value
                         }
                     }
                 }
@@ -358,6 +368,7 @@ Rectangle {
             // The one notices line: core download / problem / version notices folded into one sentence, "+N more" for the rest.
             LibraryNotices {
                 id: notices
+                suppressed: root.pageOpen
                 Layout.fillWidth: true
                 Layout.minimumWidth: 0
                 player: root.player
@@ -366,7 +377,7 @@ Rectangle {
             RowLayout {
                 objectName: "uploadPathPrompt"
                 Layout.fillWidth: true
-                visible: root.pathPromptOpen && root.player.canUpload
+                visible: root.pathPromptOpen && root.player.canUpload && !root.pageOpen
                 spacing: Theme.space1
                 UzField {
                     id: uploadPath
@@ -502,12 +513,14 @@ Rectangle {
             }
 
             SessionsSection {
+                suppressed: root.pageOpen
                 Layout.fillWidth: true
                 player: root.player
             }
 
             // Version states of the server problems (package 8, 8k-2): server older than the app, app older than the server.
             ServerProblemLine {
+                suppressed: root.pageOpen
                 Layout.fillWidth: true
                 player: root.player
             }
@@ -515,6 +528,7 @@ Rectangle {
             // Continue (3c-0): up to three recent games as compact cards; hidden until something was played.
             LibraryContinue {
                 id: continueBlock
+                suppressed: root.pageOpen
                 Layout.fillWidth: true
                 Layout.topMargin: Theme.space1
                 player: root.player
@@ -522,6 +536,7 @@ Rectangle {
 
             UzSectionLabel {
                 objectName: "libraryAllLabel"
+                visible: !root.pageOpen
                 Layout.fillWidth: true
                 Layout.topMargin: Theme.space1
                 number: continueBlock.visible ? 2 : 1
@@ -531,6 +546,7 @@ Rectangle {
 
             Item {
                 objectName: "gameListArea"
+                visible: !root.pageOpen
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 // At least the table header and seven rows stay visible; the page column scrolls instead of squeezing the list.
@@ -595,11 +611,10 @@ Rectangle {
                     boundsBehavior: Flickable.StopAtBounds
                     ScrollBar.vertical: ScrollBar { }
 
-                    // The table stops at Theme.gridMaxWidth (1680), left-aligned; the detail column keeps its width. One column of
+                    // The table stops at Theme.gridMaxWidth (1680), left-aligned. One column of
                     // 44 px rows: the GameGrid is a one-column grid here, so the virtualization of large libraries stays.
                     readonly property int gridW: Math.min(Theme.gridMaxWidth, width - 4)
-                    // List: one column of 44 px rows. Grid: tiles of at least 190 px (five per row at 1280 without the detail
-                    // column), 4:3 placeholder plus title and status line.
+                    // List: one column of 44 px rows. Grid: tiles of at least 190 px (five per row at 1280), 4:3 placeholder plus title and status line.
                     readonly property int tileColumns: Math.max(2, Math.floor(gridW / 190))
                     readonly property int cellW: root.gridView ? Math.floor(gridW / tileColumns) : gridW
                     readonly property bool dated: root.player.library.sortKey === "added_desc" || root.player.library.sortKey === "added_asc"
@@ -761,24 +776,41 @@ Rectangle {
                 }
             }
 
-            // Admin details of the selected game (Uploaded by, File, SHA-256, Saves; Rename, Delete).
-            LibraryAdminDetails {
+            // The game page (GamePage): created while a game is open, in place of the list.
+            Loader {
+                id: pageLoader
+                objectName: "gamePageLoader"
+                active: root.pageOpen
+                visible: active
                 Layout.fillWidth: true
-                visible: root.player.admin.available && root.player.selectedGameId !== ""
-                player: root.player
+                Layout.fillHeight: true
+                // A tall header (long title, wide fonts) pushes the tabs down: the column scrolls instead of cutting the tabs off.
+                Layout.minimumHeight: Math.max(520, pageLoader.item ? pageLoader.item.minPageHeight : 0)
+                sourceComponent: GamePage {
+                    player: root.player
+                    onCloseRequested: root.player.closeGamePage()
+                    onDeleted: (note) => { root.player.closeGamePage(); root.deletedNote = note }
+                }
             }
         }
         }
         }
+    }
 
-        DetailPane {
-            visible: root.detailShown
-            closable: root.gridView
-            onCloseRequested: root.detailOpen = false
-            Layout.fillHeight: true
-            Layout.preferredWidth: root.detailShown ? Theme.detailWidth : 0
-            player: root.player
-        }
+    UzToast {
+        id: deletedToast
+        objectName: "deletedToast"
+        visible: root.deletedNote !== ""
+        z: 60
+        anchors.left: parent.left
+        anchors.leftMargin: 232 + Theme.space3
+        anchors.bottom: pageHints.top
+        anchors.bottomMargin: Theme.space2
+        width: Math.min(560, parent.width - 232 - 2 * Theme.space3)
+        kind: "done"
+        text: root.deletedNote
+        onCloseRequested: root.deletedNote = ""
+        Timer { running: deletedToast.visible; interval: 10000; onTriggered: root.deletedNote = "" }
     }
 
     // "Remove from library" of a local game (scan finding V4): the files stay on this PC, Undo registers them again.
