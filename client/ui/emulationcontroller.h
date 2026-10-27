@@ -102,6 +102,7 @@ class EmulationController : public QObject {
   static constexpr const char* kAspectRatioKey = "uzume.aspect_ratio";    // 0.19 picture: "core" | "4:3" | "stretch"
   static constexpr const char* kPadProfileKey = "uzume.pad_profile";            // 0.19: gamepad profile for P1 ("" = the device's own)
   static constexpr const char* kKeyboardProfileKey = "uzume.keyboard_profile";  // 0.19: keyboard profile ("" = the device's own)
+  static constexpr const char* kRendererKey = EmulationSettings::kRendererKey;  // "uzume.renderer": opengl | vulkan (ADR 0034)
   static constexpr const char* kSpeedUpRatioKey = "uzume.speedup_ratio";
   static constexpr const char* kSpeedUpOnStartKey = "uzume.speedup_on_start";
   static constexpr const char* kSpeedUpAudioKey = "uzume.speedup_audio";

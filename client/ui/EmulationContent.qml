@@ -523,7 +523,7 @@ ColumnLayout {
                         toggleName: "optionToggle_" + opt.modelData.key
                         label: opt.modelData.label
                         description: opt.modelData.description
-                        badge: opt.modelData.restart ? qsTr("applies on next start") : ""
+                        badge: opt.modelData.restart ? qsTr("applies on next start") : (opt.modelData.tag || "")
                         disabledReason: opt.modelData.disabledReason || ""
                         values: opt.modelData.values
                         current: opt.modelData.value

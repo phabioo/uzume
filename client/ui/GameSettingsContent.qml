@@ -157,7 +157,7 @@ ColumnLayout {
                         label: rowItem.modelData.label
                         meta: root.rowMeta(rowItem.modelData)
                         description: rowItem.modelData.description
-                        badge: rowItem.modelData.restart ? qsTr("applies on next start") : ""
+                        badge: rowItem.modelData.restart ? qsTr("applies on next start") : (rowItem.modelData.tag || "")
                         values: rowItem.modelData.values
                         current: root.shownValue(rowItem.modelData)
                         changed: rowItem.modelData.isSet || root.isLive(rowItem.modelData)
