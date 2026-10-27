@@ -70,6 +70,14 @@ struct UiDecl {
 
 bool validUiId(const QString& s);  // [A-Za-z0-9_.-]{1,64}
 
+// Manifest field `recap` (0.22): maps a run event type of this plugin to a glyph of the run recap.
+inline constexpr int kMaxRecapEntries = 32;
+struct RecapEntry {
+  QString type;   // run event type, ^[a-z0-9_.-]{1,64}$
+  QString glyph;  // catch | lost | badge | note | screenshot
+};
+bool validRecapGlyph(const QString& glyph);
+
 struct Manifest {
   QString id;
   QString name;
@@ -86,6 +94,8 @@ struct Manifest {
   QJsonObject settings;            // raw, schema not interpreted yet
   UiDecl ui;                       // optional field "ui"
   QList<RunSetting> runSettings;   // optional field "run_settings": the run rules the creator sets in "Start a run"
+  QList<RecapEntry> recap;         // optional field "recap": event type -> recap glyph (invalid entries are skipped)
+  QStringList warnings;            // non-fatal manifest problems (an ignored `recap` entry); the plugin still loads
 
   bool matchesGame(const QString& system, const QString& code) const;
   bool hasPermission(const QString& p) const { return permissions.contains(p); }

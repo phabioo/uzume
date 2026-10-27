@@ -124,7 +124,7 @@ class McpToolsTest : public QObject {
                           "devconsole_state", "memory_regions", "memory_read", "memory_search", "romfs_list", "romfs_read", "rom_read", "screenshot", "game_input", "game_pause",
                           "game_resume", "game_frame_step", "game_state_save", "game_state_load", "game_memory_write", "cheats_list", "cheats_apply",
                           "cheats_clear", "store_get", "store_put", "consent_set", "server_sign_in", "states_list", "states_save", "states_load",
-                          "states_delete", "rewind", "runs_list", "run_set_rules", "run_events", "plugin_link", "developer_mode", "file_dialog_pick"})
+                          "states_delete", "rewind", "runs_list", "run_set_rules", "run_events", "plugin_link", "developer_mode", "file_dialog_pick", "run_recap"})
       QVERIFY2(names.contains(QLatin1String(n)), n);
   }
 
@@ -202,6 +202,21 @@ class McpToolsTest : public QObject {
     QVERIFY(!serverFingerprintTrusted(QStringLiteral("AB:CD:EF"), QStringLiteral("abcdee")));
     QVERIFY(!serverFingerprintTrusted(QStringLiteral("AB:CD:EF"), QString()));
     QVERIFY(!serverFingerprintTrusted(QString(), QString()));
+  }
+
+  void runRecapValidatesArguments() {
+    QVERIFY(call("run_recap").isError);
+    QVERIFY(call("run_recap", {{"run_id", ""}}).isError);
+    QVERIFY(call("run_recap", {{"run_id", 7}}).isError);
+    QVERIFY(call("run_recap", {{"run_id", "not-a-uuid"}}).isError);
+    const QString uuid = QStringLiteral("11111111-2222-3333-4444-555555555555");
+    QVERIFY(validateRunRecapArgs({{"run_id", uuid}}).isEmpty());
+    QVERIFY(validateRunRecapArgs({{"run_id", uuid.toUpper()}}).isEmpty());
+    QVERIFY(!validateRunRecapArgs({}).isEmpty());
+    QVERIFY(!validateRunRecapArgs({{"run_id", "../etc"}}).isEmpty());
+    // A valid id without a connected server is refused with a clear reason, not a timeout.
+    const ToolResult r = call("run_recap", {{"run_id", uuid}});
+    QVERIFY(r.isError);
   }
 
   void tokenFromEnvironmentOnlyWithMcpFlag() {

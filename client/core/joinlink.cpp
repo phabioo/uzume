@@ -211,4 +211,60 @@ QString makeJoinLink(const QString& address, const QString& inviteCode, const QS
   return QString::fromLatin1(kLinkPrefix) + joinHostPort(hp) + QLatin1Char('/') + invite + QLatin1Char('#') + fp;
 }
 
+namespace {
+
+constexpr auto kRunLinkPrefix = "uzume://run/";
+
+QString normalizeRunId(const QString& text) {
+  static const QRegularExpression re(QStringLiteral("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"));
+  const QString t = text.trimmed().toLower();
+  return re.match(t).hasMatch() ? t : QString();
+}
+
+}  // namespace
+
+RunLink parseRunLink(const QString& input) {
+  RunLink out;
+  const QString text = input.trimmed();
+  if (!text.startsWith(QString::fromLatin1(kRunLinkPrefix), Qt::CaseInsensitive)) {
+    return out;
+  }
+  QString rest = text.mid(QString::fromLatin1(kRunLinkPrefix).size());
+  if (const qsizetype cut = rest.indexOf(QRegularExpression(QStringLiteral("[?#]"))); cut >= 0) {
+    rest = rest.left(cut);
+  }
+  while (rest.endsWith(QLatin1Char('/'))) {
+    rest.chop(1);
+  }
+  const QStringList parts = rest.split(QLatin1Char('/'));
+  if (parts.size() != 3 || parts.at(2).toLower() != QLatin1String("recap")) {
+    return out;
+  }
+  const HostPort hp = splitHostPort(QUrl::fromPercentEncoding(parts.at(0).toUtf8()).trimmed());
+  const QString id = normalizeRunId(parts.at(1));
+  if (!hp.ok || id.isEmpty()) {
+    return out;
+  }
+  out.ok = true;
+  out.address = joinHostPort(hp);
+  out.runId = id;
+  return out;
+}
+
+QString makeRunLink(const QString& address, const QString& runId) {
+  QString text = address.trimmed();
+  if (const qsizetype sep = text.indexOf(QLatin1String("://")); sep >= 0) {
+    text = text.mid(sep + 3);
+  }
+  while (text.endsWith(QLatin1Char('/'))) {
+    text.chop(1);
+  }
+  const HostPort hp = splitHostPort(text);
+  const QString id = normalizeRunId(runId);
+  if (!hp.ok || id.isEmpty()) {
+    return {};
+  }
+  return QString::fromLatin1(kRunLinkPrefix) + joinHostPort(hp) + QLatin1Char('/') + id + QStringLiteral("/recap");
+}
+
 }  // namespace uzume

@@ -47,6 +47,7 @@ qt_add_qml_module(uzume_ui
     keyedrowsmodel.h keyedrowsmodel.cpp
     runscontroller.h runscontroller.cpp
     runrules.h runrules.cpp
+    runrecapcontroller.h runrecapcontroller.cpp
     personalcontroller.h personalcontroller.cpp
     screenshotcontroller.h screenshotcontroller.cpp
     localstoragecontroller.h localstoragecontroller.cpp
@@ -286,6 +287,7 @@ qt_add_qml_module(uzume_ui
     SavesAdminSheet.qml
     SavesAdminDetails.qml
     RunsAdminPanel.qml
+    RunRecapView.qml
     WhatsNewDialog.qml
     SetupAssistant.qml
     ServerProblemLine.qml
