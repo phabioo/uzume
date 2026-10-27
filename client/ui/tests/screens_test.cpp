@@ -427,9 +427,9 @@ class ScreensTest : public QObject {
     QVERIFY(h.item("searchField") != nullptr);
     uitest::saveShot(h.window, QStringLiteral("3c-library"));
 
-    // R-P4: chips, tiles and sidebar entries are Tab stops and work with Enter / Space.
+    // R-P4: chips (the Systems… chip), tiles and sidebar entries are Tab stops and work with Enter / Space.
     {
-      QQuickItem* status = h.item("statusChip_attention");
+      QQuickItem* status = h.item("scopeChip_menu");
       QVERIFY(status != nullptr && status->activeFocusOnTab());
 
       QTRY_VERIFY(h.item("gameTile_g3") != nullptr);

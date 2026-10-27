@@ -130,6 +130,10 @@ class LibrarySavesUiTest : public QObject {
     QQuickItem* it = h.item(name);
     return it != nullptr ? it->property("text").toString() : QString();
   }
+  static QString metaOf(Harness& h, const char* name) {   // the meta text of a UzSectionLabel
+    QQuickItem* it = h.item(name);
+    return it != nullptr ? it->property("meta").toString() : QString();
+  }
   static bool shown(Harness& h, const char* name) {
     QQuickItem* it = h.item(name);
     return it != nullptr && it->isVisible();
@@ -230,8 +234,8 @@ class LibrarySavesUiTest : public QObject {
     QTRY_VERIFY_WITH_TIMEOUT((lib->setAttention({}), lib->isReady(QStringLiteral("g1")) && lib->isReady(QStringLiteral("g3")) && lib->isReady(QStringLiteral("g4"))), 8000);
     QCOMPARE(order(), (QStringList{"g2", "g3", "g5", "g4", "g1"}));  // Name A–Z, "Orbit 2" before "Orbit 10"
     QCOMPARE(h.controller->selectedGameId(), QStringLiteral("g2"));  // first game of the sorted list
-    QCOMPARE(textOf(h, "libraryCount"), QStringLiteral("5 games · Nintendo DS"));
-    QVERIFY(shown(h, "sortControl") && shown(h, "readyFirstToggle"));
+    QCOMPARE(metaOf(h, "libraryAllLabel"), QStringLiteral("5 games · Nintendo DS"));
+    QVERIFY(shown(h, "sortControl") && shown(h, "scopeChip_all"));  // Ready first lives in the sort menu
     QVERIFY(!shown(h, "notReadyDivider"));
     uitest::saveShot(h.window, QStringLiteral("library-3c-2"));
 
@@ -256,6 +260,8 @@ class LibrarySavesUiTest : public QObject {
     QTRY_COMPARE(lib->sortKey(), QStringLiteral("size_desc"));
 
     // Ready first: two grids and the divider "NOT READY · 2 · same sort"
+    QVERIFY(h.click("sortControl"));
+    QTRY_VERIFY(shown(h, "readyFirstToggle"));
     QVERIFY(h.click("readyFirstToggle"));
     QTRY_VERIFY(lib->readyFirst());
     QTRY_VERIFY(shown(h, "notReadyDivider"));
@@ -277,11 +283,19 @@ class LibrarySavesUiTest : public QObject {
     // The "Ready" chip: every result is ready, the toggle is disabled and no divider is shown
     lib->setFilter(QStringLiteral("ready"));
     QTRY_VERIFY(!shown(h, "notReadyDivider"));
+    QVERIFY(h.click("sortControl"));
+    QTRY_VERIFY(shown(h, "readyFirstToggle"));
     QVERIFY(!h.item("readyFirstToggle")->isEnabled());
-    QCOMPARE(textOf(h, "libraryCount"), QStringLiteral("3 of 5 games"));
+    QVERIFY(QMetaObject::invokeMethod(h.window->findChild<QObject*>(QStringLiteral("sortMenu")), "close"));
+    QTRY_VERIFY(!shown(h, "readyFirstToggle"));
+    QCOMPARE(metaOf(h, "libraryAllLabel"), QStringLiteral("3 of 5 games"));
     lib->setFilter(QStringLiteral("all"));
     QTRY_VERIFY(shown(h, "notReadyDivider"));
+    QVERIFY(h.click("sortControl"));
+    QTRY_VERIFY(shown(h, "readyFirstToggle"));
     QVERIFY(h.item("readyFirstToggle")->isEnabled());
+    QVERIFY(QMetaObject::invokeMethod(h.window->findChild<QObject*>(QStringLiteral("sortMenu")), "close"));
+    QTRY_VERIFY(!shown(h, "readyFirstToggle"));
 
     // Search + chip -> empty result with the hint and both actions (decision ac for the count)
     lib->setFilter(QStringLiteral("download"));  // g2, g5
@@ -289,7 +303,7 @@ class LibrarySavesUiTest : public QObject {
     QTRY_VERIFY(shown(h, "libraryEmptyText"));
     QCOMPARE(titleOf(h, "libraryEmptyText"), QStringLiteral("No games not downloaded match “moon”"));
     QCOMPARE(textOf(h, "libraryEmptyHint"), QStringLiteral("1 match outside this filter: Moon Courier (ready)."));
-    QCOMPARE(textOf(h, "libraryCount"), QStringLiteral("0 of 2 games not downloaded"));
+    QCOMPARE(metaOf(h, "libraryAllLabel"), QStringLiteral("0 of 2 games not downloaded"));
     QVERIFY(shown(h, "emptyClearSearch") && shown(h, "emptyShowAll"));
     uitest::saveShot(h.window, QStringLiteral("library-empty-result"));
     QCOMPARE(lib->counts().value(QStringLiteral("all")).toInt(), 1);  // the chips recount to the search
