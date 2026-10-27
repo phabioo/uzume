@@ -187,6 +187,8 @@ Rectangle {
     // A row of the quick menu. Rows that act in the panel or on the stage resume the game first; the others keep the menu open.
     function runQuick(name, anchor) {
         if (name === "snapshot") root.saveSnapshot()
+        else if (name === "saveState") root.player.states.saveToSlot()
+        else if (name === "loadState") root.player.states.loadSlot()
         else if (name === "saves") { root.resumeGame(); panel.openSaves() }
         else if (name === "screenshot") root.player.screenshots.capture()
         else if (name === "gameSettings") gameSettings.open(root.player.runningGameId)
@@ -251,6 +253,10 @@ Rectangle {
         else if (action === "volumeDown") root.player.audio.volumeDown()
         else if (action === "mute") root.player.audio.toggleMute()
         else if (action === "screenshot") root.player.screenshots.capture()
+        else if (action === "saveState") { if (root.session.active) root.player.states.saveToSlot() }
+        else if (action === "nextState") { if (root.session.active) root.player.states.nextSlot() }
+        else if (action === "loadState") { if (root.session.active) root.player.states.loadSlot() }
+        else if (action === "rewind") { if (root.session.active) root.player.states.rewindKey(true) }
         else return false
         return true
     }
@@ -258,6 +264,7 @@ Rectangle {
         target: root.player.controllers
         // Gamepad hotkeys (P1): the buttons are already kept away from the core by the GamepadService.
         function onPadHotkeyTriggered(action) { if (root.visible) root.runHotkey(action === "layout" ? "nextLayout" : action) }
+        function onPadHotkeyReleased(action) { if (action === "rewind") root.player.states.rewindKey(false) }
     }
     // A text field of a plugin panel has the focus: plugin keys, Alt+n and F4 are typing, not hotkeys.
     function textFieldFocused() {
@@ -285,6 +292,7 @@ Rectangle {
         if (e.isAutoRepeat) return
         var action = root.player.controllers.hotkeyAction(e.key)
         if (action === "layout" && (e.modifiers & Qt.ShiftModifier)) action = "swap"
+        if (action === "saveState" && (e.modifiers & Qt.ShiftModifier)) action = "nextState"
         if (action !== "" && action !== "fullscreen" && root.runHotkey(action)) e.accepted = true
         else if (e.key === Qt.Key_Escape && root.session.active) {
             if (!hudLayer.closeMenu()) root.session.togglePause()
@@ -299,6 +307,7 @@ Rectangle {
         if (action !== "") {
             // Shift + the layout key swaps the screens directly
             if (action === "layout" && (e.modifiers & Qt.ShiftModifier)) action = "swap"
+            if (action === "saveState" && (e.modifiers & Qt.ShiftModifier)) action = "nextState"
             if (!e.isAutoRepeat || action === "volumeUp" || action === "volumeDown") root.runHotkey(action)
             e.accepted = true   // the key never reaches the core (GameSession::isReservedKey)
         } else if (e.key === Qt.Key_Escape) {
@@ -311,6 +320,11 @@ Rectangle {
         }
     }
 
+    // Rewind is a hold: letting go of its key stops it
+    Keys.onReleased: (e) => {
+        if (!e.isAutoRepeat && root.player.controllers.hotkeyAction(e.key) === "rewind") root.player.states.rewindKey(false)
+    }
+
     Timer { id: hintTimer; interval: 6000 }
 
     // "Settings for this game…" of the "⋯" menu: the same dialog as on the game page; the game keeps running behind it.
@@ -319,6 +333,43 @@ Rectangle {
         objectName: "gameSettingsHost"
         player: root.player
         onClosed: Qt.callLater(root.focusLocal)
+    }
+
+    // "Load state 1 from today 17:02?" (board 3g-5): replaces the running game; the progress of the moment is kept as Auto first.
+    UzDialog {
+        id: loadStateDialog
+        objectName: "loadStateDialog"
+        readonly property var req: root.player.states.loadRequest
+        label: qsTr("States")
+        title: loadStateDialog.req.title ?? ""
+        text: qsTr("This replaces the game you are playing. Your progress now is kept as Auto first, and you can undo for a few seconds.")
+        closable: false
+        onClosed: root.player.states.cancelLoad()
+        UzCheckbox {
+            id: dontAsk
+            objectName: "loadStateDontAsk"
+            text: qsTr("Don't ask again (%1 never asks)").arg(root.hotkeyLabels.loadState || "F8")
+            checked: false
+        }
+        actions: [
+            UzButton {
+                objectName: "loadStateConfirm"
+                kind: "primary"
+                text: qsTr("Load state")
+                onClicked: { if (dontAsk.checked) root.player.states.askBeforeLoad = false; dontAsk.checked = false; root.player.states.confirmLoad() }
+            },
+            UzButton {
+                objectName: "loadStateCancel"
+                text: qsTr("Cancel")
+                onClicked: { dontAsk.checked = false; root.player.states.cancelLoad() }
+            }
+        ]
+    }
+    Binding { target: loadStateDialog; property: "shown"; value: (loadStateDialog.req.title ?? "") !== "" }
+    Connections {
+        target: root.player.states
+        // A loaded state shows on the next frame: a paused game (quick menu) continues
+        function onStateLoaded() { if (root.session.paused) root.resumeGame() }
     }
 
     property string layoutToastText: ""
@@ -537,6 +588,27 @@ Rectangle {
                             function onNotice(text) { screenshotToast.text = text; screenshotToastTimer.restart() }
                         }
                     }
+                    // Save states (0.20): "State 2 saved", "State 1 loaded" with Undo (6 s), run-rule refusals; goes after 3 s
+                    UzToast {
+                        objectName: "stateToast"
+                        visible: (root.player.states.toast.text ?? "") !== ""
+                        width: Math.min(implicitWidth, toasts.maxToastWidth)
+                        kind: root.player.states.toast.kind ?? "done"
+                        closable: false
+                        maxLines: 2
+                        text: root.player.states.toast.text ?? ""
+                        action: root.player.states.toast.action ?? ""
+                        onActionTriggered: root.player.states.undoLoad()
+                    }
+                    // Rewind: stays while the key is held
+                    UzToast {
+                        objectName: "rewindToast"
+                        visible: root.player.states.rewindText !== ""
+                        width: Math.min(implicitWidth, toasts.maxToastWidth)
+                        kind: "done"
+                        closable: false
+                        text: root.player.states.rewindText
+                    }
                     UzToast {
                         objectName: "fastForwardIndicator"
                         visible: root.session.fastForward && !root.session.paused
@@ -609,6 +681,7 @@ Rectangle {
                     canSpeedUp: root.session.fastForwardAvailable
                     canScreens: root.screenLayouts.length > 1
                     canSnapshot: root.saves.available && !root.saves.busy
+                    canStates: root.player.states.supported && root.player.states.blockedText === ""
                     fullscreen: root.fullscreen
                     quitting: root.player.quitting
                     hotkeys: root.hotkeyLabels

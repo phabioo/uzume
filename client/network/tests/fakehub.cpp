@@ -1,6 +1,7 @@
 #include "fakehub.h"
 
 #include <QCryptographicHash>
+#include <QDateTime>
 #include <QDeadlineTimer>
 
 #include <QFile>
@@ -822,6 +823,8 @@ void FakeHub::handle(QSslSocket* sock, const FakeRequest& req) {
   } else if (handleLocalRoms(sock, req)) {
     // answered
   } else if (handleCollections(sock, req)) {
+    // answered
+  } else if (handleStates(sock, req)) {
     // answered
   } else if (req.path == QLatin1String("/api/v1/saves") || req.path.startsWith(QLatin1String("/api/v1/games/"))) {
     handleSaves(sock, req);
@@ -2421,6 +2424,128 @@ bool FakeHub::handlePluginStore(QSslSocket* sock, const FakeRequest& req) {
   } else if (req.method == "DELETE") {
     pluginStore.remove(mapKey);
     respond(sock, 200, json({{QStringLiteral("ok"), true}}));
+  } else {
+    respondError(sock, 405, QStringLiteral("method_not_allowed"));
+  }
+  return true;
+}
+
+// Save states (Uzume 0.20, states_v1). The caller is the paired fake person.
+bool FakeHub::handleStates(QSslSocket* sock, const FakeRequest& req) {
+  static const QString kBase = QStringLiteral("/api/v1/games/");
+  if (!req.path.startsWith(kBase)) return false;
+  const QString query = req.path.section(QLatin1Char('?'), 1);
+  const QStringList parts = req.path.section(QLatin1Char('?'), 0, 0).split(QLatin1Char('/'), Qt::SkipEmptyParts);
+  if (parts.size() < 5 || parts.at(4) != QLatin1String("states")) return false;
+  if (!features.contains(QStringLiteral("states_v1"))) {
+    respondError(sock, 404, QStringLiteral("not_found"));
+    return true;
+  }
+  const QString game = parts.at(3);
+  const auto json = [](const QJsonObject& o) { return QJsonDocument(o).toJson(QJsonDocument::Compact); };
+  const auto stateJson = [&](const QString& slot, int n, const FakeState& s) {
+    return QJsonObject{{QStringLiteral("game_id"), game},
+                       {QStringLiteral("slot"), slot},
+                       {QStringLiteral("n"), n},
+                       {QStringLiteral("core_id"), s.coreId},
+                       {QStringLiteral("core_version"), s.coreVersion},
+                       {QStringLiteral("size_bytes"), static_cast<double>(s.state.size())},
+                       {QStringLiteral("has_preview"), !s.preview.isEmpty()},
+                       {QStringLiteral("preview_bytes"), static_cast<double>(s.preview.size())},
+                       {QStringLiteral("sha256"), QString::fromLatin1(QCryptographicHash::hash(s.state, QCryptographicHash::Sha256).toHex())},
+                       {QStringLiteral("device_id"), QStringLiteral("dev-fake")},
+                       {QStringLiteral("device_name"), s.deviceName},
+                       {QStringLiteral("created_at"), s.createdAt.isEmpty() ? QStringLiteral("2026-10-27T12:00:00Z") : s.createdAt}};
+  };
+  qint64 used = 0;
+  for (const FakeState& s : std::as_const(states)) used += s.state.size() + s.preview.size();
+  if (parts.size() == 5) {
+    if (req.method != "GET") {
+      respondError(sock, 405, QStringLiteral("method_not_allowed"));
+      return true;
+    }
+    QString onlySlot;
+    if (query.startsWith(QLatin1String("slot="))) onlySlot = QUrl::fromPercentEncoding(query.mid(5).toUtf8());
+    QJsonArray arr;
+    for (auto it = states.cbegin(); it != states.cend(); ++it) {
+      const QStringList k = it.key().split(QLatin1Char('/'));
+      if (k.at(0) != game || (!onlySlot.isEmpty() && k.at(1) != onlySlot)) continue;
+      arr.append(stateJson(k.at(1), k.at(2).toInt(), it.value()));
+    }
+    respond(sock, 200, json({{QStringLiteral("states"), arr}, {QStringLiteral("used_bytes"), static_cast<double>(used)},
+                             {QStringLiteral("quota_bytes"), static_cast<double>(stateQuotaBytes)}}));
+    return true;
+  }
+  if (parts.size() < 7) return false;
+  const QString slot = parts.at(5);
+  const int n = parts.at(6).toInt();
+  const QString key = game + QLatin1Char('/') + slot + QLatin1Char('/') + QString::number(n);
+  if (n < 0 || n > 10) {
+    respondError(sock, 404, QStringLiteral("not_found"));
+    return true;
+  }
+  if (parts.size() == 8 && parts.at(7) == QLatin1String("preview") && req.method == "GET") {
+    if (!states.contains(key) || states.value(key).preview.isEmpty()) respondError(sock, 404, QStringLiteral("not_found"));
+    else respond(sock, 200, states.value(key).preview, "image/png");
+    return true;
+  }
+  if (parts.size() != 7) return false;
+  if (req.method == "GET") {
+    ++stateGets;
+    if (!states.contains(key)) {
+      respondError(sock, 404, QStringLiteral("not_found"));
+      return true;
+    }
+    const FakeState& s = states.value(key);
+    respond(sock, 200, s.state, "application/octet-stream",
+            {{"ETag", "\"" + QCryptographicHash::hash(s.state, QCryptographicHash::Sha256).toHex() + "\""},
+             {"X-Uzume-Core-Id", s.coreId.toLatin1()},
+             {"X-Uzume-Core-Version", s.coreVersion.toLatin1()}});
+  } else if (req.method == "DELETE") {
+    ++stateDeletes;
+    if (states.remove(key) == 0) respondError(sock, 404, QStringLiteral("not_found"));
+    else respond(sock, 204, QByteArray());
+  } else if (req.method == "PUT") {
+    ++statePuts;
+    const QByteArray ct = req.headers.value(QStringLiteral("content-type"));
+    const qsizetype bAt = ct.indexOf("boundary=");
+    if (bAt < 0) {
+      respondError(sock, 400, QStringLiteral("bad_request"));
+      return true;
+    }
+    const QByteArray delim = "--" + ct.mid(bAt + 9);
+    QMap<QString, QByteArray> bodies;
+    qsizetype pos = req.body.indexOf(delim);
+    while (pos >= 0) {
+      const qsizetype start = pos + delim.size();
+      if (req.body.mid(start, 2) == "--") break;
+      const qsizetype headEnd = req.body.indexOf("\r\n\r\n", start);
+      const qsizetype next = req.body.indexOf("\r\n" + delim, headEnd);
+      if (headEnd < 0 || next < 0) break;
+      const QByteArray head = req.body.mid(start, headEnd - start);
+      const qsizetype nm = head.indexOf("name=\"");
+      const QString name = QString::fromLatin1(head.mid(nm + 6, head.indexOf('"', nm + 6) - nm - 6));
+      bodies.insert(name, req.body.mid(headEnd + 4, next - headEnd - 4));
+      pos = next + 2;
+    }
+    const QJsonObject meta = QJsonDocument::fromJson(bodies.value(QStringLiteral("meta"))).object();
+    FakeState s;
+    s.state = bodies.value(QStringLiteral("state"));
+    s.preview = bodies.value(QStringLiteral("preview"));
+    s.coreId = meta.value(QStringLiteral("core_id")).toString();
+    s.coreVersion = meta.value(QStringLiteral("core_version")).toString();
+    if (s.state.isEmpty() || s.coreId.isEmpty()) {
+      respondError(sock, 400, QStringLiteral("bad_request"));
+      return true;
+    }
+    const qint64 freed = states.contains(key) ? states.value(key).state.size() + states.value(key).preview.size() : 0;
+    if (used - freed + s.state.size() + s.preview.size() > stateQuotaBytes) {
+      respondError(sock, 413, QStringLiteral("state_quota_exceeded"));
+      return true;
+    }
+    s.createdAt = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
+    states.insert(key, s);
+    respond(sock, 200, json(stateJson(slot, n, s)));
   } else {
     respondError(sock, 405, QStringLiteral("method_not_allowed"));
   }

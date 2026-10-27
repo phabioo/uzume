@@ -1308,7 +1308,7 @@ class InGameUiTest : public QObject {
 
   // The row of the quick menu that has the keyboard focus ("" = none of the rows, e.g. Resume or Quit game).
   static QString focusedQuickRow(Harness& h) {
-    for (const char* n : {"snapshot", "saves", "screenshot", "gameSettings", "reset", "speedup", "sound", "screens", "fullscreen", "diagnostics",
+    for (const char* n : {"saveState", "loadState", "snapshot", "saves", "screenshot", "gameSettings", "reset", "speedup", "sound", "screens", "fullscreen", "diagnostics",
                           "share", "multiview", "hotkeys", "report"}) {
       QQuickItem* it = h.item((QByteArray("quickRow_") + n).constData());
       if (it != nullptr && it->hasActiveFocus()) return QString::fromLatin1(n);
@@ -1395,7 +1395,7 @@ class InGameUiTest : public QObject {
     // Down leaves Resume for the first row of the left column, Right / Left switch the column, Up goes back to Resume
     QTest::keyClick(h.window, Qt::Key_Down);
     const QString first = focusedQuickRow(h);
-    QVERIFY2(first == QLatin1String("snapshot") || first == QLatin1String("saves"), qPrintable(first));
+    QVERIFY2(first == QLatin1String("saveState") || first == QLatin1String("snapshot") || first == QLatin1String("saves"), qPrintable(first));
     QTest::keyClick(h.window, Qt::Key_Right);
     QCOMPARE(focusedQuickRow(h), QStringLiteral("speedup"));
     QTest::keyClick(h.window, Qt::Key_Down);

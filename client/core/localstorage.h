@@ -16,7 +16,7 @@ namespace uzume {
 //   Variants             VariantCache (<data>/cache/variants, built randomizer variants and unfinished builds)
 //   Save cache           SaveStore layout: <data>/hubs/<hub>/users/<user>/saves, legacy <data>/hubs/<hub>/saves and the short core
 //                        folders <data>/c (the local copies of saves; they are never offered for clean-up)
-//   Save states          the app has no local save states yet (they are separate and not built), so this kind is always 0
+//   Save states          StateStore layout: <data>/hubs/<hub>/users/<user>/states (the local cache of the states; the server keeps the originals)
 //   Screenshots waiting  <data>/screenshots/pending (ScreenshotController queue)
 //   Cores and firmware   CoreCache (<data>/cache/cores) + FirmwareCache (<data>/system/firmware)
 struct LocalStorageInput {
@@ -29,6 +29,11 @@ struct LocalStorageInput {
   QSet<QString> protectedHashes;  // running game, downloads in progress (PlayerController::protectedRomHashes)
   QString inUseCoreId;            // core of the running game, empty when none
   QString inUseCoreVersion;
+  // Clean-up of save states of games that are no longer in the library: the states folder of the signed-in person on the current
+  // server and the ids of the games the library lists. libraryKnown false (library not loaded yet) offers nothing.
+  QString statesDir;
+  QSet<QString> libraryGameIds;
+  bool libraryKnown = false;
   qint64 nowMs = 0;  // 0 = now
 };
 
@@ -42,6 +47,8 @@ struct LocalStorageReport {
   qint64 variantsBytes = 0;  // built game variants (VariantCache)
   qint64 savesBytes = 0;
   qint64 statesBytes = 0;
+  qint64 orphanStatesBytes = 0;  // states of games that are not in the library any more (current server and person only)
+  int orphanStatesGames = 0;
   qint64 screenshotsBytes = 0;
   int screenshotsCount = 0;
   qint64 coresBytes = 0;  // cores + firmware

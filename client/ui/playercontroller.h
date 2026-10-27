@@ -49,6 +49,8 @@
 #include "variantscontroller.h"
 #include "playersettings.h"
 #include "romcache.h"
+#include "stateapi.h"
+#include "statescontroller.h"
 #include "romdownloader.h"
 #include "savehistorycontroller.h"
 #include "savesync.h"
@@ -172,6 +174,7 @@ class PlayerController : public QObject {
   // Favourites and collections of the signed-in person (3c-0, 3c-1, 3c-4)
   Q_PROPERTY(uzume::ui::PersonalController* personal READ personal CONSTANT)
   Q_PROPERTY(uzume::ui::ScreenshotController* screenshots READ screenshots CONSTANT)
+  Q_PROPERTY(uzume::ui::StatesController* states READ states CONSTANT)  // save states, rewind, run-ahead (0.20)
   Q_PROPERTY(uzume::ui::LocalStorageController* localStorage READ localStorage CONSTANT)  // Settings > This PC > Storage (0.19)
   // Connection check dialog (design 6e): Hub reachable, STUN, TURN, NAT type, test connection
   Q_PROPERTY(uzume::ui::ConnectionCheckController* connectionCheck READ connectionCheck CONSTANT)
@@ -264,6 +267,7 @@ class PlayerController : public QObject {
   PersonalController* personal() { return personal_.get(); }
   ScreenshotController* screenshots() { return screenshots_.get(); }
   LocalStorageController* localStorage() { return localStorage_.get(); }
+  StatesController* states() { return states_.get(); }
   // image://screenshots/<id>: for QQmlEngine::addImageProvider (the engine takes ownership); the cache belongs to the controller.
   ScreenshotImageProvider* createScreenshotImageProvider() { return new ScreenshotImageProvider(screenshots_->cache()); }
   SaveHistoryController* saveHistory() { return history_.get(); }
@@ -570,6 +574,9 @@ class PlayerController : public QObject {
   std::unique_ptr<PluginsController> plugins_;  // after settings_ and session_: destroyed before them
   std::unique_ptr<RunClient> runClient_;        // after sessions_ (the Hub socket) and plugins_
   std::unique_ptr<RunsController> runs_;
+  std::unique_ptr<StateApi> stateApi_;          // save states on the server (states_v1)
+  std::unique_ptr<StatesController> states_;    // after session_, settings_, runClient_
+  QString stateRunId_;                          // run the running game was started in ("" = none): its core rules apply to states
   std::unique_ptr<ToolCache> toolCache_;
   std::unique_ptr<VariantCache> variantCache_;
   std::unique_ptr<ToolsClient> toolsClient_;
@@ -622,6 +629,11 @@ class PlayerController : public QObject {
   bool quietRefresh_ = false;       // the running library reload is the periodic one (no "loading" state, errors ignored)
   QString resumePage_;              // page to return to after the reconnect of an edited active Hub
   void endGameContext();
+  void setupStates();
+  void updateStatesLocation();
+  QString statesDir() const;
+  StatesController::GameContext stateContext(const GameEntry& game, bool running) const;
+  void applyStateOptions();
 
   QString screen_ = QStringLiteral("connection");
   QString page_ = QStringLiteral("library");  // page shown while connected: library | settings | emulation | controllers | plugin
