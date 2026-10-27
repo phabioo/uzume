@@ -149,7 +149,7 @@ func TestStorageKindsSumSyntheticFiles(t *testing.T) {
 	if _, ok := e.kind(ov, "backups"); ok {
 		t.Fatal("backups present without a backup folder")
 	}
-	if len(ov.Cleanup) != 3 || ov.Cleanup[0].ID != "old_snapshots" || ov.Cleanup[1].ID != "upload_leftovers" || ov.Cleanup[2].ID != "unused_cores" {
+	if len(ov.Cleanup) != 4 || ov.Cleanup[0].ID != "old_snapshots" || ov.Cleanup[1].ID != "upload_leftovers" || ov.Cleanup[2].ID != "unused_cores" || ov.Cleanup[3].ID != "deleted_game_states" {
 		t.Fatalf("cleanup %+v", ov.Cleanup)
 	}
 	for _, c := range ov.Cleanup {

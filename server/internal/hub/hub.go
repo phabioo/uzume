@@ -116,6 +116,7 @@ type Service struct {
 	minProto int
 
 	saveMu   sync.Mutex // serializes save uploads/resolutions (and content cleanup)
+	stateMu  sync.Mutex // serializes save state writes (quota check, files, row)
 	saveKeep saveRetention
 	fwMu     sync.Mutex // serializes ProvideFirmware (file swap + metadata upsert)
 	sess     sessionState
@@ -306,7 +307,7 @@ func (s *Service) Cleanup(ctx context.Context) error {
 		// Invite history is kept for 90 days (users created by a redemption stay).
 		// Identities of removed games are kept only while saves of them exist (HC-2).
 		{`DELETE FROM removed_games WHERE game_id NOT IN (SELECT game_id FROM save_slots) AND game_id NOT IN (SELECT game_id FROM save_history)
-			AND game_id NOT IN (SELECT game_id FROM save_conflicts) AND removed_at <= ?`, now},
+			AND game_id NOT IN (SELECT game_id FROM save_conflicts) AND game_id NOT IN (SELECT game_id FROM save_states) AND removed_at <= ?`, now},
 		{`DELETE FROM invites WHERE created_at <= ?`, now - int64(inviteHistoryKeep.Seconds())},
 	} {
 		if _, err := s.db.ExecContext(ctx, q.sql, q.arg); err != nil {

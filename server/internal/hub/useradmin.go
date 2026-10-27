@@ -185,5 +185,6 @@ func (s *Service) DeleteUser(ctx context.Context, userID, actorID string) (err e
 	}
 	_ = os.RemoveAll(filepath.Join(s.dataDir, "saves", userID)) // best effort: orphaned blobs are harmless
 	s.removeUserScreenshotFiles(userID)
+	s.removeUserStateFiles(userID)
 	return nil
 }

@@ -144,7 +144,11 @@ func (s *Server) adminSettings(ctx context.Context, h adminhost.Host) (api.Admin
 	if err != nil {
 		return api.AdminSettings{}, err
 	}
-	return api.AdminSettings{HubName: s.svc.Info().Name, AllowUserUploads: allow, Network: nw, Security: apiSecurity(h.Security()),
+	quota, err := s.svc.StateQuota(ctx)
+	if err != nil {
+		return api.AdminSettings{}, err
+	}
+	return api.AdminSettings{HubName: s.svc.Info().Name, AllowUserUploads: allow, StateQuotaBytes: quota, Network: nw, Security: apiSecurity(h.Security()),
 		Updates: apiUpdateSettings(up)}, nil
 }
 
@@ -175,6 +179,9 @@ func (s *Server) UpdateAdminSettings(ctx context.Context, req api.UpdateAdminSet
 			return nil, &hub.Error{Code: hub.CodeBadRequest, Message: "Name must be 1 to 100 characters long"}
 		}
 	}
+	if b.StateQuotaBytes != nil && *b.StateQuotaBytes < hub.MinStateQuotaBytes {
+		return nil, &hub.Error{Code: hub.CodeBadRequest, Message: "The save state quota must be at least 65 MiB"}
+	}
 	if b.UpdateChannel != nil && *b.UpdateChannel != "" && *b.UpdateChannel != api.AdminSettingsUpdateUpdateChannelStable && *b.UpdateChannel != api.AdminSettingsUpdateUpdateChannelBeta {
 		return nil, &hub.Error{Code: hub.CodeBadRequest, Message: "Update channel must be stable or beta"}
 	}
@@ -185,6 +192,11 @@ func (s *Server) UpdateAdminSettings(ctx context.Context, req api.UpdateAdminSet
 	}
 	if b.AllowUserUploads != nil {
 		if err := s.svc.SetAllowUserUploads(ctx, *b.AllowUserUploads); err != nil {
+			return nil, err
+		}
+	}
+	if b.StateQuotaBytes != nil {
+		if err := s.svc.SetStateQuota(ctx, *b.StateQuotaBytes); err != nil {
 			return nil, err
 		}
 	}

@@ -71,8 +71,8 @@ func TestRestoreAndSnapshotAPI(t *testing.T) {
 	if v := decode[versionResp](t, rec); v.Label != nil {
 		t.Fatalf("%+v", v)
 	}
-	// The spec limits the label to 64 characters, so the over-long request is sent unvalidated.
-	wantStatus(t, s.do("POST", s.savePath("default", "/snapshots"), map[string]any{"label": strings.Repeat("x", 65)}, opt{token: d1.tok, raw: true}), 400, "bad_request")
+	// The spec limits the label to 120 characters, so the over-long request is sent unvalidated.
+	wantStatus(t, s.do("POST", s.savePath("default", "/snapshots"), map[string]any{"label": strings.Repeat("x", 121)}, opt{token: d1.tok, raw: true}), 400, "bad_request")
 	wantStatus(t, snap("nothere", map[string]any{}), 404, "not_found")
 	h = decode[struct{ Versions []versionResp }](t, s.api(d1, "GET", s.savePath("default", "/history"), nil)).Versions
 	if len(h) != 4 || h[1].Label == nil || *h[1].Label != "boss fight" {

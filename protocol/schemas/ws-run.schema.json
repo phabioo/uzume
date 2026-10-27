@@ -52,6 +52,17 @@
       "type": "object",
       "description": "Opaque to the server (plugin run rules)"
     },
+    "rules": {
+      "type": "object",
+      "description": "Core run rules (run_rules_v1), enforced by the app; absent from servers before 0.20",
+      "required": ["states", "rewind", "cheats", "memory_write"],
+      "properties": {
+        "states": {"type": "boolean"},
+        "rewind": {"type": "boolean"},
+        "cheats": {"enum": ["off", "logged"]},
+        "memory_write": {"enum": ["off", "logged"]}
+      }
+    },
     "plugins": {
       "type": "array",
       "items": {

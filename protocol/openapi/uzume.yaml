@@ -1,9 +1,9 @@
 openapi: 3.0.3
 info:
   title: Uzume server API
-  version: 1.39.0
+  version: 1.40.0
   description: |
-    HTTPS/JSON API of the Uzume server (phase 1; phase 3 adds save sync under `saves`, advertised by the handshake feature `saves_v1`; phase 4 adds Session sharing under `sessions` and the WSS endpoint, advertised by the handshake feature `sessions_v1`; phase 5 adds invite redemption under `users` (`users_v1`), user ROM uploads (`uploads_v1`, only advertised when the caller may upload) and the systems registry with firmware download under `systems` (`firmware_v1`); 0.2 adds core packages served by the server under `cores` (`cores_v1`); 0.4 adds relay credentials for Sessions over the internet (`turn_v1`, `turn_servers` in `hello_ack` and the join response), save comfort (`saves_v2`: restore, manual snapshots, history labels, the `save_updated` WSS message) and the signed core index for app-side verification (`cores_index_v1`, `/api/v1/cores/index`, removed again in 0.8); 0.7 adds deleting manual snapshots (`saves_v3`) and the optional `user` in the handshake response; 0.8 adds uploading a save file from outside the sync flow (`saves_v4`, `POST /games/{game_id}/saves/{slot}/upload`); 0.8 also adds several cores per system from the libretro buildbot (`cores_v2`: `default_core_id` and `cores` in `SystemInfo`, core ids `^[a-z0-9][a-z0-9_-]{0,63}$`) and removes `cores_index_v1` and its endpoints `/api/v1/cores/index{,.sig}`); 0.9 adds the local setup endpoints under `local` for an app on the same PC as the server (`local_setup_v1`, loopback callers only); 0.10 adds the WSS message `ice_update` (`ice_update_v1`) so connected apps receive changed `ice_servers`/`turn_servers`, a default STUN list, and optional Cloudflare TURN next to the embedded TURN server; 0.10.x also adds renaming and deleting save slots and the upload lock during a Session (`saves_v5`); 0.15.x also adds deleting any history version and the main slot (`saves_v6`); 0.11 adds the plugin list and download under `plugins` (`plugins_v1`); 0.11 also adds runs under `runs` (`runs_v1`: run objects with per-participant, per-plugin state, an append-only event log and boards, the WSS messages `run_updated`, `run_state` and `run_event`, and the optional `runs` list in `hello` for catch-up); 0.12 adds local ROMs (`local_roms_v1`: games that exist only on app devices, `POST /games/register`, `DELETE /games/{game_id}/registration`, resumable uploads under `uploads`, `stored`/`on_hub`/`roms` and `game_version` in the game objects, visibility of local-only games); 0.17 adds problem reports (`reports_v1`: `POST /reports` from any paired device, the admin list, files, zip archive, seen mark and delete under `/admin/reports`); 0.18 adds the admin API under `/admin/...` (`admin_v1`: users and invites, pairing requests and devices, systems, cores and firmware, plugins and the plugin index; only advertised to admins); 0.18 also adds server accounts (`accounts_v1`: sign in with user name and password under `auth`, the own account, password, "Confirm it's you" and devices under `account`, an admin password reset and the password policy under `admin`; dangerous admin steps answer 403 `confirmation_required` until the caller confirmed); 0.18 also adds a zip export of all saves of a user for the admin to download before removing the person (`exportAdminUserSaves`, read-only, no confirmation); 0.18 also adds the setup code (`setup_code_v1`: `POST /setup` trades the setup code that a server without an admin prints at start and on `uzume-server setup-code` for the first admin and a paired device, `setup_required` in the server info); 0.21 adds the tools catalog (`tools_v1`: `GET /tools`, tool zips with ETag under `/tools/{tool_id}/packages/{version}/{platform}`, the admin endpoints under `/admin/tools`), game variants (`variants_v1`: recipes under `/variants` and `/games/{game_id}/variants`) and runs with a randomizer recipe (`randomizer` in the run object and in `POST /runs`, `variant` in `POST /runs/{run_id}/join`, `GET /runs/{run_id}/variant`, `POST /runs/{run_id}/variant-state`, `variant_kind` and `variant_state` per participant). `protocol_version` is an integer (starting at 1),
+    HTTPS/JSON API of the Uzume server (phase 1; phase 3 adds save sync under `saves`, advertised by the handshake feature `saves_v1`; phase 4 adds Session sharing under `sessions` and the WSS endpoint, advertised by the handshake feature `sessions_v1`; phase 5 adds invite redemption under `users` (`users_v1`), user ROM uploads (`uploads_v1`, only advertised when the caller may upload) and the systems registry with firmware download under `systems` (`firmware_v1`); 0.2 adds core packages served by the server under `cores` (`cores_v1`); 0.4 adds relay credentials for Sessions over the internet (`turn_v1`, `turn_servers` in `hello_ack` and the join response), save comfort (`saves_v2`: restore, manual snapshots, history labels, the `save_updated` WSS message) and the signed core index for app-side verification (`cores_index_v1`, `/api/v1/cores/index`, removed again in 0.8); 0.7 adds deleting manual snapshots (`saves_v3`) and the optional `user` in the handshake response; 0.8 adds uploading a save file from outside the sync flow (`saves_v4`, `POST /games/{game_id}/saves/{slot}/upload`); 0.8 also adds several cores per system from the libretro buildbot (`cores_v2`: `default_core_id` and `cores` in `SystemInfo`, core ids `^[a-z0-9][a-z0-9_-]{0,63}$`) and removes `cores_index_v1` and its endpoints `/api/v1/cores/index{,.sig}`); 0.9 adds the local setup endpoints under `local` for an app on the same PC as the server (`local_setup_v1`, loopback callers only); 0.10 adds the WSS message `ice_update` (`ice_update_v1`) so connected apps receive changed `ice_servers`/`turn_servers`, a default STUN list, and optional Cloudflare TURN next to the embedded TURN server; 0.10.x also adds renaming and deleting save slots and the upload lock during a Session (`saves_v5`); 0.15.x also adds deleting any history version and the main slot (`saves_v6`); 0.11 adds the plugin list and download under `plugins` (`plugins_v1`); 0.11 also adds runs under `runs` (`runs_v1`: run objects with per-participant, per-plugin state, an append-only event log and boards, the WSS messages `run_updated`, `run_state` and `run_event`, and the optional `runs` list in `hello` for catch-up); 0.12 adds local ROMs (`local_roms_v1`: games that exist only on app devices, `POST /games/register`, `DELETE /games/{game_id}/registration`, resumable uploads under `uploads`, `stored`/`on_hub`/`roms` and `game_version` in the game objects, visibility of local-only games); 0.17 adds problem reports (`reports_v1`: `POST /reports` from any paired device, the admin list, files, zip archive, seen mark and delete under `/admin/reports`); 0.18 adds the admin API under `/admin/...` (`admin_v1`: users and invites, pairing requests and devices, systems, cores and firmware, plugins and the plugin index; only advertised to admins); 0.18 also adds server accounts (`accounts_v1`: sign in with user name and password under `auth`, the own account, password, "Confirm it's you" and devices under `account`, an admin password reset and the password policy under `admin`; dangerous admin steps answer 403 `confirmation_required` until the caller confirmed); 0.18 also adds a zip export of all saves of a user for the admin to download before removing the person (`exportAdminUserSaves`, read-only, no confirmation); 0.18 also adds the setup code (`setup_code_v1`: `POST /setup` trades the setup code that a server without an admin prints at start and on `uzume-server setup-code` for the first admin and a paired device, `setup_required` in the server info); 0.20 adds save states (`states_v1`: stored per user, game, save slot and state number under `/games/{game_id}/states`, with a per-user quota) and core run rules (`run_rules_v1`: `rules` on the run, `PUT /runs/{run_id}/rules`, the run event `rules.changed`, app-written core run events without a plugin, and the optional `cheats_used` marker on save uploads and history versions); 0.21 adds the tools catalog (`tools_v1`: `GET /tools`, tool zips with ETag under `/tools/{tool_id}/packages/{version}/{platform}`, the admin endpoints under `/admin/tools`), game variants (`variants_v1`: recipes under `/variants` and `/games/{game_id}/variants`) and runs with a randomizer recipe (`randomizer` in the run object and in `POST /runs`, `variant` in `POST /runs/{run_id}/join`, `GET /runs/{run_id}/variant`, `POST /runs/{run_id}/variant-state`, `variant_kind` and `variant_state` per participant). `protocol_version` is an integer (starting at 1),
     separate from the hub/player product version. All paths carry the `/api/v1` prefix explicitly;
     only the info endpoint lives under `/.well-known/uzume`.
     Compatibility: the app's protocol_version < the server's min_protocol_version -> player_too_old;
@@ -793,6 +793,135 @@ paths:
               schema: { $ref: '#/components/schemas/Error' }
               examples:
                 default: { value: { error: { code: payload_too_large, message: Screenshot exceeds 16 MiB } } }
+  /api/v1/games/{game_id}/states:
+    parameters:
+      - $ref: '#/components/parameters/GameId'
+    get:
+      operationId: listSaveStates
+      tags: [saves]
+      summary: The caller's own save states of a game (`states_v1`)
+      description: |
+        Ordered by save slot, then state number (0 = quick slot, 1 to 10). With `slot` only that save slot. `used_bytes` is
+        everything the caller stores as states on this server (all games, blobs and previews), `quota_bytes` the per-user
+        limit. 404 for a game that does not exist or that the caller cannot see.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: slot
+          in: query
+          required: false
+          schema: { type: string, pattern: '^[a-z0-9_-]{1,32}$' }
+      responses:
+        '200':
+          description: The states
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SaveStateList' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/games/{game_id}/states/{slot}/{n}:
+    parameters:
+      - $ref: '#/components/parameters/GameId'
+      - $ref: '#/components/parameters/SaveSlotName'
+      - $ref: '#/components/parameters/SaveStateNumber'
+    get:
+      operationId: downloadSaveState
+      tags: [saves]
+      summary: The state blob (`states_v1`)
+      description: The opaque core serialization exactly as uploaded. `X-Uzume-Core-Id` and `X-Uzume-Core-Version` name the core that wrote it; the ETag is its SHA-256.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: State bytes
+          headers:
+            Content-Length: { schema: { type: integer, format: int64 } }
+            ETag: { schema: { type: string } }
+            X-Uzume-Core-Id: { schema: { type: string } }
+            X-Uzume-Core-Version: { schema: { type: string } }
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      operationId: putSaveState
+      tags: [saves]
+      summary: Store or replace a save state (`states_v1`)
+      description: |
+        `multipart/form-data` with the parts, in this order: `meta` (JSON, `SaveStateMeta`), `state` (the opaque blob, at
+        most 64 MiB, not empty) and optionally `preview` (a PNG of at most 512 KiB). A state in the same save slot with the
+        same number is replaced (a replacement without `preview` loses the old preview). The server never reads the state.
+        413 `payload_too_large` above a size limit; 413 `state_quota_exceeded` when the caller's states would exceed the
+        per-user quota (the state being replaced counts as freed); 400 `invalid_image` when `preview` is not a PNG;
+        404 for a game that does not exist or that the caller cannot see, or a state number above 10.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [meta, state]
+              properties:
+                meta: { $ref: '#/components/schemas/SaveStateMeta' }
+                state: { type: string, format: binary }
+                preview: { type: string, format: binary }
+            encoding:
+              meta: { contentType: application/json }
+              state: { contentType: application/octet-stream }
+              preview: { contentType: image/png }
+      responses:
+        '200':
+          description: Stored
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SaveState' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '413':
+          description: A part is too large (`payload_too_large`) or the per-user quota is used up (`state_quota_exceeded`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                quota: { value: { error: { code: state_quota_exceeded, message: 'Not enough save state space left; delete older states first' } } }
+                too_large: { value: { error: { code: payload_too_large, message: State exceeds 64 MiB } } }
+    delete:
+      operationId: deleteSaveState
+      tags: [saves]
+      summary: Delete a save state (`states_v1`)
+      security:
+        - bearerAuth: []
+      responses:
+        '204': { description: Row and files are removed }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/games/{game_id}/states/{slot}/{n}/preview:
+    parameters:
+      - $ref: '#/components/parameters/GameId'
+      - $ref: '#/components/parameters/SaveSlotName'
+      - $ref: '#/components/parameters/SaveStateNumber'
+    get:
+      operationId: downloadSaveStatePreview
+      tags: [saves]
+      summary: The preview PNG of a save state (`states_v1`)
+      description: 404 when the state does not exist or was stored without a preview.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: PNG bytes
+          headers:
+            Content-Length: { schema: { type: integer, format: int64 } }
+          content:
+            image/png:
+              schema: { type: string, format: binary }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /api/v1/runs/{run_id}/screenshots:
     parameters:
       - $ref: '#/components/parameters/RunId'
@@ -1597,6 +1726,12 @@ paths:
           required: true
           schema: { $ref: '#/components/schemas/SaveSyncReason' }
           example: checkpoint
+        - name: X-Uzume-Cheats-Used
+          in: header
+          required: false
+          description: '`run_rules_v1`. `true` when cheats or memory writes were active while this save was made; stored on the new checkpoint and copied to the history versions made from it (`cheats_used`). Absent = false.'
+          schema: { type: boolean }
+          example: false
       requestBody:
         required: true
         content:
@@ -2540,6 +2675,37 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/RunConflict' }
         '413': { $ref: '#/components/responses/TooLarge' }
+  /api/v1/runs/{run_id}/rules:
+    parameters:
+      - $ref: '#/components/parameters/RunId'
+    put:
+      operationId: setRunRules
+      tags: [runs]
+      summary: Replace the core rules of a run (`run_rules_v1`)
+      description: |
+        Takes the whole `RunRules` object. Only the creator of the run or a server admin; another participant gets 403
+        `forbidden`, somebody who is not part of the run 404. Allowed in every status except finished and abandoned (409
+        `conflict`). Unchanged rules write nothing. A change appends the run event `rules.changed` (`payload`:
+        `{before, after, by_user_id, by_user_name}`) and pushes `run_updated` and `run_event` to the joined participants.
+        When a rule switches to `off` the apps drop the matching active cheats or stop memory writes at once.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RunRules' }
+      responses:
+        '200':
+          description: The run with the new rules
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Run' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/RunConflict' }
   /api/v1/runs/{run_id}/state/{plugin_id}:
     parameters:
       - $ref: '#/components/parameters/RunId'
@@ -5693,6 +5859,12 @@ components:
       description: Slot name; always `default` in the PoC.
       schema: { type: string, pattern: '^[a-z0-9_-]{1,32}$' }
       example: default
+    SaveStateNumber:
+      name: n
+      in: path
+      required: true
+      description: State number; 0 is the quick slot, 1 to 10 are numbered states.
+      schema: { type: integer, minimum: 0, maximum: 10 }
     ScreenshotId:
       name: screenshot_id
       in: path
@@ -5954,7 +6126,7 @@ components:
     ErrorCode:
       type: string
       description: "`save_not_snapshot` is no longer returned since `saves_v6` (any history version can be deleted)."
-      enum: [bad_request, unauthorized, forbidden, not_found, conflict, rate_limited, internal, device_revoked, invalid_credentials, pairing_pending, pairing_denied, pairing_expired, player_too_old, hub_too_old, core_missing, core_version_mismatch, capability_missing, save_conflict, save_conflict_stale, save_not_snapshot, save_slot_exists, save_slot_protected, session_running, payload_too_large, session_not_found, session_forbidden, session_full, session_ended, invite_invalid, display_name_taken, user_disabled, uploads_disabled, core_package_not_found, core_file_not_available, import_dir_unreadable, child_mode, run_not_active, state_conflict, too_large, confirmation_required, password_required, password_not_set, invalid_setup_code, setup_code_expired, already_set_up, invalid_image, tool_in_use, tool_hash_mismatch, name_taken, own_variant_mismatch, own_variants_off]
+      enum: [bad_request, unauthorized, forbidden, not_found, conflict, rate_limited, internal, device_revoked, invalid_credentials, pairing_pending, pairing_denied, pairing_expired, player_too_old, hub_too_old, core_missing, core_version_mismatch, capability_missing, save_conflict, save_conflict_stale, save_not_snapshot, save_slot_exists, save_slot_protected, session_running, payload_too_large, session_not_found, session_forbidden, session_full, session_ended, invite_invalid, display_name_taken, user_disabled, uploads_disabled, core_package_not_found, core_file_not_available, import_dir_unreadable, child_mode, run_not_active, state_conflict, too_large, state_quota_exceeded, confirmation_required, password_required, password_not_set, invalid_setup_code, setup_code_expired, already_set_up, invalid_image, tool_in_use, tool_hash_mismatch, name_taken, own_variant_mismatch, own_variants_off]
     Error:
       type: object
       required: [error]
@@ -6152,7 +6324,7 @@ components:
         count: { type: integer }
     AdminStorageCleanupId:
       type: string
-      enum: [old_snapshots, upload_leftovers, unused_cores]
+      enum: [old_snapshots, upload_leftovers, unused_cores, deleted_game_states]
     AdminStorageCleanup:
       type: object
       description: One clean-up suggestion and what it would free now.
@@ -6708,6 +6880,7 @@ components:
         device_name: { type: string }
         created_at: { type: string, format: date-time }
         reason: { $ref: '#/components/schemas/SaveSyncReason' }
+        cheats_used: { type: boolean, description: '`run_rules_v1`. The save was made while cheats or memory writes were active (sent by the app with `X-Uzume-Cheats-Used`). Absent = false.' }
     SaveHistoryVersion:
       type: object
       description: Permanent history version with its own per-slot counter ("vN").
@@ -6725,8 +6898,9 @@ components:
           x-omitempty: false
           type: string
           nullable: true
-          maxLength: 64
-          description: Optional label (manual snapshots, `saves_v2`); null or absent when none
+          maxLength: 120
+          description: 'Optional label (manual snapshots, `saves_v2`; up to 120 characters since `run_rules_v1`): the user''s own text, "Before cheats", "Before memory changes" or "<plugin name>: <reason>"; null or absent when none'
+        cheats_used: { type: boolean, description: '`run_rules_v1`. The version was captured from a save that was made while cheats or memory writes were active. Absent = false.' }
     SaveConflictHubSide:
       type: object
       required: [revision, sha256, device_id, device_name, created_at]
@@ -6805,10 +6979,54 @@ components:
       required: [name]
       properties:
         name: { type: string, pattern: '^[a-z0-9_-]{1,32}$', example: speedrun }
+    SaveStateMeta:
+      type: object
+      required: [core_id, core_version]
+      properties:
+        core_id: { type: string, pattern: '^[a-z0-9][a-z0-9_-]{0,63}$' }
+        core_version: { type: string, minLength: 1, maxLength: 64 }
+    SaveState:
+      type: object
+      description: One stored save state (metadata only; the blob is `downloadSaveState`).
+      required: [game_id, slot, n, core_id, core_version, size_bytes, has_preview, sha256, device_id, device_name, created_at]
+      properties:
+        game_id: { type: string, format: uuid }
+        slot: { type: string, description: Save slot the state belongs to }
+        n: { type: integer, minimum: 0, maximum: 10, description: '0 = quick slot' }
+        core_id: { type: string }
+        core_version: { type: string }
+        size_bytes: { type: integer, format: int64, maximum: 67108864 }
+        has_preview: { type: boolean }
+        preview_bytes: { type: integer, format: int64, minimum: 0, maximum: 524288 }
+        sha256: { type: string, pattern: '^[0-9a-f]{64}$' }
+        device_id: { type: string }
+        device_name: { type: string }
+        created_at: { type: string, format: date-time }
+    SaveStateList:
+      type: object
+      required: [states, used_bytes, quota_bytes]
+      properties:
+        states:
+          type: array
+          items: { $ref: '#/components/schemas/SaveState' }
+        used_bytes: { type: integer, format: int64, minimum: 0, description: All states of the caller on this server (every game; blobs and previews) }
+        quota_bytes: { type: integer, format: int64, minimum: 0, description: 'Per-user limit (default 2 GiB, set by the admin)' }
+    RunRules:
+      type: object
+      description: |
+        Core rules of a run (`run_rules_v1`), enforced by the app. A new run has `states` false, `rewind` false and
+        `cheats` / `memory_write` `off`; without a run everything is allowed. `logged` allows the feature and writes the
+        run events `cheat.enabled`, `cheat.disabled` and `memory.write`.
+      required: [states, rewind, cheats, memory_write]
+      properties:
+        states: { type: boolean }
+        rewind: { type: boolean }
+        cheats: { type: string, enum: [off, logged] }
+        memory_write: { type: string, enum: [off, logged] }
     SaveSnapshotRequest:
       type: object
       properties:
-        label: { type: string, maxLength: 64 }
+        label: { type: string, maxLength: 120, description: 'Up to 120 characters (64 before `run_rules_v1`)' }
     TurnServer:
       type: object
       description: |
@@ -6978,7 +7196,7 @@ components:
         updated_at: { type: string, format: date-time }
     Run:
       type: object
-      required: [run_id, name, status, created_by, created_at, updated_at, status_by, settings, save_slot, plugins, participants, last_seq, randomizer]
+      required: [run_id, name, status, created_by, created_at, updated_at, status_by, settings, save_slot, rules, plugins, participants, last_seq, randomizer]
       properties:
         run_id: { type: string, format: uuid }
         name: { type: string, minLength: 1, maxLength: 64 }
@@ -6991,6 +7209,7 @@ components:
         save_slot:
           type: string
           description: 'Feature `runs_v2`. The app''s save slot of this run: "run-" plus the first 8 hex characters of the run id (lowercase, dashes ignored).'
+        rules: { $ref: '#/components/schemas/RunRules' }
         plugins:
           type: array
           minItems: 0
@@ -7076,6 +7295,10 @@ components:
           items: { type: string, minLength: 1, maxLength: 64 }
         settings: { $ref: '#/components/schemas/RunJsonObject' }
         randomizer: { $ref: '#/components/schemas/RunRandomizerRequest' }
+        rules:
+          allOf:
+            - $ref: '#/components/schemas/RunRules'
+          description: Optional (`run_rules_v1`); a new run without it gets the defaults (everything off).
     RunJoinRequest:
       type: object
       required: [game_id]
@@ -7134,16 +7357,20 @@ components:
         device_id: { type: string, nullable: true }
         plugin_id: { type: string, nullable: true }
         source: { type: string, enum: [automatic, manual, hub] }
-        type: { type: string, pattern: '^[a-z0-9_.-]{1,64}$', description: 'server events: `run.created`, `run.joined`, `run.declined`, `run.invited`, `run.left`, `run.status`' }
+        type: { type: string, pattern: '^[a-z0-9_.-]{1,64}$', description: 'server events: `run.created`, `run.joined`, `run.declined`, `run.invited`, `run.left`, `run.status`, `rules.changed`; app events: `cheat.enabled`, `cheat.disabled`, `memory.write`, `state.loaded`' }
         text: { type: string, maxLength: 280 }
         payload: { $ref: '#/components/schemas/RunJsonObject' }
         client_id: { type: string, format: uuid }
     RunEventRequest:
       type: object
-      required: [client_id, plugin_id, source, type]
+      required: [client_id, source, type]
       properties:
         client_id: { type: string, format: uuid }
-        plugin_id: { type: string, pattern: '^[a-z0-9-]+(\.[a-z0-9-]+)+$', maxLength: 128 }
+        plugin_id:
+          type: string
+          pattern: '^[a-z0-9-]+(\.[a-z0-9-]+)+$'
+          maxLength: 128
+          description: 'Required (and a plugin of the run) except for the events the app writes itself (`cheat.enabled`, `cheat.disabled`, `memory.write`, `state.loaded`; `run_rules_v1`): there it is optional and names the plugin that caused the event when there is one.'
         source: { type: string, enum: [automatic, manual] }
         type: { type: string, pattern: '^[a-z0-9_.-]{1,64}$' }
         text: { type: string, maxLength: 280, default: '' }
@@ -8116,10 +8343,11 @@ components:
         in_container: { type: boolean }
     AdminSettings:
       type: object
-      required: [hub_name, allow_user_uploads, network, security, updates]
+      required: [hub_name, allow_user_uploads, state_quota_bytes, network, security, updates]
       properties:
         hub_name: { type: string }
         allow_user_uploads: { type: boolean }
+        state_quota_bytes: { type: integer, format: int64, description: 'Per-user limit for save states (`states_v1`); default 2 GiB, at least 65 MiB' }
         network: { $ref: '#/components/schemas/AdminNetwork' }
         security: { $ref: '#/components/schemas/AdminSecurity' }
         updates: { $ref: '#/components/schemas/AdminUpdateSettings' }
@@ -8128,6 +8356,7 @@ components:
       properties:
         name: { type: string }
         allow_user_uploads: { type: boolean }
+        state_quota_bytes: { type: integer, format: int64, description: 'Per-user limit for save states (`states_v1`); at least 65 MiB (400 below)' }
         update_channel: { type: string, enum: ['', stable, beta] }
         update_auto: { type: boolean }
     AdminUpdateInstall:

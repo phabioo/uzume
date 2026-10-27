@@ -34,6 +34,8 @@ const (
 	CleanupOldSnapshots   = "old_snapshots"
 	CleanupUploadLeftover = "upload_leftovers"
 	CleanupUnusedCores    = "unused_cores"
+	// CleanupDeletedGameStates removes the save states of games that are no longer in the library.
+	CleanupDeletedGameStates = "deleted_game_states"
 )
 
 const (
@@ -48,7 +50,7 @@ const (
 // ValidCleanupID reports whether id names a clean-up.
 func ValidCleanupID(id string) bool {
 	switch id {
-	case CleanupOldSnapshots, CleanupUploadLeftover, CleanupUnusedCores:
+	case CleanupOldSnapshots, CleanupUploadLeftover, CleanupUnusedCores, CleanupDeletedGameStates:
 		return true
 	}
 	return false
@@ -113,7 +115,7 @@ func (s *Service) StorageOverview(ctx context.Context) (StorageOverview, error) 
 	if err != nil {
 		return StorageOverview{}, err
 	}
-	states, statesN := dirStats(filepath.Join(s.dataDir, "states"))
+	states, statesN := dirStats(filepath.Join(s.dataDir, "states")) // blobs and previews
 	shots, err := s.ScreenshotUsage(ctx)
 	if err != nil {
 		return StorageOverview{}, err
@@ -190,7 +192,11 @@ func (s *Service) StorageOverview(ctx context.Context) (StorageOverview, error) 
 		b, _ := dirStats(filepath.Join(s.dataDir, "cores", cv[0], cv[1]))
 		uc.Bytes += b
 	}
-	out.Cleanup = []StorageCleanup{snapsOld, up, uc}
+	dgs, err := s.deletedGameStateStats(ctx)
+	if err != nil {
+		return StorageOverview{}, err
+	}
+	out.Cleanup = []StorageCleanup{snapsOld, up, uc, dgs}
 	return out, nil
 }
 
@@ -312,6 +318,8 @@ func (s *Service) StorageCleanup(ctx context.Context, id string) (StorageCleanup
 		res.Removed, res.FreedBytes, err = s.cleanupUploads(ctx, UploadLeftoverAge, false)
 	case CleanupUnusedCores:
 		res, err = s.cleanupUnusedCores(ctx)
+	case CleanupDeletedGameStates:
+		res, err = s.cleanupDeletedGameStates(ctx)
 	default:
 		return StorageCleanupResult{}, badRequest("Unknown clean-up %q", id)
 	}

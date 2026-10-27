@@ -45,7 +45,7 @@ const (
 )
 
 // MaxSnapshotLabel is the maximum length of a snapshot label in characters.
-const MaxSnapshotLabel = 64
+const MaxSnapshotLabel = 120
 
 // AdminDeviceID is the device ID recorded for save changes made in the app (the admin has no device).
 func AdminDeviceID(userID string) string { return adminDevicePrefix + userID }
@@ -95,6 +95,8 @@ type SaveCheckpoint struct {
 	DeviceName string
 	CreatedAt  time.Time
 	Reason     string // sync reason
+	// CheatsUsed: the app reported cheats or memory writes while this checkpoint was made (since run_rules_v1).
+	CheatsUsed bool
 }
 
 // SaveVersion is a permanent history version ("vN").
@@ -109,6 +111,7 @@ type SaveVersion struct {
 	Reason       string // history reason
 	BaseRevision *int   // only conflict_upload
 	Label        *string
+	CheatsUsed   bool
 }
 
 // SaveConflict is a recorded save conflict. For open conflicts server shows the live checkpoint,
@@ -179,16 +182,18 @@ func (s *Service) saveFile(userID, gameID, slot, sha string) string {
 	return filepath.Join(s.saveDir(userID, gameID, slot), sha)
 }
 
-var checkpointSQL = `SELECT s.revision, s.sha256, s.size, s.device_id, ` + deviceNameSQL("d", "s.device_id") + `, s.created_at, s.reason
+var checkpointSQL = `SELECT s.revision, s.sha256, s.size, s.device_id, ` + deviceNameSQL("d", "s.device_id") + `, s.created_at, s.reason, s.cheats_used
 	FROM save_slots s LEFT JOIN devices d ON d.id = s.device_id
 	WHERE s.user_id = ? AND s.game_id = ? AND s.slot = ?`
 
 func scanCheckpoint(r scanner) (SaveCheckpoint, error) {
 	var c SaveCheckpoint
 	var created int64
-	if err := r.Scan(&c.Revision, &c.SHA256, &c.Size, &c.DeviceID, &c.DeviceName, &created, &c.Reason); err != nil {
+	var cheats int
+	if err := r.Scan(&c.Revision, &c.SHA256, &c.Size, &c.DeviceID, &c.DeviceName, &created, &c.Reason, &cheats); err != nil {
 		return SaveCheckpoint{}, err
 	}
+	c.CheatsUsed = cheats != 0
 	c.CreatedAt = time.Unix(created, 0).UTC()
 	return c, nil
 }
@@ -204,16 +209,18 @@ func loadCheckpoint(ctx context.Context, q dbq, userID, gameID, slot string) (Sa
 	return c, nil
 }
 
-var versionCols = `h.version, h.revision, h.sha256, h.size, h.device_id, ` + deviceNameSQL("d", "h.device_id") + `, h.created_at, h.reason, h.base_revision, h.label`
+var versionCols = `h.version, h.revision, h.sha256, h.size, h.device_id, ` + deviceNameSQL("d", "h.device_id") + `, h.created_at, h.reason, h.base_revision, h.label, h.cheats_used`
 
 func scanVersion(r scanner) (SaveVersion, error) {
 	var v SaveVersion
 	var created int64
 	var base sql.NullInt64
 	var label sql.NullString
-	if err := r.Scan(&v.Version, &v.Revision, &v.SHA256, &v.Size, &v.DeviceID, &v.DeviceName, &created, &v.Reason, &base, &label); err != nil {
+	var cheats int
+	if err := r.Scan(&v.Version, &v.Revision, &v.SHA256, &v.Size, &v.DeviceID, &v.DeviceName, &created, &v.Reason, &base, &label, &cheats); err != nil {
 		return SaveVersion{}, err
 	}
+	v.CheatsUsed = cheats != 0
 	if label.Valid {
 		v.Label = &label.String
 	}
@@ -302,6 +309,7 @@ type historyEntry struct {
 	baseRevision *int
 	createdAt    int64
 	label        *string
+	cheatsUsed   bool
 }
 
 func addHistory(ctx context.Context, q dbq, userID, gameID, slot string, e historyEntry) (int, error) {
@@ -320,8 +328,8 @@ func addHistory(ctx context.Context, q dbq, userID, gameID, slot string, e histo
 		label = *e.label
 	}
 	_, err := q.ExecContext(ctx, `INSERT INTO save_history(user_id, game_id, slot, version, revision, sha256, size, device_id,
-		sync_reason, reason, base_revision, created_at, label) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-		userID, gameID, slot, v, e.revision, e.sha, e.size, e.deviceID, e.syncReason, e.reason, base, e.createdAt, label)
+		sync_reason, reason, base_revision, created_at, label, cheats_used) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		userID, gameID, slot, v, e.revision, e.sha, e.size, e.deviceID, e.syncReason, e.reason, base, e.createdAt, label, b2i(e.cheatsUsed))
 	return v, err
 }
 
@@ -332,7 +340,7 @@ func captureCheckpoint(ctx context.Context, q dbq, userID, gameID, slot string, 
 		return err
 	}
 	_, err = addHistory(ctx, q, userID, gameID, slot, historyEntry{revision: cur.Revision, sha: cur.SHA256, size: cur.Size,
-		deviceID: cur.DeviceID, syncReason: cur.Reason, reason: reason, createdAt: cur.CreatedAt.Unix()})
+		deviceID: cur.DeviceID, syncReason: cur.Reason, reason: reason, createdAt: cur.CreatedAt.Unix(), cheatsUsed: cur.CheatsUsed})
 	return err
 }
 
@@ -398,6 +406,7 @@ type PutSaveInput struct {
 	BaseRevision                   int
 	SHA256                         string // claimed hash, verified
 	Reason                         string // sync reason
+	CheatsUsed                     bool   // optional marker: cheats or memory writes were active (run_rules_v1)
 	Body                           io.Reader
 }
 
@@ -489,15 +498,15 @@ func (s *Service) PutSave(ctx context.Context, in PutSaveInput) (_ PutSaveResult
 			}
 			dropSHA = cur.SHA256
 		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO save_slots(user_id, game_id, slot, revision, sha256, size, device_id, reason, created_at)
-			VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(user_id, game_id, slot) DO UPDATE SET revision = excluded.revision,
+		if _, err := tx.ExecContext(ctx, `INSERT INTO save_slots(user_id, game_id, slot, revision, sha256, size, device_id, reason, created_at, cheats_used)
+			VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(user_id, game_id, slot) DO UPDATE SET revision = excluded.revision,
 			sha256 = excluded.sha256, size = excluded.size, device_id = excluded.device_id, reason = excluded.reason,
-			created_at = excluded.created_at`, u, g, sl, rev, sha, size, in.DeviceID, in.Reason, now); err != nil {
+			created_at = excluded.created_at, cheats_used = excluded.cheats_used`, u, g, sl, rev, sha, size, in.DeviceID, in.Reason, now, b2i(in.CheatsUsed)); err != nil {
 			return PutSaveResult{}, internal(err)
 		}
 		if in.Reason == SyncFinalSessionEnd {
 			if _, err := addHistory(ctx, tx, u, g, sl, historyEntry{revision: rev, sha: sha, size: size, deviceID: in.DeviceID,
-				syncReason: in.Reason, reason: HistorySessionEnd, createdAt: now}); err != nil {
+				syncReason: in.Reason, reason: HistorySessionEnd, createdAt: now, cheatsUsed: in.CheatsUsed}); err != nil {
 				return PutSaveResult{}, internal(err)
 			}
 		}
@@ -547,7 +556,7 @@ func (s *Service) secureConflict(ctx context.Context, tx dbq, in PutSaveInput, c
 		}
 		base := in.BaseRevision
 		ver, err := addHistory(ctx, tx, u, g, sl, historyEntry{revision: cur.Revision, sha: sha, size: size, deviceID: in.DeviceID,
-			syncReason: in.Reason, reason: HistoryConflictUpload, baseRevision: &base, createdAt: now})
+			syncReason: in.Reason, reason: HistoryConflictUpload, baseRevision: &base, createdAt: now, cheatsUsed: in.CheatsUsed})
 		if err != nil {
 			return SaveConflict{}, internal(err)
 		}
@@ -587,7 +596,7 @@ func (s *Service) dropIfUnreferenced(ctx context.Context, userID, gameID, slot, 
 // ListSaveSlots lists slots; userID "" = all users (admin app page). Conflicts first, then newest checkpoint.
 func (s *Service) ListSaveSlots(ctx context.Context, userID string) ([]SaveSummary, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT s.user_id, u.username, s.game_id, COALESCE(g.title, '(removed game)'), s.slot,
-		s.revision, s.sha256, s.size, s.device_id, `+deviceNameSQL("d", "s.device_id")+`, s.created_at, s.reason,
+		s.revision, s.sha256, s.size, s.device_id, `+deviceNameSQL("d", "s.device_id")+`, s.created_at, s.reason, s.cheats_used,
 		(SELECT COUNT(*) FROM save_conflicts c WHERE c.user_id = s.user_id AND c.game_id = s.game_id AND c.slot = s.slot AND c.status = 'open') AS oc
 		FROM save_slots s JOIN users u ON u.id = s.user_id
 		LEFT JOIN games g ON g.id = s.game_id LEFT JOIN devices d ON d.id = s.device_id
@@ -601,11 +610,13 @@ func (s *Service) ListSaveSlots(ctx context.Context, userID string) ([]SaveSumma
 	for rows.Next() {
 		var r SaveSummary
 		var created int64
+		var cheats int
 		c := &r.Current
 		if err := rows.Scan(&r.UserID, &r.Username, &r.GameID, &r.GameTitle, &r.Slot, &c.Revision, &c.SHA256, &c.Size,
-			&c.DeviceID, &c.DeviceName, &created, &c.Reason, &r.OpenConflictCount); err != nil {
+			&c.DeviceID, &c.DeviceName, &created, &c.Reason, &cheats, &r.OpenConflictCount); err != nil {
 			return nil, internal(err)
 		}
+		c.CheatsUsed = cheats != 0
 		c.CreatedAt = time.Unix(created, 0).UTC()
 		out = append(out, r)
 	}
@@ -741,13 +752,14 @@ func (s *Service) ResolveSaveConflict(ctx context.Context, in ResolveInput) (_ S
 		status = ConflictResolvedLocal
 		var size int64
 		var reason string
-		if err := tx.QueryRowContext(ctx, `SELECT size, sync_reason FROM save_history WHERE user_id = ? AND game_id = ? AND slot = ? AND version = ?`,
-			u, g, sl, c.Secured.Version).Scan(&size, &reason); err != nil {
+		var cheats int
+		if err := tx.QueryRowContext(ctx, `SELECT size, sync_reason, cheats_used FROM save_history WHERE user_id = ? AND game_id = ? AND slot = ? AND version = ?`,
+			u, g, sl, c.Secured.Version).Scan(&size, &reason, &cheats); err != nil {
 			return SaveSlot{}, internal(err)
 		}
-		if _, err := tx.ExecContext(ctx, `UPDATE save_slots SET revision = ?, sha256 = ?, size = ?, device_id = ?, reason = ?, created_at = ?
+		if _, err := tx.ExecContext(ctx, `UPDATE save_slots SET revision = ?, sha256 = ?, size = ?, device_id = ?, reason = ?, created_at = ?, cheats_used = ?
 			WHERE user_id = ? AND game_id = ? AND slot = ?`, cur.Revision+1, c.Secured.SHA256, size, c.Secured.DeviceID, reason,
-			s.now().Unix(), u, g, sl); err != nil {
+			s.now().Unix(), cheats, u, g, sl); err != nil {
 			return SaveSlot{}, internal(err)
 		}
 	}
@@ -812,4 +824,11 @@ func (s *Service) GetSaveConflict(ctx context.Context, userID, gameID, slot, id 
 		c = withLiveHub(c, cur)
 	}
 	return c, nil
+}
+
+func b2i(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }
