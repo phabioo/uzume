@@ -1,6 +1,6 @@
 # Roadmap
 
-Status and plan of Uzume after the proof of concept: what is finished, what comes next up to 1.0 and what is deliberately left for later. Work is cut into one work package per thread and PR (see [workflow](workflow.md)). Next up: 0.20 (emulation); 0.21 (randomizer) is built, its real-engine test and the 3DS updates are open. Finished milestones and the decisions behind the old numbering are in [history](history.md); what the product does today is in [features](features.md).
+Status and plan of Uzume after the proof of concept: what is finished, what comes next up to 1.0 and what is deliberately left for later. Work is cut into one work package per thread and PR (see [workflow](workflow.md)). 0.20 to 0.24 are built in parallel and all ship as betas 0.20.N; when all features and fixes are in, one release PR raises `VERSION` to 0.21.0, the first stable release ([ADR 0016](adr/0016-release-numbering-and-promotion.md), amendment 2026-10-27). 0.24 is finished, 0.21 is built (real-engine test and 3DS updates open), 0.20, 0.22 and 0.23 are open. Finished milestones and the decisions behind the old numbering are in [history](history.md); what the product does today is in [features](features.md).
 
 ## Goal 1.0
 

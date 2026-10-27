@@ -85,7 +85,7 @@ Windows release builds use the `x64-windows-release` overlay triplet (Release-on
 
 - The root file `VERSION` (`X.Y.Z`) is shared by server and app and is the floor for the next beta ([ADR 0016](adr/0016-release-numbering-and-promotion.md)). CI computes version and channel once: a push to `main` gives the plain `X.Y.Z` on channel `beta` (the larger of `VERSION` and the highest existing tag `vX.Y.*` plus 1; the version job creates the tag on the commit before building, so a failed or re-run build can leave gaps); anything else `X.Y.Z-dev.<run>`. Main CI runs do not cancel each other.
 - They are passed to `make build-hub` (`HUB_VERSION`, `HUB_CHANNEL`, `HUB_COMMIT`) and to the app configure (`UZUME_VERSION`, `UZUME_CHANNEL`, `UZUME_COMMIT`, also read by `make check-client` from the environment).
-- Only a milestone PR that starts a new minor line raises `VERSION` (to `X.(Y+1).0`, for example 0.8.0); otherwise nobody touches it. Stable releases are promoted betas and keep the beta number.
+- Only a milestone PR that starts a new minor line raises `VERSION` (to `X.(Y+1).0`, for example 0.8.0); otherwise nobody touches it. The milestones 0.20 to 0.24 were built in parallel and ship as betas `0.20.N`; no package raises it until one release PR sets 0.21.0, the first stable of that batch ([ADR 0016](adr/0016-release-numbering-and-promotion.md), amendment 2026-10-27). Stable releases are promoted betas and keep the beta number.
 - `uzume-server version [--json]` and `uzume --version-json` print `{"product", "version", "channel", "commit", "protocol_version", "min_protocol_version"}`.
 - `protocol_version` is separate from product versions ([protocol reference](reference/protocol.md)).
 
