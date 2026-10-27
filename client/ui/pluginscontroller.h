@@ -17,6 +17,9 @@
 
 #include "plugin_delivery.h"
 #include "plugin_host.h"
+#include "plugin_store.h"
+#include "plugin_store_sync.h"
+#include "pluginemulation.h"
 #include "plugin_manager.h"
 #include "run_bridge.h"
 #include "pluginhub.h"
@@ -103,6 +106,10 @@ class PluginsController : public QObject {
   Q_PROPERTY(QVariantList hotkeyGroups READ hotkeyGroups NOTIFY hotkeysChanged)
   Q_PROPERTY(QString hotkeyListening READ hotkeyListening NOTIFY hotkeysChanged)  // "<pluginId>/<hotkeyId>" waiting for a key
   Q_PROPERTY(QString hotkeyNote READ hotkeyNote NOTIFY hotkeysChanged)            // "Already used by <owner>" after a rejected key
+  // 0.20 plugin API emulation: the open consent question (cheats / memory writes, see PluginEmulationService) and the number of
+  // cheats turned on (game header "N cheats on").
+  Q_PROPERTY(QVariantMap consentRequest READ consentRequest NOTIFY consentRequestChanged)
+  Q_PROPERTY(int cheatsOn READ cheatsOn NOTIFY cheatsOnChanged)
  public:
   // dataDir = ProfileStore::baseDir(); the plugins live in <dataDir>/plugins.
   // `connection` = the active Hub (plugin list and downloads); nullptr = no Hub features (tests).
@@ -173,6 +180,22 @@ class PluginsController : public QObject {
   QVariantList hubPlugins() const { return hubPlugins_; }
   QString hubStatus() const;
   QString hubError() const { return hubClient_ != nullptr ? hubClient_->errorMessage() : QString(); }
+
+  // 0.20 plugin API emulation (fb.memory.write, fb.cheats, fb.save.snapshot). The PlayerController wires the snapshot function,
+  // the cheats-used marker and the connection once, and sets the game info before gameStarted().
+  PluginEmulationService* emulation() { return emulation_.get(); }
+  void setGameInfo(const PluginEmulationService::GameInfo& info) { gameInfo_ = info; }
+  QVariantMap consentRequest() const { return emulation_->consentRequest(); }
+  int cheatsOn() const { return emulation_->cheatsOn(); }
+  Q_INVOKABLE void answerConsent(bool allow) { emulation_->answerConsent(allow); }
+  // fb.ui.pick_file: the file dialog answered (path or file:// URL) or was cancelled (empty path).
+  Q_INVOKABLE void completePick(const QString& pluginId, const QString& requestId, const QString& pathOrUrl);
+  // fb.store: the local copy of this person's plugin data (per server and user); null before the first start.
+  std::shared_ptr<plugins::PluginStore> store() {
+    ensureStore();
+    return store_;
+  }
+  plugins::PluginStoreSync* storeSync() { return storeSync_.get(); }
 
   // A game runs (GameSession::started): resolves the plugins for it and starts them. `language` = the resolved plugin
   // language (resolveLanguage); empty = resolved here from the setting without core options.
@@ -287,6 +310,12 @@ class PluginsController : public QObject {
   void slotChanged(const QString& pluginId, const QString& slot);
   // fb.ui.open(slot) of a running plugin ("screen" or "panel"); the game view and Main.qml decide what to show.
   void openRequested(const QString& pluginId, const QString& slot);
+  // fb.ui.close(slot) of a running plugin: close the sheet or panel tab fb.ui.open showed.
+  void closeRequested(const QString& pluginId, const QString& slot);
+  // fb.ui.pick_file of a running plugin: show a file dialog (title, filters like "*.cht", max_bytes) and answer with completePick().
+  void pickFileRequested(const QString& pluginId, const QString& requestId, const QString& title, const QStringList& filters, double maxBytes);
+  void consentRequestChanged();
+  void cheatsOnChanged();
 
  private:
   void updateShell();
@@ -304,6 +333,8 @@ class PluginsController : public QObject {
   QVariantList declaredHotkeyPlugins() const;  // [{pluginId, name, origin, hotkeys: [{id, label, key}]}]
   void setHotkeyOverride(const QString& pluginId, const QString& hotkeyId, const QString& key);
   void collectToasts();
+  void addAppNotice(const PluginEmulationService::Notice& n);
+  void ensureStore();
   void addHostNotice(const QString& pluginId);
   void applyPreviewHud();
   QString pluginIconUrl(const QString& id) const;
@@ -326,6 +357,15 @@ class PluginsController : public QObject {
   GameSession* session_;
   const emu::ManifestRegistry* manifests_ = nullptr;
   QString identityReader(const QString& system) const;
+  // Declared before host_: the plugin thread holds these until host_->stop() has returned.
+  std::shared_ptr<PluginEmulationService> emulation_;
+  std::shared_ptr<plugins::PluginStore> store_;
+  std::unique_ptr<plugins::PluginStoreSync> storeSync_;
+  QString storeKey_;
+  QHash<QString, qint64> pickLimits_;  // "<plugin>/<request id>" -> max_bytes
+  QString dataDir_;
+  HubConnection* conn_ = nullptr;
+  PluginEmulationService::GameInfo gameInfo_;
   std::unique_ptr<plugins::PluginManager> manager_;
   std::unique_ptr<plugins::PluginHost> host_;
   std::unique_ptr<PluginHubClient> hubClient_;

@@ -78,6 +78,9 @@ AdminPage {
         case "run.state": return qsTr("Share run progress")
         case "video.capture": return qsTr("Capture the game picture")
         case "variants.build": return qsTr("Build game variants")
+        case "memory.write": return qsTr("Change game memory")
+        case "cheats": return qsTr("Turn cheats on and off")
+        case "store": return qsTr("Keep its data with your account")
         default: return p
         }
     }

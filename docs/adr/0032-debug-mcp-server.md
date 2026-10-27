@@ -49,6 +49,8 @@ Long reads are bounded (memory 1 MiB per call, RomFS 4 MiB per call, logs 2000 l
 
 `game_state_save`, `game_state_load` and `game_memory_write` exist since 0.20. They are available only with the same opt-in as every other tool (`--mcp` / developer switch and token), nothing changes about who can call them. Writes go through the same between-frames command queue as plugin memory writes (one queue, applied on the emulation thread); states stay in app memory under a name, never on disk or on a server, so the rule that saves are never overwritten or sent elsewhere holds. The per-game consent and the run rules of `memory.write` apply to plugins; the debug tools are developer tools behind the opt-in and are not run-ruled.
 
+`cheats_list`, `cheats_apply`, `cheats_clear`, `store_get`, `store_put` and `consent_set` follow in 0.20 package 5. Only the debug MCP can skip the per-game consent (`cheats_apply` with `bypass_consent`, or `consent_set`); the run rule, the safety copy and the run log still apply, and plugins have no such path.
+
 ## Consequences
 
 - The developer console of 0.22 can use the same data sources; the MCP server does not replace it.

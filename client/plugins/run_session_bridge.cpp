@@ -123,7 +123,9 @@ void RunSessionBridge::rebuild() {
   writable_ = run->acceptsWrites();
   status_ = run->status;
   states_ = states;
-  current_ = {{QStringLiteral("id"), run->runId},     {QStringLiteral("name"), run->name}, {QStringLiteral("status"), run->status},
+  const bool rulesDiffer = !(rules_ == run->rules);
+  rules_ = run->rules;
+  current_ = {{QStringLiteral("rules"), runRulesToJson(run->rules)}, {QStringLiteral("id"), run->runId},     {QStringLiteral("name"), run->name}, {QStringLiteral("status"), run->status},
               {QStringLiteral("me"), me_},            {QStringLiteral("settings"), run->settings}, {QStringLiteral("plugins"), plugins},
               {QStringLiteral("participants"), parts}};
   // Public facts of the randomizer only (allow-list): never seed, settings or base_sha256.
@@ -135,6 +137,7 @@ void RunSessionBridge::rebuild() {
                                 {QStringLiteral("tool_version"), r.value(QLatin1String("tool_version")).toString()},
                                 {QStringLiteral("allow_own"), r.value(QLatin1String("allow_own")).toBool()}});
   }
+  if (rulesDiffer) QMetaObject::invokeMethod(this, [this] { emit rulesChanged(); }, Qt::QueuedConnection);
 }
 
 void RunSessionBridge::note(const QString& kind, const QJsonObject& data) {
@@ -244,6 +247,29 @@ QString RunSessionBridge::postEvent(const QString& pluginId, const QString& sour
           const QString err = client_->postEvent(runId_, pluginId, source, type, text, payload, &id);
           if (!err.isEmpty()) emit client_->writeFailed(runId_, QStringLiteral("event"), QStringLiteral("refused"), err);
         }
+      },
+      Qt::QueuedConnection);
+  return {};
+}
+
+QString RunSessionBridge::postCoreEvent(const QString& type, const QString& text, const QJsonObject& payload) {
+  {
+    std::lock_guard<std::mutex> l(m_);
+    const QString why = refusal(QStringLiteral("events"));
+    if (!why.isEmpty()) return why;
+  }
+  if (text.size() > kRunMaxEventText) return QStringLiteral("text is longer than 280 characters");
+  if (QJsonDocument(payload).toJson(QJsonDocument::Compact).size() > kRunMaxEventPayloadBytes) return QStringLiteral("payload is larger than 4 KiB");
+  if (eventsQueued_.load() >= kMaxQueuedEvents) return QStringLiteral("too many events waiting to be sent");
+  ++eventsQueued_;
+  QMetaObject::invokeMethod(
+      this,
+      [this, type, text, payload] {
+        --eventsQueued_;
+        if (!client_) return;
+        const QString pluginId = payload.value(QStringLiteral("plugin_id")).toString();
+        const QString err = client_->postEvent(runId_, pluginId, QStringLiteral("automatic"), type, text, payload);
+        if (!err.isEmpty()) emit client_->writeFailed(runId_, QStringLiteral("event"), QStringLiteral("refused"), err);
       },
       Qt::QueuedConnection);
   return {};

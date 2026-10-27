@@ -20,13 +20,17 @@ var supportedPermissions = map[string]bool{
 	"ui":            true,
 	"run.state":     true,
 	"video.capture": true,
+	// 0.20 package 5, one line per permission
+	"memory.write": true,
+	"cheats":       true,
+	"store":        true,
 }
 
 func permissionError(p string) error {
 	if supportedPermissions[p] {
 		return nil
 	}
-	if p == "memory.write" || p == "tool.exec" {
+	if p == "tool.exec" {
 		return invalid("permission %s is not available yet", p)
 	}
 	return invalid("unknown permission '%s'", p)

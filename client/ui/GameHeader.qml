@@ -55,7 +55,14 @@ Rectangle {
                                        ? qsTr("Saved %1").arg(saves.history[0].when) : ""
     readonly property string shareText: ctl.shared ? (ctl.visibility === "invite_only" ? qsTr("Invite only · %1 watching") : qsTr("Shared · %1 watching")).arg(ctl.viewerCount)
                                                   : qsTr("Not shared")
-    readonly property string ownSub: saveText !== "" ? shareText + " · " + saveText : shareText
+    readonly property int cheatsOn: player.plugins.cheatsOn
+    readonly property string cheatsText: cheatsOn > 0 ? qsTr("%n cheat(s) on", "", cheatsOn) : ""
+    readonly property string ownSub: {
+        const parts = [shareText]
+        if (saveText !== "") parts.push(saveText)
+        if (cheatsText !== "") parts.push(cheatsText)
+        return parts.join(" · ")
+    }
     readonly property var watchLink: ctl.surfaceLinks[ctl.surfaceOrder.length > 0 ? ctl.surfaceOrder[0] : ""] || null
     // System code of the running game: the selected game is the running one while the game view is shown.
     readonly property string systemCode: {

@@ -31,7 +31,11 @@ class RunSessionBridge : public QObject, public RunBridge {
   QString postEvent(const QString& pluginId, const QString& source, const QString& type, const QString& text, const QJsonObject& payload,
                     QString* clientId) override;
   QString setBoard(const QString& pluginId, const QJsonObject& tree) override;
+  QString postCoreEvent(const QString& type, const QString& text, const QJsonObject& payload) override;
   QList<RunNotification> takeNotifications() override;
+
+ signals:
+  void rulesChanged();  // the run's core rules changed (run_updated); UI thread
 
  private:
   RunSessionBridge(RunClient* client, const QString& runId);
@@ -46,6 +50,7 @@ class RunSessionBridge : public QObject, public RunBridge {
   QString runId_;
   mutable std::mutex m_;
   QJsonObject current_;
+  RunRules rules_;
   QJsonObject states_;  // {user_id: {plugin_id: state}}
   QList<QJsonObject> events_;  // ascending, at most 500
   QList<RunNotification> notes_;

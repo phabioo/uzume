@@ -81,6 +81,17 @@ class LibrarySavesUiTest : public QObject {
     QVERIFY(col != nullptr);
     const QRectF cr = sceneRect(col);
     QVERIFY2(cr.right() <= h.window->width() + 0.5, qPrintable(QStringLiteral("column outside window %1 > %2").arg(cr.right()).arg(h.window->width())));
+    // The state under test may still be settling after a resize (slower Windows runners): wait until enough items show.
+    auto visibleNames = [&h, &names]() {
+      QStringList shownNames;
+      for (const QString& name : names)
+        for (QQuickItem* it : h.items(name.toLatin1().constData()))
+          if (it->isVisible() && it->width() > 0) shownNames << name;
+      return shownNames;
+    };
+    QTRY_VERIFY2_WITH_TIMEOUT(visibleNames().size() >= minChecked,
+                              qPrintable(QStringLiteral("only these named items are visible: %1").arg(visibleNames().join(QLatin1String(", ")))), 3000);
+    QQuickTest::qWaitForPolish(h.window);
     int checked = 0;
     for (const QString& name : names) {
       const QList<QQuickItem*> all = h.items(name.toLatin1().constData());
@@ -93,7 +104,7 @@ class LibrarySavesUiTest : public QObject {
                                 .arg(name).arg(r.left()).arg(r.right()).arg(cr.left()).arg(cr.right()).arg(chainOf(it))));
       }
     }
-    QVERIFY2(checked >= minChecked, qPrintable(QStringLiteral("only %1 of the named items are visible: the state under test is not shown").arg(checked)));
+    QVERIFY2(checked >= minChecked, qPrintable(QStringLiteral("only %1 of the named items are visible: the state under test is not shown (%2)").arg(checked).arg(visibleNames().join(QLatin1String(", ")))));
   }
   // Adds letter spacing to every item that has a font (stand-in for wider Windows fonts).
   static void widenFonts(Harness& h, qreal spacing) {

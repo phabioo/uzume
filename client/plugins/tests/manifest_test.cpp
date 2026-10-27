@@ -62,7 +62,7 @@ class ManifestTest : public QObject {
     QVERIFY(errOf(R"({"type":"weird"})").contains("unknown plugin type"));
   }
   void permissions() {
-    QCOMPARE(errOf(R"({"permissions":["memory.write"]})"), QString("permission memory.write is not available yet"));
+    QVERIFY(errOf(R"({"permissions":["memory.write","cheats","store"]})").isEmpty());
     QCOMPARE(errOf(R"({"permissions":["tool.exec"]})"), QString("permission tool.exec is not available yet"));
     QVERIFY(errOf(R"({"permissions":["network"]})").contains("unknown permission 'network'"));
   }
