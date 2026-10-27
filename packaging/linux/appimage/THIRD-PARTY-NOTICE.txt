@@ -1,0 +1,26 @@
+Uzume
+Copyright (C) 2026 Fabio and Uzume contributors
+Uzume is licensed under GPL-3.0-or-later, see LICENSE; source: https://github.com/phabioo/uzume
+Licence texts and copyright notices of the bundled libraries: licenses/ folder (the files of the Ubuntu packages they come from)
+
+This image contains no emulator cores. Emulator cores (e.g. melonDS DS, GPL-3.0) are
+downloaded from your Uzume server when needed; the server provides each core together with its
+licence text and source link.
+Contains no ROMs, BIOS or firmware.
+
+The image also contains the Uzume server (uzume-server, GPL-3.0-or-later) that the app starts for "Only on this PC";
+the licences of its Go modules are in THIRD-PARTY-NOTICES-server.txt.
+
+Bundled libraries:
+- Qt 6 (LGPL-3.0, dynamically linked), https://www.qt.io/ (source: the Ubuntu source packages qt6-base, qt6-declarative,
+  qt6-multimedia, qt6-websockets, qt6-wayland)
+- FFmpeg (avcodec, avutil, swscale, and the codec libraries Ubuntu builds it with), LGPL-2.1-or-later / GPL, https://ffmpeg.org/
+- OpenH264 (if linked), BSD-2-Clause, https://github.com/cisco/openh264
+- libdatachannel, MPL-2.0, https://github.com/paullouisageneau/libdatachannel (with libjuice MPL-2.0, libsrtp BSD-3-Clause,
+  usrsctp BSD-3-Clause, plog MIT)
+- Opus, BSD-3-Clause, https://opus-codec.org/
+- SDL3 (gamepad input only), zlib, https://libsdl.org/
+- Lua 5.4 (plugin runtime), MIT, https://www.lua.org/
+- IBM Plex fonts, SIL OFL-1.1, https://github.com/IBM/plex
+The Qt and FFmpeg libraries are shared libraries; the image can be unpacked (--appimage-extract) and they can be
+replaced by compatible builds.

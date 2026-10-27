@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Quiet check steps: output buffered, on failure only the last 40 lines.
-# Usage: scripts/check.sh hub-fmt|hub-vet|hub-staticcheck|hub-test|hub-race|hub-codegen|hub-notices|script-tests|hub-build|hub-deb|generate|client|packaging|hub|all
+# Usage: scripts/check.sh hub-fmt|hub-vet|hub-staticcheck|hub-test|hub-race|hub-codegen|hub-notices|script-tests|hub-build|hub-deb|app-appimage|generate|client|packaging|hub|all
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -80,6 +80,19 @@ hub_deb() {
     "$ROOT/packaging/linux/build-deb.sh" --binary "$ROOT/server/dist/uzume-server-linux-$arch" \
       --arch "$arch" --version "$v" --out "$ROOT/server/dist" || return 1
   done
+}
+# app-appimage: the app AppImage from a finished linux-release client build (APP_VERSION required; see the Makefile).
+app_appimage() {
+  local v="${APP_VERSION:-}"
+  [ -n "$v" ] || { echo "APP_VERSION is required (X.Y.Z[-pre])"; return 1; }
+  local ddc sdl
+  ddc="$("$ROOT/scripts/fetch-libdatachannel.sh" 2>/dev/null)" || return 1
+  sdl="$("$ROOT/scripts/fetch-sdl3.sh" 2>/dev/null)" || return 1
+  UZUME_EXTRA_LIB_DIRS="$ddc/lib:$sdl/lib:$ddc/lib64:$sdl/lib64" \
+    "$ROOT/packaging/linux/appimage/build-appimage.sh" \
+      --build-dir "${APP_BUILD_DIR:-$ROOT/client/build/linux-release}" \
+      --server "${APP_SERVER:-$ROOT/server/dist/uzume-server-linux-amd64}" \
+      --version "$v" --out "${APP_OUT:-$ROOT/client/build/appimage}"
 }
 CORE_PATH=""
 client_core() { CORE_PATH="$("$ROOT/scripts/fetch-buildbot-core.sh" melondsds)" && [ -f "$CORE_PATH" ]; }
@@ -245,7 +258,7 @@ packaging() {
   # Beta version numbering of the CI version job (ADR 0011).
   "$ROOT/scripts/next-beta-version.sh" --self-test >"$tmp/beta-version.log" 2>&1 || { cat "$tmp/beta-version.log"; rc=1; }
   if command -v shellcheck >/dev/null 2>&1; then
-    shellcheck "$dir/install-server.sh" "$dir/build-deb.sh" "$ROOT/scripts/gen-hub-notices.sh" "$ROOT/scripts/check-trusted-keys.sh" "$ROOT/scripts/e2e-hub-update.sh" || rc=1
+    shellcheck "$dir/install-server.sh" "$dir/build-deb.sh" "$dir/appimage/build-appimage.sh" "$ROOT/scripts/gen-hub-notices.sh" "$ROOT/scripts/check-trusted-keys.sh" "$ROOT/scripts/e2e-hub-update.sh" || rc=1
     shellcheck -s sh "$dir"/deb/* || rc=1
     # Remaining scripts: warnings and errors only (the e2e scripts use A && ok || die on purpose).
     shellcheck -S warning "$ROOT"/scripts/*.sh "$ROOT/.claude/hooks/session-start.sh" || rc=1
@@ -320,6 +333,7 @@ case "${1:-all}" in
   packaging) step "packaging" packaging ;;
   hub)   step "hub: fmt" hub_fmt; step "hub: vet" hub_vet; step "hub: staticcheck" hub_staticcheck; step "hub: test" hub_test; step "hub: codegen" hub_codegen; step "hub: notices" hub_notices; step "scripts: python tests" script_tests; step "packaging" packaging ;;
   hub-deb) step "hub: deb packages" hub_deb ;;
+  app-appimage) STEP_TAIL=60 step "app: AppImage" app_appimage ;;
   hub-build) step "hub: build linux/amd64+arm64, windows/amd64" hub_build ;;
   generate)  step "hub: generate" generate ;;
   client)    client ;;

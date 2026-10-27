@@ -101,7 +101,10 @@ bool verifyArtifactFile(const QString& path, const Artifact& artifact, QString* 
 }
 
 std::optional<StagedUpdate> loadVerifiedStaged(const QString& baseDir, const QString& currentVersion,
-                                               const QList<QByteArray>& trustedKeys, bool allowFileUrls) {
+                                               const QList<QByteArray>& trustedKeys, bool allowFileUrls,
+                                               const QString& platformIn, const QString& kindIn) {
+  const QString platform = platformIn.isEmpty() ? QLatin1String(playerPlatform()) : platformIn;
+  const QString kind = kindIn.isEmpty() ? QLatin1String(playerKind()) : kindIn;
   const QDir root(stagingRoot(baseDir));
   std::optional<StagedUpdate> best;
   std::optional<SemVer> bestVer;
@@ -128,7 +131,7 @@ std::optional<StagedUpdate> loadVerifiedStaged(const QString& baseDir, const QSt
       }
     }
     if (rel == nullptr) continue;
-    const auto art = rel->artifact(QLatin1String(kPlayerPlatform), QLatin1String(kKindMsi));
+    const auto art = rel->artifact(platform, kind);
     if (!art || art->name != artifactName) continue;
     const QString path = d.filePath(art->name);
     // Skip the (GUI thread) re-hash when size and mtime are what was recorded after the verified download; the
@@ -151,7 +154,9 @@ std::optional<StagedUpdate> loadVerifiedStaged(const QString& baseDir, const QSt
 
 std::optional<StagedUpdate> loadVerifiedRollback(const QString& baseDir, const QString& version, const QString& currentVersion,
                                                  const QList<QByteArray>& trustedKeys, bool allowFileUrls, int protocolVersion,
-                                                 const QDateTime& now) {
+                                                 const QDateTime& now, const QString& platformIn, const QString& kindIn) {
+  const QString platform = platformIn.isEmpty() ? QLatin1String(playerPlatform()) : platformIn;
+  const QString kind = kindIn.isEmpty() ? QLatin1String(playerKind()) : kindIn;
   const auto cur = SemVer::parse(currentVersion);
   const auto want = SemVer::parse(version);
   if (!cur || !want || SemVer::compare(*want, *cur) >= 0) return std::nullopt;  // only ever older
@@ -165,9 +170,9 @@ std::optional<StagedUpdate> loadVerifiedRollback(const QString& baseDir, const Q
   const ParseResult pr = parseIndex(idx, allowFileUrls);
   if (!pr.ok || !checkIndexFresh(pr.index, now).isEmpty()) return std::nullopt;
   for (const Release& r : pr.index.releases) {
-    if (r.product != QLatin1String("player") || r.semver.toString() != want->toString() || !r.msiDowngrade) continue;
+    if (r.product != QLatin1String("player") || r.semver.toString() != want->toString() || (kind == QLatin1String(kKindMsi) && !r.msiDowngrade)) continue;
     if (protocolVersion > 0 && !(r.minProtocolVersion <= protocolVersion && protocolVersion <= r.protocolVersion)) continue;
-    const auto art = r.artifact(QLatin1String(kPlayerPlatform), QLatin1String(kKindMsi));
+    const auto art = r.artifact(platform, kind);
     if (!art || art->name != artifactName) continue;
     const QString path = d.filePath(art->name);
     if (!verifyArtifactFile(path, *art)) return std::nullopt;
@@ -259,6 +264,8 @@ UpdateManager::UpdateManager(const Config& config, PlayerSettings* settings, QOb
   if (indexUrl_.isEmpty()) indexUrl_ = uzume::env::get("UZUME_APP_UPDATE_INDEX_URL");
   if (indexUrl_.isEmpty()) indexUrl_ = QLatin1String(kDefaultIndexUrl);
   if (config_.trustedKeys.isEmpty()) config_.trustedKeys = trustedKeysFromEnvironment();
+  platform_ = config.platform.isEmpty() ? QLatin1String(playerPlatform()) : config.platform;
+  kind_ = config.kind.isEmpty() ? QLatin1String(playerKind()) : config.kind;
   timer_.setSingleShot(true);
   launcher_ = [](const QString& program, const QStringList& args) { return QProcess::startDetached(program, args); };
   connect(&timer_, &QTimer::timeout, this, [this]() {
@@ -267,6 +274,15 @@ UpdateManager::UpdateManager(const Config& config, PlayerSettings* settings, QOb
   });
   recordRunning();
   settle();
+  if (appImageKind()) {
+    // This image was started by the update watcher: after a few healthy seconds (or a clean quit) it confirms the start,
+    // otherwise the watcher restores <image>.previous.
+    const QString image = appImagePath();
+    if (!image.isEmpty()) {
+      QTimer::singleShot(5000, this, [image]() { appImageConfirmStart(image); });
+      connect(qApp, &QCoreApplication::aboutToQuit, this, [image]() { appImageConfirmStart(image); });
+    }
+  }
   // A rollback installer that has done its job (this is the version it installed) is not kept.
   if (const auto cur = SemVer::parse(config_.currentVersion); cur) {
     QDir(QDir(rollbackStagingRoot(config_.baseDir)).filePath(cur->toString())).removeRecursively();
@@ -326,6 +342,8 @@ QList<RollbackCandidate> UpdateManager::rollbackOptions() const {
   q.channel = effectiveChannel();
   q.history = parseHistory(settings_->updateHistory());
   q.protocolVersion = config_.protocolVersion;
+  q.platform = platform_;
+  q.kind = kind_;
   return rollbackCandidates(lastIndex_.index, q);
 }
 
@@ -418,21 +436,25 @@ bool UpdateManager::autoInstallSetting() const {
 
 bool UpdateManager::applySupported() const {
   if (config_.forceApplySupport) return true;
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN)
   return canSelfUpdate(config_.installRoot);
+#elif defined(Q_OS_LINUX)
+  return appImageUnsupportedReason(appImagePath()).isEmpty();
 #else
   return false;
 #endif
 }
 
 QString UpdateManager::applyUnsupportedReason() const {
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN)
   if (!canSelfUpdate(config_.installRoot)) {
     return QStringLiteral("This copy of Uzume was not installed with the installer (portable or development build).");
   }
   return {};
+#elif defined(Q_OS_LINUX)
+  return appImageUnsupportedReason(appImagePath());
 #else
-  return QStringLiteral("Automatic installation is only available for the Windows installer version.");
+  return QStringLiteral("Automatic installation is only available for the Windows installer and the Linux AppImage.");
 #endif
 }
 
@@ -496,6 +518,8 @@ void UpdateManager::onIndex(const FetchedIndex& fi) {
   SelectionInput in;
   in.channel = effectiveChannel();
   in.currentVersion = config_.currentVersion;
+  in.platform = platform_;
+  in.kind = kind_;
   if (hubProtocol_) in.hub = hubProtocol_();
   selection_ = selectRelease(fi.index, in);
   switch (selection_.status) {
@@ -503,7 +527,7 @@ void UpdateManager::onIndex(const FetchedIndex& fi) {
       setState(State::Disabled, selection_.reason);
       return;
     case Selection::Status::UpToDate:
-      loadVerifiedStaged(config_.baseDir, config_.currentVersion, config_.trustedKeys, allowFileUrls());  // prune
+      loadVerifiedStaged(config_.baseDir, config_.currentVersion, config_.trustedKeys, allowFileUrls(), platform_, kind_);  // prune
       setState(State::UpToDate, tr("Uzume %1 is up to date.").arg(config_.currentVersion));
       return;
     case Selection::Status::Incompatible:
@@ -514,7 +538,7 @@ void UpdateManager::onIndex(const FetchedIndex& fi) {
     case Selection::Status::Available:
       break;
   }
-  const auto staged = loadVerifiedStaged(config_.baseDir, config_.currentVersion, config_.trustedKeys, allowFileUrls());
+  const auto staged = loadVerifiedStaged(config_.baseDir, config_.currentVersion, config_.trustedKeys, allowFileUrls(), platform_, kind_);
   if (staged && staged->version == selection_.release.version && applySupported()) {
     setState(State::Ready, tr("Uzume %1 is ready to install.").arg(staged->version));
     return;
@@ -623,7 +647,7 @@ void UpdateManager::finishDownload(const QString& partPath) {
     dlRollback_ = false;
     applyAfterDownload_ = false;
     const auto staged = loadVerifiedRollback(config_.baseDir, dlRelease_.version, config_.currentVersion, config_.trustedKeys,
-                                             allowFileUrls(), config_.protocolVersion, QDateTime::currentDateTimeUtc());
+                                             allowFileUrls(), config_.protocolVersion, QDateTime::currentDateTimeUtc(), platform_, kind_);
     if (!staged) {
       lastError_ = QStringLiteral("the older installer did not pass the checks");
       setState(State::Error, tr("The older version was rejected: it did not pass the checks."));
@@ -654,7 +678,7 @@ void UpdateManager::installNow() {
     return;
   }
   if (selectionSkipped()) settings_->setUpdateSkip(QString());  // "Update to X": the user asked for it
-  const auto staged = loadVerifiedStaged(config_.baseDir, config_.currentVersion, config_.trustedKeys, allowFileUrls());
+  const auto staged = loadVerifiedStaged(config_.baseDir, config_.currentVersion, config_.trustedKeys, allowFileUrls(), platform_, kind_);
   if (staged && (selection_.release.version.isEmpty() || staged->version == selection_.release.version)) {
     apply(*staged);
     return;
@@ -668,7 +692,7 @@ void UpdateManager::installNow() {
 
 bool UpdateManager::applyStagedAtStart() {
   if (!applySupported() || effectiveChannel() != Channel::Beta || !autoInstallSetting() || updatesPaused() || busy()) return false;
-  const auto staged = loadVerifiedStaged(config_.baseDir, config_.currentVersion, config_.trustedKeys, allowFileUrls());
+  const auto staged = loadVerifiedStaged(config_.baseDir, config_.currentVersion, config_.trustedKeys, allowFileUrls(), platform_, kind_);
   if (!staged || staged->version == skippedVersion()) return false;
   if (hasAttemptRecord(*staged)) {
     // We are still on the old version, so the earlier attempt failed: do not loop, leave the retry to the user.
@@ -700,6 +724,10 @@ void UpdateManager::apply(const StagedUpdate& staged) {
     setState(state_, tr("A game or Session is running. Finish it first, then install the update."));
     return;
   }
+  if (appImageKind()) {
+    applyAppImage(staged);
+    return;
+  }
   if (!isMsiFile(staged.installerPath)) {
     lastError_ = QStringLiteral("staged update is not an MSI");
     setState(State::Error, tr("The installer could not be started."));
@@ -723,6 +751,36 @@ void UpdateManager::apply(const StagedUpdate& staged) {
   if (!launcher_(cmd.program, cmd.args)) {
     lastError_ = QStringLiteral("installer could not be started");
     setState(State::Error, tr("The installer could not be started."));
+    return;
+  }
+  setState(State::Applying, tr("Installing Uzume %1…").arg(staged.version));
+  emit quitRequested();
+}
+
+// Linux AppImage: the verified file replaces the running image (kept as .previous), then a watcher starts it and quits
+// this Player the same way the MSI path does, so the owner of quitRequested syncs saves and shuts down first.
+void UpdateManager::applyAppImage(const StagedUpdate& staged) {
+  const QString image = appImagePath();
+  const QString reason = appImageUnsupportedReason(image);
+  if (!reason.isEmpty()) {
+    lastError_ = reason;
+    setState(State::Error, tr("The update could not be installed. %1").arg(reason));
+    return;
+  }
+  recordAttempt(staged);
+  QString why;
+  if (!replaceAppImage(staged.installerPath, image, staged.sha256, staged.size, &why)) {
+    lastError_ = why;
+    qCWarning(lcUpdate) << "AppImage update failed:" << why;
+    setState(State::Error, tr("The update could not be installed: %1").arg(why));
+    return;
+  }
+  const InstallerCommand cmd =
+      appImageRelaunchCommand(image, QCoreApplication::applicationPid(), appImageRelaunchArguments(QCoreApplication::arguments().mid(1)));
+  qCInfo(lcUpdate) << "AppImage replaced by" << staged.version << "; restarting";
+  if (!launcher_(cmd.program, cmd.args)) {
+    lastError_ = QStringLiteral("the new AppImage could not be started");
+    setState(State::Error, tr("Uzume %1 is installed but could not be restarted. Start Uzume again.").arg(staged.version));
     return;
   }
   setState(State::Applying, tr("Installing Uzume %1…").arg(staged.version));

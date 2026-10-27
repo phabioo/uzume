@@ -53,7 +53,7 @@ class ProfileStore {
   explicit ProfileStore(const QString& baseDir = QString());
 
   // Order: env UZUME_DATA_DIR, portable <program directory>/data (only if writable;
-  // one-time copy from AppData), otherwise AppDataLocation.
+  // one-time copy from AppData; never when APPIMAGE is set), otherwise AppDataLocation.
   static QString defaultBaseDir();
   struct BaseDirChoice {
     QString path;

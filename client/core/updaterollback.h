@@ -50,8 +50,8 @@ struct RollbackQuery {
   Channel channel = Channel::Off;  // the install's channel: beta sees beta + stable, stable only stable, off none
   QList<HistoryEntry> history;     // versions that were run are offered whatever their channel
   int protocolVersion = 0;         // this Player's protocol; the target must speak it (min <= it <= protocol); 0 = not checked
-  QString platform = QLatin1String(kPlayerPlatform);
-  QString kind = QLatin1String(kKindMsi);
+  QString platform = QLatin1String(playerPlatform());
+  QString kind = QLatin1String(playerKind());
 };
 
 struct RollbackCandidate {
@@ -63,7 +63,7 @@ struct RollbackCandidate {
 };
 
 // Older releases of the same product/platform from the signed index, newest first, at most kMaxRollbackCandidates.
-// Only a release whose MSI installs over a newer version (msiDowngrade) is offered. A version listed in several
+// For the MSI kind only a release whose MSI installs over a newer version (msiDowngrade) is offered; an AppImage is a plain file and can always be replaced by an older one. A version listed in several
 // channels counts once (stable wins).
 QList<RollbackCandidate> rollbackCandidates(const Index& index, const RollbackQuery& q);
 

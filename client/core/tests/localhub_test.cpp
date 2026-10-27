@@ -108,6 +108,8 @@ class LocalHubTest : public QObject {
     const auto both = parseIndex(indexWith({art("installer", "setup.exe"), art("msi", "fb.msi")}));
     QVERIFY2(both.ok, qPrintable(both.error));
     SelectionInput in;
+    in.platform = QStringLiteral("windows-x64");  // the Hub setup runs the Windows MSI whatever the host
+    in.kind = QStringLiteral("msi");
     in.channel = Channel::Stable;
     in.currentVersion = "0.9.0";
     QCOMPARE(selectRelease(both.index, in).artifact.kind, QStringLiteral("msi"));

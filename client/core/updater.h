@@ -42,8 +42,10 @@ struct StagedUpdate {
 };
 // Looks into <baseDir>/cache/updates/<version>/ (index.json, index.json.sig, staged.json, installer) and returns
 // the highest verified staged update; stale or invalid staging directories are removed.
+// `platform`/`kind` empty: the artifact of this build (playerPlatform()/playerKind()).
 std::optional<StagedUpdate> loadVerifiedStaged(const QString& baseDir, const QString& currentVersion,
-                                               const QList<QByteArray>& trustedKeys, bool allowFileUrls);
+                                               const QList<QByteArray>& trustedKeys, bool allowFileUrls,
+                                               const QString& platform = {}, const QString& kind = {});
 QString stagingRoot(const QString& baseDir);  // <baseDir>/cache/updates
 // Rollback installers are staged apart (<baseDir>/cache/rollback/<version>/): the normal staging only keeps newer versions.
 QString rollbackStagingRoot(const QString& baseDir);
@@ -52,7 +54,7 @@ QString rollbackStagingRoot(const QString& baseDir);
 // older player release that speaks `protocolVersion` (0 = not checked) and whose MSI allows downgrades, size and SHA-256.
 std::optional<StagedUpdate> loadVerifiedRollback(const QString& baseDir, const QString& version, const QString& currentVersion,
                                                  const QList<QByteArray>& trustedKeys, bool allowFileUrls, int protocolVersion,
-                                                 const QDateTime& now);
+                                                 const QDateTime& now, const QString& platform = {}, const QString& kind = {});
 
 // Verifies size and SHA-256 of a file against an artifact.
 bool verifyArtifactFile(const QString& path, const Artifact& artifact, QString* error = nullptr);
@@ -81,7 +83,9 @@ class UpdateManager : public QObject {
     QString compiledChannel;  // stable | beta | dev
     QList<QByteArray> trustedKeys;
     QString installRoot;      // install root (installRootFor), empty = unknown
-    bool forceApplySupport = false;  // tests: behave like an installed Windows Player
+    bool forceApplySupport = false;  // tests: behave like an installed Player (Windows MSI or Linux AppImage)
+    QString platform;                // tests: artifact platform/kind to follow; empty = this build's (playerPlatform()/playerKind())
+    QString kind;
     int protocolVersion = 0;         // this Player's Hub protocol (rollback targets must speak it); 0 = not checked
   };
 
@@ -102,7 +106,7 @@ class UpdateManager : public QObject {
   bool autoInstallEffective() const {
     return effectiveChannel() == Channel::Beta && autoInstallSetting() && !updatesPaused() && !selectionSkipped();
   }
-  // Only an installer-based Windows install updates itself; zip/dev/Linux just show the release.
+  // Only an MSI install (Windows) or a Linux AppImage in a writable folder updates itself; zip/dev builds just show the release.
   bool applySupported() const;
   QString applyUnsupportedReason() const;
 
@@ -164,6 +168,8 @@ class UpdateManager : public QObject {
   void beginDownload(const Release& release, const Artifact& artifact, const QString& dir, bool applyAfter, bool rollback);
   void finishDownload(const QString& partPath);
   void apply(const StagedUpdate& staged);
+  void applyAppImage(const StagedUpdate& staged);
+  bool appImageKind() const { return kind_ == QLatin1String(kKindAppImage); }
   void applyRollback(const StagedUpdate& staged);
   void recordRunning();
   void settle();
@@ -176,6 +182,8 @@ class UpdateManager : public QObject {
   Config config_;
   PlayerSettings* settings_;
   QString indexUrl_;
+  QString platform_;  // artifact followed: config or this build's
+  QString kind_;
   QNetworkAccessManager nam_;
   QTimer timer_;
   State state_ = State::Idle;

@@ -86,7 +86,7 @@ QList<RollbackCandidate> rollbackCandidates(const Index& index, const RollbackQu
     const QString version = r.semver.toString();
     const auto hist = std::find_if(q.history.cbegin(), q.history.cend(), [&](const HistoryEntry& h) { return h.version == version; });
     if (!channelAllowed(r.channel) && hist == q.history.cend()) continue;
-    if (!r.msiDowngrade) continue;  // an MSI built without AllowDowngrades refuses to install over a newer version
+    if (q.kind == QLatin1String(kKindMsi) && !r.msiDowngrade) continue;  // an MSI built without AllowDowngrades refuses to install over a newer version
     if (q.protocolVersion > 0 && !(r.minProtocolVersion <= q.protocolVersion && q.protocolVersion <= r.protocolVersion)) continue;
     const auto art = r.artifact(q.platform, q.kind);
     if (!art) continue;
