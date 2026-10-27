@@ -959,6 +959,58 @@ class EmulationControllersTest : public QObject {
     QCOMPARE(emu->uzumeValue(window, QStringLiteral("nds"), QStringLiteral("g1")), QStringLiteral("on"));
   }
 
+  // 0.24: the Renderer row (OpenGL | Vulkan, tag "Next start") exists only for cores whose profile offers both.
+  void rendererRowFollowsTheCoreProfile() {
+    FakeHub hub(QStringLiteral("a"));
+    QVERIFY(hub.start());
+    Harness h;
+    QVERIFY(h.start());
+    pair(h, hub);
+    h.controller->showEmulation();
+    EmulationController* emu = h.controller->emulation();
+    const QString key = QString::fromLatin1(EmulationController::kRendererKey);
+    QCOMPARE(key, QStringLiteral("uzume.renderer"));
+    QTRY_VERIFY(h.item("emulationTabs") != nullptr && h.item("emulationTabs")->isVisible());
+
+    // Azahar (3DS) offers it; melonDS DS (OpenGL only) and mGBA (software) do not; Defaults never show it.
+    QVERIFY(h.click("tab_3DS"));
+    QTRY_VERIFY(visible(h, "optionRow_uzume.renderer"));
+    QCOMPARE(h.item("optionRow_uzume.renderer")->property("current").toString(), QStringLiteral("opengl"));
+    QCOMPARE(h.item("optionRow_uzume.renderer")->property("badge").toString(), QStringLiteral("Next start"));
+    QVERIFY(!h.item("optionRow_uzume.renderer")->property("changed").toBool());
+    QVERIFY(h.item("optionReset_uzume.renderer") == nullptr || !h.item("optionReset_uzume.renderer")->isVisible());
+    QVERIFY(h.click("tab_NDS"));
+    QTRY_VERIFY(h.item("optionRow_uzume.renderer") == nullptr || !h.item("optionRow_uzume.renderer")->isVisible());
+    QVERIFY(h.click("tab_GBA"));
+    QTRY_VERIFY(h.item("optionRow_uzume.renderer") == nullptr || !h.item("optionRow_uzume.renderer")->isVisible());
+    QVERIFY(h.click("tab_Defaults"));
+    QTRY_VERIFY(h.item("optionRow_uzume.renderer") == nullptr || !h.item("optionRow_uzume.renderer")->isVisible());
+
+    // Choosing Vulkan stores "vulkan" at system level; the reset removes the key.
+    QVERIFY(h.click("tab_3DS"));
+    QTRY_VERIFY(visible(h, "optionSelect_uzume.renderer"));
+    QQuickItem* seg = h.item("optionSelect_uzume.renderer");
+    QVERIFY(QMetaObject::invokeMethod(seg, "picked", Q_ARG(QString, QStringLiteral("vulkan"))));
+    QCOMPARE(emu->settings()->value(L::System, QStringLiteral("3ds"), key), QStringLiteral("vulkan"));
+    QCOMPARE(emu->settings()->renderer(QStringLiteral("3ds"), QString()), QStringLiteral("vulkan"));
+    QCOMPARE(emu->settings()->renderer(QStringLiteral("nds"), QString()), QStringLiteral("opengl"));
+    QTRY_VERIFY(h.item("optionRow_uzume.renderer")->property("changed").toBool());
+    QCOMPARE(h.item("optionRow_uzume.renderer")->property("current").toString(), QStringLiteral("vulkan"));
+    QTRY_VERIFY(visible(h, "optionReset_uzume.renderer"));
+    emu->setOption(key, QStringLiteral("metal"));  // unknown values are refused
+    QCOMPARE(emu->settings()->value(L::System, QStringLiteral("3ds"), key), QStringLiteral("vulkan"));
+    QVERIFY(h.click("optionReset_uzume.renderer"));
+    QVERIFY(!emu->settings()->hasValue(L::System, QStringLiteral("3ds"), key));
+    QCOMPARE(emu->settings()->renderer(QStringLiteral("3ds"), QString()), QStringLiteral("opengl"));
+    QTRY_VERIFY(!h.item("optionRow_uzume.renderer")->property("changed").toBool());
+
+    // A game overrides the system choice (same resolution as every uzume.* option).
+    emu->settings()->setValue(L::System, QStringLiteral("3ds"), key, QStringLiteral("vulkan"));
+    emu->settings()->setValue(L::Game, QStringLiteral("g3"), key, QStringLiteral("opengl"));
+    QCOMPARE(emu->settings()->renderer(QStringLiteral("3ds"), QStringLiteral("g3")), QStringLiteral("opengl"));
+    QCOMPARE(emu->settings()->renderer(QStringLiteral("3ds"), QStringLiteral("g4")), QStringLiteral("vulkan"));
+  }
+
   void firmwareStateOnTheCard() {
     const QByteArray b7(16, '7'), b9(8, '9'), fw(32, 'f');
     struct Case { QString mode; QJsonArray files; QString expected; };
