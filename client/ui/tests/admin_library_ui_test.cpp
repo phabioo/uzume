@@ -374,6 +374,7 @@ class AdminLibraryUiTest : public QObject {
     h.controller->showRuns();
     QTRY_VERIFY(shown(h, "runsAdminPanel"));
     QTRY_VERIFY(shown(h, "runsAdminTableRow_0"));
+    QVERIFY(shown(h, "runsAdminHeading"));   // there is a run the list above leaves out
     QCOMPARE(text(h.item("runsAdminTableCell_0_name")), QStringLiteral("Ember Route"));
     QCOMPARE(text(h.item("runsAdminTableCell_0_status")), QStringLiteral("Active"));
     QCOMPARE(text(h.item("runsAdminTableCell_0_people")), QStringLiteral("1 / 2"));
@@ -410,6 +411,55 @@ class AdminLibraryUiTest : public QObject {
     QTRY_COMPARE(text(h.item("runsAdminTableCell_0_status")), QStringLiteral("Finished"));
     QTRY_VERIFY(shown(h, "runsAdminArchive"));
     QVERIFY(!shown(h, "runsAdminPause"));
+  }
+
+  // Every admin run is already in the main list: no "More runs" heading and no table, and the admin actions of a main-list run
+  // sit in that run's own detail (selected run, then the open run view), once, not under a heading of their own.
+  void runsAdminActionsSitInTheRunsOwnDetail() {
+    FakeHub hub(QStringLiteral("a"));
+    adminHub(hub);
+    QJsonObject mine = hub.makeRun(QStringLiteral("Mine Run"), {hub.runsMe, QStringLiteral("u_lena")}, hub.runsMe, QJsonArray{});
+    const QString id = mine.value("run_id").toString();
+    hub.runs.insert(id, mine);
+    route(hub, "GET", "/runs", 200, js({{"runs", QJsonArray{QJsonObject{{"run", mine}, {"archived", false}}}}}));
+    route(hub, "GET", "/runs/" + id, 200, js({{"run", mine}, {"archived", false}, {"boards", QJsonArray{}}}));
+    Harness h;
+    start(h, hub);
+    QTRY_VERIFY(h.controller->admin()->available());
+    h.controller->showRuns();
+    QTRY_VERIFY(shown(h, "runTableRow_0"));
+    QTRY_VERIFY(calls(hub, "GET", "/runs") >= 1);
+    QTest::qWait(300);
+    // Nothing to list beyond the main list: no heading, no table, no admin block under it.
+    QVERIFY(!shown(h, "runsAdminHeading"));
+    QVERIFY(!shown(h, "runsAdminTableRow_0"));
+    QVERIFY(h.item("runsAdminPanel") == nullptr || h.item("runsAdminPanel")->height() < 1);   // the "More runs" part takes no room
+    // Selecting the run in the list: its admin actions appear in the run's own detail, exactly once.
+    QVERIFY(h.clickWhenReady("runTableRow_0"));
+    QTRY_VERIFY(shown(h, "runSelectedDetail"));
+    QTRY_VERIFY(shown(h, "runsAdminStart"));
+    int visibleStart = 0;
+    for (QQuickItem* it : h.items("runsAdminStart")) if (it->isVisible() && it->window() == h.window) ++visibleStart;
+    QCOMPARE(visibleStart, 1);
+    QVERIFY(shown(h, "runSelectedAdmin"));
+    QVERIFY(!shown(h, "runDetailAdmin"));
+    QVERIFY(!shown(h, "runsAdminHeading"));
+    // The block sits inside the selected run's detail, below Open run.
+    QQuickItem* detail = h.item("runSelectedDetail");
+    QQuickItem* admin = h.item("runSelectedAdmin");
+    QVERIFY(detail != nullptr && admin != nullptr);
+    QVERIFY(admin->mapToItem(detail, QPointF(0, 0)).y() >= h.item("runOpen")->mapToItem(detail, QPointF(0, 0)).y());
+    QTest::qWait(0);
+    // The open run view carries them too, and still no "More runs".
+    QVERIFY(h.clickWhenReady("runOpen"));
+    QTRY_VERIFY(shown(h, "runDetailAdmin"));
+    QTRY_VERIFY(shown(h, "runsAdminStart"));
+    QVERIFY(!shown(h, "runSelectedAdmin"));
+    QVERIFY(!shown(h, "runsAdminHeading"));
+    QVERIFY(shown(h, "runsAdminFinish"));
+    QVERIFY(shown(h, "runsAdminExport"));
+    // The invited person (Lena) can be managed from there.
+    QTRY_VERIFY(shown(h, "runsAdminPersonResend_u_lena"));
   }
 
   void whatsNewIsShownOncePerVersionAndHidesServerItemsFromMembers() {

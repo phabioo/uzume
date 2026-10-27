@@ -122,7 +122,10 @@ const char* kSheet = R"({
      "confirm":{"title":"Reset the run?","text":"This clears all routes.","confirm_label":"Reset run"}},
     {"type":"button","id":"btnDanger","label":"Delete","variant":"danger","action":"delete",
      "confirm":{"title":"Delete the run?","text":"This cannot be undone.","danger":true}},
-    {"type":"button","label":"Later","variant":"quiet","action":"later"}]},
+    {"type":"button","label":"Later","variant":"quiet","action":"later"},
+    {"type":"button","id":"btnOff","label":"Off","action":"off","disabled":true},
+    {"type":"button","id":"btnOffConfirm","label":"OffC","action":"offc","disabled":true,
+     "confirm":{"title":"Never","text":"Never shown."}}]},
   {"type":"toggle","id":"tg","label":"Show HUD","checked":false,"action":"tg"},
   {"type":"select","id":"sel","options":[{"value":"a","label":"Alpha"},{"value":"b","label":"Beta"}],"selected":"b","action":"sel"},
   {"type":"segmented","id":"seg","options":[{"value":"x","label":"One"},{"value":"y","label":"Two"}],"selected":"x","action":"seg"},
@@ -391,6 +394,19 @@ class PluginBlocksUiTest : public QObject {
     QCOMPARE(spy.count(), 2);
   }
 
+  void disabledButtonSendsNothing() {
+    show(json(kSheet), true);
+    QSignalSpy spy(sheet_, SIGNAL(action(QString, QVariant)));
+    QVERIFY(spy.isValid());
+    clickItem(mustFind("plugin_btnOff"));
+    clickItem(mustFind("plugin_btnOffConfirm"));
+    QTest::qWait(80);
+    QCOMPARE(spy.count(), 0);
+    QVERIFY(find("pluginConfirmOk") == nullptr || !find("pluginConfirmOk")->isVisible());
+    clickItem(mustFind("plugin_btnPlain"));  // an enabled one still works
+    QCOMPARE(spy.count(), 1);
+  }
+
   void togglesAndChoices() {
     show(json(kSheet), false);
     QSignalSpy spy(sheet_, SIGNAL(action(QString, QVariant)));
@@ -615,6 +631,66 @@ class PluginBlocksUiTest : public QObject {
     QCOMPARE(mustFind("pluginMapLoading")->isVisible(), true);
     QCOMPARE(textOf(mustFind("pluginMapLoading")->childItems().value(0)), QStringLiteral("Map not read yet"));
     shot(QStringLiteral("plugin-map-loading-dark"));
+  }
+  // Regression (live check 0.22): Start in the Splits screen replaced the whole tree (button flags, stat values, table rows
+  // or table -> empty) and the app died in QQuickGridLayoutBase::rearrange. The next state's tree is applied as fb.ui.set
+  // does, without waiting for the polish in between.
+  // Regression (live check 0.22, SIGSEGV when pressing Start in the Splits screen). Qt 6.4's QQuickGridLayoutBase::rearrange does
+  // not refresh its item list before it runs from QQuickLayout::geometryChange. A layout child that a Repeater destroyed after the
+  // layout was invalidated but before its polish is still in that list, and the next size change reads the freed item in
+  // QGridLayoutItem::stretchFactor. The plugin blocks are nested layouts sized by `anchors.fill` of a Loader, so their parent
+  // layout's rearrange resizes them synchronously, before they are polished. The test applies a new tree (new table rows,
+  // fewer or more children), lets the deferred deletes run and changes the width, with no polish in between.
+  void treeUpdatesNeverLeaveFreedItemsInALayout() {
+    auto tbl = [](int rows, int cols) {
+      QVariantList cells;
+      for (int i = 0; i < rows; ++i) {
+        QVariantList row;
+        for (int c = 0; c < cols; ++c) row << QStringLiteral("r%1c%2").arg(i).arg(c);
+        cells << QVariantMap{{"cells", row}};
+      }
+      QVariantList heads;
+      for (int c = 0; c < cols; ++c) heads << QStringLiteral("H%1").arg(c);
+      return QVariant(QVariantMap{{"type", "table"}, {"id", "t"}, {"columns", heads}, {"rows", cells}});
+    };
+    auto lst = [](int rows) {
+      QVariantList r;
+      for (int i = 0; i < rows; ++i) r << QVariantMap{{"id", QString::number(i)}, {"title", QStringLiteral("Row %1").arg(i)}, {"meta", "m"}};
+      return QVariant(QVariantMap{{"type", "list"}, {"id", "l"}, {"rows", r}});
+    };
+    auto btn = [](int i, bool off) {
+      QVariantMap b{{"type", "button"}, {"label", QStringLiteral("B%1").arg(i)}, {"action", "a"}};
+      if (off) b["disabled"] = true;
+      return QVariant(b);
+    };
+    auto grid = [&](int n, int flip) {
+      QVariantList kids;
+      for (int i = 0; i < n; ++i) kids << btn(i, (i + flip) % 2 == 0);
+      return QVariant(QVariantMap{{"type", "grid"}, {"gap", 8}, {"columns", 3}, {"children", kids}});
+    };
+    auto tree = [&](int step) {
+      const int rows = 1 + (step * 3) % 6;
+      QVariantList kids{grid(2 + step % 4, step), tbl(rows, 3 + step % 3), lst(step % 5), tbl(step % 2 ? 0 : 2, 6)};
+      return QVariant(QVariantMap{{"type", "column"}, {"gap", 16}, {"children", kids}});
+    };
+    show(tree(0), true);
+    for (int step = 1; step <= 60; ++step) {
+      page_->setProperty("tree", tree(step));
+      QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);   // the freed delegates, before any polish
+      page_->setWidth(page_->width() + ((step % 2) ? 9 : -9));
+      if (step % 10 == 0) settle();
+    }
+    settle();
+    QVERIFY(find("plugin_t") != nullptr);
+    // The pool keeps surplus rows hidden, not alive and visible: only the current rows show.
+    page_->setProperty("tree", QVariantMap{{"type", "column"}, {"children", QVariantList{tbl(2, 3)}}});
+    settle();
+    int shown = 0;
+    for (int i = 0; i < 10; ++i) {
+      QQuickItem* r = find(QStringLiteral("pluginTableRow_%1").arg(i).toLatin1().constData());
+      if (r != nullptr && r->isVisible()) ++shown;
+    }
+    QCOMPARE(shown, 2);
   }
 };
 

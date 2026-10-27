@@ -79,10 +79,11 @@ Item {
         id: columnC
         ColumnLayout {
             spacing: Theme.gapPx(root.node.gap)
-            Repeater {
-                model: root.kids.length
+            PluginPool {
+                count: root.kids.length
                 delegate: PluginChild {
                     required property int index
+                    visible: index < root.kids.length   // pooled: surplus delegates are hidden, never destroyed (PluginPool)
                     readonly property var kid: root.kids[index] || ({})
                     node: kid
                     dark: root.dark
@@ -117,10 +118,11 @@ Item {
             }
             Component.onCompleted: countFillers()
             Connections { target: root; function onKidsChanged() { rowLayout.countFillers() } }
-            Repeater {
-                model: root.kids.length
+            PluginPool {
+                count: root.kids.length
                 delegate: PluginChild {
                     required property int index
+                    visible: index < root.kids.length   // pooled: surplus delegates are hidden, never destroyed (PluginPool)
                     readonly property var kid: root.kids[index] || ({})
                     // an image with a label gives way as well: its label elides
                     readonly property bool giveWay: root.shrinks(kid.type) || (kid.type === "image" && !!kid.label)
@@ -150,10 +152,11 @@ Item {
             columns: Math.max(1, Math.min(6, root.node.columns || 1))
             columnSpacing: Theme.gapPx(root.node.gap)
             rowSpacing: Theme.gapPx(root.node.gap)
-            Repeater {
-                model: root.kids.length
+            PluginPool {
+                count: root.kids.length
                 delegate: PluginChild {
                     required property int index
+                    visible: index < root.kids.length   // pooled: surplus delegates are hidden, never destroyed (PluginPool)
                     readonly property var kid: root.kids[index] || ({})
                     node: kid
                     dark: root.dark
@@ -218,11 +221,11 @@ Item {
                 spacing: Theme.space05
                 Repeater {
                     id: tabRepeater
-                    model: root.node.tabs || []
+                    model: (root.node.tabs || []).length   // a count, so an unchanged tab strip keeps its delegates (and the focus on a tab)
                     delegate: PluginFocusable {
                         id: tab
-                        required property var modelData
                         required property int index
+                        readonly property var modelData: (root.node.tabs || [])[index]
                         objectName: "pluginTab_" + (index + 1)
                         readonly property bool active: tabs.sel === index + 1
                         dark: root.dark
@@ -295,10 +298,11 @@ Item {
                 id: inner
                 width: flick.width
                 spacing: Theme.space1
-                Repeater {
-                    model: root.kids.length
+                PluginPool {
+                    count: root.kids.length
                     delegate: PluginChild {
                         required property int index
+                        visible: index < root.kids.length   // pooled: surplus delegates are hidden, never destroyed (PluginPool)
                         readonly property var kid: root.kids[index] || ({})
                         node: kid
                         dark: root.dark
@@ -369,10 +373,11 @@ Item {
                         color: Theme.tok("accentText", root.dark)
                     }
                 }
-                Repeater {
-                    model: root.kids.length
+                PluginPool {
+                    count: root.kids.length
                     delegate: PluginChild {
                         required property int index
+                        visible: index < root.kids.length   // pooled: surplus delegates are hidden, never destroyed (PluginPool)
                         readonly property var kid: root.kids[index] || ({})
                         node: kid
                         dark: root.dark
@@ -419,10 +424,11 @@ Item {
                     }
                 }
             }
-            Repeater {
-                model: root.kids.length
+            PluginPool {
+                count: root.kids.length
                 delegate: PluginChild {
                     required property int index
+                    visible: index < root.kids.length   // pooled: surplus delegates are hidden, never destroyed (PluginPool)
                     readonly property var kid: root.kids[index] || ({})
                     node: kid
                     dark: root.dark
@@ -494,10 +500,11 @@ Item {
                         }
                     }
                 }
-                Repeater {
-                    model: root.kids.length
+                PluginPool {
+                    count: root.kids.length
                     delegate: PluginChild {
                         required property int index
+                        visible: index < root.kids.length   // pooled: surplus delegates are hidden, never destroyed (PluginPool)
                         readonly property var kid: root.kids[index] || ({})
                         node: kid
                         dark: root.dark

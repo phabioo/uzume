@@ -210,6 +210,7 @@ qt_add_qml_module(uzume_ui
     PluginTable.qml
     PluginMapView.qml
     PluginChild.qml
+    PluginPool.qml
     PluginBlock.qml
     PluginDetailSection.qml
     PluginDetailSheet.qml

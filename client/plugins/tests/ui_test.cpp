@@ -245,6 +245,11 @@ class UiTest : public QObject {
     bad("{type='list', rows={ {title='a', bogus=1} }}", "rows[1].bogus: unknown property");
     bad("{type='list', rows={ {sub='a'} }}", "rows[1]: missing required property \"title\"");
     bad("{type='button', label='x'}", "missing required property \"action\"");
+    bad("{type='button', label='x', action='a', disabled='yes'}", "disabled: expected true or false");
+    bad("{type='textfield', action='a', disabled=1}", "disabled: expected true or false");
+    QVERIFY(conv("{type='button', label='x', action='a', disabled=true}").tree.value("disabled").toBool());
+    QVERIFY(conv("{type='select', options={{value=1,label='A'}}, action='a', disabled=true}").ok);
+    QVERIFY(conv("{type='textarea', value='', disabled=true}").ok);
     bad("{type='button', label='x', action='a', confirm={title='t'}}", "confirm: missing required property \"text\"");
     bad("{type='map', routes={ {id='r', x=1} }}", "routes[1]: missing required property \"y\"");
     bad("{type='map', players={ {id='p', initial='A', color=0, x=1, y=1} }}", "players[1].color");

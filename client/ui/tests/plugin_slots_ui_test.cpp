@@ -860,6 +860,37 @@ class PluginSlotsUiTest : public QObject {
     QCOMPARE(h_.item("pluginScreenSheetTitle")->property("text").toString(), QStringLiteral("Run  ·  SoulLink"));
     shot(QStringLiteral("slots-in-game-screen-sheet"));
 
+    // Keyboard: the sheet is a focus scope. It takes the focus on "Back to game", Tab walks through the controls of the sheet
+    // and never onto the covered GameView (which would eat the key) or the panel; Shift+Tab goes back.
+    QQuickItem* backBtn = h_.item("pluginScreenBack");
+    QQuickItem* goBtn = h_.item("plugin_btnRun");
+    QVERIFY(backBtn != nullptr && goBtn != nullptr);
+    QTRY_VERIFY(backBtn->hasActiveFocus());
+    QVERIFY(!h_.item("gameView")->hasActiveFocus());
+    QVERIFY(!h_.item("playArea")->isEnabled());   // nothing under the sheet is in the tab chain
+    bool reached = false;
+    for (int i = 0; i < 8 && !reached; ++i) {
+      QTest::keyClick(h_.window, Qt::Key_Tab);
+      QTest::qWait(30);
+      QVERIFY(!h_.item("gameView")->hasActiveFocus());
+      reached = goBtn->isAncestorOf(h_.window->activeFocusItem());   // the UzButton inside the block
+    }
+    QVERIFY2(reached, "Tab never reached the button of the plugin screen");
+    QTest::keyClick(h_.window, Qt::Key_Tab, Qt::ShiftModifier);   // back out of the button
+    QTest::keyClick(h_.window, Qt::Key_Tab, Qt::ShiftModifier);
+    QTest::qWait(30);
+    QVERIFY(!h_.item("gameView")->hasActiveFocus());
+    QVERIFY(!goBtn->isAncestorOf(h_.window->activeFocusItem()));
+    // Space on the focused Back button closes the sheet, and the focus returns to the game.
+    backBtn->forceActiveFocus();
+    QTest::keyClick(h_.window, Qt::Key_Space);
+    QTRY_VERIFY(!h_.item("pluginScreenSheet")->isVisible());
+    QTRY_VERIFY(h_.item("gameView")->hasActiveFocus());
+    QVERIFY(h_.item("playArea")->isEnabled());
+    emit pc()->openRequested(QStringLiteral("net.test.a"), QStringLiteral("screen"));
+    QTRY_VERIFY(h_.item("pluginScreenSheet")->isVisible());
+    QTRY_VERIFY(h_.item("pluginScreenBack")->hasActiveFocus());
+
     // Actions in the sheet reach the plugin with slot "screen".
     QSignalSpy sent(pc(), &PluginsController::actionSent);
     QVERIFY(h_.click("plugin_btnRun"));

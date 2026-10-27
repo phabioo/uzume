@@ -8,7 +8,9 @@ import Uzume.App
 // underneath. Top bar: "← Back to game", plugin icon, screen title and plugin name, key hint Esc; below it the plugin's
 // "screen" tree (max 1100 wide; centered, scrolling vertically). With `width = "dialog"` on its root column the sheet is a 560 px dialog,
 // centered over the scrim, and the game stays visible around it. Esc and Back emit closeRequested().
-Rectangle {
+// The sheet is a focus scope: opening it moves the focus to "Back to game" and Tab / Shift+Tab walk through its own controls (Back,
+// the tabs and buttons of the screen); the host keeps what the sheet covers out of the tab chain while it is open.
+FocusScope {
     id: root
     objectName: "pluginScreenSheet"
     required property PlayerController player
@@ -29,13 +31,14 @@ Rectangle {
     readonly property bool asDialog: root.tree.width === "dialog"
     signal closeRequested()
 
-    color: root.asDialog ? Theme.scrim : Theme.ground
     visible: open
-    focus: open
     clip: true
 
     function refresh() { root.tree = root.pluginId !== "" ? root.player.plugins.slotTree(root.pluginId, "screen") : ({}) }
-    onPluginIdChanged: { refresh(); if (pluginId !== "") forceActiveFocus() }
+    // The focus goes to "Back to game" (first stop of the sheet); Esc still reaches the sheet's key handler from there.
+    // The sheet takes it at once (Esc works right away), the button once the tree is built.
+    function takeFocus() { backButton.forceActiveFocus() }
+    onPluginIdChanged: { refresh(); if (pluginId !== "") { root.forceActiveFocus(); Qt.callLater(root.takeFocus) } }
     Component.onCompleted: refresh()
     Connections {
         target: root.player.plugins
@@ -48,6 +51,8 @@ Rectangle {
     }
 
     Keys.onEscapePressed: (e) => { e.accepted = true; if (!e.isAutoRepeat) root.closeRequested() }
+
+    Rectangle { anchors.fill: parent; color: root.asDialog ? Theme.scrim : Theme.ground }
 
     // The sheet is opaque to the play area below
     MouseArea { anchors.fill: parent; acceptedButtons: Qt.AllButtons; onWheel: (w) => w.accepted = true }
@@ -81,6 +86,7 @@ Rectangle {
                 anchors.rightMargin: Theme.space2
                 spacing: Theme.space15
                 UzButton {
+                    id: backButton
                     objectName: "pluginScreenBack"
                     kind: "ghost"
                     size: "sm"
@@ -160,17 +166,7 @@ Rectangle {
                 y: Theme.space3
                 spacing: Theme.space2
 
-                // Plugin content is marked: Mono "DRAWN BY <PLUGIN>" over a rule.
-                RowLayout {
-                    objectName: "pluginDrawnBy"
-                    Layout.fillWidth: true
-                    spacing: Theme.space15
-                    UzSectionLabel {
-                        Layout.maximumWidth: content.width * 0.7
-                        text: qsTr("Drawn by %1").arg(root.entry.name || root.pluginId)
-                    }
-                    Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Theme.rule2 }
-                }
+                // No "Drawn by" line here: the header above already names the plugin (and its origin).
                 PluginBlock {
                     id: block
                     objectName: "pluginScreenSheetBlock"

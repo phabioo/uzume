@@ -413,7 +413,12 @@ void PluginsController::rebuildHubPlugins() {
         if (c.manifest.id != best->id) continue;
         if (installedVersion.isEmpty() || compareVersionText(c.manifest.version.toString(), installedVersion) > 0) installedVersion = c.manifest.version.toString();
       }
-      if (!manager_->hubCopyDir(best->id, best->version, best->sha256).isEmpty()) state = QStringLiteral("installed");
+      // A plugin installed another way (a file) or linked from a folder on this PC counts as installed: it is not offered
+      // again under "Available on the server". A newer server version of an installed copy shows as an update; a linked
+      // developer folder is never replaced by a server copy, so it stays "installed".
+      const std::optional<plugins::PluginInfo> local = manager_->info(best->id);
+      if (installedVersion.isEmpty() && local.has_value()) installedVersion = local->manifest.version.toString();
+      if (!manager_->hubCopyDir(best->id, best->version, best->sha256).isEmpty() || (local.has_value() && local->devLinked)) state = QStringLiteral("installed");
       else if (!installedVersion.isEmpty()) state = QStringLiteral("update");
       if (hubBusyId_ == best->id) state = QStringLiteral("busy");
       // Required plugins that are not installed yet and that the Hub offers: "Also install SoulLink Core 0.3.1".

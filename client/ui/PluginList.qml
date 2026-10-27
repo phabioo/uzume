@@ -12,12 +12,14 @@ ColumnLayout {
 
     Layout.minimumWidth: 0
     spacing: 0
-    Repeater {
-        model: root.node.rows || []
+    readonly property var rowList: node.rows || []
+    PluginPool {
+        count: root.rowList.length
         delegate: PluginFocusable {
             id: row
-            required property var modelData
             required property int index
+            readonly property var modelData: root.rowList[index] || ({})
+            visible: index < root.rowList.length   // pooled (PluginPool)
             objectName: "pluginListRow_" + index
             readonly property bool clickable: !!modelData.action
             readonly property bool isSelected: modelData.id !== undefined && String(modelData.id) === String(root.node.selected)

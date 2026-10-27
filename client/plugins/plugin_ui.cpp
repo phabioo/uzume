@@ -298,16 +298,17 @@ const QHash<QString, TypeSpec>& specs() {
              TypeSpec{false, {{"label", vStr(1, 100), true},
                       {"variant", vEnum(sl({"primary", "secondary", "quiet", "danger"}))},
                       {"action", vAction(), true},
+                      {"disabled", vBool()},
                       {"value", vAny()},
                       {"confirm", vObject({{"title", vStr(1, 100), true}, {"text", vStr(1, 300), true}, {"confirm_label", vStr(1, 40)}, {"danger", vBool()}})}}});
     m.insert(QStringLiteral("toggle"), TypeSpec{false, {{"label", shortStr}, {"accessible", shortStr}, {"checked", vBool()}, {"action", vAction(), true}, {"disabled", vBool()}, {"value", vAny()}}});
-    m.insert(QStringLiteral("select"), TypeSpec{false, {{"options", vOptions(1, 100), true}, {"selected", vScalar()}, {"action", vAction(), true}}});
+    m.insert(QStringLiteral("select"), TypeSpec{false, {{"options", vOptions(1, 100), true}, {"selected", vScalar()}, {"action", vAction(), true}, {"disabled", vBool()}}});
     m.insert(QStringLiteral("segmented"), TypeSpec{false, {{"options", vOptions(2, 3), true}, {"selected", vScalar()}, {"action", vAction(), true}}});
-    m.insert(QStringLiteral("textfield"), TypeSpec{false, {{"text", vStr()}, {"placeholder", shortStr}, {"error", shortStr}, {"action", vAction(), true}, {"live", vBool()}}});
+    m.insert(QStringLiteral("textfield"), TypeSpec{false, {{"text", vStr()}, {"placeholder", shortStr}, {"error", shortStr}, {"action", vAction(), true}, {"live", vBool()}, {"disabled", vBool()}}});
     // textarea (0.20): multi-line input; "change" fires (default action name "change") with {id, value} once typing pauses.
     m.insert(QStringLiteral("textarea"),
              TypeSpec{false, {{"value", vStr(0, kUiMaxTextareaBytes)}, {"lines", vInt(1, 40)}, {"mono", vBool()}, {"placeholder", shortStr}, {"error", shortStr},
-                              {"action", vAction()}}});  // action defaults to the block id; the value is the text
+                              {"action", vAction()}, {"disabled", vBool()}}});  // action defaults to the block id; the value is the text
     m.insert(QStringLiteral("empty"), TypeSpec{false, {{"title", shortStr, true}, {"text", vStr(0, 500)}, {"action_label", vStr(0, 60)}, {"action", vAction()}, {"tone", vTone()}}});
     m.insert(QStringLiteral("location"),
              TypeSpec{true, {{"title", shortStr, true}, {"sub", shortStr}, {"status", vEnum(sl({"open", "encounter", "caught", "missed", "none"}))}}});
