@@ -27,18 +27,11 @@ bool appliesLive(const QString& key) {
 bool isStatesKey(const QString& key) {
   return key == QLatin1String(EmulationController::kRunAheadKey) || key == QLatin1String(EmulationController::kRewindKey);
 }
-// "30 seconds · about 180 MB" for a system whose state size is known; "High memory" above half a GB.
-QList<emu::CoreOptionValue> withRewindEstimates(QList<emu::CoreOptionValue> vals, const QString& systemId) {
-  const qint64 stateBytes = StatesController::typicalStateBytes(systemId);
-  if (stateBytes <= 0) return vals;
-  for (emu::CoreOptionValue& v : vals) {
-    const int secs = v.value.toInt();
-    if (secs <= 0) continue;
-    const qint64 bytes = emu::RewindBuffer::estimateBytes(secs, 60.0, stateBytes);
-    v.label += QObject::tr(" · about %1").arg(LocalStorageController::formatBytes(bytes));
-    if (bytes > 512ll * 1024 * 1024) v.label += QObject::tr(" · High memory");
-  }
-  return vals;
+// "30 seconds · 180 MB" for a system whose state size is known. The buffer is capped (kRewindMaxBytes), so a length that does not fit is
+// left out and the longest one that fits is offered instead, with its real seconds and memory. "High memory" above half a GB.
+QString rewindSecondsLabel(int secs) {
+  if (secs >= 120 && secs % 60 == 0) return QObject::tr("%1 minutes").arg(secs / 60);
+  return QObject::tr("%1 seconds").arg(secs);
 }
 bool isTwoScreenKey(const QString& key) {
   return key == QLatin1String(EmulationController::kScreenLayoutKey) || key == QLatin1String(EmulationController::kScreenSwapKey) ||
@@ -72,6 +65,46 @@ QVariantList valuesToList(const QList<emu::CoreOptionValue>& values) {
   return out;
 }
 }  // namespace
+
+QList<emu::CoreOptionValue> EmulationController::rewindValues(QList<emu::CoreOptionValue> vals, const QString& systemId) {
+  const qint64 stateBytes = StatesController::typicalStateBytes(systemId);
+  if (stateBytes <= 0) return vals;
+  constexpr double kFps = 60.0;
+  const auto tagged = [](QString label, qint64 bytes) {
+    label += QObject::tr(" · %1").arg(LocalStorageController::formatBytes(bytes));
+    if (bytes > 512ll * 1024 * 1024) label += QObject::tr(" · High memory");
+    return label;
+  };
+  QList<emu::CoreOptionValue> out;
+  int longestFit = 0;
+  bool dropped = false;
+  for (emu::CoreOptionValue v : vals) {
+    const int secs = v.value.toInt();
+    if (secs <= 0) {
+      out.append(v);
+      continue;
+    }
+    const auto lim = emu::RewindBuffer::limitsFor(secs, kFps, stateBytes);
+    if (lim.first < emu::RewindBuffer::snapshotsFor(secs, kFps)) {  // the cap cuts it short: not offered as such
+      dropped = true;
+      continue;
+    }
+    longestFit = (std::max)(longestFit, secs);
+    v.label = tagged(v.label, emu::RewindBuffer::estimateBytes(secs, kFps, stateBytes));
+    out.append(v);
+  }
+  if (dropped) {  // the longest length the cap really allows
+    const int snaps = static_cast<int>(emu::kRewindMaxBytes / stateBytes);
+    const int capSecs = static_cast<int>(emu::RewindBuffer::secondsFor(snaps, kFps));
+    if (capSecs > longestFit) {
+      emu::CoreOptionValue m;
+      m.value = QString::number(capSecs);
+      m.label = tagged(rewindSecondsLabel(capSecs), static_cast<qint64>(snaps) * stateBytes);
+      out.append(m);
+    }
+  }
+  return out;
+}
 
 const QList<EmulationController::FbOption>& EmulationController::uzumeOptions() {
   static const QList<FbOption> opts = {
@@ -509,6 +542,31 @@ void EmulationController::setOption(const QString& key, const QString& value) {
   if (key == QLatin1String(kCoreKey)) emit coreChoiceChanged();
 }
 
+// A "uzume.*" option set from outside the Settings screens (the debug MCP tool settings_set): the same store and the same signal as the rows.
+// Scope: game (gameId) > system (systemId) > global. Rewind length takes any whole number of seconds (the list only offers the steps).
+// Returns "" or why not.
+QString EmulationController::setUzumeOption(const QString& key, const QString& value, const QString& systemId, const QString& gameId) {
+  const FbOption* opt = nullptr;
+  for (const FbOption& o : uzumeOptions())
+    if (o.key == key) opt = &o;
+  if (opt == nullptr) return QStringLiteral("unknown_key");
+  bool valid = std::any_of(opt->values.cbegin(), opt->values.cend(), [&](const emu::CoreOptionValue& v) { return v.value == value; });
+  if (!valid && key == QLatin1String(kRewindKey)) {
+    bool ok = false;
+    const int secs = value.toInt(&ok);
+    valid = ok && secs >= 0 && secs <= 600;
+  }
+  if (!valid) return QStringLiteral("invalid_value");
+  const Level level = !gameId.isEmpty() ? Level::Game : (!systemId.isEmpty() ? Level::System : Level::Global);
+  const QString scopeName = level == Level::Game ? gameId : (level == Level::System ? systemId : QString());
+  if (value == opt->defaultValue) settings_.removeValue(level, scopeName, key);
+  else settings_.setValue(level, scopeName, key, value);
+  emit uzumeOptionsChanged();
+  emit systemsChanged();
+  emitGamesChanged();
+  return {};
+}
+
 void EmulationController::resetOption(const QString& key) {
   if (selected_.isEmpty() || (level_ == QLatin1String("game") && selectedGame_.isEmpty())) return;
   settings_.removeValue(levelEnum(), scope(), key);
@@ -752,7 +810,7 @@ void EmulationController::rebuild() {
         if (isStatesKey(o.key) && !statesOptionOffered(manifests_, o.key, man)) continue;
         if (isRendererKey(o.key) && !offersRenderer(man)) continue;
         QList<emu::CoreOptionValue> vals = o.values;
-        if (o.key == QLatin1String(kRewindKey)) vals = withRewindEstimates(vals, selected_);
+        if (o.key == QLatin1String(kRewindKey)) vals = rewindValues(vals, selected_);
         if (isProfileKey(o.key)) vals = profileValues(o.key, settings_.resolve(o.key, selected_, gameLvl ? selectedGame_ : QString(), QString(), o.defaultValue).value);
         fb.append(row(o.key, o.label, o.description, o.category, vals, QString(), o.defaultValue, true));
       }
@@ -851,7 +909,7 @@ QVariantMap EmulationController::gameSettings(const QString& gameId) const {
   const auto uzumeRow = [&](const FbOption& o) {
     QList<emu::CoreOptionValue> vals = o.values;
     if (isProfileKey(o.key)) vals = profileValues(o.key, settings_.resolve(o.key, sys, gameId, QString(), o.defaultValue).value);
-    if (o.key == QLatin1String(kRewindKey)) vals = withRewindEstimates(vals, sys);
+    if (o.key == QLatin1String(kRewindKey)) vals = rewindValues(vals, sys);
     return makeRow(o.key, o.label, o.description, o.category, vals, QString(), o.defaultValue, !appliesLive(o.key) && !isStatesKey(o.key));
   };
 

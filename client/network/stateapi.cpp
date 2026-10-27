@@ -120,7 +120,9 @@ void StateApi::list(const QString& gameId, const QString& saveSlot, Callback cb)
 
 QByteArray StateApi::multipartBody(const QByteArray& boundary, const QString& coreId, const QString& coreVersion, const QByteArray& state,
                                    const QByteArray& previewPng) {
-  const QByteArray meta = QJsonDocument(QJsonObject{{QStringLiteral("core_id"), coreId}, {QStringLiteral("core_version"), coreVersion}})
+  const QByteArray meta = QJsonDocument(QJsonObject{{QStringLiteral("core_id"), coreId},
+                                                          // The server requires a version; a core from UZUME_*_CORE or the app folder has none.
+                                                          {QStringLiteral("core_version"), coreVersion.isEmpty() ? QStringLiteral("unknown") : coreVersion}})
                               .toJson(QJsonDocument::Compact);
   QByteArray b;
   const auto part = [&](const char* name, const char* type, const QByteArray& data, const char* file) {

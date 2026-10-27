@@ -25,6 +25,7 @@
 #include <functional>
 #include <memory>
 
+#include "envvar.h"
 #include "mcp_tools.h"
 #include "playercontroller.h"
 #include "runscontroller.h"
@@ -291,8 +292,27 @@ ToolResult refuse(const QString& tool, const Destructive& d) {
   // Logged by object name or type only: never texts.
   qWarning().noquote() << "mcp: refused" << tool << "needs_confirmation_in_app" << d.who;
   ToolResult r = ToolResult::error(QStringLiteral("needs_confirmation_in_app"));
-  r.addText(QStringLiteral("'%1' is a destructive control (%2). Ask the person to operate it in the app themselves.").arg(d.who, d.reason));
+  r.addText(QStringLiteral("'%1' is a destructive control (%2). Ask the person to operate it in the app themselves. Test runs only: start the app "
+                           "with UZUME_MCP_CONFIRM=1 and pass confirm: true.")
+                .arg(d.who, d.reason));
   return r;
+}
+
+// confirm: true lets a call operate a destructive-named control, but only in a test run: the app has to be started with
+// UZUME_MCP_CONFIRM=1, so the brake cannot be lifted by the caller alone.
+bool confirmed(const QJsonObject& a) {
+  return a.value(QStringLiteral("confirm")).toBool(false) && uzume::env::get("UZUME_MCP_CONFIRM") == QLatin1String("1");
+}
+
+// A plugin text block (plugin_ta_*, plugin_tf_*) is a wrapper: the keys must reach the text field inside it.
+QQuickItem* textInputInside(QQuickItem* it) {
+  if (it == nullptr || it->property("cursorPosition").isValid()) return it;
+  for (QQuickItem* c : it->childItems()) {
+    if (!c->isVisible()) continue;
+    if (c->property("cursorPosition").isValid() && c->property("text").isValid()) return c;
+    if (QQuickItem* r = textInputInside(c); r != nullptr && r->property("cursorPosition").isValid()) return r;
+  }
+  return it;
 }
 
 // ------------------------------------------------------------------------------------------------ describing items
@@ -741,7 +761,8 @@ void installUiTools(McpToolRegistry& registry, ui::PlayerController& player) {
                             {QStringLiteral("y"), typeAny(QStringLiteral("Window y (no target) or y inside the target."))},
                             {QStringLiteral("button"), typeStr(QStringLiteral("left (default) | right | middle."))},
                             {QStringLiteral("double"), typeBool(QStringLiteral("Double click."))},
-                            {QStringLiteral("window"), typeStr(QStringLiteral("Window for x,y: index, objectName or title part."))}});
+                            {QStringLiteral("window"), typeStr(QStringLiteral("Window for x,y: index, objectName or title part."))},
+                            {QStringLiteral("confirm"), typeBool(QStringLiteral("Test runs only (app started with UZUME_MCP_CONFIRM=1): operate a control the brake would refuse."))},});
     t.targetArg = QStringLiteral("target");
     t.handler = [pc](const QJsonObject& a, ToolReply reply) {
       bool okButton = true;
@@ -784,7 +805,7 @@ void installUiTools(McpToolRegistry& registry, ui::PlayerController& player) {
       for (QQuickItem* c : {item.data(), hit.top, hit.receiver}) {
         if (c == nullptr) continue;
         const Destructive d = destructiveOf(c);
-        if (d.hit) return reply(refuse(QStringLiteral("ui_click"), d));
+        if (d.hit && !confirmed(a)) return reply(refuse(QStringLiteral("ui_click"), d));
       }
       const bool dbl = a.value(QStringLiteral("double")).toBool(false);
       w->requestActivate();
@@ -821,7 +842,8 @@ void installUiTools(McpToolRegistry& registry, ui::PlayerController& player) {
                             {QStringLiteral("text"), typeStr(QStringLiteral("The text; a newline presses Return."))},
                             {QStringLiteral("clear"), typeBool(QStringLiteral("Select the old content first so it is replaced."))},
                             {QStringLiteral("submit"), typeBool(QStringLiteral("Press Return after the text."))},
-                            {QStringLiteral("window"), typeStr(QStringLiteral("Window: index, objectName or title part."))}},
+                            {QStringLiteral("window"), typeStr(QStringLiteral("Window: index, objectName or title part."))},
+                            {QStringLiteral("confirm"), typeBool(QStringLiteral("Test runs only (app started with UZUME_MCP_CONFIRM=1): operate a control the brake would refuse."))},},
                            {QStringLiteral("text")});
     t.targetArg = QStringLiteral("target");
     t.handler = [pc](const QJsonObject& a, ToolReply reply) {
@@ -838,6 +860,7 @@ void installUiTools(McpToolRegistry& registry, ui::PlayerController& player) {
         if (f.item == nullptr) return reply(ToolResult::error(f.error));
         item = f.item;
         if (!item->isVisible() || !item->isEnabled()) return reply(ToolResult::error(QStringLiteral("target_not_usable")));
+        if (item->objectName().startsWith(QLatin1String("plugin_"))) item = textInputInside(item);
         w = item->window();
       } else {
         w = only != nullptr ? only : pickWindow(QString(), &err);
@@ -849,7 +872,7 @@ void installUiTools(McpToolRegistry& registry, ui::PlayerController& player) {
       const bool submit = a.value(QStringLiteral("submit")).toBool(false);
       if (submit || text.contains(QLatin1Char('\n')) || text.contains(QLatin1Char('\r'))) {  // Return on a destructive control
         const Destructive d = destructiveOf(item);
-        if (d.hit) return reply(refuse(QStringLiteral("ui_type"), d));
+        if (d.hit && !confirmed(a)) return reply(refuse(QStringLiteral("ui_type"), d));
       }
       w->requestActivate();
       if (!target.isEmpty()) {
@@ -906,10 +929,12 @@ void installUiTools(McpToolRegistry& registry, ui::PlayerController& player) {
     t.description = QStringLiteral(
         "Presses one key or key combination as a real key event, for example Return, Escape, Space, Tab, Left, \"Ctrl+Shift+R\", \"Ctrl+,\". "
         "Shortcuts of the app fire as from the keyboard. With target, that item gets the focus first. Return, Enter and Space on a destructive "
-        "control are refused with isError \"needs_confirmation_in_app\".");
+        "control are refused with isError \"needs_confirmation_in_app\". hold_ms keeps the key down for that long (rewind).");
     t.inputSchema = schema({{QStringLiteral("key"), typeStr(QStringLiteral("Key name with optional Ctrl+, Shift+, Alt+, Meta+."))},
                             {QStringLiteral("target"), typeStr(QStringLiteral("objectName, path id or text of the item to focus first."))},
-                            {QStringLiteral("window"), typeStr(QStringLiteral("Window: index, objectName or title part."))}},
+                            {QStringLiteral("hold_ms"), typeAny(QStringLiteral("Hold the key down this long (1 to 10000 ms) before releasing it, e.g. the rewind key. Default: a tap."))},
+                            {QStringLiteral("window"), typeStr(QStringLiteral("Window: index, objectName or title part."))},
+                            {QStringLiteral("confirm"), typeBool(QStringLiteral("Test runs only (app started with UZUME_MCP_CONFIRM=1): operate a control the brake would refuse."))},},
                            {QStringLiteral("key")});
     t.targetArg = QStringLiteral("key");
     t.handler = [pc](const QJsonObject& a, ToolReply reply) {
@@ -936,15 +961,37 @@ void installUiTools(McpToolRegistry& registry, ui::PlayerController& player) {
       if (w == nullptr) return reply(ToolResult::error(QStringLiteral("no_window")));
       if (isActivationKey(key, mods) && item != nullptr) {
         const Destructive d = destructiveOf(item);
-        if (d.hit) return reply(refuse(QStringLiteral("ui_key"), d));
+        if (d.hit && !confirmed(a)) return reply(refuse(QStringLiteral("ui_key"), d));
       }
       if (!target.isEmpty()) {
         ensureVisible(item);
         if (item == nullptr) return reply(ToolResult::error(QStringLiteral("target_gone")));
         item->forceActiveFocus(Qt::OtherFocusReason);
       }
-      pressKey(w, key, mods, textForKey(key, mods));
       QPointer<QQuickWindow> wp(w);
+      const int holdMs = (std::min)(10000, a.value(QStringLiteral("hold_ms")).toInt(0));
+      if (holdMs > 0) {
+        const QString text = textForKey(key, mods);
+        w->requestActivate();
+        if (!qt_sendShortcutOverrideEvent(w, 0, key, mods, text, false, 1)) {
+          QKeyEvent press(QEvent::KeyPress, key, mods, text);
+          QCoreApplication::sendEvent(w, &press);
+        }
+        QTimer::singleShot(holdMs, qApp, [wp, key, mods, text, reply, pc, holdMs]() {
+          if (wp != nullptr) {
+            QKeyEvent release(QEvent::KeyRelease, key, mods, text);
+            QCoreApplication::sendEvent(wp.data(), &release);
+          }
+          settle([reply, wp, pc, holdMs]() {
+            QJsonObject o{{QStringLiteral("sent"), true}, {QStringLiteral("held_ms"), holdMs}};
+            if (wp != nullptr && wp->activeFocusItem() != nullptr) o.insert(QStringLiteral("focus"), brief(wp->activeFocusItem()));
+            if (pc) o.insert(QStringLiteral("screen"), pc->screen());
+            reply(ToolResult::json(o));
+          });
+        });
+        return;
+      }
+      pressKey(w, key, mods, textForKey(key, mods));
       settle([reply, wp, pc]() {
         QJsonObject o{{QStringLiteral("sent"), true}};
         if (wp != nullptr && wp->activeFocusItem() != nullptr) o.insert(QStringLiteral("focus"), brief(wp->activeFocusItem()));

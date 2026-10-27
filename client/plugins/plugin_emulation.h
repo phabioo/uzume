@@ -29,7 +29,7 @@ struct CheatApplyResult {
   QList<CheatReject> rejected;
 };
 struct CheatDatabaseResult {
-  // Becomes the second result of fb.cheats.database() after nil: "off" (the cheat database is off on the server), "offline",
+  // Becomes the second result of fb.cheats.database() after nil: "off" (the cheat database is off on the server), "unavailable" (it is on, but the server holds no lists yet: not loaded, or the update failed), "offline",
   // "not_found" (no such game on the server) or "error: <text>". While the first fetch is under way: "error: loading" (the app
   // event cheats.database follows).
   QString error;

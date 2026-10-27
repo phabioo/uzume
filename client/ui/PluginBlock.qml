@@ -133,7 +133,9 @@ Item {
                     // fillWidth + maximumWidth = natural width: never grows, but shrinks (a Layout item without fillWidth would not)
                     Layout.fillWidth: giveWay || yields
                     Layout.maximumWidth: yields || (rowLayout.hasInput && kid.type === "text") ? implicitWidth : Number.POSITIVE_INFINITY
+                    // a chip follows its text and only gives way beyond 160 px scaled (a badge may elide at once)
                     Layout.minimumWidth: kid.type === "text" ? Math.min(implicitWidth, Math.round(96 * Theme.textScale))
+                                         : kid.type === "chip" ? Math.min(implicitWidth, Math.round(160 * Theme.textScale))
                                          : giveWay || yields ? 0 : implicitWidth
                     Layout.fillHeight: root.node.align === "stretch"
                     Layout.alignment: root.alignFlag(false)
@@ -593,6 +595,7 @@ Item {
             Text {
                 textFormat: Text.PlainText  // plugin- and peer-supplied strings are never HTML
                 id: chipLabel
+                objectName: "pluginChipLabel"
                 anchors.centerIn: parent
                 width: Math.min(implicitWidth, Math.max(0, parent.width - 2 * Theme.space15))
                 elide: Text.ElideRight

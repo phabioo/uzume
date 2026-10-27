@@ -57,6 +57,18 @@ Long reads are bounded (memory 1 MiB per call, RomFS 4 MiB per call, logs 2000 l
 
 `runs_list` (runs of the connected server with core rules, plugins and people), `run_set_rules` (`PUT /runs/{id}/rules`, the whole object; creator or admin), `run_events` (event log from the app cache), `developer_mode`, `plugin_link` (link a development folder) and `file_dialog_pick` (answers an open `fb.ui.pick_file` request with a path, empty = cancel) let a debug session drive runs, rules and plugin file pickers without a mouse. `cheats_list` and `cheats_apply` now work in a game without the cheats plugin (the app service is there for every game, so the run rule and the live rule toast also work there). `store_get` of a plugin that is neither installed nor has data answers `plugin_not_found`. Nothing changes about the opt-in, the token or what plugins can do.
 
+#### Amendment (0.20 final live check, 2026-10-27): gaps closed
+
+| Tool or change | Use |
+|---|---|
+| `ui_key` `hold_ms` | holds the key down for 1 to 10000 ms before the release (rewind key, held hotkeys) |
+| `settings_set` | `key`, `value`, `system?`, `game_id?`: sets a `uzume.*` option of Settings › Emulation (rewind length takes any 0 to 600 s, run-ahead, ...) in the same store as the rows and applies it to the running game; errors `unknown_key`, `invalid_value` |
+| `confirm: true` on `ui_click`, `ui_type`, `ui_key` | operates a control the brake refuses, only when the app was started with `UZUME_MCP_CONFIRM=1` (test runs); without the variable the refusal stays |
+| `saves_history` | read only: slot, current checkpoint and versions of the game in the saves view (no restore) |
+| `toasts_list` | read only: the last toasts (states, plugins, app notices) with text and time |
+| `id` and `plugin_id` | every tool that takes a plugin accepts both names |
+| `ui_type` on `plugin_*` blocks | the keys go to the text field inside a plugin `textarea` / `textfield` block, not to the block |
+
 ## Consequences
 
 - The developer console of 0.22 can use the same data sources; the MCP server does not replace it.

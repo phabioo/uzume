@@ -181,6 +181,8 @@ void PluginEmulationService::onRulesChanged() {
   const Rules r = rulesNow();
   const bool cheatsOk = !r.inRun || r.rules.cheatsAllowed();
   const bool memOk = !r.inRun || r.rules.memoryWriteAllowed();
+  const bool wasAllowed = lastAllowed_;
+  const bool wasMemAllowed = lastMemAllowed_;
   lastRules_ = r.rules;
   if (!cheatsOk && (lastAllowed_ || cheatsOn() > 0)) {
     if (cheatsOn() > 0)
@@ -200,7 +202,9 @@ void PluginEmulationService::onRulesChanged() {
     QMutexLocker l(&mu_);
     pendingWrites_.clear();  // writes stop at once
   }
+  const bool changedRule = cheatsOk != wasAllowed || memOk != wasMemAllowed;
   lastMemAllowed_ = memOk;
+  if (changedRule) emit runRulesChanged();
 }
 
 // F25: somebody else allowed cheats (or memory changes) in the run while this game runs: say who, as an info notice.
@@ -412,7 +416,8 @@ void PluginEmulationService::finishConsent(Kind kind, bool allow) {
     pendingApply_.clear();
   }
   if (allow && had) applyInternal(plugin, list, false, true);
-  else if (!allow) postApp(QStringLiteral("cheats.blocked"), QVariantMap{{QStringLiteral("reason"), QStringLiteral("consent_denied")}});
+  if (allow) postApp(QStringLiteral("cheats.allowed"), QVariantMap());  // ends "Waiting for your answer" in the plugin
+  else postApp(QStringLiteral("cheats.blocked"), QVariantMap{{QStringLiteral("reason"), QStringLiteral("consent_denied")}});
 }
 
 // ------------------------------------------------------------------ memory writes
@@ -730,8 +735,13 @@ plugins::CheatDatabaseResult PluginEmulationService::cheatDatabase() {
   if (f.open(QIODevice::ReadOnly)) {
     const QJsonObject o = QJsonDocument::fromJson(f.readAll()).object();
     if (!o.isEmpty()) {
-      if (o.value(QStringLiteral("source")).toString() == QLatin1String("none")) {
+      const QString source = o.value(QStringLiteral("source")).toString();
+      if (source == QLatin1String("none")) {  // the admin turned the database off
         res.error = QStringLiteral("off");
+        return res;
+      }
+      if (source == QLatin1String("unavailable")) {  // on, but the server holds no lists yet (not loaded, or the update failed)
+        res.error = QStringLiteral("unavailable");
         return res;
       }
       res.data = o;
