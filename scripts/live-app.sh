@@ -45,8 +45,10 @@ summary() {
 cmd_down() {
   local f p
   if [ -d "$PIDS" ]; then
-    for f in $(ls -r "$PIDS" 2>/dev/null); do
-      p=$(cat "$PIDS/$f" 2>/dev/null) || continue
+    local files=("$PIDS"/*)
+    for ((i = ${#files[@]} - 1; i >= 0; i--)); do
+      f=${files[i]}
+      p=$(cat "$f" 2>/dev/null) || continue
       kill "$p" 2>/dev/null
       wait_for 5 bash -c "! kill -0 $p 2>/dev/null" || kill -9 "$p" 2>/dev/null
     done
@@ -81,7 +83,8 @@ cmd_up() {
     || { tail -n 15 "$STATE/logs/build.log"; die "server build failed"; }
 
   # --- server
-  local admin_pw="Adm-$(openssl rand -hex 8)"
+  local admin_pw
+  admin_pw="Adm-$(openssl rand -hex 8)"
   export UZUME_DATA_DIR="$STATE/server"
   printf '%s\n' "$admin_pw" | "$STATE/bin/uzume-server" setup-admin -username admin >"$STATE/logs/setup.log" 2>&1 \
     || { tail -n 15 "$STATE/logs/setup.log"; die "setup-admin failed"; }
@@ -95,7 +98,8 @@ cmd_up() {
   [ -n "$fp" ] || { cmd_down >/dev/null; die "could not read the certificate fingerprint"; }
 
   # --- seed through the admin API (helpers of the e2e scripts)
-  ADDR="$addr"; TMP="$STATE"
+  # ADDR and TMP are read by the sourced helpers.
+  export ADDR="$addr" TMP="$STATE"
   # shellcheck source=scripts/e2e-admin-api.sh
   . "$ROOT/scripts/e2e-admin-api.sh"
   admin_login "$admin_pw" || { cmd_down >/dev/null; die "admin sign-in failed (see $STATE/logs/server.log)"; }
