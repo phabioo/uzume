@@ -602,6 +602,12 @@ Rectangle {
                             onClicked: root.runs.playRun(detailCol.d.runId)
                         }
                         UzButton {
+                            objectName: "runReadyCheck"
+                            visible: root.player.together.available && root.player.together.scopeKind === "run" && root.player.together.scopeId === detailCol.d.runId
+                            text: qsTr("Ready check")
+                            onClicked: root.player.together.startCheck()
+                        }
+                        UzButton {
                             objectName: "runInvitePlayers"
                             visible: detailCol.d.canInvite === true
                             text: qsTr("Invite players")
@@ -724,6 +730,14 @@ Rectangle {
                         Layout.fillWidth: true
                         spacing: Theme.space3
                         PluginRunSection { Layout.fillWidth: true; player: root.player; statusOnly: true }
+                        TogetherCard {
+                            objectName: "boardReadyCheck"
+                            together: root.player.together
+                            inline: true
+                            Layout.fillWidth: true
+                            Layout.maximumWidth: 420
+                            visible: root.player.together.checkOpen && root.player.together.scopeId === detailCol.d.runId
+                        }
                         UzTable {
                             objectPrefix: "runBoard"
                             Layout.fillWidth: true

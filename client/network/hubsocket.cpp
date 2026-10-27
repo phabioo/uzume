@@ -1,5 +1,6 @@
 #include "hubsocket.h"
 
+#include <QDateTime>
 #include <QElapsedTimer>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -291,6 +292,17 @@ void HubSocket::sendPresence(const QString& state, const QString& gameId, const 
   queueOrSend(QStringLiteral("presence_update"), p);
 }
 
+void HubSocket::sendReadyCheckStart(const QString& scope, const QString& id) {
+  send(QStringLiteral("ready_check_start"), {{QStringLiteral("scope"), scope}, {QStringLiteral("id"), id}});
+}
+void HubSocket::sendReadyCheckAnswer(const QString& checkId, bool ready) {
+  send(QStringLiteral("ready_check_answer"), {{QStringLiteral("check_id"), checkId}, {QStringLiteral("ready"), ready}});
+}
+void HubSocket::sendReadyCheckCancel(const QString& checkId) { send(QStringLiteral("ready_check_cancel"), {{QStringLiteral("check_id"), checkId}}); }
+void HubSocket::sendPauseRequest(const QString& scope, const QString& id, bool paused) {
+  send(QStringLiteral("pause_request"), {{QStringLiteral("scope"), scope}, {QStringLiteral("id"), id}, {QStringLiteral("paused"), paused}});
+}
+
 void HubSocket::onTextMessage(const QString& text) {
   lastTrafficMs_ = nowMs();
   QJsonParseError pe;
@@ -348,6 +360,17 @@ void HubSocket::onTextMessage(const QString& text) {
     emit runStateReceived(p);
   } else if (type == QLatin1String("run_event")) {
     emit runEventReceived(p);
+  } else if (type == QLatin1String("ready_check")) {
+    ReadyCheckMessage m{str(p, "check_id"), str(p, "scope"), str(p, "id"), str(p, "by"), str(p, "status"), 0, {}};
+    const QDateTime when = QDateTime::fromString(str(p, "expires_at"), Qt::ISODate);
+    m.expiresAtMs = when.isValid() ? when.toMSecsSinceEpoch() : 0;
+    for (const QJsonValue& v : p.value(QStringLiteral("members")).toArray()) {
+      const QJsonObject o = v.toObject();
+      m.members.append({str(o, "user_id"), str(o, "state")});
+    }
+    emit readyCheckReceived(m);
+  } else if (type == QLatin1String("pause_state")) {
+    emit pauseStateReceived({str(p, "scope"), str(p, "id"), p.value(QStringLiteral("paused")).toBool(), str(p, "by")});
   } else if (type == QLatin1String("error")) {
     emit hubError(str(p, "code"), str(p, "message"));
   } else {

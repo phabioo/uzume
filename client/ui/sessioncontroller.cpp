@@ -691,7 +691,7 @@ SessionController::Remote* SessionController::remote(const QString& sessionId) c
 // ADR 0026 D3: viewers of the own Session learn whether the game is paused and by whom (the owner's display name).
 void SessionController::updateHostState() {
   if (!shared_) return;
-  host_.setHostState(game_->isPaused(), own_.owner.displayName);
+  host_.setHostState(game_->isPaused(), game_->isPaused() && !hostPauseBy_.isEmpty() ? hostPauseBy_ : own_.owner.displayName);
 }
 
 SessionViewer* SessionController::viewer(const QString& sessionId) {

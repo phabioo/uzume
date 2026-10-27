@@ -66,6 +66,7 @@
 #include "mcpcontroller.h"
 #include "discordpresence.h"
 #include "notificationcenter.h"
+#include "togethercontroller.h"
 
 namespace uzume::ui {
 
@@ -175,6 +176,7 @@ class PlayerController : public QObject {
   // [{userId, name, state, gameTitle, system, sessionId, sub, color, inviteKind}]; inviteKind "session" | "run" | "" decides the
   // "Invite" button. Empty without a server.
   Q_PROPERTY(uzume::ui::NotificationCenter* notifications READ notifications CONSTANT)
+  Q_PROPERTY(uzume::ui::TogetherController* together READ together CONSTANT)  // ready check and shared pause (ADR 0033 D3)
   Q_PROPERTY(QVariantList onlinePeople READ onlinePeople NOTIFY onlineChanged)
   Q_PROPERTY(uzume::ui::VariantsController* variants READ variants CONSTANT)  // game variants (0.21)
   // Play run of a randomized run that has to build the person's variant first (10f-3): {runId, runName, gameTitle, state: building |
@@ -266,6 +268,7 @@ class PlayerController : public QObject {
   PluginsController* plugins() { return plugins_.get(); }
   RunsController* runs() { return runs_.get(); }
   NotificationCenter* notifications() { return notifications_.get(); }
+  TogetherController* together() { return together_.get(); }
   QVariantList onlinePeople() const;
   Q_INVOKABLE void watchOnline(const QString& sessionId);   // "Watch" in the online list
   Q_INVOKABLE void inviteOnline(const QString& userId);     // "Invite": to my shared Session, else to my run
@@ -609,12 +612,14 @@ class PlayerController : public QObject {
   std::unique_ptr<StateApi> stateApi_;          // save states on the server (states_v1)
   std::unique_ptr<StatesController> states_;    // after session_, settings_, runClient_
   QString stateRunId_;                          // run the running game was started in ("" = none): its core rules apply to states
+  std::unique_ptr<TogetherController> together_;       // after sessions_, runClient_ and session_
   std::unique_ptr<NotificationCenter> notifications_;  // after runs_ and updates_ (connected to both)
   QString notifyHubId_;                                // the server the notifications belong to
   QSet<QString> notifiedRunInvites_;
   QSet<QString> notifiedProblems_;
   QString notifiedUpdate_;
   void wireNotifications();
+  void wireTogether();
   std::unique_ptr<ToolCache> toolCache_;
   std::unique_ptr<VariantCache> variantCache_;
   std::unique_ptr<ToolsClient> toolsClient_;

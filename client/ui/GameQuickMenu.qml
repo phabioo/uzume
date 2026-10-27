@@ -27,6 +27,8 @@ FocusScope {
     property bool fullscreen: false
     property bool quitting: false
     property var hotkeys: ({})
+    property bool togetherAvailable: false
+    property bool sharedPaused: false
     signal resumeRequested()
     signal quitRequested()
     signal chosen(string name, Item anchor)
@@ -43,7 +45,9 @@ FocusScope {
         ] },
         { title: qsTr("Together"), rows: [
             { name: "share", label: qsTr("Share…"), value: root.shareValue },
-            { name: "multiview", label: qsTr("Multiview") }
+            { name: "multiview", label: qsTr("Multiview") },
+            { name: "readyCheck", label: qsTr("Ready check…"), enabled: root.togetherAvailable },
+            { name: "sharedPause", label: root.sharedPaused ? qsTr("Resume for everyone") : qsTr("Pause for everyone"), key: "Shift+Esc", enabled: root.togetherAvailable }
         ] }
     ]
     readonly property var rightGroups: [

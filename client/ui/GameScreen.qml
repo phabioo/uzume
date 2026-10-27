@@ -19,6 +19,7 @@ Rectangle {
     required property PlayerController player
     readonly property GameSession session: player.gameSession
     readonly property SessionController ctl: player.sessions
+    readonly property TogetherController together: player.together
     readonly property DiagnosticsModel diag: ctl.diagnostics
     readonly property string tab: ctl.tab
     property Item multiLocal: null
@@ -154,6 +155,7 @@ Rectangle {
         if (hudLayer.closeMenu()) return   // a HUD or notice menu takes the Esc first, the game keeps running
         if (root.hotkeySheetPinned) { root.hotkeySheetPinned = false; return }
         if (root.closePopover()) return
+        if (root.together.holdActive) return   // paused for everyone: Resume (toast, menu) or Shift+Esc, not Esc
         if (root.session.active) root.session.togglePause()
     }
     // "⋯ › Hotkeys": the hold-Select sheet stays over the game until Esc or Close.
@@ -200,6 +202,8 @@ Rectangle {
         else if (name === "diagnostics") root.diag.toggle()
         else if (name === "share") { root.resumeGame(); panel.showSharing() }
         else if (name === "multiview") root.ctl.tab = "multiview"
+        else if (name === "readyCheck") { root.resumeGame(); root.together.startCheck() }
+        else if (name === "sharedPause") root.together.togglePause()
         else if (name === "hotkeys") { root.resumeGame(); root.hotkeySheetPinned = true }
         else if (name === "report") root.player.report.show()
     }
@@ -283,6 +287,15 @@ Rectangle {
         if (e.isAutoRepeat) return false
         if (root.player.plugins.triggerHotkeyKey(e.key, e.modifiers)) return true
         var mods = e.modifiers & (Qt.ControlModifier | Qt.ShiftModifier | Qt.AltModifier | Qt.MetaModifier)
+        // Together (ADR 0033 D3): Shift+Esc pauses or resumes for everyone; 1 / 2 answer an open ready check
+        if (e.key === Qt.Key_Escape && mods === Qt.ShiftModifier) {
+            if (root.together.available) root.together.togglePause()
+            return true
+        }
+        if (root.together.awaitsAnswer && mods === Qt.NoModifier && (e.key === Qt.Key_1 || e.key === Qt.Key_2)) {
+            root.together.answer(e.key === Qt.Key_1)
+            return true
+        }
         if (mods === Qt.AltModifier && e.key >= Qt.Key_1 && e.key <= Qt.Key_9) {
             if (!root.fullscreen) panel.openTabNumber(e.key - Qt.Key_0)
             return true
@@ -529,6 +542,17 @@ Rectangle {
                     onDetailsRequested: panel.openTab("console")
                 }
 
+                // Ready check (ADR 0033 D3): top centre of the stage, for every member
+                TogetherCard {
+                    objectName: "stageReadyCheck"
+                    together: root.together
+                    anchors.top: parent.top
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    anchors.topMargin: Theme.space3
+                    width: Math.min(implicitWidth, Math.max(0, playArea.width - 2 * Theme.space3))
+                    z: 14
+                }
+
                 // Hold-Select hotkey sheet (board 3g-10): while P1 holds the hotkey button alone for a moment, the combos of the
                 // current bindings are listed over the stage; releasing it, or pressing a button (the combo fires as usual), closes it.
                 Loader {
@@ -574,6 +598,26 @@ Rectangle {
                         maxToastWidth: toasts.maxToastWidth
                     }
                     Binding { target: root.player.notifications; property: "fullscreen"; value: root.fullscreen }
+
+                    // Together (ADR 0033 D3): "Lena paused for everyone" stays until it is resumed; the result of a ready check goes after 3 s
+                    UzToast {
+                        objectName: "sharedPauseToast"
+                        visible: root.together.paused
+                        width: Math.min(420, toasts.maxToastWidth)
+                        kind: "warning"
+                        closable: false
+                        text: root.together.pausedText
+                        action: qsTr("Resume")
+                        onActionTriggered: root.together.setPaused(false)
+                    }
+                    UzToast {
+                        objectName: "readyCheckToast"
+                        visible: root.together.notice !== ""
+                        width: Math.min(implicitWidth, toasts.maxToastWidth)
+                        kind: "done"
+                        closable: false
+                        text: root.together.notice
+                    }
 
                     // Volume by hotkey ("Show volume on screen"): one line that replaces itself and goes after 1.5 s
                     UzToast {
@@ -702,7 +746,10 @@ Rectangle {
                     fullscreen: root.fullscreen
                     quitting: root.player.quitting
                     hotkeys: root.hotkeyLabels
-                    Binding { target: quickMenu; property: "shown"; value: root.session.paused && (root.tab === "session" || root.fullscreen) }
+                    togetherAvailable: root.together.available
+                    sharedPaused: root.together.paused
+                    // A pause for everyone has no menu: the stage stays visible with its toast (Resume there, in ⋯, or Shift+Esc)
+                    Binding { target: quickMenu; property: "shown"; value: root.session.paused && !root.together.holdActive && (root.tab === "session" || root.fullscreen) }
                     onResumeRequested: root.resumeGame()
                     onQuitRequested: root.player.requestQuit()
                     onChosen: (name, anchor) => root.runQuick(name, anchor)

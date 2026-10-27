@@ -126,7 +126,7 @@ class McpToolsTest : public QObject {
                           "cheats_clear", "store_get", "store_put", "consent_set", "server_sign_in", "states_list", "states_save", "states_load",
                           "states_delete", "rewind", "runs_list", "run_set_rules", "run_events", "plugin_link", "developer_mode", "file_dialog_pick", "settings_set", "saves_history", "toasts_list",
                           "run_recap", "together_state", "notifications_act", "session_share",
-                          "session_stop_sharing"})
+                          "session_stop_sharing", "together_ready_check", "together_pause"})
       QVERIFY2(names.contains(QLatin1String(n)), n);
   }
 
@@ -250,6 +250,18 @@ class McpToolsTest : public QObject {
     QVERIFY(call("session_share", {{"visibility", "everyone"}}).isError);
     QVERIFY(call("session_share").isError);
     QVERIFY(!jsonOf(call("session_stop_sharing")).toObject().value("was_shared").toBool());
+  }
+
+  void togetherToolsNeedAScope() {
+    QCOMPARE(call("together_ready_check", {{"action", "start"}}).content.value(0).text, QStringLiteral("no_scope"));
+    QCOMPARE(call("together_ready_check", {{"action", "ready"}}).content.value(0).text, QStringLiteral("no_open_check"));
+    QVERIFY(call("together_ready_check", {{"action", "dance"}}).isError);
+    QCOMPARE(call("together_pause", {{"paused", true}}).content.value(0).text, QStringLiteral("no_scope"));
+    QVERIFY(call("together_pause").isError);
+    const QJsonObject st = jsonOf(call("together_state")).toObject();
+    QVERIFY(!st.value("scope").toObject().value("available").toBool());
+    QVERIFY(!st.value("ready_check").toObject().value("open").toBool());
+    QVERIFY(!st.value("pause").toObject().value("paused").toBool());
   }
 
   void serverSignInValidatesArguments() {
