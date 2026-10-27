@@ -21,7 +21,7 @@ endif()
 set_target_properties(uzume_lua PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 add_library(uzume_plugins STATIC manifest.cpp plugin_value.cpp lua_sandbox.cpp plugin_engine.cpp plugin_ui.cpp plugin_api.cpp
-  plugin_host.cpp plugin_manager.cpp fbplugin.cpp plugin_delivery.cpp run_bridge.cpp run_session_bridge.cpp plugin_language.cpp)
+  plugin_host.cpp plugin_manager.cpp fbplugin.cpp plugin_delivery.cpp run_bridge.cpp run_session_bridge.cpp plugin_language.cpp plugin_variants.cpp)
 target_include_directories(uzume_plugins PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_features(uzume_plugins PUBLIC cxx_std_20)
 target_link_libraries(uzume_plugins PUBLIC uzume_lua uzume_core uzume_formats Qt6::Core)
@@ -36,6 +36,7 @@ uzume_add_test(plugins_engine_budget tests/engine_budget_test.cpp LIBS uzume_plu
 uzume_add_test(plugins_ui tests/ui_test.cpp LIBS uzume_plugins)
 uzume_add_test(plugins_video tests/video_test.cpp LIBS uzume_plugins)
 uzume_add_test(plugins_language tests/language_test.cpp LIBS uzume_plugins)
+uzume_add_test(plugins_variants tests/variants_test.cpp LIBS uzume_plugins)
 
 # .fbplugin reading and signature, Hub delivery (against the fake Hub of network/tests).
 uzume_add_test(plugins_fbplugin tests/fbplugin_test.cpp LIBS uzume_plugins)

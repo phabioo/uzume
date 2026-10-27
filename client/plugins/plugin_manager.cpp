@@ -232,6 +232,10 @@ void PluginManager::computeDependencyProblems(QMap<QString, QStringList>& out) c
       const auto player = SemVer::parse(m_playerVersion);
       if (player && SemVer::compare(*player, *m.minPlayer) < 0) out[m.id] << QStringLiteral("Needs Player %1").arg(m.minPlayer->toString());
     }
+    // variants.build starts a program on this PC: signed official plugins only (ADR 0031 D5); a plugin linked from a developer folder
+    // may use it while Developer mode is on.
+    if (m.hasPermission(QStringLiteral("variants.build")) && it->info.origin != QLatin1String("official") && !(it->info.devLinked && m_devMode))
+      out[m.id] << QStringLiteral("permission variants.build needs a signed official plugin");
     for (const Dependency& d : m.dependencies) {
       auto dep = m_entries.constFind(d.id);
       if (dep == m_entries.constEnd() || !dep->valid) {
@@ -621,7 +625,9 @@ GameResolution PluginManager::resolveForRun(const QList<RunPluginPin>& pins) con
 }
 
 GameResolution PluginManager::resolveForShell() const {
-  return resolveWhere([](const Manifest& m) { return m.ui.screen || m.ui.detail; });
+  // A plugin with variants.build (Randomizer) runs in the shell too: it registers its presets and games there, and the game page and
+  // New run read them while no game is running.
+  return resolveWhere([](const Manifest& m) { return m.ui.screen || m.ui.detail || m.hasPermission(QStringLiteral("variants.build")); });
 }
 
 GameResolution PluginManager::resolveWhere(const std::function<bool(const Manifest&)>& wanted) const {

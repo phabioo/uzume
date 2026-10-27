@@ -313,6 +313,18 @@ QString ProfileStore::coreCacheDir() const {
   return dir;
 }
 
+QString ProfileStore::toolCacheDir() const {
+  const QString dir = QDir(baseDir_).filePath(QStringLiteral("cache/tools"));
+  QDir().mkpath(dir);
+  return dir;
+}
+
+QString ProfileStore::variantCacheDir() const {
+  const QString dir = QDir(baseDir_).filePath(QStringLiteral("cache/variants"));
+  QDir().mkpath(dir);
+  return dir;
+}
+
 QString ProfileStore::romCacheDir() const {
   const QString dir = QDir(baseDir_).filePath(QStringLiteral("cache/roms"));
   QDir().mkpath(dir);

@@ -180,6 +180,15 @@ class PluginsController : public QObject {
                    const QString& language = QString(), const RunLaunch& run = {});
   // The game ended or failed: stops all plugins.
   void gameStopped();
+
+  // Uzume 0.21 (fb.variants, permission variants.build): the app side of the game variants. Set once; the shell plugins restart so a
+  // plugin that registers its presets there sees it. launchContext = library id of the game about to start and the 3DS mod folder
+  // of a started variant (fb.variants.list, the fb.rom RomFS overlay); call it before gameStarted().
+  void setVariantsProvider(std::shared_ptr<plugins::VariantsProvider> provider);
+  void setLaunchContext(const QString& gameId, const QString& modDir) {
+    launchGameId_ = gameId;
+    launchModDir_ = modDir;
+  }
   bool pluginsRunning() const { return running_; }
 
   // Settings -> Plugins. Paths may be file:// URLs (file or folder dialog).
@@ -187,6 +196,8 @@ class PluginsController : public QObject {
   // A .fbplugin file or a plugin folder, whichever the path is. Signed (valid Uzume key) = Official, otherwise a local
   // plugin that needs Developer mode.
   Q_INVOKABLE void installFromPath(const QString& pathOrUrl);
+  // Same, but returns the result (debug MCP server).
+  plugins::InstallResult installFromPathResult(const QString& pathOrUrl);
   // Asks the Hub for its plugin list (no-op without plugins_v1).
   Q_INVOKABLE void refreshHubPlugins();
   // Downloads, checks (SHA-256 pin, zip rules, signature) and installs an offered version; it stays off until turned on.
@@ -323,6 +334,9 @@ class PluginsController : public QObject {
   QString hubBusyId_;
   QList<QPair<QString, QString>> installQueue_;  // (id, version) still to install after the current one
   std::shared_ptr<MemoryWatchAdapter> adapter_;
+  std::shared_ptr<plugins::VariantsProvider> variants_;  // fb.variants of every context (shell and game)
+  QString launchGameId_;
+  QString launchModDir_;
   std::shared_ptr<VideoCaptureAdapter> video_;  // fb.video of the running game; released on the GUI thread after host_->stop()
   QTimer consoleTimer_;
   bool running_ = false;                      // plugins of the running game are started

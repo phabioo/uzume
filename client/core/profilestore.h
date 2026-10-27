@@ -73,6 +73,8 @@ class ProfileStore {
   // Cross-hub, content-addressed ROM cache (created on demand).
   QString romCacheDir() const;
   QString coreCacheDir() const;  // <data>/cache/cores (downloaded core packages, never migrated)
+  QString toolCacheDir() const;     // <data>/cache/tools (tool packages of the server's catalog, e.g. the randomizer engine)
+  QString variantCacheDir() const;  // <data>/cache/variants (built game variants, core/variantcache.h)
 
   // The ID of this install of the app (device.json). The first account on a server uses it as its device ID; sent as
   // `install_id` so the server can group the device rows of one PC.
