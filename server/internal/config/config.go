@@ -48,6 +48,10 @@ type Config struct {
 	CoreBuildbotURL string
 	// CoreInfoURL is the libretro core info archive (info.zip), https only.
 	CoreInfoURL string
+	// CheatDBURL is the source of the cheat database (libretro-database archive zip), https only; "none" = off.
+	CheatDBURL string
+	// CheatDB3DSURL is the optional source of 3DS Gateway lists (zip of <TITLEID>.txt files), https only; "none" = off.
+	CheatDB3DSURL string
 	// CoreIndexURL is deprecated and ignored (the signed core index was retired by ADR 0020); a non-empty value
 	// only produces a log warning.
 	CoreIndexURL string
@@ -95,6 +99,8 @@ type Config struct {
 const (
 	DefaultCoreBuildbotURL = "https://buildbot.libretro.com/nightly"
 	DefaultCoreInfoURL     = "https://buildbot.libretro.com/assets/frontend/info.zip"
+	// DefaultCheatDBURL is the libretro-database repository as a zip (0.20, cheat database).
+	DefaultCheatDBURL = "https://github.com/libretro/libretro-database/archive/refs/heads/master.zip"
 )
 
 // DefaultSTUNServer is the STUN URL used when no external STUN server is configured.
@@ -291,6 +297,10 @@ func register(fs *flag.FlagSet, getenv func(string) string, goos string) *Config
 		}
 		return DefaultCoreInfoURL
 	}(), "URL of the libretro core info archive info.zip, https only (UZUME_SERVER_CORE_INFO_URL)")
+	fs.StringVar(&c.CheatDBURL, "cheat-db-url", env("CHEAT_DB_URL", DefaultCheatDBURL),
+		"source of the cheat database (libretro-database archive zip), https only, \"none\" = off (UZUME_CHEAT_DB_URL)")
+	fs.StringVar(&c.CheatDB3DSURL, "cheat-db-3ds-url", env("CHEAT_DB_3DS_URL", "none"),
+		"optional source of 3DS cheat lists (zip of <TITLEID>.txt files), https only, \"none\" = off (UZUME_CHEAT_DB_3DS_URL)")
 	fs.StringVar(&c.CoreIndexURL, "core-index-url", getenv("UZUME_SERVER_CORE_INDEX_URL"),
 		"deprecated and ignored: the signed core index was retired (ADR 0020), see -core-buildbot-url (UZUME_SERVER_CORE_INDEX_URL)")
 	c.CoreTrustKeys = splitCSV(getenv("UZUME_SERVER_CORE_TRUST_KEYS"))
@@ -444,6 +454,14 @@ func (c *Config) Validate() error {
 	for name, v := range map[string]string{"core-buildbot-url": c.CoreBuildbotURL, "core-info-url": c.CoreInfoURL} {
 		if u, err := url.Parse(v); err != nil || u.Scheme != "https" || u.Host == "" {
 			return fmt.Errorf("%s must be an https URL", name)
+		}
+	}
+	for name, v := range map[string]string{"cheat-db-url": c.CheatDBURL, "cheat-db-3ds-url": c.CheatDB3DSURL} {
+		if v == "none" || v == "" {
+			continue
+		}
+		if u, err := url.Parse(v); err != nil || u.Scheme != "https" || u.Host == "" {
+			return fmt.Errorf("%s must be an https URL or \"none\"", name)
 		}
 	}
 	if err := updates.ValidateIndexURL(c.UpdateIndexURL); err != nil {

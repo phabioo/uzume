@@ -33,6 +33,7 @@ Other commands:
 uzume-server setup-admin -username <name>     # password as a single line from stdin; refused if an admin already exists
 uzume-server renew-cert [-data-dir <dir>]     # renew the self-generated certificate now (refused with own cert/key; changes the security code)
 uzume-server import-cores <dir>               # import libretro buildbot core zips offline
+uzume-server import-cheats <zip>              # import a libretro-database archive as the cheat database offline (see "Cheat database")
 uzume-server import-plugins <dir>             # offer every *.fbplugin file of a folder to Players (offline, see "Plugins")
 uzume-server import-tools <zip>...            # add randomizer engine release zips to the tools catalog (offline, see "Tools")
 uzume-server import-data --from DIR [-data-dir DEST]  # copy the data folder of a stopped server (the app's "On this PC" server) into DEST (see "Windows")
@@ -120,6 +121,8 @@ A flag wins over the environment variable. Under systemd the variables live in `
 | `-save-keep-weekly` | `UZUME_SAVE_KEEP_WEEKLY` | `26` | Save history: weeks of which the newest version is kept |
 | `-core-buildbot-url` | `UZUME_SERVER_CORE_BUILDBOT_URL` | `https://buildbot.libretro.com/nightly` | Base URL of the libretro buildbot builds (https only) |
 | `-core-info-url` | `UZUME_SERVER_CORE_INFO_URL` | `https://buildbot.libretro.com/assets/frontend/info.zip` | libretro core info archive (https only) |
+| `-cheat-db-url` | `UZUME_CHEAT_DB_URL` | libretro-database archive on GitHub | Source of the cheat database (https only); `none` = off (see "Cheat database") |
+| `-cheat-db-3ds-url` | `UZUME_CHEAT_DB_3DS_URL` | `none` | Optional source of 3DS cheat lists: a zip with `<TITLEID>.txt` files (https only); see "Cheat database" |
 | `-core-index-url` | `UZUME_SERVER_CORE_INDEX_URL` | none | Deprecated and ignored since 0.8 (the signed core index was retired) |
 | `-core-trust-key` | `UZUME_SERVER_CORE_TRUST_KEYS` | none | Extra trusted Ed25519 public key (base64) for the updates index only (cores are not signed); flag repeatable, env comma-separated |
 | `-update-index-url` | `UZUME_SERVER_UPDATE_INDEX_URL` | Uzume's `updates-index` release | Signed updates index (https, or `file://` for tests) |
@@ -292,6 +295,16 @@ The server downloads cores RetroArch-style from the libretro buildbot (nightly c
 A catalog refresh in which the build index of one platform (for example `windows-x64`) fails still succeeds for the other platforms: that platform keeps its previous builds, the failure is shown as a warning on Systems & Cores and in the log, and automatic updates continue. Only when every platform fails is the refresh a failure.
 
 Details: [ADR 0020](../adr/0020-cores-from-the-libretro-buildbot.md).
+
+## Cheat database
+
+The server downloads the cheat lists of the libretro-database (`cht/` of the systems gb, gbc, gba and nds) and the No-Intro DATs it needs from `-cheat-db-url` (default `https://github.com/libretro/libretro-database/archive/refs/heads/master.zip`, a zip; https only) and serves them to apps and the cheats plugin (`GET /api/v1/games/{game_id}/cheats`). It fetches in the background, at start when nothing is stored or the lists are older than 7 days (retry after 6 hours on failure), and on `POST /api/v1/admin/cheat-db/refresh`; a failed download keeps the stored lists. The lists live in `<data-dir>/cheat-db/` (not part of backups). The admin changes the source with `PUT /api/v1/admin/cheat-db` (needs "Confirm it's you"); that setting wins over the flag. `none` stops the downloads; stored or imported lists are still served.
+
+3DS: libretro-database has no 3DS lists. The server serves Gateway lists per title ID from files `<TITLEID>.txt` (16 hex digits, any case; `[Cheat name]` header lines followed by code lines `XXXXXXXX YYYYYYYY`; `*citra_enabled` and other `*` lines are ignored, Citra/Azahar style). They come from a `3ds/` folder in an archive given to `import-cheats` (next to `cht/`) or from `-cheat-db-3ds-url`, a zip with such files anywhere in it (default `none`), which is refreshed together with the main source and changed with `url_3ds` in `PUT /api/v1/admin/cheat-db`. Every code of these lists is guessed as `gateway`.
+
+Offline: `uzume-server import-cheats <zip>` takes a libretro-database archive (with `cht/` and `metadat/no-intro/`, with or without the top folder) and replaces the stored lists; no restart is needed. The server needs HTTPS egress to the source host. Games match by the SHA-1/CRC32 of the stored ROM through the DAT, otherwise by file name or title; 3DS games by title ID only; a game without a list gets an empty answer.
+
+Plugin store: each person may keep up to 16 MiB and 1024 keys per plugin (values of up to 256 KiB); the limits are fixed. Rows are in the database (backups include them) and go with a removed user.
 
 ## Run export
 

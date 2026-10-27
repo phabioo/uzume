@@ -57,6 +57,7 @@ var moreCommands = []commandHelp{
 	{"rollback --list", "list earlier versions and what going back does; also: rollback <version> | --resume"},
 	{"renew-cert", "renew the self-generated TLS certificate now (changes the security code)"},
 	{"import-cores <dir>", "import libretro buildbot core zips from a folder (offline)"},
+	{"import-cheats <zip>", "import a libretro-database archive as the cheat database (offline)"},
 	{"import-plugins <dir>", "offer every *.fbplugin file of a folder to apps (offline)"},
 	{"import-tools <zip>...", "add randomizer engine release zips to the tools catalog (offline)"},
 	{"diagnostics <out.zip>", "write the diagnostics bundle (logs, configuration; no database access)"},

@@ -73,6 +73,11 @@ type Options struct {
 	// CoreHTTPClient fetches the core catalog, core zips and the updates index (injectable for tests); default:
 	// client with timeouts. Redirects are followed, https only.
 	CoreHTTPClient *http.Client
+	// CheatDBURL is the source of the cheat database (https zip of libretro-database; "none" = off; empty = DefaultCheatDBURL),
+	// fetched with CoreHTTPClient. The admin setting wins.
+	CheatDBURL string
+	// CheatDB3DSURL is the optional source of Gateway lists for the 3DS (zip of <TITLEID>.txt files; "none" or empty = off).
+	CheatDB3DSURL string
 	// UpdateIndexURL is the signed updates index (default updates.DefaultIndexURL; https or file://), fetched with
 	// CoreHTTPClient and verified with CoreTrustKeys.
 	UpdateIndexURL string
@@ -117,6 +122,8 @@ type Service struct {
 
 	saveMu   sync.Mutex // serializes save uploads/resolutions (and content cleanup)
 	stateMu  sync.Mutex // serializes save state writes (quota check, files, row)
+	cheat    cheatDBState
+	storeMu  sync.Mutex // serializes plugin store writes
 	saveKeep saveRetention
 	fwMu     sync.Mutex // serializes ProvideFirmware (file swap + metadata upsert)
 	sess     sessionState
@@ -181,6 +188,7 @@ func Open(ctx context.Context, db *sql.DB, o Options) (*Service, error) {
 	s.sess.init(o)
 	s.initPlay(o)
 	s.cores.init(o)
+	s.cheat.init(o)
 	s.initTools(o)
 	s.child = o.Child
 	s.initUpdates(o)

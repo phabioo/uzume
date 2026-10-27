@@ -136,6 +136,19 @@ func (m skipRomMux) HandleFunc(pattern string, h func(http.ResponseWriter, *http
 	if strings.Contains(pattern, "/api/v1/roms/") || pattern == "GET /api/v1/systems/{system_id}/firmware/{file_id}" || strings.HasSuffix(pattern, "/admin/backups/{name}/download") || strings.HasSuffix(pattern, " /api/v1/ws") {
 		return
 	}
+	if pattern == "GET /api/v1/plugins/{plugin_id}/{version}/file" {
+		// "GET /plugins/{plugin_id}/store/{key}" (plugin user store) would conflict with this pattern in the mux, because
+		// neither is more specific. With a wildcard for the last segment the store route is the more specific one; the
+		// file route answers 404 for anything but ".../file".
+		m.ServeMux.HandleFunc("GET /api/v1/plugins/{plugin_id}/{version}/{last}", func(w http.ResponseWriter, r *http.Request) {
+			if r.PathValue("last") != "file" {
+				writeError(w, http.StatusNotFound, hub.CodeNotFound, "Not found")
+				return
+			}
+			h(w, r)
+		})
+		return
+	}
 	m.ServeMux.HandleFunc(pattern, h)
 }
 
@@ -188,6 +201,7 @@ func (s *Server) authMiddleware(next api.StrictHandlerFunc, op string) api.Stric
 			"ListAdminPlugins", "StageAdminPlugin", "OfferAdminPlugin", "DiscardAdminPlugin", "RemoveAdminPlugin", "RefreshAdminPluginIndex", "InstallAdminIndexPlugin",
 			"CreateAdminDiagnosticsBundle", "DeleteAdminGame", "RenameAdminGame", "GetAdminLibraryRescan", "StartAdminLibraryRescan", "ListAdminRuns", "DeleteAdminRun", "GetAdminRun", "ArchiveAdminRun", "ExportAdminRun", "FinishAdminRun", "RemoveAdminRunInvite", "ResendAdminRunInvite", "PauseAdminRun", "ResendAdminRunInvites", "ResumeAdminRun", "StartAdminRun", "UnarchiveAdminRun", "ListAdminSaves", "RenewAdminCertificate", "GetAdminSettings", "UpdateAdminSettings", "DeleteAdminExternalTurn", "SaveAdminExternalTurn", "ResetAdminExternalTurn", "RestartAdminServer", "ResetAdminNetSetting", "SetAdminNetSetting", "CheckAdminUpdates", "InstallAdminUpdate", "DeleteAdminSaveSlot", "GetAdminSaveSlot", "ResolveAdminSaveConflict", "DownloadAdminSaveContent", "ListAdminSaveHistory", "DeleteAdminSaveVersion", "DownloadAdminSaveHistoryContent", "RestoreAdminSaveVersion", "RenameAdminSaveSlot", "CreateAdminSaveSlot", "CreateAdminSaveSnapshot", "UploadAdminSaveFile",
 			"ListSaveStates", "DownloadSaveState", "PutSaveState", "DeleteSaveState", "DownloadSaveStatePreview", "SetRunRules",
+			"ListPluginStore", "GetPluginStoreValue", "PutPluginStoreValue", "DeletePluginStoreValue", "GetGameCheats", "GetAdminCheatDb", "UpdateAdminCheatDb", "RefreshAdminCheatDb",
 			"UploadScreenshot", "ListScreenshots", "ListRunScreenshots", "DownloadScreenshotContent", "DeleteScreenshot",
 			"AddFavorite", "RemoveFavorite", "ListCollections", "CreateCollection", "RenameCollection", "DeleteCollection", "AddCollectionGame", "RemoveCollectionGame",
 			"ListTools", "GetToolPackage", "ListVariants", "ListGameVariants", "CreateVariant", "RenameVariant", "DeleteVariant", "GetRunVariant", "SetRunVariantState",
@@ -267,7 +281,7 @@ func httpStatus(c hub.Code) int {
 		return http.StatusNotFound
 	case hub.CodeSessionEnded, hub.CodeSetupCodeExpired:
 		return http.StatusGone
-	case hub.CodeRunNotActive, hub.CodeStateConflict:
+	case hub.CodeRunNotActive, hub.CodeStateConflict, hub.CodeStoreConflict:
 		return http.StatusConflict
 	case hub.CodeTooLarge:
 		return http.StatusRequestEntityTooLarge
@@ -276,7 +290,7 @@ func httpStatus(c hub.Code) int {
 		hub.CodeSessionFull, hub.CodeCapabilityMissing, hub.CodeDisplayNameTaken,
 		hub.CodeSaveSlotExists, hub.CodeSessionRunning, hub.CodeSaveSlotProtected, hub.CodePasswordNotSet, hub.CodeAlreadySetUp:
 		return http.StatusConflict
-	case hub.CodePayloadTooLarge, hub.CodeStateQuotaExceeded:
+	case hub.CodePayloadTooLarge, hub.CodeStateQuotaExceeded, hub.CodeStoreQuotaExceeded:
 		return http.StatusRequestEntityTooLarge
 	case hub.CodeRateLimited:
 		return http.StatusTooManyRequests

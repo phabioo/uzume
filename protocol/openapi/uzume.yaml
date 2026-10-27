@@ -1,9 +1,9 @@
 openapi: 3.0.3
 info:
   title: Uzume server API
-  version: 1.40.0
+  version: 1.41.0
   description: |
-    HTTPS/JSON API of the Uzume server (phase 1; phase 3 adds save sync under `saves`, advertised by the handshake feature `saves_v1`; phase 4 adds Session sharing under `sessions` and the WSS endpoint, advertised by the handshake feature `sessions_v1`; phase 5 adds invite redemption under `users` (`users_v1`), user ROM uploads (`uploads_v1`, only advertised when the caller may upload) and the systems registry with firmware download under `systems` (`firmware_v1`); 0.2 adds core packages served by the server under `cores` (`cores_v1`); 0.4 adds relay credentials for Sessions over the internet (`turn_v1`, `turn_servers` in `hello_ack` and the join response), save comfort (`saves_v2`: restore, manual snapshots, history labels, the `save_updated` WSS message) and the signed core index for app-side verification (`cores_index_v1`, `/api/v1/cores/index`, removed again in 0.8); 0.7 adds deleting manual snapshots (`saves_v3`) and the optional `user` in the handshake response; 0.8 adds uploading a save file from outside the sync flow (`saves_v4`, `POST /games/{game_id}/saves/{slot}/upload`); 0.8 also adds several cores per system from the libretro buildbot (`cores_v2`: `default_core_id` and `cores` in `SystemInfo`, core ids `^[a-z0-9][a-z0-9_-]{0,63}$`) and removes `cores_index_v1` and its endpoints `/api/v1/cores/index{,.sig}`); 0.9 adds the local setup endpoints under `local` for an app on the same PC as the server (`local_setup_v1`, loopback callers only); 0.10 adds the WSS message `ice_update` (`ice_update_v1`) so connected apps receive changed `ice_servers`/`turn_servers`, a default STUN list, and optional Cloudflare TURN next to the embedded TURN server; 0.10.x also adds renaming and deleting save slots and the upload lock during a Session (`saves_v5`); 0.15.x also adds deleting any history version and the main slot (`saves_v6`); 0.11 adds the plugin list and download under `plugins` (`plugins_v1`); 0.11 also adds runs under `runs` (`runs_v1`: run objects with per-participant, per-plugin state, an append-only event log and boards, the WSS messages `run_updated`, `run_state` and `run_event`, and the optional `runs` list in `hello` for catch-up); 0.12 adds local ROMs (`local_roms_v1`: games that exist only on app devices, `POST /games/register`, `DELETE /games/{game_id}/registration`, resumable uploads under `uploads`, `stored`/`on_hub`/`roms` and `game_version` in the game objects, visibility of local-only games); 0.17 adds problem reports (`reports_v1`: `POST /reports` from any paired device, the admin list, files, zip archive, seen mark and delete under `/admin/reports`); 0.18 adds the admin API under `/admin/...` (`admin_v1`: users and invites, pairing requests and devices, systems, cores and firmware, plugins and the plugin index; only advertised to admins); 0.18 also adds server accounts (`accounts_v1`: sign in with user name and password under `auth`, the own account, password, "Confirm it's you" and devices under `account`, an admin password reset and the password policy under `admin`; dangerous admin steps answer 403 `confirmation_required` until the caller confirmed); 0.18 also adds a zip export of all saves of a user for the admin to download before removing the person (`exportAdminUserSaves`, read-only, no confirmation); 0.18 also adds the setup code (`setup_code_v1`: `POST /setup` trades the setup code that a server without an admin prints at start and on `uzume-server setup-code` for the first admin and a paired device, `setup_required` in the server info); 0.20 adds save states (`states_v1`: stored per user, game, save slot and state number under `/games/{game_id}/states`, with a per-user quota) and core run rules (`run_rules_v1`: `rules` on the run, `PUT /runs/{run_id}/rules`, the run event `rules.changed`, app-written core run events without a plugin, and the optional `cheats_used` marker on save uploads and history versions); 0.21 adds the tools catalog (`tools_v1`: `GET /tools`, tool zips with ETag under `/tools/{tool_id}/packages/{version}/{platform}`, the admin endpoints under `/admin/tools`), game variants (`variants_v1`: recipes under `/variants` and `/games/{game_id}/variants`) and runs with a randomizer recipe (`randomizer` in the run object and in `POST /runs`, `variant` in `POST /runs/{run_id}/join`, `GET /runs/{run_id}/variant`, `POST /runs/{run_id}/variant-state`, `variant_kind` and `variant_state` per participant). `protocol_version` is an integer (starting at 1),
+    HTTPS/JSON API of the Uzume server (phase 1; phase 3 adds save sync under `saves`, advertised by the handshake feature `saves_v1`; phase 4 adds Session sharing under `sessions` and the WSS endpoint, advertised by the handshake feature `sessions_v1`; phase 5 adds invite redemption under `users` (`users_v1`), user ROM uploads (`uploads_v1`, only advertised when the caller may upload) and the systems registry with firmware download under `systems` (`firmware_v1`); 0.2 adds core packages served by the server under `cores` (`cores_v1`); 0.4 adds relay credentials for Sessions over the internet (`turn_v1`, `turn_servers` in `hello_ack` and the join response), save comfort (`saves_v2`: restore, manual snapshots, history labels, the `save_updated` WSS message) and the signed core index for app-side verification (`cores_index_v1`, `/api/v1/cores/index`, removed again in 0.8); 0.7 adds deleting manual snapshots (`saves_v3`) and the optional `user` in the handshake response; 0.8 adds uploading a save file from outside the sync flow (`saves_v4`, `POST /games/{game_id}/saves/{slot}/upload`); 0.8 also adds several cores per system from the libretro buildbot (`cores_v2`: `default_core_id` and `cores` in `SystemInfo`, core ids `^[a-z0-9][a-z0-9_-]{0,63}$`) and removes `cores_index_v1` and its endpoints `/api/v1/cores/index{,.sig}`); 0.9 adds the local setup endpoints under `local` for an app on the same PC as the server (`local_setup_v1`, loopback callers only); 0.10 adds the WSS message `ice_update` (`ice_update_v1`) so connected apps receive changed `ice_servers`/`turn_servers`, a default STUN list, and optional Cloudflare TURN next to the embedded TURN server; 0.10.x also adds renaming and deleting save slots and the upload lock during a Session (`saves_v5`); 0.15.x also adds deleting any history version and the main slot (`saves_v6`); 0.11 adds the plugin list and download under `plugins` (`plugins_v1`); 0.11 also adds runs under `runs` (`runs_v1`: run objects with per-participant, per-plugin state, an append-only event log and boards, the WSS messages `run_updated`, `run_state` and `run_event`, and the optional `runs` list in `hello` for catch-up); 0.12 adds local ROMs (`local_roms_v1`: games that exist only on app devices, `POST /games/register`, `DELETE /games/{game_id}/registration`, resumable uploads under `uploads`, `stored`/`on_hub`/`roms` and `game_version` in the game objects, visibility of local-only games); 0.17 adds problem reports (`reports_v1`: `POST /reports` from any paired device, the admin list, files, zip archive, seen mark and delete under `/admin/reports`); 0.18 adds the admin API under `/admin/...` (`admin_v1`: users and invites, pairing requests and devices, systems, cores and firmware, plugins and the plugin index; only advertised to admins); 0.18 also adds server accounts (`accounts_v1`: sign in with user name and password under `auth`, the own account, password, "Confirm it's you" and devices under `account`, an admin password reset and the password policy under `admin`; dangerous admin steps answer 403 `confirmation_required` until the caller confirmed); 0.18 also adds a zip export of all saves of a user for the admin to download before removing the person (`exportAdminUserSaves`, read-only, no confirmation); 0.18 also adds the setup code (`setup_code_v1`: `POST /setup` trades the setup code that a server without an admin prints at start and on `uzume-server setup-code` for the first admin and a paired device, `setup_required` in the server info); 0.20 adds save states (`states_v1`: stored per user, game, save slot and state number under `/games/{game_id}/states`, with a per-user quota) and core run rules (`run_rules_v1`: `rules` on the run, `PUT /runs/{run_id}/rules`, the run event `rules.changed`, app-written core run events without a plugin, and the optional `cheats_used` marker on save uploads and history versions); 0.20 also adds the plugin user store (`plugin_store_v1`: JSON values per person and plugin under `/plugins/{plugin_id}/store`, with revisions and conflicts) and the cheat database (`cheat_db_v1`: `GET /games/{game_id}/cheats` and the admin state under `/admin/cheat-db`); 0.21 adds the tools catalog (`tools_v1`: `GET /tools`, tool zips with ETag under `/tools/{tool_id}/packages/{version}/{platform}`, the admin endpoints under `/admin/tools`), game variants (`variants_v1`: recipes under `/variants` and `/games/{game_id}/variants`) and runs with a randomizer recipe (`randomizer` in the run object and in `POST /runs`, `variant` in `POST /runs/{run_id}/join`, `GET /runs/{run_id}/variant`, `POST /runs/{run_id}/variant-state`, `variant_kind` and `variant_state` per participant). `protocol_version` is an integer (starting at 1),
     separate from the hub/player product version. All paths carry the `/api/v1` prefix explicitly;
     only the info endpoint lives under `/.well-known/uzume`.
     Compatibility: the app's protocol_version < the server's min_protocol_version -> player_too_old;
@@ -922,6 +922,31 @@ paths:
               schema: { type: string, format: binary }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/games/{game_id}/cheats:
+    parameters:
+      - $ref: '#/components/parameters/GameId'
+    get:
+      operationId: getGameCheats
+      tags: [library]
+      summary: The cheat list of the server's cheat database for a game (`cheat_db_v1`)
+      description: |
+        The server matches the game to a cheat list of the libretro-database: by the ROM hash through the No-Intro name, else by the file name or title. 3DS games
+        match by the title ID to a Gateway list (libretro-database has none; they come from `3ds/` in an imported archive or
+        from the 3DS URL), and every code of those is `gateway`. `source` is `libretro-database` (fetched by the server), `imported` (`uzume-server import-cheats`) or
+        `none` when the server holds no lists (database off or not yet fetched); `updated_at` is the age of the stored lists. A game without a list is
+        200 with an empty `cheats` (and `matched_by` absent). `format_guess` is a guess from the system and the shape of the code
+        for the cheats plugin to pre-select a format, never a promise. 404 for a game that does not exist or that the caller
+        cannot see.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The cheats
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GameCheats' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /api/v1/runs/{run_id}/screenshots:
     parameters:
       - $ref: '#/components/parameters/RunId'
@@ -1427,6 +1452,105 @@ paths:
                         games: [{ system: nds, codes: ['IPK*'] }]
                         created_at: '2026-10-12T08:00:00Z'
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/v1/plugins/{plugin_id}/store:
+    parameters:
+      - $ref: '#/components/parameters/PluginId'
+    get:
+      operationId: listPluginStore
+      tags: [plugins]
+      summary: The keys of the caller's own store of a plugin (`plugin_store_v1`)
+      description: |
+        The plugin user store (`fb.store` of the plugin API) holds JSON values per person and plugin id, so that they follow
+        the person to every PC. This lists the keys with revision and size, without the values (for the sync of the app).
+        Values are visible to their owner only; no admin reads them. An unknown plugin id is an empty list.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The keys
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PluginStoreList' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/v1/plugins/{plugin_id}/store/{key}:
+    parameters:
+      - $ref: '#/components/parameters/PluginId'
+      - $ref: '#/components/parameters/PluginStoreKey'
+    get:
+      operationId: getPluginStoreValue
+      tags: [plugins]
+      summary: One value of the caller's store (`plugin_store_v1`)
+      description: 404 when the key does not exist.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The value
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PluginStoreValue' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      operationId: putPluginStoreValue
+      tags: [plugins]
+      summary: Write a value against a base revision (`plugin_store_v1`)
+      description: |
+        `base_revision` must equal the current `revision` of the key (0 when the key does not exist yet), otherwise 409
+        `store_conflict` with the current `revision` and `value`; the app keeps both versions. `value` is any JSON value of at
+        most 256 KiB (compact form; 413 `payload_too_large` above that). One plugin may hold at most 16 MiB and 1024 keys per
+        person (413 `store_quota_exceeded`).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PluginStorePut' }
+            examples:
+              default: { value: { base_revision: 0, value: { lists: [] } } }
+      responses:
+        '200':
+          description: Stored
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PluginStoreEntry' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409':
+          description: '`store_conflict` (carries the current revision and value)'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PluginStoreConflictError' }
+        '413':
+          description: The value is too large (`payload_too_large`) or the store of this plugin is full (`store_quota_exceeded`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    delete:
+      operationId: deletePluginStoreValue
+      tags: [plugins]
+      summary: Delete a key (`plugin_store_v1`)
+      description: With `base_revision` the delete is conditional like a write (409 `store_conflict` when the key has moved on); without it the key goes whatever its revision. 404 when the key does not exist.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: base_revision
+          in: query
+          required: false
+          schema: { type: integer, format: int64, minimum: 1 }
+      responses:
+        '204': { description: Removed }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: '`store_conflict` (carries the current revision and value)'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PluginStoreConflictError' }
   /api/v1/plugins/{plugin_id}/{version}/file:
     parameters:
       - $ref: '#/components/parameters/PluginId'
@@ -4573,6 +4697,60 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/AdminConflict' }
+  /api/v1/admin/cheat-db:
+    get:
+      operationId: getAdminCheatDb
+      tags: [admin]
+      summary: State of the cheat database (admin, `cheat_db_v1`)
+      description: The source URL, the age and size of the stored lists, and the result of the last refresh.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The state
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminCheatDb' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    put:
+      operationId: updateAdminCheatDb
+      tags: [admin]
+      summary: Change the source of the cheat database (admin, `cheat_db_v1`)
+      description: |
+        Stores the URL (https, or `none` to switch the database off) and/or the 3DS URL and starts a refresh in the background. The stored value
+        wins over the `-cheat-db-url` flag. Needs "Confirm it's you" (403 `confirmation_required` until then); 400 for another URL.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdminCheatDbUpdate' }
+            examples:
+              default: { value: { url: 'https://mirror.example/libretro-database.zip' } }
+      responses:
+        '200':
+          description: The state now stored
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminCheatDb' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/admin/cheat-db/refresh:
+    post:
+      operationId: refreshAdminCheatDb
+      tags: [admin]
+      summary: Refresh the cheat database now (admin, `cheat_db_v1`)
+      description: Starts one download per source in the background and returns at once; read the result from `getAdminCheatDb`. 400 when both sources are off.
+      security:
+        - bearerAuth: []
+      responses:
+        '202': { description: Started }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /api/v1/admin/plugins:
     get:
       operationId: listAdminPlugins
@@ -5792,6 +5970,12 @@ components:
       required: true
       schema: { type: string, pattern: '^[a-z0-9-]+(\.[a-z0-9-]+)+$', maxLength: 128 }
       example: net.example.tracker
+    PluginStoreKey:
+      name: key
+      in: path
+      required: true
+      schema: { type: string, pattern: '^[a-z0-9_.-]{1,64}$' }
+      example: lists
     PluginVersion:
       name: version
       in: path
@@ -6126,7 +6310,7 @@ components:
     ErrorCode:
       type: string
       description: "`save_not_snapshot` is no longer returned since `saves_v6` (any history version can be deleted)."
-      enum: [bad_request, unauthorized, forbidden, not_found, conflict, rate_limited, internal, device_revoked, invalid_credentials, pairing_pending, pairing_denied, pairing_expired, player_too_old, hub_too_old, core_missing, core_version_mismatch, capability_missing, save_conflict, save_conflict_stale, save_not_snapshot, save_slot_exists, save_slot_protected, session_running, payload_too_large, session_not_found, session_forbidden, session_full, session_ended, invite_invalid, display_name_taken, user_disabled, uploads_disabled, core_package_not_found, core_file_not_available, import_dir_unreadable, child_mode, run_not_active, state_conflict, too_large, state_quota_exceeded, confirmation_required, password_required, password_not_set, invalid_setup_code, setup_code_expired, already_set_up, invalid_image, tool_in_use, tool_hash_mismatch, name_taken, own_variant_mismatch, own_variants_off]
+      enum: [bad_request, unauthorized, forbidden, not_found, conflict, rate_limited, internal, device_revoked, invalid_credentials, pairing_pending, pairing_denied, pairing_expired, player_too_old, hub_too_old, core_missing, core_version_mismatch, capability_missing, save_conflict, save_conflict_stale, save_not_snapshot, save_slot_exists, save_slot_protected, session_running, payload_too_large, session_not_found, session_forbidden, session_full, session_ended, invite_invalid, display_name_taken, user_disabled, uploads_disabled, core_package_not_found, core_file_not_available, import_dir_unreadable, child_mode, run_not_active, state_conflict, too_large, state_quota_exceeded, store_conflict, store_quota_exceeded, confirmation_required, password_required, password_not_set, invalid_setup_code, setup_code_expired, already_set_up, invalid_image, tool_in_use, tool_hash_mismatch, name_taken, own_variant_mismatch, own_variants_off]
     Error:
       type: object
       required: [error]
@@ -7002,6 +7186,98 @@ components:
         device_id: { type: string }
         device_name: { type: string }
         created_at: { type: string, format: date-time }
+    PluginStoreEntry:
+      type: object
+      required: [key, revision, size_bytes, updated_at]
+      properties:
+        key: { type: string, pattern: '^[a-z0-9_.-]{1,64}$' }
+        revision: { type: integer, format: int64, minimum: 1, description: Counts the writes of the key }
+        size_bytes: { type: integer, format: int64, minimum: 0 }
+        updated_at: { type: string, format: date-time }
+    PluginStoreList:
+      type: object
+      required: [keys, used_bytes, quota_bytes]
+      properties:
+        keys:
+          type: array
+          items: { $ref: '#/components/schemas/PluginStoreEntry' }
+        used_bytes: { type: integer, format: int64, minimum: 0, description: All values of the caller for this plugin }
+        quota_bytes: { type: integer, format: int64, minimum: 0, description: 'Limit per person and plugin (16 MiB)' }
+    PluginStoreJson:
+      description: Any JSON value; the server stores it compactly and never interprets it.
+      nullable: true
+      x-go-type: json.RawMessage
+      x-go-type-skip-optional-pointer: true
+    PluginStoreValue:
+      type: object
+      required: [key, revision, value, updated_at]
+      properties:
+        key: { type: string }
+        revision: { type: integer, format: int64, minimum: 1 }
+        value: { $ref: '#/components/schemas/PluginStoreJson' }
+        updated_at: { type: string, format: date-time }
+    PluginStorePut:
+      type: object
+      required: [base_revision, value]
+      properties:
+        base_revision: { type: integer, format: int64, minimum: 0, description: The revision this change is based on; 0 = the key does not exist yet }
+        value: { $ref: '#/components/schemas/PluginStoreJson' }
+    PluginStoreConflictError:
+      type: object
+      description: Error body of the store 409. `revision` is 0 and `value` absent when the key does not exist (any more).
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { $ref: '#/components/schemas/ErrorCode' }
+            message: { type: string }
+        revision: { type: integer, format: int64, minimum: 0 }
+        value: { $ref: '#/components/schemas/PluginStoreJson' }
+    CheatFormat:
+      type: string
+      enum: [raw, gsa, cb, ar_gba, ar_ds, game_genie, gateway]
+    GameCheat:
+      type: object
+      required: [name, code, format_guess]
+      properties:
+        name: { type: string }
+        code: { type: string, description: 'As in the list; several lines or parts are joined with a line break' }
+        format_guess: { $ref: '#/components/schemas/CheatFormat' }
+    GameCheats:
+      type: object
+      required: [source, cheats]
+      properties:
+        source: { type: string, enum: [libretro-database, imported, none] }
+        updated_at: { type: string, format: date-time, description: When the stored lists were fetched or imported }
+        matched_by: { type: string, enum: [hash, title_id, name], description: How the game was matched; absent when no list was found }
+        list_name: { type: string, description: Name of the matched list (the No-Intro name or the title ID) }
+        cheats:
+          type: array
+          items: { $ref: '#/components/schemas/GameCheat' }
+    AdminCheatDb:
+      type: object
+      required: [url, url_3ds, enabled, lists, lists_3ds, dats, size_bytes]
+      properties:
+        url: { type: string, description: 'Effective source: the admin setting, else the flag, else the libretro-database archive; `none` = off' }
+        url_3ds: { type: string, description: 'Source of the 3DS Gateway lists (zip of `<TITLEID>.txt` files); `none` = off (default)' }
+        lists_3ds: { type: integer, minimum: 0, description: Gateway lists downloaded from `url_3ds` }
+        enabled: { type: boolean, description: At least one source is on }
+        source: { type: string, enum: [libretro-database, imported], description: Where the stored lists came from; absent when nothing is stored }
+        updated_at: { type: string, format: date-time }
+        size_bytes: { type: integer, format: int64, minimum: 0, description: Size of the stored lists and DATs }
+        lists: { type: integer, minimum: 0, description: Cheat lists stored }
+        dats: { type: integer, minimum: 0, description: No-Intro DAT files stored }
+        last_check: { type: string, format: date-time }
+        last_success: { type: string, format: date-time }
+        last_error: { type: string }
+    AdminCheatDbUpdate:
+      type: object
+      description: At least one of the two; a missing one stays as it is.
+      properties:
+        url: { type: string, description: 'https URL of a libretro-database archive zip, or `none`' }
+        url_3ds: { type: string, description: 'https URL of a zip with 3DS Gateway lists (`<TITLEID>.txt` anywhere in it), or `none`' }
     SaveStateList:
       type: object
       required: [states, used_bytes, quota_bytes]
