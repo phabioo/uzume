@@ -4,12 +4,15 @@
 //
 // The Vulkan loader is never linked: it is loaded at runtime (QLibrary) and every function comes from
 // vkGetInstanceProcAddr. No window-system extensions, no surface. The core renders into its own image; per frame the
-// image is copied into a host-visible buffer and converted to an RGB32 QImage (readback only; no zero-copy display and
-// no GPU-direct encoding for Vulkan). Without the Vulkan headers at build time (UZUME_HAVE_VULKAN undefined) every
-// call reports "unavailable".
+// image is copied into a host-visible buffer and converted to an RGB32 QImage (readback; no GPU-direct encoding for
+// Vulkan). With an emu::GpuDisplayTarget that offers acquireExternal() the same image is also blitted on the GPU into
+// the target's external-memory image (zero-copy game view, ADR 0034 D8); any failure there drops the target and the
+// readback goes on. Without the Vulkan headers at build time (UZUME_HAVE_VULKAN undefined) every call reports
+// "unavailable".
 //
 // Thread rules: probe()/create()/destroy()/frame calls all run on the emulation thread.
 
+#include <QByteArray>
 #include <QImage>
 #include <QSize>
 #include <QString>
@@ -17,6 +20,8 @@
 #include <memory>
 
 namespace uzume::emu {
+
+class GpuDisplayTarget;
 
 class VkRenderContext {
  public:
@@ -49,12 +54,27 @@ class VkRenderContext {
   static QString describeApi(unsigned apiVersion);
   static QString describeGpu(const QString& deviceName, unsigned vendorId, unsigned driverVersion);
 
+  // Tests: pretends the device lacks the external-memory extensions (create() then does not enable them).
+  static void setExternalMemoryMissingForTest(bool missing);
+  // Tests: replaces the physical device's LUID (8 bytes) in the adapter comparison; empty = use the real one.
+  static void setDeviceLuidForTest(const QByteArray& luid8);
+
   // The core's retro_hw_render_context_negotiation_interface_vulkan (copied; it may arrive after SET_HW_RENDER).
   // `iface` points to a retro_hw_render_context_negotiation_interface_vulkan of any version; nullptr clears it.
   void setNegotiationInterface(const void* iface);
   // Minimum Vulkan API version the core asked for in retro_hw_render_callback::version_major: a packed VK_MAKE_VERSION
   // value, or a plain major number (1 = Vulkan 1.0).
   void setRequiredApiVersion(unsigned versionMajor);
+
+  // Zero-copy display (ADR 0034 D8). `wanted` = a display target is going to be set: create() then enables the
+  // external-memory extensions the device supports (own device and through the negotiation interface). Call before
+  // create(); extensions that are missing are not an error here, the target is told Unavailable at its first frame.
+  void setExternalMemoryWanted(bool wanted);
+  // Emulation thread, after create(). Replaces the target: the old one is released (release(true)) and what was imported
+  // for it is freed (nullptr = none). The target is also released and forgotten when the context is destroyed.
+  void setDisplayTarget(std::shared_ptr<GpuDisplayTarget> target);
+  bool hasDisplayTarget() const;
+  quint64 displayBlitCount() const;  // frames handed to the target so far (tests, diagnostics)
 
   // Creates instance, device and queue (through the core's negotiation interface where it offers one) and the frame
   // resources. After retro_load_game, before context_reset.
@@ -74,7 +94,12 @@ class VkRenderContext {
   // set_image into a host buffer and returns it as RGB32 (alpha 0xFF); w x h is the frame size inside the image. A
   // frame larger than maxSize (empty or non-positive component = no limit) is scaled down on the CPU (aspect kept,
   // never upscaled, HwRenderContext::scaledReadbackSize). Null image on failure. read=false only submits.
-  QImage presentFrame(int w, int h, const QSize& maxSize, bool read);
+  // With a display target the frame is also blitted (scaled to displayLimit like the readback, aspect kept, never
+  // upscaled) into the image the target hands out, in the same submit; *displayed tells whether a frame was presented.
+  // When the target is dropped during this call the frame is read back after all, whatever `read` says.
+  // withDisplay=false (the frame is not shown anywhere) skips the display copy and leaves the target alone.
+  QImage presentFrame(int w, int h, const QSize& maxSize, bool read, const QSize& displayLimit = QSize(),
+                      bool* displayed = nullptr, bool withDisplay = true);
   // video_refresh with NULL (duplicate frame): command buffers the core queued with set_command_buffers still run once.
   void presentDuplicate();
   quint64 frameCount() const;

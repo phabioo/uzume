@@ -233,7 +233,7 @@ class D3d11TextureSource final : public DisplayTextureSource {
     }
     const QSGRendererInterface::GraphicsApi api = ri->graphicsApi();
     if (api != QSGRendererInterface::Direct3D11) {
-      s.bridge->setUnavailable(QStringLiteral("Qt Quick renders with %1").arg(apiName(api)));
+      s.consumer->setUnavailable(QStringLiteral("Qt Quick renders with %1").arg(apiName(api)));
       s.disabled = true;
       return false;
     }
@@ -249,13 +249,13 @@ class D3d11TextureSource final : public DisplayTextureSource {
       }
     }
     if (!dev || luid == 0) {
-      s.bridge->setUnavailable(QStringLiteral("Qt Quick's D3D11 device or adapter is not available"));
+      s.consumer->setUnavailable(QStringLiteral("Qt Quick's D3D11 device or adapter is not available"));
       s.disabled = true;
       return false;
     }
     s.window = window;
     s.device = dev;
-    s.bridge->setTargetAdapter(luid);
+    s.consumer->setTargetAdapter(luid);
     std::shared_ptr<RenderState> keep = s_;
     // Both signals are emitted on the render thread: DirectConnection, so frameEnd() runs right after Qt executed the frame.
     s.endConn = QObject::connect(window, &QQuickWindow::afterFrameEnd, window,

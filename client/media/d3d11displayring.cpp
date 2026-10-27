@@ -15,6 +15,7 @@
 #endif
 #include <windows.h>
 // After windows.h
+#include <d3d10_1.h>  // ID3D10Multithread; d3d10_1.h must come before any d3d10.h (SAL check in the Windows SDK)
 #include <d3d11.h>
 #include <d3d11_1.h>
 #include <dxgi.h>
@@ -42,6 +43,9 @@ struct D3d11RingShared {
   std::atomic<bool> failed{false};
   std::atomic<quint64> skipped{0};
   std::atomic<quint64> nextGeneration{1};
+  std::atomic<quint64> targetLuid{0};  // Qt Quick's adapter once the consumer side knows it (Vulkan mode waits for it)
+  QString unavailableReason;           // m; Qt Quick does not render with D3D11 etc.
+  std::atomic<bool> unavailable{false};
 
   void fail(const QString& why) {
     bool first = false;
@@ -123,7 +127,12 @@ struct D3d11DisplayProducer::Impl {
   } side;
   int writing = -1;
 
-  mutable std::mutex m;  // reason
+  // Vulkan mode (first call was acquireExternal): own D3D11 device on Qt Quick's adapter, no GL, no bridge.
+  enum class Mode { Undecided, Gl, Vulkan } mode = Mode::Undecided;
+  ComPtr<ID3D11Device> vkDevice;
+  QString vkAdapterName;  // m
+
+  mutable std::mutex m;  // reason, vkAdapterName
   QString reason;
 
   void setReason(const QString& why) {
@@ -132,8 +141,54 @@ struct D3d11DisplayProducer::Impl {
   }
 
   bool test() const { return testDevice != nullptr; }
+  bool vulkan() const { return mode == Mode::Vulkan; }
   ID3D11Device* device() const {
-    return test() ? static_cast<ID3D11Device*>(testDevice) : static_cast<ID3D11Device*>(sh->bridge->d3dDevice());
+    if (test()) return static_cast<ID3D11Device*>(testDevice);
+    if (vulkan()) return vkDevice.Get();
+    return static_cast<ID3D11Device*>(sh->bridge->d3dDevice());
+  }
+
+  // Vulkan mode: the D3D11 device on the adapter with `luid` (not Qt Quick's device, not the bridge's).
+  bool openVulkanDevice(quint64 luid, QString* why) {
+    ComPtr<IDXGIFactory1> factory;
+    if (FAILED(CreateDXGIFactory1(IID_PPV_ARGS(&factory)))) {
+      *why = QStringLiteral("CreateDXGIFactory1 failed");
+      return false;
+    }
+    ComPtr<IDXGIAdapter1> adapter;
+    DXGI_ADAPTER_DESC1 desc = {};
+    for (UINT i = 0;; ++i) {
+      ComPtr<IDXGIAdapter1> a;
+      if (factory->EnumAdapters1(i, &a) == DXGI_ERROR_NOT_FOUND) break;
+      DXGI_ADAPTER_DESC1 dd = {};
+      if (SUCCEEDED(a->GetDesc1(&dd))) {
+        const quint64 l = (static_cast<quint64>(static_cast<quint32>(dd.AdapterLuid.HighPart)) << 32) | dd.AdapterLuid.LowPart;
+        if (l == luid) {
+          adapter = a;
+          desc = dd;
+          break;
+        }
+      }
+    }
+    if (!adapter) {
+      *why = QStringLiteral("the display adapter (LUID 0x%1) was not found").arg(luid, 0, 16);
+      return false;
+    }
+    const D3D_FEATURE_LEVEL levels[] = {D3D_FEATURE_LEVEL_11_0};
+    const HRESULT hr = D3D11CreateDevice(adapter.Get(), D3D_DRIVER_TYPE_UNKNOWN, nullptr, 0, levels, 1, D3D11_SDK_VERSION, &vkDevice, nullptr, nullptr);
+    if (FAILED(hr)) {
+      *why = QStringLiteral("D3D11CreateDevice failed (%1)").arg(hex(hr));
+      return false;
+    }
+    ComPtr<ID3D10Multithread> mt;
+    if (SUCCEEDED(vkDevice.As(&mt))) mt->SetMultithreadProtected(TRUE);
+    const QString name = QString::fromWCharArray(desc.Description);
+    {
+      std::lock_guard lock(m);
+      vkAdapterName = name;
+    }
+    qCInfo(lcRing).noquote() << QStringLiteral("zero-copy display: D3D11 device for Vulkan frames on \"%1\"").arg(name);
+    return true;
   }
 
   // Unregisters and frees the producer side of `s`. Needs GL current for the interop calls; without it the
@@ -176,8 +231,8 @@ struct D3d11DisplayProducer::Impl {
     desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
     desc.MiscFlags = D3D11_RESOURCE_MISC_SHARED_NTHANDLE | D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX;
 
-    const GlD3d11Bridge::GlFunctions* gl = test() ? nullptr : sh->bridge->gl();
-    if (!test() && !gl) {
+    const GlD3d11Bridge::GlFunctions* gl = (test() || vulkan()) ? nullptr : sh->bridge->gl();
+    if (!test() && !vulkan() && !gl) {
       *why = QStringLiteral("the GL-D3D11 bridge is closed");
       return false;
     }
@@ -258,6 +313,11 @@ DisplayProducer::Status D3d11DisplayProducer::acquire(int w, int h, unsigned* gl
   if (w <= 0 || h <= 0) {
     return Status::Skip;
   }
+  if (d.vulkan()) {
+    d.setReason(QStringLiteral("the display ring is used by a Vulkan game"));
+    return Status::Unavailable;
+  }
+  d.mode = Impl::Mode::Gl;
   if (d.writing >= 0) {
     abort();  // acquire() twice without present(): the earlier image is dropped
   }
@@ -325,6 +385,83 @@ DisplayProducer::Status D3d11DisplayProducer::acquire(int w, int h, unsigned* gl
   return Status::Ok;
 }
 
+DisplayProducer::Status D3d11DisplayProducer::acquireExternal(int w, int h, ExternalDisplayImage* out) {
+  Impl& d = *d_;
+  D3d11RingShared& sh = *d.sh;
+  if (sh.failed.load()) {
+    d.setReason(sh.failure());
+    return Status::Failed;
+  }
+  if (d.released) {
+    d.setReason(QStringLiteral("the display ring was released"));
+    return Status::Unavailable;
+  }
+  if (w <= 0 || h <= 0) {
+    return Status::Skip;
+  }
+  if (d.mode == Impl::Mode::Gl) {
+    d.setReason(QStringLiteral("the display ring is used by an OpenGL game"));
+    return Status::Unavailable;
+  }
+  d.mode = Impl::Mode::Vulkan;
+  if (d.writing >= 0) {
+    abort();
+  }
+  if (!d.test() && !d.vkDevice) {
+    if (sh.unavailable.load()) {
+      std::lock_guard lock(sh.m);
+      d.setReason(sh.unavailableReason);
+      return Status::Unavailable;
+    }
+    const quint64 luid = sh.targetLuid.load();
+    if (luid == 0) {
+      return Status::NotReady;  // Qt Quick's adapter is not known yet
+    }
+    QString why;
+    if (!d.openVulkanDevice(luid, &why)) {
+      d.fail(why);
+      return Status::Failed;
+    }
+  }
+  int gw = 0;
+  int gh = 0;
+  growSize(d.side.gen ? d.side.gen->w : 0, d.side.gen ? d.side.gen->h : 0, w, h, &gw, &gh);
+  if (gw > kMaxTextureSize || gh > kMaxTextureSize) {
+    d.fail(QStringLiteral("the frame (%1x%2) is larger than a D3D11 texture").arg(w).arg(h));
+    return Status::Failed;
+  }
+  if (!d.side.gen || gw != d.side.gen->w || gh != d.side.gen->h) {
+    QString why;
+    if (!d.createGeneration(gw, gh, &why)) {
+      d.fail(why);
+      return Status::Failed;
+    }
+  }
+  const int slot = d.side.gen->table.beginWrite();
+  if (slot < 0) {
+    sh.skipped.fetch_add(1);
+    return Status::Skip;
+  }
+  d.writing = slot;  // no keyed-mutex call here: the Vulkan submit acquires key 0 and releases key 1
+  out->handleType = ExternalDisplayImage::HandleType::D3D11TextureNt;
+  out->handle = reinterpret_cast<qintptr>(d.side.gen->handles[slot]);
+  out->texSize = QSize(d.side.gen->w, d.side.gen->h);
+  out->memorySize = 0;
+  out->generation = d.side.gen->id;
+  out->slot = slot;
+  out->keyedMutex = true;
+  out->acquireKey = 0;
+  out->releaseKey = 1;
+  return Status::Ok;
+}
+
+bool D3d11DisplayProducer::adapterLuid(quint8 out[8]) const {
+  const quint64 l = d_->sh->targetLuid.load();
+  if (l == 0) return false;
+  for (int i = 0; i < 8; ++i) out[i] = static_cast<quint8>((l >> (8 * i)) & 0xff);  // LUID memory order: low part, high part
+  return true;
+}
+
 void D3d11DisplayProducer::present(int w, int h) {
   Impl& d = *d_;
   if (d.writing < 0) {
@@ -332,6 +469,10 @@ void D3d11DisplayProducer::present(int w, int h) {
   }
   const int slot = d.writing;
   d.writing = -1;
+  if (d.vulkan()) {
+    d.side.gen->table.endWrite(slot, w, h);  // the submit already released key 1; newest wins
+    return;
+  }
   if (!d.test()) {
     void* reg = d.side.reg[slot];
     if (!d.sh->bridge->unlock(&reg, 1)) {
@@ -356,6 +497,10 @@ void D3d11DisplayProducer::abort() {
   }
   const int slot = d.writing;
   d.writing = -1;
+  if (d.vulkan()) {  // nothing was submitted for this slot: its keys are untouched
+    d.side.gen->table.abortWrite(slot);
+    return;
+  }
   if (!d.test()) {
     void* reg = d.side.reg[slot];
     d.sh->bridge->unlock(&reg, 1);
@@ -378,6 +523,7 @@ void D3d11DisplayProducer::release(bool glCurrent) {
     }
   }
   d.retire(d.side, glCurrent);
+  d.vkDevice.Reset();
   {
     std::lock_guard lock(d.sh->m);
     d.sh->latest.reset();
@@ -394,7 +540,13 @@ QString D3d11DisplayProducer::reason() const {
   return d_->reason;
 }
 
-QString D3d11DisplayProducer::adapterName() const { return d_->sh->bridge ? d_->sh->bridge->adapterName() : QString(); }
+QString D3d11DisplayProducer::adapterName() const {
+  {
+    std::lock_guard lock(d_->m);
+    if (!d_->vkAdapterName.isEmpty()) return d_->vkAdapterName;
+  }
+  return d_->sh->bridge ? d_->sh->bridge->adapterName() : QString();
+}
 quint64 D3d11DisplayProducer::skippedFrames() const { return d_->sh->skipped.load(); }
 
 void* D3d11DisplayProducer::testTexture() const {
@@ -594,6 +746,8 @@ D3d11DisplayProducer::D3d11DisplayProducer(std::shared_ptr<D3d11RingShared> shar
 }
 D3d11DisplayProducer::~D3d11DisplayProducer() = default;
 DisplayProducer::Status D3d11DisplayProducer::acquire(int, int, unsigned*, QSize*) { return Status::Unavailable; }
+DisplayProducer::Status D3d11DisplayProducer::acquireExternal(int, int, ExternalDisplayImage*) { return Status::Unavailable; }
+bool D3d11DisplayProducer::adapterLuid(quint8[8]) const { return false; }
 void D3d11DisplayProducer::present(int, int) {}
 void D3d11DisplayProducer::abort() {}
 void D3d11DisplayProducer::release(bool) {}
@@ -618,6 +772,20 @@ void D3d11DisplayConsumer::frameEnd() {}
 void D3d11DisplayConsumer::close() {}
 
 #endif  // _WIN32
+
+void D3d11DisplayConsumer::setTargetAdapter(quint64 luid) {
+  d_->sh->targetLuid = luid;
+  if (d_->sh->bridge) d_->sh->bridge->setTargetAdapter(luid);
+}
+
+void D3d11DisplayConsumer::setUnavailable(const QString& reason) {
+  {
+    std::lock_guard lock(d_->sh->m);
+    if (!d_->sh->unavailable.load()) d_->sh->unavailableReason = reason;
+    d_->sh->unavailable = true;
+  }
+  if (d_->sh->bridge) d_->sh->bridge->setUnavailable(reason);
+}
 
 bool D3d11DisplayConsumer::failed() const { return d_->sh->failed.load(); }
 QString D3d11DisplayConsumer::failureReason() const { return d_->sh->failure(); }

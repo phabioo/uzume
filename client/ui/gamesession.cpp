@@ -492,7 +492,7 @@ void GameSession::setGpuEncodeTarget(std::shared_ptr<emu::GpuEncodeTarget> targe
 bool GameSession::hardwareRendered() const {
   if (!runner_ || !isActive()) return false;
   const emu::RenderInfo ri = runner_->renderInfo();
-  return ri.hwActive && !ri.vulkan;  // the GPU targets (encode, display) need the GL context; Vulkan frames are read back (ADR 0034)
+  return ri.hwActive && !ri.vulkan;  // GPU-direct encoding needs the GL context (Vulkan frames for the Session are read back); the display target also serves Vulkan games (ADR 0034 D8)
 }
 
 void GameSession::updateReadbackLimit() {

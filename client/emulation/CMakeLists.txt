@@ -144,6 +144,17 @@ if(BUILD_TESTING)
   add_dependencies(test_emulation_vk_render uzume_test_rom)
   set_tests_properties(emulation_vk_render PROPERTIES SKIP_RETURN_CODE 77)
 
+  # Zero-copy display for Vulkan games (ADR 0034 D8): the same test core frame copied on the GPU into the external
+  # images (opaque fd) of a fake emu::GpuDisplayTarget, read back there and compared. Needs VK_KHR_external_memory_fd
+  # (lavapipe has it). SKIP/77 without a device, except with UZUME_REQUIRE_VULKAN=1 (Linux CI).
+  uzume_add_test(emulation_vk_display tests/vk_display_test.cpp LIBS uzume_emulation Qt6::Gui TEST_CORE TEST_CORE_FLAVOR generic)
+  target_include_directories(test_emulation_vk_display PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
+  target_include_directories(test_emulation_vk_display SYSTEM PRIVATE ${UZUME_VULKAN_TEST_INCLUDES})
+  target_compile_definitions(test_emulation_vk_display PRIVATE FB_TEST_CORE_PATH="$<TARGET_FILE:uzume_test_core>"
+                                                               FB_TEST_ROM_PATH="${FB_TEST_ROM}")
+  add_dependencies(test_emulation_vk_display uzume_test_rom)
+  set_tests_properties(emulation_vk_display PROPERTIES SKIP_RETURN_CODE 77)
+
   # Input mapping chain (Uzume input -> system profile -> libretro mask) ending in the test core, e.g. ZR -> R2.
   uzume_add_test(emulation_test_core_input tests/test_core_input_test.cpp LIBS uzume_emulation uzume_input uzume_sdl3 TEST_CORE TEST_CORE_FLAVOR generic)
   target_include_directories(test_emulation_test_core_input PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)

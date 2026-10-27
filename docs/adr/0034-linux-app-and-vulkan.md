@@ -51,6 +51,22 @@ Unchanged. The server already serves the `linux-x64` buildbot builds (platform m
 
 One Renderer row (OpenGL | Vulkan, tag "Next start") in Settings › Emulation for cores that offer it, as drawn in [play-and-plugins.md](../design/uzume/play-and-plugins.md) (Renderer row). Hidden for software and OpenGL-only cores. No new screen.
 
+### D8 Vulkan zero-copy display (Windows)
+
+- Same gates, readback policy and silent fallback as the OpenGL path ([ADR 0027](0027-gpu-paths.md) D1 to D5, D8, D9): the Vulkan frame is copied on the GPU (`vkCmdBlitImage`, no flip, linear filter when scaled to the display limit, aspect kept, never upscaled) into the top-left of a D3D11 display ring texture, in the same submit as the readback copy. `planReadback` is unchanged; the GPU encode target stays OpenGL-only (Session frames from Vulkan are read back).
+- Interface: `emu::GpuDisplayTarget::acquireExternal()` hands out an external image (NT handle of a keyed-mutex texture, or an opaque fd for tests and Linux), `adapterLuid()` and `markUnavailable()` complete it; defaults keep GL targets unchanged. The ring decides its mode at the first call: `acquire()` = OpenGL with the GL-D3D11 bridge, `acquireExternal()` = Vulkan without GL and bridge, on an own D3D11 device opened on Qt Quick's adapter (not ready until the LUID is known).
+- Keyed mutex: in Vulkan mode the submit does AcquireSync key 0 and ReleaseSync key 1 (`VK_KHR_win32_keyed_mutex`), so the consumer protocol (AcquireSync 1 on the render thread) is unchanged; the producer only publishes in `present()` after the submit.
+- Device: `VK_KHR_external_memory`, `_win32`, `win32_keyed_mutex` (Linux tests: `_fd`) plus dedicated allocation and `get_memory_requirements2` on Vulkan 1.0 are enabled at device creation only when a display target is waiting, on our own device and through the core's negotiation interface (`required_device_extensions` for v1, the create-device wrapper for v2). Images are imported once per generation and slot and cached.
+- Unavailable (quiet, readback): a missing extension, a device on another adapter (`deviceLUID` differs from Qt Quick's), an sRGB or unblittable frame format, a target that was set after the device was created. Any error while importing, blitting or submitting fails the target for this game (ADR 0027 D5) and that frame is read back.
+- Log: `Zero-copy display active: Vulkan → D3D11 textures on "<adapter>" (no readback for the game view)` and the ADR 0027 D8 lines.
+
+Verification on hardware (Fabio):
+
+- Azahar with Vulkan on NVIDIA, AMD and Intel (also a hybrid laptop: Qt Quick on the iGPU gives "Vulkan device is on another adapter" and readback).
+- Log lines in order: `Vulkan context: ...`, `Zero-copy display: importing generation 1 ...`, `Zero-copy display active: Vulkan → D3D11 textures ...`; the Performance overlay shows zero-copy and no readback time.
+- Colours, orientation and sharpness equal to `UZUME_DISABLE_ZERO_COPY=1`; a window resize (new generation) and a Session share (readback resumes) keep working.
+- Not verified without hardware: keyed mutex timeout (100 ms) behaviour, layout handling of D3D11 images, D3D11 bind flags versus the Vulkan import.
+
 ## Rejected
 
 - **Flatpak:** sandbox portals would be needed for the server child process, gamepads and the cores folder; Flatpak updates would bypass the signed index.
