@@ -167,7 +167,7 @@ int main(int argc, char* argv[]) {
     }
     if (std::strcmp(argv[i], "--help") == 0 || std::strcmp(argv[i], "-h") == 0 || std::strcmp(argv[i], "-?") == 0) {
       printToStdout(
-          "Usage: uzume [options] [uzume://join/<server>/<invite>#<security code>]\n"
+          "Usage: uzume [options] [uzume://join/<server>/<invite>#<security code> | uzume://run/<server>/<run id>/recap]\n"
           "  --version            Print the version and exit.\n"
           "  --version-json       Print version, channel, commit and protocol versions as JSON and exit.\n"
           "  --smoke-test         Load QML and exit with code 0 (code 1 on QML warnings).\n"
@@ -308,10 +308,10 @@ int main(int argc, char* argv[]) {
     }
   });
   QObject::connect(&instance, &uzume::app::SingleInstance::linkReceived, &app, [&controller](const QString& link) {
-    if (!link.isEmpty()) controller.onboarding()->openLink(link);
+    if (!link.isEmpty() && !controller.openRunLink(link)) controller.onboarding()->openLink(link);
   });
   if (!startLink.isEmpty()) {
-    QTimer::singleShot(0, &app, [&controller, startLink] { controller.onboarding()->openLink(startLink); });
+    QTimer::singleShot(0, &app, [&controller, startLink] { if (!controller.openRunLink(startLink)) controller.onboarding()->openLink(startLink); });
   }
   if (parser.isSet(setupLocalHub)) {
     controller.localHub()->startAfterInstall();  // after the MSI installed the Hub: connect, create the admin, pair

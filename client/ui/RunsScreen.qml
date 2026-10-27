@@ -4,7 +4,7 @@ import QtQuick.Layouts
 import Uzume.App
 
 // Runs in the Uzume design (runs-and-server.md 4j Runs, 4jh Run board): the table of runs with the detail of the selected run
-// under it, invites above it, and the run view with Tabs lg (Board, Log, plugin tabs last). List, invite and log belong to
+// under it, invites above it, and the run view with Tabs lg (Board, Recap, Log, plugin tabs last). List, invite and log belong to
 // Uzume; plugins only build on them.
 Rectangle {
     id: root
@@ -669,7 +669,7 @@ Rectangle {
 
                     // Tabs: Board, Log, then one tab per run plugin (named after its screen), the plugin tab last.
                     readonly property var tabDefs: {
-                        const out = [{ value: "board", label: qsTr("Board") }, { value: "log", label: qsTr("Log") }]
+                        const out = [{ value: "board", label: qsTr("Board") }, { value: "recap", label: qsTr("Recap") }, { value: "log", label: qsTr("Log") }]
                         const t = root.runs.runTabs
                         for (let i = 0; i < t.length; ++i)
                             out.push({ value: "plugin:" + t[i].pluginId, label: t[i].title, badge: t[i].badge > 0 ? t[i].badge : 0 })
@@ -799,6 +799,14 @@ Rectangle {
                                 font.pixelSize: Theme.roles.small.size
                             }
                         }
+                    }
+
+                    // ---------------------------------------------------------- Recap (board 4jh-app-2)
+                    RunRecapView {
+                        objectName: "runRecapTab"
+                        visible: root.runs.runTab === "recap"
+                        Layout.fillWidth: true
+                        player: root.player
                     }
 
                     // ---------------------------------------------------------- Plugin tab (the plugin's screen or run tree)

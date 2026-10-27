@@ -39,4 +39,16 @@ QString normalizeFingerprint(const QString& text);
 // host[:port] (a scheme is dropped). Empty if the address, the invite code or the fingerprint is invalid.
 QString makeJoinLink(const QString& address, const QString& inviteCode, const QString& fingerprint);
 
+
+// A link to a run's recap (0.22): uzume://run/<host[:port]>/<run id>/recap. It names no secret: only a person signed in to that
+// server can open the run.
+struct RunLink {
+  bool ok = false;
+  QString address;  // "host:port" (the default port is added)
+  QString runId;    // lowercase uuid
+};
+RunLink parseRunLink(const QString& text);
+// Empty if the address or the run id (a uuid) is invalid. `address` may carry a scheme, it is dropped.
+QString makeRunLink(const QString& address, const QString& runId);
+
 }  // namespace uzume

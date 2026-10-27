@@ -1,3 +1,4 @@
+#include "joinlink.h"
 #include "playercontroller.h"
 #include "envvar.h"
 #include "timeformat.h"
@@ -2718,6 +2719,19 @@ void PlayerController::showRuns() {
   runs_->refresh();
   page_ = QStringLiteral("runs");
   updateScreen();
+}
+
+bool PlayerController::openRunLink(const QString& link) {
+  const RunLink parsed = parseRunLink(link);
+  if (!parsed.ok) return false;
+  if (conn_->state() != HubConnection::State::Connected || makeRunLink(conn_->address(), parsed.runId) != makeRunLink(parsed.address, parsed.runId)) {
+    return true;  // another server than the one connected: nothing to open (the run is not visible here)
+  }
+  showRuns();
+  if (page_ != QLatin1String("runs")) return true;
+  runs_->openRun(parsed.runId);
+  runs_->setRunTab(QStringLiteral("recap"));
+  return true;
 }
 
 void PlayerController::startRunGame(const QString& runId, const QString& gameId) {

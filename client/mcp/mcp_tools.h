@@ -34,6 +34,10 @@ void installVariantTools(McpToolRegistry& registry, ui::PlayerController& player
 // runs_list, run_set_rules, run_events, developer_mode, plugin_link, file_dialog_pick (tools_runs.cpp, Uzume 0.20 package 6).
 void installRunTools(McpToolRegistry& registry, ui::PlayerController& player);
 
+// run_recap (tools_runs_recap.cpp, Uzume 0.22): the computed run recap. validateRunRecapArgs is the pure part (tests).
+void installRunRecapTools(McpToolRegistry& registry, ui::PlayerController& player);
+QString validateRunRecapArgs(const QJsonObject& args);  // "" = fine, else the message
+
 // server_sign_in (tools_together.cpp): add a server and sign in with a password; self-signed certificates only with a matching
 // trust_fingerprint. The two helpers are the pure parts (tests).
 void installTogetherTools(McpToolRegistry& registry, ui::PlayerController& player);

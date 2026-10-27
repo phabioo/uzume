@@ -29,6 +29,10 @@ A plugin is a folder with a `manifest.json`, a Lua entry file and optional `i18n
       "options": [ { "value": "nuzlocke", "label": "rs.mode.nuzlocke" }, { "value": "soullink", "label": "rs.mode.soullink" } ] },
     { "key": "rules.dupes_clause", "type": "boolean", "label": "rs.dupes", "hint": "rs.dupes.hint", "default": true }
   ],
+  "recap": [
+    { "type": "tracker.catch", "glyph": "catch" },
+    { "type": "tracker.death", "glyph": "lost" }
+  ],
   "settings": {}
 }
 ```
@@ -47,6 +51,7 @@ A plugin is a folder with a `manifest.json`, a Lua entry file and optional `i18n
 | `entry` | Relative path of the `.lua` entry file inside the plugin folder (no `..`, must exist). |
 | `assets` | Relative paths of bundled files or folders. |
 | `run_settings` | Optional run rules form, see [Run settings](#run-settings). |
+| `recap` | Optional run recap mapping, see [Run recap](#run-recap). |
 | `settings` | Kept as raw JSON; the schema is not defined yet. |
 
 ## Permissions
@@ -585,6 +590,20 @@ Manifest field `run_settings` (optional, 1 to 32 entries) declares the rules a p
 - The app's "Start a run" dialog shows a Rules section per plugin: boolean as toggle, enum with up to 3 options as segments, more as select. Label language: the plugin language setting (base language), then `en`, then the key.
 - Every entry is sent as run settings `settings[<plugin_id>]`, nested by key segments. The keys `mode` and `rules.dupes_clause` give `{ "<plugin_id>": { "mode": "soullink", "rules": { "dupes_clause": true } } }`. Plugins without `run_settings` get no member.
 - Plugins read them with `fb.run.current().settings[<own plugin id>]`. The raw manifest `settings` field is unchanged (schema still undefined).
+
+### Run recap
+
+Manifest field `recap` (optional, at most 32 entries, 0.22) tells the run recap (Runs › run › Recap) which of the plugin's run events to draw and how. Each entry is `{ "type", "glyph" }`:
+
+| Field | Rules |
+|---|---|
+| `type` | The run event type this plugin posts (`fb.run` events), `^[a-z0-9_.-]{1,64}$`. Unique within the list. |
+| `glyph` | `catch` (■), `lost` (✕), `badge` (◆), `note` (□) or `screenshot` (▣). |
+
+- The recap counts `catch`, `lost` and `badge` per person (tiles CATCHES, LOST, BADGES) and draws every mapped event on the lane of the person who posted it, by day. `note` and `screenshot` are drawn, not counted. Events of the plugin without an entry are not shown.
+- The app reads the mapping from the plugin copy of the version the run is pinned to (else the installed one). A plugin that is not on this PC contributes nothing to the recap.
+- Not mapped by the plugin: run screenshots are drawn as `screenshot` and the core events `rules.changed`, `cheat.enabled`, `cheat.disabled`, `memory.write` and `state.loaded` as `note`; none of them counts.
+- An invalid entry (not an object, bad `type`, unknown `glyph`, a type mapped twice, more than 32 entries) is a manifest warning and is ignored; the plugin still loads. A `recap` that is not a list is ignored as a whole.
 
 ## Installing plugins and origins
 

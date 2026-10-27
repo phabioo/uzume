@@ -6,7 +6,7 @@ target_compile_features(uzume_mcp PUBLIC cxx_std_20)
 target_link_libraries(uzume_mcp PUBLIC Qt6::Core Qt6::Network)
 uzume_warnings(uzume_mcp)
 
-add_library(uzume_mcp_tools STATIC mcp_tools.h tools.cpp tools_util.h tools_util.cpp tools_app.cpp tools_plugins.cpp tools_game.cpp tools_emulation.cpp tools_states.cpp tools_ui.cpp tools_reports.cpp tools_variants.cpp tools_together.cpp tools_runs.cpp)
+add_library(uzume_mcp_tools STATIC mcp_tools.h tools.cpp tools_util.h tools_util.cpp tools_app.cpp tools_plugins.cpp tools_game.cpp tools_emulation.cpp tools_states.cpp tools_ui.cpp tools_reports.cpp tools_variants.cpp tools_together.cpp tools_runs.cpp tools_runs_recap.cpp)
 target_link_libraries(uzume_mcp_tools PUBLIC uzume_mcp uzume_ui Qt6::Quick Qt6::Concurrent)
 uzume_warnings(uzume_mcp_tools)
 
