@@ -73,6 +73,8 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
   downloader_ = std::make_unique<RomDownloader>(conn_.get(), cache_.get());
   saves_ = std::make_unique<SaveSync>(conn_.get(), profiles_.get());
   settings_ = std::make_unique<PlayerSettings>(profiles_->baseDir());
+  discord_ = std::make_unique<DiscordPresence>();
+  discord_->setEnabled(settings_->discordPresence());
   mcp_ = std::make_unique<McpController>(settings_.get(), credentials_);
   localRoms_ = std::make_unique<LocalRomIndex>(QDir(profiles_->baseDir()).filePath(QStringLiteral("cache/local-roms.json")));
   registrar_ = std::make_unique<RomRegistrar>(conn_.get());
@@ -689,6 +691,7 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
   connect(conn_.get(), &HubConnection::stateChanged, this, &PlayerController::onConnectionState);
   connect(conn_.get(), &HubConnection::stateChanged, this, [this]() { refreshHubLink(); });
   connect(sessions_.get(), &SessionController::linkChanged, this, [this]() { refreshHubLink(); });
+  connect(sessions_.get(), &SessionController::shareChanged, this, [this]() { updateDiscord(); });
   connect(conn_.get(), &HubConnection::errorOccurred, this, [this](const QString& code, const QString& message) {
     lastError_ = friendlyError(code, message);
     inviteBusy_ = false;
@@ -821,6 +824,7 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
       plugins_->setGameInfo(gi);
     }
     stateRunId_ = runStart_.pending() && runStart_.gameId == launchGame_.id ? runStart_.runId : QString();
+    updateDiscord();
     states_->gameStarted(stateContext(launchGame_, true));
     applyStateOptions();
     // Plugins start asynchronously after the game: they never delay it, failures only show in the console and the log.
@@ -899,6 +903,7 @@ void PlayerController::endGameContext() {
   gameActive_ = false;
   if (states_) states_->gameStopped();
   stateRunId_.clear();
+  updateDiscord();
   if (wasActive) {
     // The server adds the play time when the app reports that the game ended (presence): read it back a moment later.
     QTimer::singleShot(1500, this, [this]() {
@@ -993,6 +998,9 @@ void PlayerController::setupStates() {
     if (stateRunId_.isEmpty() || !runClient_) return;
     const QString err = runClient_->postEvent(stateRunId_, QString(), QStringLiteral("automatic"), type, text, payload);
     if (!err.isEmpty()) qInfo() << "run log" << type << "not written:" << err;
+  });
+  connect(runClient_.get(), &RunClient::runChanged, this, [this](const QString& runId) {
+    if (runId == stateRunId_) updateDiscord();
   });
   connect(runClient_.get(), &RunClient::runChanged, states_.get(), [this](const QString& runId) {
     if (runId == stateRunId_) states_->rulesChanged();
@@ -1643,6 +1651,31 @@ void PlayerController::setReduceMotion(bool on) {
     qWarning() << "Player settings could not be written";
   }
   emit reduceMotionChanged();
+}
+
+bool PlayerController::discordPresence() const { return settings_->discordPresence(); }
+
+void PlayerController::setDiscordPresence(bool on) {
+  if (settings_->discordPresence() == on) return;
+  if (!settings_->setDiscordPresence(on)) qWarning() << "Player settings could not be written";
+  discord_->setEnabled(on);
+  updateDiscord();
+  emit discordPresenceChanged();
+}
+
+// Game title, system name and "· Session" or the run name: nothing else leaves the app (no server address, people, paths).
+void PlayerController::updateDiscord() {
+  if (!discord_) return;
+  if (!gameActive_ || launchGame_.id.isEmpty()) {
+    discord_->setActivity(std::nullopt);
+    return;
+  }
+  const emu::SystemManifest* man = catalog_ ? catalog_->manifestFor(launchGame_) : nullptr;
+  QString state = man != nullptr && !man->displayName.isEmpty() ? man->displayName : launchGame_.system;
+  const auto run = !stateRunId_.isEmpty() && runClient_ ? runClient_->run(stateRunId_) : std::nullopt;
+  if (run && !run->name.isEmpty()) state += QStringLiteral(" · ") + run->name;
+  else if (sessions_ && sessions_->shared()) state += QStringLiteral(" · Session");
+  discord_->setActivity(DiscordActivity{launchGame_.title, state, gameStartedMs_});
 }
 
 bool PlayerController::darkMode() const {

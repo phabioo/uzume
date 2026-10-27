@@ -33,6 +33,7 @@ target_sources(uzume_core PRIVATE
   personalapi.cpp
   screenshotapi.cpp
   screenshotqueue.cpp
+  discordpresence.cpp
 )
 target_link_libraries(uzume_core PUBLIC Qt6::WebSockets)
 target_include_directories(uzume_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
@@ -75,3 +76,4 @@ if(BUILD_TESTING)
   # The longest test (about 110 s on Windows CI) starts first under ctest -j: a fresh CI build has no cost data.
   set_tests_properties(network_savesync PROPERTIES COST 1000)
 endif()
+uzume_add_test(network_discord tests/discord_presence_test.cpp LIBS uzume_core)
