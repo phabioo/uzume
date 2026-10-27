@@ -42,6 +42,7 @@ qt_add_qml_module(uzume_ui
     localhubcontroller.h localhubcontroller.cpp
     pluginruntime.h pluginruntime.cpp
     pluginscontroller.h pluginscontroller.cpp
+    pluginemulation.h pluginemulation.cpp
     keyedrowsmodel.h keyedrowsmodel.cpp
     runscontroller.h runscontroller.cpp
     personalcontroller.h personalcontroller.cpp
@@ -183,11 +184,14 @@ qt_add_qml_module(uzume_ui
     PluginFocusable.qml
     PluginImage.qml
     PluginConfirmDialog.qml
+    PluginConsentDialog.qml
+    PluginPickDialog.qml
     PluginButton.qml
     PluginToggle.qml
     PluginSegmented.qml
     PluginSelect.qml
     PluginTextField.qml
+    PluginTextArea.qml
     PluginList.qml
     PluginTable.qml
     PluginMapView.qml

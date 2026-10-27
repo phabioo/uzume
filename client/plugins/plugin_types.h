@@ -6,6 +6,8 @@
 
 #include "lua_sandbox.h"
 #include "plugin_variants.h"
+#include "plugin_emulation.h"
+#include "plugin_store.h"
 #include "plugin_video.h"
 #include "run_bridge.h"
 
@@ -23,6 +25,8 @@ struct GameContext {
   QString language;  // game language for fb.i18n, e.g. "de", "en", "de-DE"
   bool shell = false;  // shell context: no game runs; fb.game is an empty table, memory/rom reads return nil
   std::shared_ptr<RunBridge> run;  // the game was started in a run: fb.run exists (permission run.state); null = no fb.run
+  std::shared_ptr<EmulationBridge> emulation;  // fb.memory.write, fb.cheats, fb.save.snapshot (0.20); null = "no_game"
+  std::shared_ptr<PluginStore> store;  // fb.store (permission store); null = nil, "unavailable"
   std::shared_ptr<VideoProvider> video;  // frame source of the running game (fb.video, video.capture); null = fb.video.screens() is nil, captures fail with "unsupported"
   // New fields go at the end (the tests aggregate-initialise the leading ones).
   QString gameId;    // library id of the game (fb.variants.list); empty in the shell context

@@ -54,6 +54,14 @@ class HostWorker : public QObject {
   void hostEvent(const QString& name, const Value& value, const QString& target) {
     if (m_engine) m_engine->postHostEvent(name, value, target);
   }
+  void appEvent(const QString& name, const Value& value, const QString& target) {
+    if (m_engine) m_engine->postAppEvent(name, value, target);
+  }
+  void deliverFile(const QString& id, uint64_t reqId, const std::string& content, const std::string& name, const std::string& error) {
+    if (!m_engine) return;
+    m_engine->deliverFile(id, reqId, content, name, error);
+    flushUi(false);
+  }
   void clearSlot(const QString& slot) {
     if (!m_engine) return;
     m_engine->clearSlotEverywhere(slot);
@@ -162,6 +170,20 @@ void PluginHost::postHostEvent(const QString& name, const QVariant& value, const
   QMetaObject::invokeMethod(m_worker, [w = m_worker, name, v, targetPlugin] { w->hostEvent(name, v, targetPlugin); }, Qt::QueuedConnection);
 }
 
+void PluginHost::postAppEvent(const QString& name, const QVariant& value, const QString& targetPlugin) {
+  const Value v = valueFromVariant(value);
+  QMetaObject::invokeMethod(m_worker, [w = m_worker, name, v, targetPlugin] { w->appEvent(name, v, targetPlugin); }, Qt::QueuedConnection);
+}
+
+void PluginHost::deliverFile(const QString& pluginId, quint64 requestId, const QByteArray& content, const QString& name, const QString& error) {
+  const std::string c(content.constData(), static_cast<size_t>(content.size()));
+  const std::string n = name.toStdString();
+  const std::string e = error.toStdString();
+  QMetaObject::invokeMethod(m_worker, [w = m_worker, pluginId, requestId, c, n, e] { w->deliverFile(pluginId, requestId, c, n, e); }, Qt::QueuedConnection);
+}
+
+QList<PickRequest> PluginHost::takePickRequests() { return m_store->ui.takePickRequests(); }
+
 void PluginHost::clearSlot(const QString& slot) {
   QMetaObject::invokeMethod(m_worker, [w = m_worker, slot] { w->clearSlot(slot); }, Qt::QueuedConnection);
 }
@@ -195,6 +217,7 @@ QVariantMap PluginHost::uiTree(const QString& pluginId, const QString& slot) con
 QList<QVariantMap> PluginHost::takeToasts() { return m_store->ui.takeToasts(); }
 
 QList<QPair<QString, QString>> PluginHost::takeOpenRequests() { return m_store->ui.takeOpenRequests(); }
+QList<QPair<QString, QString>> PluginHost::takeCloseRequests() { return m_store->ui.takeCloseRequests(); }
 
 QStringList PluginHost::pluginIds() const { return m_store->ids(); }
 

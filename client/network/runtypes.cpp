@@ -38,6 +38,21 @@ bool RunInfo::hasPlugin(const QString& pluginId) const {
   return false;
 }
 
+RunRules parseRunRules(const QJsonObject& o) {
+  RunRules r;
+  r.states = o.value(QLatin1String("states")).toBool(false);
+  r.rewind = o.value(QLatin1String("rewind")).toBool(false);
+  const auto level = [&o](const char* key) { return o.value(QLatin1String(key)).toString() == QLatin1String("logged") ? QStringLiteral("logged") : QStringLiteral("off"); };
+  r.cheats = level("cheats");
+  r.memoryWrite = level("memory_write");
+  return r;
+}
+
+QJsonObject runRulesToJson(const RunRules& r) {
+  return {{QStringLiteral("states"), r.states}, {QStringLiteral("rewind"), r.rewind}, {QStringLiteral("cheats"), r.cheats},
+          {QStringLiteral("memory_write"), r.memoryWrite}};
+}
+
 std::optional<RunInfo> parseRun(const QJsonObject& o) {
   RunInfo r;
   r.runId = str(o, "run_id").toLower();
@@ -52,6 +67,7 @@ std::optional<RunInfo> parseRun(const QJsonObject& o) {
   if (r.saveSlot.isEmpty()) r.saveSlot = runSaveSlot(r.runId);
   r.settings = o.value(QLatin1String("settings")).toObject();
   r.randomizer = o.value(QLatin1String("randomizer")).toObject();
+  r.rules = parseRunRules(o.value(QLatin1String("rules")).toObject());
   r.lastSeq = static_cast<qint64>(o.value(QLatin1String("last_seq")).toDouble(0));
   r.playSeconds = qMax<qint64>(0, static_cast<qint64>(o.value(QLatin1String("play_seconds")).toDouble(0)));
   for (const QJsonValue& v : o.value(QLatin1String("plugins")).toArray()) {
@@ -120,6 +136,7 @@ QJsonObject runToJson(const RunInfo& r) {
           {QStringLiteral("save_slot"), r.saveSlot.isEmpty() ? runSaveSlot(r.runId) : r.saveSlot},
           {QStringLiteral("settings"), r.settings},
           {QStringLiteral("randomizer"), r.randomizer},
+          {QStringLiteral("rules"), runRulesToJson(r.rules)},
           {QStringLiteral("plugins"), plugins},
           {QStringLiteral("participants"), parts},
           {QStringLiteral("play_seconds"), static_cast<double>(r.playSeconds)},

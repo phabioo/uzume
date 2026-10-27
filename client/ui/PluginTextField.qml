@@ -12,6 +12,7 @@ ColumnLayout {
     signal action(string action, var value)
 
     spacing: Theme.space05
+    Timer { id: liveTimer; interval: 250; onTriggered: root.action(root.node.action || "", field.text) }
     UzField {
         id: field
         objectName: "pluginTextFieldInput"
@@ -20,7 +21,9 @@ ColumnLayout {
         placeholderText: root.node.placeholder || ""
         mono: true
         invalid: !!root.node.error
-        onAccepted: root.action(root.node.action || "", text)
+        onAccepted: { liveTimer.stop(); root.action(root.node.action || "", text) }
+        // live = true: also fires while typing, 250 ms after the last key (the action value is the text, like on Enter)
+        onTextEdited: if (root.node.live === true) liveTimer.restart()
     }
     Text {
         textFormat: Text.PlainText  // plugin- and peer-supplied strings are never HTML

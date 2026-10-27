@@ -179,6 +179,7 @@ void PluginEngine::releaseState(Plugin& p) {
   p.lastRows.clear();
   p.actionRef = LUA_NOREF;
   p.runSubs.clear();
+  p.pickRefs.clear();
   p.hasBoardPending = false;
   p.capture.reset();
   p.uiTrees.clear();
@@ -436,6 +437,37 @@ void PluginEngine::postHostEvent(const QString& name, Value value, const QString
   const std::string n = name.toStdString();
   if (!eventFits(QStringLiteral("fb"), valueBytes(value) + n.size() + sizeof(QueuedEvent))) return;
   pushEvent({QStringLiteral("fb"), n, std::move(value), target, 0});
+}
+
+void PluginEngine::postAppEvent(const QString& name, Value value, const QString& target) {
+  const std::string n = name.toStdString();
+  if (!eventFits(QStringLiteral("app"), valueBytes(value) + n.size() + sizeof(QueuedEvent))) return;
+  pushEvent({QStringLiteral("app"), n, std::move(value), target, 0});
+}
+
+void PluginEngine::deliverFile(const QString& pluginId, uint64_t requestId, const std::string& content, const std::string& name, const std::string& error) {
+  Plugin* p = find(pluginId);
+  if (!p || p->status != PluginStatus::Running || !p->lua) return;
+  auto it = p->pickRefs.find(requestId);
+  if (it == p->pickRefs.end()) return;
+  const int ref = it->second;
+  p->pickRefs.erase(it);
+  callRef(*p, ref, [&](lua_State* L) {
+    if (error.empty()) {
+      lua_pushlstring(L, content.data(), content.size());
+      lua_createtable(L, 0, 2);
+      lua_pushlstring(L, name.data(), name.size());
+      lua_setfield(L, -2, "name");
+      lua_pushinteger(L, static_cast<lua_Integer>(content.size()));
+      lua_setfield(L, -2, "size");
+      return 2;
+    }
+    lua_pushnil(L);
+    if (error == "cancelled") return 1;  // cancel = callback(nil)
+    lua_pushlstring(L, error.data(), error.size());
+    return 2;
+  });
+  if (p->lua) luaL_unref(p->lua->L(), LUA_REGISTRYINDEX, ref);
 }
 
 void PluginEngine::clearSlotEverywhere(const QString& slot) {

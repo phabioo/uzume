@@ -343,3 +343,9 @@ uzume_add_test(ui_screenshots screenshots_ui_test.cpp ${FB_NETTEST_DIR}/fakehub.
   LIBS ${FB_UI_TEST_LIBS})
 target_include_directories(test_ui_screenshots PRIVATE ${FB_NETTEST_DIR})
 target_compile_definitions(test_ui_screenshots PRIVATE FB_TEST_DATA_DIR="${FB_NETTEST_DIR}/testdata")
+
+# PluginEmulationService (fb.cheats, fb.memory.write, fb.save.snapshot: run rule, consent, safety copy, run log) against the test core.
+uzume_add_test(ui_plugin_emulation_testcore plugin_emulation_test.cpp LIBS uzume_ui uzume_core uzume_emulation uzume_plugins TEST_CORE)
+target_compile_definitions(test_ui_plugin_emulation_testcore PRIVATE FB_TEST_ROM_PATH="${FB_ROM_DIR}/uzume_test.nds")
+add_dependencies(test_ui_plugin_emulation_testcore uzume_test_rom)
+target_include_directories(test_ui_plugin_emulation_testcore PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../emulation/tests)

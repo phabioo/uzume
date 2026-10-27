@@ -362,6 +362,22 @@ class SaveSyncTest : public QObject {
     QCOMPARE(sync_->kind(kGame), SaveSync::Kind::Conflict);
   }
 
+  // 0.20: after cheats or memory writes the uploads of the play session carry X-Uzume-Cheats-Used; a new session starts clean.
+  void uploadsAfterCheatsCarryTheMarker() {
+    writeFile(saveFile(), "local-1");
+    QCOMPARE(start(), QStringLiteral("ready"));
+    QVERIFY(!hub_->requests.last().headers.contains(QStringLiteral("x-uzume-cheats-used")));
+    sync_->beginSession();
+    sync_->setCheatsUsed(true);
+    writeFile(saveFile(), "local-2");
+    const int before = puts();
+    sync_->finalSyncBlocking(true);
+    QCOMPARE(puts(), before + 1);
+    QCOMPARE(hub_->requests.last().headers.value(QStringLiteral("x-uzume-cheats-used")), QByteArray("true"));
+    sync_->beginSession();
+    QVERIFY(!sync_->cheatsUsed());
+  }
+
   void conflictDecideLaterKeepsLocalAndPausesUploads() {
     hub_->setHubSave(kGame, "hub-1");
     QCOMPARE(start(), QStringLiteral("ready"));

@@ -38,6 +38,20 @@ struct RunParticipant {
   RunPluginState stateOf(const QString& pluginId) const { return states.value(pluginId); }
 };
 
+// Core rules of a run (run_rules_v1, protocol RunRules). Without a run everything is allowed; a run from a server that sends
+// no `rules` has the defaults of a new run (cheats and memory writes off).
+struct RunRules {
+  bool states = false;
+  bool rewind = false;
+  QString cheats = QStringLiteral("off");        // off | logged
+  QString memoryWrite = QStringLiteral("off");   // off | logged
+  bool operator==(const RunRules& o) const { return states == o.states && rewind == o.rewind && cheats == o.cheats && memoryWrite == o.memoryWrite; }
+  bool cheatsAllowed() const { return cheats == QLatin1String("logged"); }
+  bool memoryWriteAllowed() const { return memoryWrite == QLatin1String("logged"); }
+};
+RunRules parseRunRules(const QJsonObject& o);
+QJsonObject runRulesToJson(const RunRules& r);
+
 struct RunInfo {
   QString runId;
   QString name;
@@ -52,6 +66,7 @@ struct RunInfo {
   // older server or a run without the randomizer.
   QJsonObject randomizer;
   QString randomizerMode() const { return randomizer.value(QStringLiteral("mode")).toString(QStringLiteral("off")); }
+  RunRules rules;
   QList<RunPluginRef> plugins;
   QList<RunParticipant> participants;
   qint64 lastSeq = 0;

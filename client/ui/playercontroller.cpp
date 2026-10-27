@@ -145,6 +145,23 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
     reloadLibrary();
   });
   plugins_ = std::make_unique<PluginsController>(settings_.get(), profiles_->baseDir(), &session_, conn_.get());
+  // Plugin API emulation (0.20): the safety copy goes through the save sync, later uploads carry the cheats-used marker.
+  plugins_->emulation()->setSnapshotFn([this](const QString& label, PluginEmulationService::SnapshotDone done) {
+    if (!saves_ || !gameActive_) {
+      done(PluginEmulationService::SnapshotOutcome::NoSave, QString());
+      return;
+    }
+    saves_->snapshotActive(label, [done](const SaveSync::SnapshotResult& r) {
+      using O = SaveSnapshotResult::Outcome;
+      const auto outcome = r.kind == O::Ok ? PluginEmulationService::SnapshotOutcome::Ok
+                           : (r.kind == O::Blocked || r.kind == O::NotFound || r.kind == O::Offline) ? PluginEmulationService::SnapshotOutcome::NoSave
+                                                                                                    : PluginEmulationService::SnapshotOutcome::Failed;
+      done(outcome, r.message);
+    });
+  });
+  plugins_->emulation()->setCheatsUsedMarker([this]() {
+    if (saves_) saves_->setCheatsUsed(true);
+  });
   loadFolderScans();
   trimRomCache();  // limit lowered while the Player was closed
   // Library sort and "Ready first" are saved per device (3c-2).
@@ -752,6 +769,19 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
       sessions_->setBottomWindow(emulation_->uzumeValue(QString::fromLatin1(EmulationController::kBottomWindowKey), launchGame_.system, launchGame_.id) == QLatin1String("on"));
     }
     applyUzumeOptions();  // picture options of the game (gameActive_ is set now)
+    {  // identity, cheat formats and core of the running game for fb.cheats / fb.memory.write
+      PluginEmulationService::GameInfo gi;
+      gi.id = launchGame_.id;
+      gi.title = launchGame_.title;
+      gi.system = launchGame_.system;
+      gi.sha256 = launchGame_.romSha256;
+      const QString coreId = emulation_->launchCoreId(launchGame_.system, launchGame_.id);
+      if (const emu::CoreProfile* prof = manifests_.profile(coreId)) {
+        gi.cheatFormats = prof->cheatFormatsFor(launchGame_.system);
+        gi.coreName = coreNames_.value(coreId, prof->displayName);
+      }
+      plugins_->setGameInfo(gi);
+    }
     // Plugins start asynchronously after the game: they never delay it, failures only show in the console and the log.
     plugins_->gameStarted(launchGame_.system, launchRom_, launchGame_.romSha256, launchGame_.title,
                           plugins_->resolveLanguage(launchGame_.system, emulation_->launchOverrides(launchGame_.system, launchGame_.id)),

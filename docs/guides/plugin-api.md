@@ -43,7 +43,7 @@ A plugin is a folder with a `manifest.json`, a Lua entry file and optional `i18n
 | `min_player` | Optional SemVer (`"0.16.4"`): the oldest Uzume that runs the plugin. A plugin that needs a newer app has the problem "Needs Player X", is not started and cannot be turned on; an enabled one stays enabled and runs again after the app is updated (also after "Go back" to an older app, see [updates](updates.md#rollback)). The server does not check it. |
 | `provides` | Interface names this plugin offers to others with `fb.provide`. |
 | `games` | List of `{ "system", "codes" }`. `codes` are globs (`*` any run, `?` one character, case-insensitive); no `codes` = every game of that system. An empty or missing list = all games. |
-| `permissions` | `memory.read`, `rom.read`, `ui`, `run.state`, `video.capture`. `memory.write` and `tool.exec` are rejected ("permission `<p>` is not available yet"), unknown names are errors. |
+| `permissions` | `memory.read`, `memory.write`, `rom.read`, `ui`, `run.state`, `video.capture`, `cheats`, `store`. `tool.exec` is rejected ("permission `<p>` is not available yet"), unknown names are errors. |
 | `entry` | Relative path of the `.lua` entry file inside the plugin folder (no `..`, must exist). |
 | `assets` | Relative paths of bundled files or folders. |
 | `run_settings` | Optional run rules form, see [Run settings](#run-settings). |
@@ -58,8 +58,11 @@ A plugin is a folder with a `manifest.json`, a Lua entry file and optional `i18n
 | `ui` | `fb.ui.*` and the manifest field `ui` (declarative UI blocks, toasts) | available |
 | `run.state` | `fb.run.*` (per-player run state, run events, run board) | available |
 | `video.capture` | `fb.video.*` (screen layout and PNG captures of the game picture) | available |
+| `memory.write` | `fb.memory.write*`: changes game memory through the one write queue; per-game consent "Change game memory", safety copy "Before memory changes", run log | available (0.20) |
+| `cheats` | `fb.cheats.*`: hands cheat codes to the core's own cheat engine; per-game consent, safety copy "Before cheats", run log | available (0.20) |
+| `store` | `fb.store.*`: small private data per person and plugin, synced with the server | available (0.20) |
 
-Calling a function without its permission raises the Lua error `permission <p> not granted`. Everything else (`fb.log`, `fb.events`, `fb.provide`/`fb.call`, `fb.cache`, `fb.i18n`, `fb.clock`, `fb.on_tick`) needs no permission.
+Calling a function without its permission raises the Lua error `permission <p> not granted`. Everything else (`fb.log`, `fb.events`, `fb.provide`/`fb.call`, `fb.cache`, `fb.i18n`, `fb.clock`, `fb.on_tick`, `fb.save.snapshot`, `fb.game.hash`) needs no permission.
 
 ## Sandbox and limits
 
@@ -105,6 +108,7 @@ Everything lives in the global table `fb`.
 - `fb.api` is `1`.
 - `fb.plugin` is `{ id, version }`.
 - `fb.game` is `{ system, code, sha256, title, language }`. Any field may be `nil`. `language` is the plugin UI language as a tag (`en`, `de`, `de-DE`, ...): the app setting Settings > Plugins > Plugin language, or with Auto the Azahar "3DS System Language" of a 3DS game, else the language of the computer. It is fixed when the game starts.
+- `fb.game.hash()` returns the SHA-256 of the game file as lower-case hex (the key of the server's cheat database), `nil` without a game. It needs no permission and is missing in the shell context.
 - `fb.clock()` returns monotonic milliseconds (integer).
 
 ### Logging
@@ -230,6 +234,64 @@ Event `video.captured` (source `"fb"`, delivered on the plugin thread like the o
 
 A capture waits for a frame at native size, so with a hardware-rendered core the result arrives one to a few frames after the request. While the game is paused no new frame is produced and the capture fails with `no_frame` after about 2 seconds, unless the last frame already has native size.
 
+### Game memory writes (`memory.write`)
+
+Changes the running game's memory. Every write of every plugin goes through the one command queue of the emulation, applied on the emulation thread between two frames (also while paused), so the order is the order of the calls. The checks run in this fixed order, no plugin can skip one:
+
+1. **Run rule.** In a run whose rule `memory_write` is `off` (the default) every call returns `nil, "blocked_by_run_rule"`. `logged` allows it.
+2. **Consent.** The first write in a game asks the person once ("Let plugins change game memory in <game>?", button "Allow changes"). Until then calls return `nil, "consent_required"` (the question is shown; try again later). "Allow" is remembered for that game on this PC; "Cancel" refuses for the rest of the play session (`nil, "consent_denied"`) and is not remembered.
+3. **Safety copy.** Before the first write of a play session the app saves a snapshot of the save on the server, labelled "Before memory changes". If that fails, the queued writes are dropped and the person sees a notice.
+4. **Write.** Uploaded saves of the session carry the marker `X-Uzume-Cheats-Used`, which the app shows as "Made with cheats". In a run, the run log gets an event `memory.write { plugin_id }`, at most one per 10 seconds and plugin.
+
+| Function | Meaning |
+|---|---|
+| `fb.memory.write(addr, bytes)` | Writes the string `bytes` (1 to 65536 bytes). |
+| `fb.memory.write_u8/u16/u32(addr, v)` | Writes a little-endian integer (signed or unsigned range of the size, otherwise a Lua error). |
+
+All return `true`, or `nil, code` with one of `no_game`, `blocked_by_run_rule`, `consent_required`, `consent_denied`, `unmapped` (the range is not fully inside the core's memory map; nothing is written), `queue_full` (more than 256 writes waiting) or `invalid`. `true` means queued, not yet applied.
+
+If two plugins keep writing the same address (different plugins, within 1 second, repeatedly) the app logs it and shows the toast "two plugins fight over game memory"; the last write still wins each time.
+
+### Cheats (`cheats`)
+
+Hands cheat codes to the core's own cheat engine (`retro_cheat_set`; for the 3DS core to its Gateway engine). The plugin keeps its cheat lists itself (see [Plugin data](#plugin-data-store)); the app holds one active list per game. The same order as for memory writes applies: run rule `cheats` (`off` by default, `logged` allows), consent "Turn on cheats for <game>?" (once per game; the confirm button is remembered), safety copy "Before cheats" before the first active cheat of a play session, then the core. Uploaded saves of the session carry `X-Uzume-Cheats-Used`. The run log gets `cheat.enabled { name, format, plugin_id }` and `cheat.disabled` for each change. The game header shows "N cheats on". The active list is re-applied by the app after a reset or a loaded state.
+
+| Function | Meaning |
+|---|---|
+| `fb.cheats.formats()` | The code formats the core takes (`raw`, `gsa`, `cb`, `ar_ds`, `ar_gba`, `game_genie`, `gateway`), as a list; the second value is the core's display name, or `nil` when unknown. |
+| `fb.cheats.allowed()` | `true`, or `false, "run_rule"` when the run's rule forbids cheats. |
+| `fb.cheats.apply(list)` | Replaces the active list. Items are `{ id (required, up to 64), name?, format (required), code (required, up to 4096), enabled? (default true) }`, at most 2000. Returns `{ applied = n, rejected = {{ id, reason }, ...} }` with the reasons `unsupported_format`, `invalid_code`, `invalid`; or `nil, code` with `no_game`, `blocked_by_run_rule`, `consent_required` (the question is shown; the app applies the list itself once the person agrees, and `cheats.blocked` follows if not), `consent_denied`. |
+| `fb.cheats.clear()` | Turns everything off. Always allowed. `true` or `nil, "no_game"`. |
+| `fb.cheats.database()` | The server's cheat list for this game, `{ source, updated_at, cheats = {{ name, code, format_guess }, ...} }`, from the local cache. On failure `nil, code`: `"off"` (the server has the cheat database turned off), `"offline"`, `"not_found"` (the server does not know the game), `"error: <text>"`; `"error: loading"` while the first fetch is under way (the event `cheats.database` follows). The cache refreshes in the background. |
+
+App events (subscribe with `fb.events.on("app", name, fn)`; `fn(value, "app", name)`):
+
+| Event | Value |
+|---|---|
+| `cheats.blocked` | `{ reason }`: `"run_rule"` (the rule turned cheats off; all active cheats were cleared at once, live when the run is updated), `"consent_denied"`, or `"snapshot_failed"` (the safety copy failed, so no cheat was turned on). |
+| `cheats.allowed` | `nil`, when a run rule switches cheats back on. |
+| `cheats.database` | `nil`, when `fb.cheats.database()` has new data. |
+
+### Save snapshots (no permission)
+
+`fb.save.snapshot(reason)` takes a manual snapshot of the current save on the server, labelled "<plugin name>: <reason>" (`reason` 1 to 80 characters), e.g. before a risky step. It returns `true` (queued) or `nil, message` (`"reason is empty"`, `"reason is longer than 80 characters"`, `"no_game"`, `"rate_limited"`: at most one per minute and plugin). The person sees the toast "<plugin> saved a snapshot · <reason>" (or a notice that nothing could be saved, e.g. no save on the server yet). A snapshot can be restored in the save history like any other.
+
+### Plugin data (`store`)
+
+`fb.store` keeps small private data per person and plugin (cheat lists, settings, notes). It reads and writes a local copy on this PC at once, never waits for the network, and works offline and with "Only on this PC". The app syncs the copy with the server (`plugin_store_v1`) in the background, per key with revisions; plugins never see other people's data.
+
+| Function | Meaning |
+|---|---|
+| `fb.store.get(key)` | `value, revision`, or `nil, 0` when the key does not exist. `key` is `[a-z0-9_.-]{1,64}`. |
+| `fb.store.put(key, value [, base_revision])` | Stores any JSON-like value (nil, tables with string keys or arrays, numbers, booleans, strings; up to 256 KiB per value, 1024 keys and 16 MiB per plugin). Returns `true, revision`. With `base_revision` (the revision the plugin read) a stale write is refused with `nil, "conflict"`; the attempted value is kept as a conflict. Other failures: `nil, "too_large"`, `nil, "quota_exceeded"`. |
+| `fb.store.conflicts(key)` | List of kept second versions `{ value, revision, source }`; `source` is `"local"` (a stale write) or `"server"` (another PC wrote first). Empty when there is none. |
+
+Nothing is overwritten silently: when the server has a newer value for a key that has local changes, or a push gets `409 store_conflict`, both versions are kept. The key stays as it is locally (it is not pushed) until the plugin resolves it with a normal `put`, which clears the conflicts. App events: `store.changed` (value = the key; the server's version replaced the local one) and `store.conflict` (value = the key; both versions are kept).
+
+### Debug tools (MCP)
+
+The debug MCP server (Settings › Diagnostics › Claude debugging, see the [app guide](app.md#claude-debugging-mcp)) has tools for the new APIs: `cheats_list` (active list, core formats, why cheats are blocked, consent state), `cheats_apply` (a JSON list as plugin `mcp`; `bypass_consent: true` skips only the per-game question, the run rule, the safety copy and the run log still apply), `cheats_clear`, `store_get` / `store_put` (any plugin id, local copy of the connected user) and `consent_set { kind: "cheats" | "memory_write", allow, forget?, game? }`. They change the running game or the person's plugin data, like `game_memory_write`.
+
 ### Cache
 
 A per-plugin folder for data you derive from the game, such as extracted assets. Names use `A-Z a-z 0-9 . _ - /`, no `..`, no leading `/`; anything else raises an error.
@@ -297,12 +359,15 @@ All functions raise `permission ui not granted` without the permission. A slot m
 - `fb.ui.clear(slot)` removes the tree.
 - `fb.ui.title(slot, text)` overrides the declared title (slots `panel` and `screen` only; 1 to 40 characters; `nil` restores the declared title).
 - `fb.ui.open(slot)` asks the app to show the plugin's own `"screen"` or `"panel"` (needs `ui.screen` / `ui.panel`; other slots raise `fb.ui.open only supports the slots screen and panel`). In a game, `"screen"` opens the in-game screen sheet and `"panel"` selects the plugin's tab in the side panel (shown if collapsed; ignored in fullscreen and in the Multiview). Outside a game, `"screen"` selects the plugin's run tab when the plugin runs in the open run view, otherwise it opens the plugin's screen as a sheet (the same sheet as "Open" in Settings › Plugins, where plugins without runs open their screen), and `"panel"` is ignored. Typical use: a button or hotkey action handled in `fb.ui.on_action`.
+- `fb.ui.close(slot)` closes what `fb.ui.open` showed: the in-game screen sheet (`"screen"`) or the plugin's panel tab (`"panel"`). Nothing happens when it is not open.
+- `fb.ui.pick_file{ title, filters, max_bytes }, callback` opens the system file dialog (`title` up to 100 characters, `filters` up to 12 patterns like `"*.cht"`, `max_bytes` default 1 MiB, at most 8 MiB). The plugin gets the content only, never the path or the folder: `callback(content, { name = "<base name>", size = <bytes> })`. Cancel calls `callback(nil)`; a file larger than `max_bytes` (refused without reading it) or an unreadable one calls `callback(nil, "too_large")` or `callback(nil, "read_failed")`. One dialog per plugin at a time.
 - `fb.ui.badge(n)` shows a count on the plugin's run tab. `0` or `nil` hides it; values are clamped to 0..999.
 - `fb.ui.dot(kind)` sets the dot on the panel tab: `"news"` or `nil` to clear. The amber "paused" dot is set by the app.
 - `fb.ui.notify{ tone, title, text, actions }` shows a toast and returns its id. `tone` is `"info"` (default), `"important"` or `"warning"`; `title` up to 80 characters; `text` 1 to 300 characters; `actions` up to 2 of `{ label (1 to 40), action, value? }`. Rate limit per plugin: a burst of 3, then 1 per second. A dropped toast writes a log warning and returns `nil`. The user can mute a plugin's toasts (all, or all but `important`). At most the newest 3 toasts are visible.
 - `fb.ui.on_action(fn)` sets the handler `fn(action, value, slot)`, called on the plugin thread for:
   - buttons, toggles (`value` = new boolean), selects and segmented controls (`value` = chosen option value), tab switches (`value` = 1-based index), text fields on Enter (`value` = text), clickable cards, stats, chips, list and table rows (the row's `value`), empty-state buttons;
   - map selection and filter changes (`value` = `{ kind = "route"|"player", id = ... }` or `{ kind = "filter", value = "all"|"me"|"open" }`);
+  - `textarea` changes (`value` = the text, see the block table);
   - toast buttons (`slot` = `"toast"`);
   - plugin hotkeys (`slot` = `"hotkey"`, `action` = hotkey id, `value` = `nil`).
 
@@ -342,10 +407,11 @@ A block is a table `{ type = "...", id = "...", children = { ... }, <props> }`. 
 | `list` | `rows` (up to 500, required), `selected` (row id) | no |
 | `table` | `columns` (1..12 labels), `rows` (up to 500) (both required) | no |
 | `button` | `label`, `action` (required), `variant` (`primary`, `secondary`, `quiet`, `danger`), `value`, `confirm` | no |
-| `toggle` | `action` (required), `label`, `checked` | no |
+| `toggle` | `action` (required), `label`, `checked`, `value`, `disabled` | no; with `value` the action gets `{ checked = <new boolean>, value = <value> }` instead of the plain boolean (to tell several toggles apart); `disabled = true` greys it out and ignores input |
 | `select` | `options` (1..100, required), `selected`, `action` (required) | no |
 | `segmented` | `options` (2..3, required), `selected`, `action` (required) | no |
-| `textfield` | `action` (required), `text`, `placeholder`, `error` | no; the action fires on Enter |
+| `textfield` | `action` (required), `text`, `placeholder`, `error`, `live` | no; the action fires on Enter; with `live = true` it also fires while typing, debounced to 250 ms |
+| `textarea` | `value` (text, up to 64 KiB), `lines` (visible lines, 1..40, default 4), `mono` (monospace), `placeholder`, `error`, `action` | no; multi-line text. The action fires 300 ms after typing pauses and when the focus leaves. It arrives as `on_action(<action>, text, slot)`; without `action` the name is the block `id`, without both `"change"`. (A `textfield` sends its `action` prop as the name.) |
 | `empty` | `title` (required), `text`, `action_label`, `action`, `tone` | no; `tone = "danger"` is an error state |
 | `location` | `title` (required), `sub`, `status` (`open`, `encounter`, `caught`, `missed`, `none`) | yes, optional |
 | `map` | see [Map block](#map-block) | no |
@@ -457,7 +523,7 @@ Permission `run.state`. `fb.run` exists only when the game was started with "Pla
 
 | Function | Meaning |
 |---|---|
-| `fb.run.current()` | `{id, name, status, me, settings, plugins = {...}, participants = {{user_id, name, color, status, game_id}, ...}}` from the app's cache. |
+| `fb.run.current()` | `{id, name, status, me, settings, rules = {states, rewind, cheats, memory_write}, plugins = {...}, participants = {{user_id, name, color, status, game_id}, ...}}` from the app's cache. |
 | `fb.run.state([user_id [, plugin_id]])` / `fb.run.states([plugin_id])` | One participant's state object for a plugin of the run (defaults: the own user and the calling plugin; `nil` if none yet) / table `user_id -> state` for that plugin (default: the calling plugin). Another plugin's state of the same run may be read (read-only), for example state published by another run plugin. Updated live; no network call. |
 | `fb.run.setState(tbl)` | Replaces the calling plugin's state object of the own participant (JSON-able table, at most 64 KiB per plugin). Coalesced per plugin to at most 4 sends per second: the latest value wins. On `409 state_conflict` the app adopts the server revision of that plugin and sends the latest value again. |
 | `fb.run.event{type=, text=, payload=, source=}` | Posts a run event (`type` required, `text` at most 280 characters, `payload` an object of at most 4 KiB, `source` `"automatic"` (default) or `"manual"`). Returns the `client_id` (a UUID); the app queues the event and retries it idempotently until the server confirms it (at most 2 per second). |

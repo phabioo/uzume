@@ -150,6 +150,14 @@ class FakeHub : public QTcpServer {
   int pluginListRequests = 0;
   bool pluginListFails = false;  // GET /plugins answers 500
   int corePackageRequests = 0;
+  // Plugin user store (plugin_store_v1): GET /plugins/{id}/store -> {keys:[{key, revision}]}, GET/PUT/DELETE /plugins/{id}/store/{key}. A PUT
+  // with a base_revision other than the stored one answers 409 {error, revision, value}. Key "<plugin>/<key>".
+  struct FakeStoreEntry {
+    qint64 revision = 0;
+    QJsonValue value;
+  };
+  QMap<QString, FakeStoreEntry> pluginStore;
+  bool handlePluginStore(QSslSocket* sock, const FakeRequest& req);
   int count(const QString& pathPrefix, const QByteArray& method) const;
 
   // Local ROMs (local_roms_v1): POST /games/register, DELETE /games/{id}/registration, resumable /uploads.
