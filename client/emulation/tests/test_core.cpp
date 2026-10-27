@@ -441,7 +441,7 @@ const VkApplicationInfo* RETRO_CALLCONV appInfo() {
 }
 
 bool makeDevice(retro_vulkan_context* ctx, VkInstance inst, VkPhysicalDevice gpu, PFN_vkGetInstanceProcAddr gipa,
-                retro_vulkan_create_device_wrapper_t wrapper, void* opaque) {
+                retro_vulkan_create_device_wrapper_t wrapper, void* opaque, const char** exts = nullptr, unsigned numExts = 0) {
   if (gpu == VK_NULL_HANDLE) return false;
   auto getQf = reinterpret_cast<PFN_vkGetPhysicalDeviceQueueFamilyProperties>(gipa(inst, "vkGetPhysicalDeviceQueueFamilyProperties"));
   auto createDev = reinterpret_cast<PFN_vkCreateDevice>(gipa(inst, "vkCreateDevice"));
@@ -463,6 +463,8 @@ bool makeDevice(retro_vulkan_context* ctx, VkInstance inst, VkPhysicalDevice gpu
   di.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
   di.queueCreateInfoCount = 1;
   di.pQueueCreateInfos = &qi;
+  di.enabledExtensionCount = exts ? numExts : 0;  // v1: the extensions the frontend asked for
+  di.ppEnabledExtensionNames = exts;
   VkDevice dev = VK_NULL_HANDLE;
   if (wrapper) {
     dev = wrapper(gpu, opaque, &di);
@@ -482,10 +484,10 @@ bool makeDevice(retro_vulkan_context* ctx, VkInstance inst, VkPhysicalDevice gpu
   return true;
 }
 bool RETRO_CALLCONV createDeviceV1(retro_vulkan_context* ctx, VkInstance inst, VkPhysicalDevice gpu, VkSurfaceKHR,
-                                   PFN_vkGetInstanceProcAddr gipa, const char**, unsigned, const char**, unsigned,
+                                   PFN_vkGetInstanceProcAddr gipa, const char** exts, unsigned numExts, const char**, unsigned,
                                    const VkPhysicalDeviceFeatures*) {
   ++g_vkState[0];
-  return makeDevice(ctx, inst, gpu, gipa, nullptr, nullptr);
+  return makeDevice(ctx, inst, gpu, gipa, nullptr, nullptr, exts, numExts);
 }
 bool RETRO_CALLCONV createDevice2(retro_vulkan_context* ctx, VkInstance inst, VkPhysicalDevice gpu, VkSurfaceKHR,
                                   PFN_vkGetInstanceProcAddr gipa, retro_vulkan_create_device_wrapper_t wrapper, void* opaque) {

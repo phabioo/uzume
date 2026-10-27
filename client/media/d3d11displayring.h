@@ -4,6 +4,11 @@
 // Windows only: other platforms compile every method; the producer reports Unavailable("not Windows").
 // No Qt Quick headers, no windows.h/d3d11.h: COM objects cross the API as void*.
 //
+// Vulkan mode (ADR 0034 D8): a producer whose first call is acquireExternal() runs without GL and without the bridge: it
+// creates the slots on an own D3D11 device opened on Qt Quick's adapter and hands out their NT handles; the Vulkan submit
+// (VK_KHR_win32_keyed_mutex) does AcquireSync(0) before and ReleaseSync(1) after the copy, so the consumer protocol is the
+// same. The producer itself makes no keyed-mutex call in that mode; present() only publishes.
+//
 // Protocol (3 slots per generation, DisplaySlots in displayslots.h is the pure state machine):
 //  - Each slot is a shared R8G8B8A8_UNORM texture (NT handle + keyed mutex) on the bridge's device, registered with
 //    GL (WRITE_DISCARD). Textures only grow (sizes rounded up to 64); growing makes a new generation (3 new slots).
@@ -47,6 +52,8 @@ class D3d11DisplayProducer final : public DisplayProducer {
   D3d11DisplayProducer(std::shared_ptr<D3d11RingShared> shared, void* testDevice);
   ~D3d11DisplayProducer() override;
   Status acquire(int w, int h, unsigned* glTexture, QSize* texSize) override;
+  Status acquireExternal(int w, int h, ExternalDisplayImage* out) override;
+  bool adapterLuid(quint8 out[8]) const override;
   void present(int w, int h) override;
   void abort() override;
   void release(bool glCurrent) override;
@@ -77,6 +84,10 @@ class D3d11DisplayConsumer {
   void frameEnd();
   // Render thread: releases everything (the shown slot goes back with key 0). Idempotent.
   void close();
+  // Any thread. Qt Quick's adapter (DXGI LUID: high << 32 | low) and "Qt Quick does not render with D3D11": forwarded to
+  // the GL-D3D11 bridge (GL mode) and kept in the shared state, where the Vulkan mode of the producer waits for it.
+  void setTargetAdapter(quint64 luid);
+  void setUnavailable(const QString& reason);
   bool failed() const;
   QString failureReason() const;
 

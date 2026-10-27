@@ -540,6 +540,7 @@ bool LibretroBackend::runFrame() {
   m_lastDisplayNs = 0;
   m_lastDisplayed = false;
   if (m_hwActive && !m_hw->makeCurrent()) return false;
+  if (m_vkActive) applyTargetChange();  // the display target (encode targets are GL-only)
   if (m_hwActive) {
     applyTargetChange();
     // The frame blitted by the previous runFrame is complete once the target has copied it (ADR 0019): capture it now,
@@ -630,7 +631,7 @@ void LibretroBackend::setGpuEncodeTarget(std::shared_ptr<GpuEncodeTarget> target
 }
 
 void LibretroBackend::applyTargetChange() {
-  if (m_targetChanged.load()) {
+  if (m_hwActive && m_targetChanged.load()) {
     std::shared_ptr<GpuEncodeTarget> next;
     {
       QMutexLocker l(&m_targetMutex);
@@ -640,7 +641,7 @@ void LibretroBackend::applyTargetChange() {
     }
     m_hw->setEncodeTarget(std::move(next));
   }
-  if (m_displayChanged.load()) {
+  if ((m_hwActive || (m_vkActive && m_vk && m_vk->hasContext())) && m_displayChanged.load()) {
     std::shared_ptr<GpuDisplayTarget> next;
     {
       QMutexLocker l(&m_targetMutex);
@@ -648,7 +649,8 @@ void LibretroBackend::applyTargetChange() {
       m_nextDisplay.reset();
       m_displayChanged.store(false);
     }
-    m_hw->setDisplayTarget(std::move(next));
+    if (m_vkActive) m_vk->setDisplayTarget(std::move(next));  // Vulkan: blit into the target's external images (ADR 0034 D8)
+    else m_hw->setDisplayTarget(std::move(next));
   }
 }
 
@@ -808,6 +810,10 @@ bool LibretroBackend::setupVulkan(void* data) {
 bool LibretroBackend::finishHwSetup(unsigned maxWidth, unsigned maxHeight, QString* error) {
   if (m_vkActive) {
     QString err;
+    {
+      QMutexLocker l(&m_targetMutex);
+      m_vk->setExternalMemoryWanted(m_nextDisplay != nullptr);  // a display target is waiting: the device gets the interop extensions
+    }
     if (!m_vk->create(&err)) {
       qCWarning(lcCore).noquote() << "Vulkan context could not be created:" << err;
       if (error) *error = QStringLiteral("Vulkan hardware rendering could not be started: %1").arg(err);
@@ -1014,17 +1020,24 @@ void LibretroBackend::handleVideo(const void* data, unsigned width, unsigned hei
   if (!m_videoWanted.load()) {  // frame is not shown: no readback, no conversion; the last image stays
     ++m_frameCount;
     if (m_vkActive && data == RETRO_HW_FRAME_BUFFER_VALID && width != 0 && height != 0)
-      m_vk->presentFrame(static_cast<int>(width), static_cast<int>(height), QSize(), false);  // the core's work still runs
+      m_vk->presentFrame(static_cast<int>(width), static_cast<int>(height), QSize(), false, QSize(), nullptr, false);  // the core's work still runs
     return;
   }
-  if (m_vkActive && (!data || data == RETRO_HW_FRAME_BUFFER_VALID)) {  // Vulkan: readback only (ADR 0034)
+  if (m_vkActive && (!data || data == RETRO_HW_FRAME_BUFFER_VALID)) {  // Vulkan (ADR 0034): readback and the display copy
     if (data == RETRO_HW_FRAME_BUFFER_VALID && width != 0 && height != 0) {
       m_sourceSize.store(pack(QSize(static_cast<int>(width), static_cast<int>(height))));
       const bool readbackOn = m_readbackEnabled.load();
       const auto t0 = std::chrono::steady_clock::now();
-      const QImage img = m_vk->presentFrame(static_cast<int>(width), static_cast<int>(height), unpack(m_readbackLimit.load()), readbackOn);
-      m_lastReadbackNs = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - t0).count();
-      if (readbackOn) ++m_hwReadbacks;
+      bool displayed = false;
+      const bool hadDisplay = m_vk->hasDisplayTarget();
+      // The GPU copy into the display target (zero-copy, ADR 0034 D8) runs in the same submit as the readback copy.
+      const QImage img = m_vk->presentFrame(static_cast<int>(width), static_cast<int>(height), unpack(m_readbackLimit.load()), readbackOn,
+                                            unpack(m_displayLimit.load()), &displayed);
+      const qint64 ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - t0).count();
+      m_lastDisplayed = displayed;
+      if (hadDisplay) m_lastDisplayNs = ns;  // display and readback share one submit: the whole call counts for both
+      if (!displayed || readbackOn) m_lastReadbackNs = ns;
+      if (readbackOn || !img.isNull()) ++m_hwReadbacks;
       if (!img.isNull()) m_frame = img;
     } else {
       m_vk->presentDuplicate();

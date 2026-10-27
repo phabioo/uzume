@@ -53,8 +53,9 @@ DisplayTextureSource* GpuDisplayBridge::source() {
 void GpuDisplayBridge::confirmShown() {
   State expected = State::Pending;
   if (!state_.compare_exchange_strong(expected, State::Active)) return;
-  qCInfo(lcDisplay).noquote() << QStringLiteral("Zero-copy display active: D3D11 textures on \"%1\" (no readback for the game view)")
-                                     .arg(producer_ ? producer_->adapterName() : QString());
+  qCInfo(lcDisplay).noquote() << QStringLiteral("Zero-copy display active: %1D3D11 textures on \"%2\" (no readback for the game view)")
+                                     .arg(external_.load() ? QStringLiteral("Vulkan \u2192 ") : QString(),
+                                          producer_ ? producer_->adapterName() : QString());
   notify();
 }
 
@@ -88,6 +89,51 @@ emu::GpuDisplayTarget::Acquire GpuDisplayBridge::acquire(int w, int h, unsigned*
     }
   }
   return Acquire::Failed;
+}
+
+emu::GpuDisplayTarget::Acquire GpuDisplayBridge::acquireExternal(int w, int h, emu::ExternalImage* out) {
+  const State s = state_.load();
+  if (!producer_ || (s != State::Pending && s != State::Active)) return Acquire::Skip;
+  ExternalDisplayImage img;
+  switch (producer_->acquireExternal(w, h, &img)) {
+    case DisplayProducer::Status::Ok:
+      external_.store(true);
+      out->handleType = img.handleType == ExternalDisplayImage::HandleType::OpaqueFd ? emu::ExternalImage::HandleType::OpaqueFd
+                                                                                     : emu::ExternalImage::HandleType::D3D11TextureNt;
+      out->handle = img.handle;
+      out->texSize = img.texSize;
+      out->memorySize = img.memorySize;
+      out->generation = img.generation;
+      out->slot = img.slot;
+      out->keyedMutex = img.keyedMutex;
+      out->acquireKey = img.acquireKey;
+      out->releaseKey = img.releaseKey;
+      return Acquire::Ok;
+    case DisplayProducer::Status::Skip:
+      return Acquire::Skip;
+    case DisplayProducer::Status::NotReady:
+      return Acquire::NotReady;
+    case DisplayProducer::Status::Unavailable:
+      transition(State::Unavailable, producer_->reason());
+      return Acquire::Unavailable;
+    case DisplayProducer::Status::Failed: {
+      const QString why = producer_->reason();
+      transition(State::Failed, why.isEmpty() ? QStringLiteral("acquire failed") : why);
+      return Acquire::Failed;
+    }
+  }
+  return Acquire::Failed;
+}
+
+emu::AdapterLuid GpuDisplayBridge::adapterLuid() const {
+  emu::AdapterLuid l;
+  if (producer_) l.valid = producer_->adapterLuid(l.bytes);
+  return l;
+}
+
+// A display that already showed frames cannot go back to "not applicable": that is a failure for this game.
+void GpuDisplayBridge::markUnavailable(const QString& reason) {
+  transition(state_.load() == State::Active ? State::Failed : State::Unavailable, reason);
 }
 
 void GpuDisplayBridge::present(int w, int h) {

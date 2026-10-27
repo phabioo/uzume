@@ -67,6 +67,9 @@ class GpuDisplayBridge final : public emu::GpuDisplayTarget {
   // emu::GpuDisplayTarget
   bool wanted() const override;  // state Pending or Active, and the source has not failed
   Acquire acquire(int w, int h, unsigned* glTexture, QSize* texSize) override;
+  Acquire acquireExternal(int w, int h, emu::ExternalImage* out) override;  // Vulkan games (ADR 0034 D8)
+  emu::AdapterLuid adapterLuid() const override;
+  void markUnavailable(const QString& reason) override;  // Pending -> Unavailable (quiet)
   void present(int w, int h) override;
   void abort() override;
   void release(bool glCurrent) override;
@@ -82,6 +85,7 @@ class GpuDisplayBridge final : public emu::GpuDisplayTarget {
   std::unique_ptr<uzume::DisplayProducer> producer_;
   std::unique_ptr<DisplayTextureSource> source_;
   mutable std::atomic<State> state_{State::Pending};
+  std::atomic<bool> external_{false};  // the frames come from Vulkan (acquireExternal handed out a texture)
   mutable std::mutex mutex_;  // guards reason_ and callback_
   mutable QString reason_;
   mutable std::function<void()> callback_;

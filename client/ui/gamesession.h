@@ -172,7 +172,8 @@ class GameSession : public QObject {
   bool displayReadbackEnabled() const { return readbackOn_; }
   // Tests: replaces makePlatformDisplay() for the next game launches (empty function = the real one).
   static void setPlatformDisplayFactoryForTests(std::function<PlatformDisplay(QString*)> factory);
-  // The game runs on an OpenGL context (a software core, a preview or no game: false).
+  // The game runs on an OpenGL context (a software core, a preview, a Vulkan game or no game: false). Gates GPU-direct
+  // Session encoding only; the zero-copy display target (setupDisplay) serves OpenGL and Vulkan games alike.
   bool hardwareRendered() const;
 
   void start(const LaunchConfig& config);

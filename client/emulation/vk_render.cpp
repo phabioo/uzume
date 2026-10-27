@@ -9,14 +9,28 @@
 #include <mutex>
 #include <vector>
 
+#include "gpu_display_target.h"
 #include "hw_render.h"
 
 #if UZUME_HAVE_VULKAN
 #define VK_NO_PROTOTYPES 1
+#ifdef _WIN32  // VK_KHR_external_memory_win32 / VK_KHR_win32_keyed_mutex (zero-copy display into D3D11 textures)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#define VK_USE_PLATFORM_WIN32_KHR 1
+#endif
 #include <libretro.h>
 #include <vulkan/vulkan.h>
 
 #include "libretro_vulkan.h"
+
+#if !defined(_WIN32) && defined(__unix__) && !defined(__APPLE__)
+#include <unistd.h>
+#endif
 #endif
 
 Q_LOGGING_CATEGORY(lcVk, "uzume.vulkan")
@@ -28,11 +42,19 @@ std::atomic<bool> g_forceUnavailable{false};
 std::atomic<bool> g_forceCreateFail{false};
 std::atomic<unsigned> g_highestApi{0};        // from the last successful probe()
 std::atomic<unsigned> g_highestApiForTest{0};  // 0 = off
+std::atomic<bool> g_extMissingForTest{false};
+std::mutex g_luidMutex;
+QByteArray g_luidForTest;  // 8 bytes or empty
 }
 
 void VkRenderContext::setUnavailableForTest(bool unavailable) { g_forceUnavailable.store(unavailable); }
 
 void VkRenderContext::setCreateFailsForTest(bool fails) { g_forceCreateFail.store(fails); }
+void VkRenderContext::setExternalMemoryMissingForTest(bool missing) { g_extMissingForTest.store(missing); }
+void VkRenderContext::setDeviceLuidForTest(const QByteArray& luid8) {
+  std::lock_guard<std::mutex> lock(g_luidMutex);
+  g_luidForTest = luid8.size() == 8 ? luid8 : QByteArray();
+}
 void VkRenderContext::setHighestApiForTest(unsigned packedVersion) { g_highestApiForTest.store(packedVersion); }
 unsigned VkRenderContext::highestUsableApi() {
   const unsigned forced = g_highestApiForTest.load();
@@ -79,6 +101,10 @@ bool VkRenderContext::probe(QString* why) {
 }
 void VkRenderContext::setNegotiationInterface(const void*) {}
 void VkRenderContext::setRequiredApiVersion(unsigned) {}
+void VkRenderContext::setExternalMemoryWanted(bool) {}
+void VkRenderContext::setDisplayTarget(std::shared_ptr<GpuDisplayTarget>) {}
+bool VkRenderContext::hasDisplayTarget() const { return false; }
+quint64 VkRenderContext::displayBlitCount() const { return 0; }
 bool VkRenderContext::create(QString* error) {
   if (error) *error = QStringLiteral("built without the Vulkan headers");
   return false;
@@ -88,7 +114,7 @@ bool VkRenderContext::hasContext() const { return false; }
 const void* VkRenderContext::renderInterface() const { return nullptr; }
 QString VkRenderContext::apiText() const { return {}; }
 QString VkRenderContext::gpuText() const { return {}; }
-QImage VkRenderContext::presentFrame(int, int, const QSize&, bool) { return {}; }
+QImage VkRenderContext::presentFrame(int, int, const QSize&, bool, const QSize&, bool*, bool) { return {}; }
 void VkRenderContext::presentDuplicate() {}
 quint64 VkRenderContext::frameCount() const { return 0; }
 
@@ -131,6 +157,36 @@ BytesPerFrame formatMode(VkFormat f) {
   }
 }
 
+// ---- zero-copy display: what this platform can import (ADR 0034 D8)
+#if defined(_WIN32)
+#define UZUME_VK_EXTERNAL 1
+constexpr VkExternalMemoryHandleTypeFlagBits kNativeHandle = VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_BIT;
+constexpr ExternalImage::HandleType kNativeType = ExternalImage::HandleType::D3D11TextureNt;
+constexpr const char* kPlatformExts[] = {VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME, VK_KHR_WIN32_KEYED_MUTEX_EXTENSION_NAME};
+#elif defined(__unix__) && !defined(__APPLE__)
+#define UZUME_VK_EXTERNAL 1
+constexpr VkExternalMemoryHandleTypeFlagBits kNativeHandle = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
+constexpr ExternalImage::HandleType kNativeType = ExternalImage::HandleType::OpaqueFd;
+constexpr const char* kPlatformExts[] = {VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME};
+#else
+#define UZUME_VK_EXTERNAL 0
+#endif
+
+constexpr uint32_t kDisplaySlots = 3;  // DisplaySlots::kCount of the producers (ring slots per generation)
+
+// Source formats the GPU blit converts exactly like the readback does (sRGB variants would be decoded by the blit).
+bool displayFormatOk(VkFormat f) {
+  switch (f) {
+    case VK_FORMAT_B8G8R8A8_UNORM:
+    case VK_FORMAT_R8G8B8A8_UNORM:
+    case VK_FORMAT_A8B8G8R8_UNORM_PACK32:
+    case VK_FORMAT_A2B10G10R10_UNORM_PACK32:
+    case VK_FORMAT_A2R10G10B10_UNORM_PACK32:
+    case VK_FORMAT_R5G6B5_UNORM_PACK16: return true;
+    default: return false;
+  }
+}
+
 }  // namespace
 
 struct VkRenderContext::Impl {
@@ -145,6 +201,10 @@ struct VkRenderContext::Impl {
   PFN_vkGetPhysicalDeviceMemoryProperties vkGetPhysicalDeviceMemoryProperties = nullptr;
   PFN_vkCreateDevice vkCreateDevice = nullptr;
   PFN_vkGetDeviceProcAddr vkGetDeviceProcAddr = nullptr;
+  PFN_vkEnumerateDeviceExtensionProperties vkEnumerateDeviceExtensionProperties = nullptr;
+  PFN_vkGetPhysicalDeviceProperties2 vkGetPhysicalDeviceProperties2 = nullptr;                       // Vulkan 1.1 instance
+  PFN_vkGetPhysicalDeviceFormatProperties vkGetPhysicalDeviceFormatProperties = nullptr;
+  PFN_vkGetPhysicalDeviceImageFormatProperties2 vkGetPhysicalDeviceImageFormatProperties2 = nullptr;  // Vulkan 1.1 instance
 
   PFN_vkDestroyDevice vkDestroyDevice = nullptr;
   PFN_vkGetDeviceQueue vkGetDeviceQueue = nullptr;
@@ -171,6 +231,15 @@ struct VkRenderContext::Impl {
   PFN_vkMapMemory vkMapMemory = nullptr;
   PFN_vkUnmapMemory vkUnmapMemory = nullptr;
   PFN_vkInvalidateMappedMemoryRanges vkInvalidateMappedMemoryRanges = nullptr;
+  // zero-copy display (optional; only used when the external-memory extensions are enabled)
+  PFN_vkCreateImage vkCreateImage = nullptr;
+  PFN_vkDestroyImage vkDestroyImage = nullptr;
+  PFN_vkGetImageMemoryRequirements vkGetImageMemoryRequirements = nullptr;
+  PFN_vkBindImageMemory vkBindImageMemory = nullptr;
+  PFN_vkCmdBlitImage vkCmdBlitImage = nullptr;
+#ifdef _WIN32
+  PFN_vkGetMemoryWin32HandlePropertiesKHR vkGetMemoryWin32HandlePropertiesKHR = nullptr;
+#endif
 
   // ---- core inputs
   retro_hw_render_context_negotiation_interface_vulkan neg{};
@@ -216,6 +285,35 @@ struct VkRenderContext::Impl {
   VkSemaphore signalSemaphore = VK_NULL_HANDLE;
   bool warnedFormat = false;
 
+  // ---- zero-copy display (ADR 0034 D8)
+  std::shared_ptr<GpuDisplayTarget> display;
+  bool extWanted = false;                 // a display target is expected: enable the external-memory extensions
+  std::vector<const char*> extNames;      // device extensions enabled for it (empty: none, see extMissing)
+  QString extMissing;                     // why extNames is empty although wanted
+  std::vector<const char*> wrapperNames;  // scratch for createDeviceWrapper
+  bool devLuidValid = false;
+  quint8 devLuid[8] = {};
+  struct ExtSlot {
+    VkImage image = VK_NULL_HANDLE;
+    VkDeviceMemory memory = VK_NULL_HANDLE;
+    bool primed = false;  // has been through a release to the external queue family at least once
+  };
+  ExtSlot extSlots[kDisplaySlots];
+  quint64 extGeneration = 0;
+  bool luidChecked = false;
+  bool importFormatChecked = false;
+  VkFormat blitFormat = VK_FORMAT_UNDEFINED;  // last source format checked for the blit
+  bool blitFormatOk = false;
+  bool blitLinear = false;
+  quint64 displayBlits = 0;
+  struct DisplayJob {
+    bool active = false;
+    ExtSlot* slot = nullptr;
+    ExternalImage ext;
+    int sw = 0, sh = 0;  // source region
+    int dw = 0, dh = 0;  // destination region
+  };
+
   ~Impl() { destroy(); }
 
   bool loadLoader(QString* error) {
@@ -260,7 +358,19 @@ struct VkRenderContext::Impl {
   static VkDevice createDeviceWrapper(VkPhysicalDevice g, void* opaque, const VkDeviceCreateInfo* ci) {
     auto* self = static_cast<Impl*>(opaque);
     VkDevice dev = VK_NULL_HANDLE;
-    if (self->vkCreateDevice(g, ci, nullptr, &dev) != VK_SUCCESS) return VK_NULL_HANDLE;
+    // The core's create info plus the extensions the zero-copy display needs (the core's own list stays as it is).
+    VkDeviceCreateInfo merged = *ci;
+    self->wrapperNames.assign(ci->ppEnabledExtensionNames, ci->ppEnabledExtensionNames + (ci->ppEnabledExtensionNames ? ci->enabledExtensionCount : 0));
+    for (const char* e : self->extNames) {
+      bool have = false;
+      for (const char* n : self->wrapperNames) have = have || std::strcmp(n, e) == 0;
+      if (!have) self->wrapperNames.push_back(e);
+    }
+    if (!self->extNames.empty()) {
+      merged.enabledExtensionCount = static_cast<uint32_t>(self->wrapperNames.size());
+      merged.ppEnabledExtensionNames = self->wrapperNames.data();
+    }
+    if (self->vkCreateDevice(g, &merged, nullptr, &dev) != VK_SUCCESS) return VK_NULL_HANDLE;
     self->wrapperDevice = dev;
     return dev;
   }
@@ -311,6 +421,12 @@ struct VkRenderContext::Impl {
     loadI(vkGetPhysicalDeviceMemoryProperties, "vkGetPhysicalDeviceMemoryProperties");
     loadI(vkCreateDevice, "vkCreateDevice");
     loadI(vkGetDeviceProcAddr, "vkGetDeviceProcAddr");
+    loadI(vkEnumerateDeviceExtensionProperties, "vkEnumerateDeviceExtensionProperties");
+    loadI(vkGetPhysicalDeviceFormatProperties, "vkGetPhysicalDeviceFormatProperties");
+    if (instanceApi >= VK_API_VERSION_1_1) {
+      loadI(vkGetPhysicalDeviceProperties2, "vkGetPhysicalDeviceProperties2");
+      loadI(vkGetPhysicalDeviceImageFormatProperties2, "vkGetPhysicalDeviceImageFormatProperties2");
+    }
     if (!vkDestroyInstance || !vkEnumeratePhysicalDevices || !vkGetPhysicalDeviceProperties ||
         !vkGetPhysicalDeviceQueueFamilyProperties || !vkGetPhysicalDeviceMemoryProperties || !vkCreateDevice ||
         !vkGetDeviceProcAddr) {
@@ -361,6 +477,67 @@ struct VkRenderContext::Impl {
     return true;
   }
 
+  // Which device extensions the zero-copy display needs and the device supports (extNames), the device LUID. Never fails:
+  // an unsupported device only leaves extNames empty and says why in extMissing.
+  void planExternal() {
+    extNames.clear();
+    extMissing.clear();
+    devLuidValid = false;
+    if (vkGetPhysicalDeviceProperties2) {
+      VkPhysicalDeviceIDProperties idp{};
+      idp.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES;
+      VkPhysicalDeviceProperties2 p2{};
+      p2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+      p2.pNext = &idp;
+      vkGetPhysicalDeviceProperties2(gpu, &p2);
+      devLuidValid = idp.deviceLUIDValid == VK_TRUE;
+      std::memcpy(devLuid, idp.deviceLUID, 8);
+    }
+    if (!extWanted) return;
+#if UZUME_VK_EXTERNAL
+    if (g_extMissingForTest.load()) {
+      extMissing = QStringLiteral("the Vulkan device has no VK_KHR_external_memory");
+      return;
+    }
+    if (instanceApi < VK_API_VERSION_1_1 || !vkGetPhysicalDeviceImageFormatProperties2) {
+      extMissing = QStringLiteral("the Vulkan instance is older than 1.1");
+      return;
+    }
+    uint32_t n = 0;
+    std::vector<VkExtensionProperties> avail;
+    if (vkEnumerateDeviceExtensionProperties) {
+      vkEnumerateDeviceExtensionProperties(gpu, nullptr, &n, nullptr);
+      avail.resize(n);
+      if (n) vkEnumerateDeviceExtensionProperties(gpu, nullptr, &n, avail.data());
+      avail.resize(n);
+    }
+    auto has = [&](const char* name) {
+      for (const auto& e : avail)
+        if (std::strcmp(e.extensionName, name) == 0) return true;
+      return false;
+    };
+    const bool core11 = props.apiVersion >= VK_API_VERSION_1_1;  // promoted: no extension to enable
+    std::vector<const char*> names;
+    QString missing;
+    auto need = [&](const char* name, bool promoted) {
+      if (promoted && core11) return;
+      if (has(name)) names.push_back(name);
+      else if (missing.isEmpty()) missing = QString::fromLatin1(name);
+    };
+    need(VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME, true);
+    need(VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME, true);
+    need(VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME, true);
+    for (const char* e : kPlatformExts) need(e, false);
+    if (!missing.isEmpty()) {
+      extMissing = QStringLiteral("the Vulkan device has no %1").arg(missing);
+      return;
+    }
+    extNames = std::move(names);
+#else
+    extMissing = QStringLiteral("not supported on this platform");
+#endif
+  }
+
   bool createDevice(QString* error) {
     // Negotiation: the core may create the device itself (v2 create_device2 preferred over v1 create_device).
     if (hasNeg && ((neg.interface_version >= 2 && neg.create_device2) || neg.create_device)) {
@@ -371,7 +548,8 @@ struct VkRenderContext::Impl {
         ok = neg.create_device2(&ctx, instance, gpu, VK_NULL_HANDLE, gipa, &Impl::createDeviceWrapper, this);
       } else {
         VkPhysicalDeviceFeatures features{};
-        ok = neg.create_device(&ctx, instance, gpu, VK_NULL_HANDLE, gipa, nullptr, 0, nullptr, 0, &features);
+        ok = neg.create_device(&ctx, instance, gpu, VK_NULL_HANDLE, gipa, extNames.empty() ? nullptr : extNames.data(),
+                               static_cast<unsigned>(extNames.size()), nullptr, 0, &features);
       }
       if (ok && ctx.device != VK_NULL_HANDLE && ctx.queue != VK_NULL_HANDLE) {
         coreDeviceOk = true;
@@ -419,6 +597,8 @@ struct VkRenderContext::Impl {
     di.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     di.queueCreateInfoCount = 1;
     di.pQueueCreateInfos = &qi;
+    di.enabledExtensionCount = static_cast<uint32_t>(extNames.size());
+    di.ppEnabledExtensionNames = extNames.empty() ? nullptr : extNames.data();
     const VkResult r = vkCreateDevice(gpu, &di, nullptr, &device);
     if (r != VK_SUCCESS) {
       device = VK_NULL_HANDLE;
@@ -454,6 +634,23 @@ struct VkRenderContext::Impl {
     loadD(vkMapMemory, "vkMapMemory");
     loadD(vkUnmapMemory, "vkUnmapMemory");
     loadD(vkInvalidateMappedMemoryRanges, "vkInvalidateMappedMemoryRanges");
+    if (!extNames.empty()) {
+      loadD(vkCreateImage, "vkCreateImage");
+      loadD(vkDestroyImage, "vkDestroyImage");
+      loadD(vkGetImageMemoryRequirements, "vkGetImageMemoryRequirements");
+      loadD(vkBindImageMemory, "vkBindImageMemory");
+      loadD(vkCmdBlitImage, "vkCmdBlitImage");
+#ifdef _WIN32
+      loadD(vkGetMemoryWin32HandlePropertiesKHR, "vkGetMemoryWin32HandlePropertiesKHR");
+      const bool win = vkGetMemoryWin32HandlePropertiesKHR != nullptr;
+#else
+      const bool win = true;
+#endif
+      if (!vkCreateImage || !vkDestroyImage || !vkGetImageMemoryRequirements || !vkBindImageMemory || !vkCmdBlitImage || !win) {
+        extNames.clear();  // enabled on the device but not callable: the display stays Unavailable
+        extMissing = QStringLiteral("the Vulkan device does not expose the image import functions");
+      }
+    }
     return vkDestroyDevice && vkDeviceWaitIdle && vkQueueSubmit && vkCreateCommandPool && vkAllocateCommandBuffers &&
            vkBeginCommandBuffer && vkEndCommandBuffer && vkCmdPipelineBarrier && vkCmdCopyImageToBuffer && vkCreateFence &&
            vkWaitForFences && vkResetFences && vkCreateBuffer && vkGetBufferMemoryRequirements && vkAllocateMemory &&
@@ -543,6 +740,11 @@ struct VkRenderContext::Impl {
   void destroy() {
     if (device != VK_NULL_HANDLE) {
       if (vkDeviceWaitIdle) vkDeviceWaitIdle(device);
+      freeExternal();
+      if (display) {
+        display->release(true);  // the target frees what it handed out; nothing of it is in use any more
+        display.reset();
+      }
       if (vkDestroyFence && fence != VK_NULL_HANDLE) vkDestroyFence(device, fence, nullptr);
       fence = VK_NULL_HANDLE;
       if (vkDestroyCommandPool && pool != VK_NULL_HANDLE) vkDestroyCommandPool(device, pool, nullptr);
@@ -564,6 +766,339 @@ struct VkRenderContext::Impl {
     coreCmds.clear();
     signalSemaphore = VK_NULL_HANDLE;
     iface = retro_hw_render_interface_vulkan{};
+    if (display) {  // never got a device: the target is still released
+      display->release(true);
+      display.reset();
+    }
+    luidChecked = importFormatChecked = false;
+    blitFormat = VK_FORMAT_UNDEFINED;
+    extGeneration = 0;
+  }
+
+  // ---- zero-copy display (ADR 0034 D8)
+
+  // Frees every imported image (the target's handles are not ours: the memory objects only drop their references).
+  void freeExternal() {
+    for (ExtSlot& e : extSlots) {
+      if (e.image != VK_NULL_HANDLE && vkDestroyImage) vkDestroyImage(device, e.image, nullptr);
+      if (e.memory != VK_NULL_HANDLE && vkFreeMemory) vkFreeMemory(device, e.memory, nullptr);
+      e = ExtSlot{};
+    }
+    extGeneration = 0;
+  }
+
+  // The target cannot show the frames: tell it (consumers fall back to readback frames), release it, forget it.
+  void dropDisplay(const QString& why) {
+    freeExternal();
+    if (display) {
+      display->fail(why);
+      display->release(true);
+    }
+    display.reset();
+    qCWarning(lcVk).noquote() << QStringLiteral("Display target dropped (%1); the game view uses readback frames").arg(why);
+  }
+  // Zero-copy display is not applicable with this device/core: the target reports it as Unavailable (quiet).
+  void displayUnavailable(const QString& why) {
+    freeExternal();
+    if (display) {
+      display->markUnavailable(why);
+      display->release(true);
+    }
+    display.reset();
+    qCInfo(lcVk).noquote() << QStringLiteral("Display target not applicable (%1); the game view uses readback frames").arg(why);
+  }
+  // The target reported itself unavailable in acquireExternal(): release and forget, no second report.
+  void releaseDisplayQuietly() {
+    freeExternal();
+    if (display) display->release(true);
+    display.reset();
+    qCInfo(lcVk) << "Display target not applicable; the game view uses readback frames";
+  }
+
+  enum class LuidCheck { Unknown, Match, Mismatch };
+  LuidCheck checkLuid() const {
+    const AdapterLuid t = display->adapterLuid();
+    if (!t.valid) return LuidCheck::Unknown;
+    quint8 dev[8];
+    bool valid = devLuidValid;
+    std::memcpy(dev, devLuid, 8);
+    {
+      std::lock_guard<std::mutex> lock(g_luidMutex);
+      if (g_luidForTest.size() == 8) {
+        std::memcpy(dev, g_luidForTest.constData(), 8);
+        valid = true;
+      }
+    }
+    return valid && std::memcmp(dev, t.bytes, 8) == 0 ? LuidCheck::Match : LuidCheck::Mismatch;
+  }
+
+  // Whether the device can import RGBA8 optimal-tiling images of the platform's handle type as transfer destinations.
+  bool checkImportFormat(ExternalImage::HandleType type, QString* why) {
+#if UZUME_VK_EXTERNAL
+    if (type != kNativeType) {
+      *why = QStringLiteral("the target's texture handle type is not importable here");
+      return false;
+    }
+    VkPhysicalDeviceExternalImageFormatInfo ei{};
+    ei.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_IMAGE_FORMAT_INFO;
+    ei.handleType = kNativeHandle;
+    VkPhysicalDeviceImageFormatInfo2 fi{};
+    fi.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2;
+    fi.pNext = &ei;
+    fi.format = VK_FORMAT_R8G8B8A8_UNORM;
+    fi.type = VK_IMAGE_TYPE_2D;
+    fi.tiling = VK_IMAGE_TILING_OPTIMAL;
+    fi.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    VkExternalImageFormatProperties efp{};
+    efp.sType = VK_STRUCTURE_TYPE_EXTERNAL_IMAGE_FORMAT_PROPERTIES;
+    VkImageFormatProperties2 fp{};
+    fp.sType = VK_STRUCTURE_TYPE_IMAGE_FORMAT_PROPERTIES_2;
+    fp.pNext = &efp;
+    const VkResult r = vkGetPhysicalDeviceImageFormatProperties2(gpu, &fi, &fp);
+    if (r != VK_SUCCESS) {
+      *why = QStringLiteral("the Vulkan device cannot import RGBA8 textures of the display (%1)").arg(static_cast<int>(r));
+      return false;
+    }
+    const VkExternalMemoryProperties& mp = efp.externalMemoryProperties;
+    if (!(mp.externalMemoryFeatures & VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT) || !(mp.compatibleHandleTypes & kNativeHandle)) {
+      *why = QStringLiteral("the Vulkan device cannot import the display's texture handles");
+      return false;
+    }
+    return true;
+#else
+    Q_UNUSED(type);
+    *why = QStringLiteral("not supported on this platform");
+    return false;
+#endif
+  }
+
+  // vkCreateImage + imported, dedicated memory for one (generation, slot) of the target.
+  bool importExternal(const ExternalImage& e, ExtSlot& slot, QString* why) {
+#if UZUME_VK_EXTERNAL
+    VkExternalMemoryImageCreateInfo emi{};
+    emi.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO;
+    emi.handleTypes = kNativeHandle;
+    VkImageCreateInfo ici{};
+    ici.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    ici.pNext = &emi;
+    ici.imageType = VK_IMAGE_TYPE_2D;
+    ici.format = VK_FORMAT_R8G8B8A8_UNORM;
+    ici.extent = {static_cast<uint32_t>(e.texSize.width()), static_cast<uint32_t>(e.texSize.height()), 1};
+    ici.mipLevels = 1;
+    ici.arrayLayers = 1;
+    ici.samples = VK_SAMPLE_COUNT_1_BIT;
+    ici.tiling = VK_IMAGE_TILING_OPTIMAL;
+    ici.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    VkImage img = VK_NULL_HANDLE;
+    VkResult r = vkCreateImage(device, &ici, nullptr, &img);
+    if (r != VK_SUCCESS) {
+      *why = QStringLiteral("vkCreateImage for the display texture failed (%1)").arg(static_cast<int>(r));
+      return false;
+    }
+    VkMemoryRequirements req{};
+    vkGetImageMemoryRequirements(device, img, &req);
+    uint32_t bits = req.memoryTypeBits;
+#ifdef _WIN32
+    VkMemoryWin32HandlePropertiesKHR hp{};
+    hp.sType = VK_STRUCTURE_TYPE_MEMORY_WIN32_HANDLE_PROPERTIES_KHR;
+    r = vkGetMemoryWin32HandlePropertiesKHR(device, kNativeHandle, reinterpret_cast<HANDLE>(e.handle), &hp);
+    if (r != VK_SUCCESS) {
+      vkDestroyImage(device, img, nullptr);
+      *why = QStringLiteral("vkGetMemoryWin32HandlePropertiesKHR failed (%1)").arg(static_cast<int>(r));
+      return false;
+    }
+    bits &= hp.memoryTypeBits;
+#endif
+    VkPhysicalDeviceMemoryProperties mp{};
+    vkGetPhysicalDeviceMemoryProperties(gpu, &mp);
+    int type = -1;
+    for (uint32_t i = 0; i < mp.memoryTypeCount && type < 0; ++i)
+      if ((bits & (1u << i)) && (mp.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)) type = static_cast<int>(i);
+    for (uint32_t i = 0; i < mp.memoryTypeCount && type < 0; ++i)
+      if (bits & (1u << i)) type = static_cast<int>(i);
+    if (type < 0) {
+      vkDestroyImage(device, img, nullptr);
+      *why = QStringLiteral("no memory type fits the display texture");
+      return false;
+    }
+    VkMemoryDedicatedAllocateInfo ded{};
+    ded.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO;
+    ded.image = img;
+#ifdef _WIN32
+    VkImportMemoryWin32HandleInfoKHR imp{};
+    imp.sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_WIN32_HANDLE_INFO_KHR;
+    imp.handleType = kNativeHandle;
+    imp.handle = reinterpret_cast<HANDLE>(e.handle);
+#else
+    VkImportMemoryFdInfoKHR imp{};
+    imp.sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR;
+    imp.handleType = kNativeHandle;
+    imp.fd = ::dup(static_cast<int>(e.handle));  // a successful import takes the fd over; the target keeps its own
+    if (imp.fd < 0) {
+      vkDestroyImage(device, img, nullptr);
+      *why = QStringLiteral("the display texture's file descriptor could not be duplicated");
+      return false;
+    }
+#endif
+    imp.pNext = &ded;
+    VkMemoryAllocateInfo mai{};
+    mai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    mai.pNext = &imp;
+    mai.allocationSize = e.handleType == ExternalImage::HandleType::OpaqueFd && e.memorySize > req.size ? e.memorySize : req.size;
+    mai.memoryTypeIndex = static_cast<uint32_t>(type);
+    VkDeviceMemory mem = VK_NULL_HANDLE;
+    r = vkAllocateMemory(device, &mai, nullptr, &mem);
+    if (r != VK_SUCCESS) {
+#ifndef _WIN32
+      ::close(imp.fd);
+#endif
+      vkDestroyImage(device, img, nullptr);
+      *why = QStringLiteral("importing the display texture failed (%1)").arg(static_cast<int>(r));
+      return false;
+    }
+    r = vkBindImageMemory(device, img, mem, 0);
+    if (r != VK_SUCCESS) {
+      vkFreeMemory(device, mem, nullptr);
+      vkDestroyImage(device, img, nullptr);
+      *why = QStringLiteral("binding the display texture failed (%1)").arg(static_cast<int>(r));
+      return false;
+    }
+    slot.image = img;
+    slot.memory = mem;
+    slot.primed = false;
+    return true;
+#else
+    Q_UNUSED(e);
+    Q_UNUSED(slot);
+    *why = QStringLiteral("not supported on this platform");
+    return false;
+#endif
+  }
+
+  // Before the frame's submit: decides whether this frame goes to the target and, if so, locks a slot (acquireExternal)
+  // and makes its image ready. false: no display copy this frame; display may have been dropped (then it is null).
+  bool prepareDisplay(int w, int h, const QSize& limit, DisplayJob* job) {
+    if (!display->wanted()) return false;
+    if (extNames.empty()) {
+      displayUnavailable(extMissing.isEmpty() ? QStringLiteral("the Vulkan device was created without the external-memory extensions") : extMissing);
+      return false;
+    }
+    const VkFormat fmt = image.create_info.format;
+    if (fmt != blitFormat) {
+      blitFormat = fmt;
+      blitFormatOk = false;
+      blitLinear = false;
+      if (displayFormatOk(fmt)) {
+        VkFormatProperties fp{};
+        vkGetPhysicalDeviceFormatProperties(gpu, fmt, &fp);
+        const VkFormatFeatureFlags f = fp.optimalTilingFeatures;  // tiling is not part of retro_vulkan_image: optimal assumed
+        blitFormatOk = (f & VK_FORMAT_FEATURE_BLIT_SRC_BIT) != 0;
+        blitLinear = (f & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT) != 0;
+      }
+    }
+    if (!blitFormatOk) {
+      displayUnavailable(QStringLiteral("the frame format (%1) is not copied on the GPU").arg(static_cast<int>(fmt)));
+      return false;
+    }
+    if (!luidChecked && checkLuid() == LuidCheck::Mismatch) {
+      displayUnavailable(QStringLiteral("Vulkan device is on another adapter"));
+      return false;
+    }
+    const QSize ds = HwRenderContext::scaledReadbackSize(w, h, limit);
+    ExternalImage e;
+    switch (display->acquireExternal(ds.width(), ds.height(), &e)) {
+      case GpuDisplayTarget::Acquire::Skip:
+      case GpuDisplayTarget::Acquire::NotReady: return false;
+      case GpuDisplayTarget::Acquire::Unavailable: releaseDisplayQuietly(); return false;
+      case GpuDisplayTarget::Acquire::Failed: dropDisplay(QStringLiteral("acquire failed")); return false;
+      case GpuDisplayTarget::Acquire::Ok: break;
+    }
+    auto bail = [&](const QString& why) {
+      display->abort();
+      dropDisplay(why);
+      return false;
+    };
+    if (!luidChecked) {  // the target only knows its adapter once it is ready: check again now that it handed out an image
+      if (checkLuid() == LuidCheck::Mismatch) {
+        display->abort();
+        displayUnavailable(QStringLiteral("Vulkan device is on another adapter"));
+        return false;
+      }
+      luidChecked = true;
+    }
+    if (!importFormatChecked) {
+      QString why;
+      if (!checkImportFormat(e.handleType, &why)) {
+        display->abort();
+        displayUnavailable(why);
+        return false;
+      }
+      importFormatChecked = true;
+    }
+    if (e.slot < 0 || e.slot >= static_cast<int>(kDisplaySlots) || e.texSize.width() < ds.width() || e.texSize.height() < ds.height())
+      return bail(QStringLiteral("the display texture does not fit the frame"));
+    if (e.generation != extGeneration) {
+      freeExternal();
+      extGeneration = e.generation;
+      qCInfo(lcVk).noquote() << QStringLiteral("Zero-copy display: importing generation %1 (%2x%3 textures)")
+                                    .arg(e.generation).arg(e.texSize.width()).arg(e.texSize.height());
+    }
+    ExtSlot& slot = extSlots[e.slot];
+    if (slot.image == VK_NULL_HANDLE) {
+      QString why;
+      if (!importExternal(e, slot, &why)) return bail(why);
+    }
+    job->active = true;
+    job->slot = &slot;
+    job->ext = e;
+    job->sw = w;
+    job->sh = h;
+    job->dw = ds.width();
+    job->dh = ds.height();
+    return true;
+  }
+
+  // Display part of the frame's command buffer: acquire the external image, blit, release it to the external family.
+  void recordDisplay(const DisplayJob& j, VkImageLayout srcLayout, const VkImageSubresourceRange& sr) {
+    ExtSlot& slot = *j.slot;
+    VkImageSubresourceRange er{};
+    er.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    er.levelCount = 1;
+    er.layerCount = 1;
+    VkImageMemoryBarrier acq{};
+    acq.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    acq.srcQueueFamilyIndex = VK_QUEUE_FAMILY_EXTERNAL;
+    acq.dstQueueFamilyIndex = family;
+    acq.image = slot.image;
+    acq.subresourceRange = er;
+    acq.srcAccessMask = 0;
+    acq.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    acq.oldLayout = slot.primed ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED;  // first use may discard
+    acq.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &acq);
+    VkImageBlit blit{};
+    blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    blit.srcSubresource.mipLevel = sr.baseMipLevel;
+    blit.srcSubresource.baseArrayLayer = sr.baseArrayLayer;
+    blit.srcSubresource.layerCount = 1;
+    blit.srcOffsets[1] = {j.sw, j.sh, 1};
+    blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    blit.dstSubresource.layerCount = 1;
+    blit.dstOffsets[1] = {j.dw, j.dh, 1};
+    const bool scaled = j.sw != j.dw || j.sh != j.dh;
+    vkCmdBlitImage(cmd, image.create_info.image, srcLayout, slot.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit,
+                   scaled && blitLinear ? VK_FILTER_LINEAR : VK_FILTER_NEAREST);
+    VkImageMemoryBarrier rel = acq;
+    rel.srcQueueFamilyIndex = family;
+    rel.dstQueueFamilyIndex = VK_QUEUE_FAMILY_EXTERNAL;
+    rel.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    rel.dstAccessMask = 0;
+    rel.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    rel.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1, &rel);
+    slot.primed = true;
   }
 
   // ---- libretro interface callbacks (handle = Impl*)
@@ -615,7 +1150,9 @@ struct VkRenderContext::Impl {
       if (error) *error = QStringLiteral("no Vulkan device");
       return false;
     }
-    if (!loadLoader(error) || !createInstance(error) || !pickDevice(error) || !createDevice(error)) return false;
+    if (!loadLoader(error) || !createInstance(error) || !pickDevice(error)) return false;
+    planExternal();
+    if (!createDevice(error)) return false;
     loadD(vkGetDeviceQueue, "vkGetDeviceQueue");
     if (queue == VK_NULL_HANDLE && vkGetDeviceQueue) vkGetDeviceQueue(device, family, 0, &queue);  // our own device
     if (queue == VK_NULL_HANDLE || !loadDeviceFunctions()) {
@@ -631,11 +1168,12 @@ struct VkRenderContext::Impl {
   }
 
   // Submits the core's command buffers and, with `copy`, our readback copy; waits for the fence.
-  bool submit(bool copy, int w, int h, VkDeviceSize copyBytes) {
+  bool submit(bool copy, int w, int h, VkDeviceSize copyBytes, const DisplayJob* job = nullptr) {
     const bool useCopy = copy && hasImage;
+    const bool useDisp = job && job->active && hasImage;
     const bool coreCmdMode = !coreCmds.empty();
     std::vector<VkCommandBuffer> cmds = coreCmds;
-    if (useCopy) {
+    if (useCopy || useDisp) {
       VkCommandBufferBeginInfo bi{};
       bi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
       bi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
@@ -668,7 +1206,8 @@ struct VkRenderContext::Impl {
       region.imageSubresource.baseArrayLayer = sr.baseArrayLayer;
       region.imageSubresource.layerCount = 1;
       region.imageExtent = {static_cast<uint32_t>(w), static_cast<uint32_t>(h), 1};
-      vkCmdCopyImageToBuffer(cmd, img, b.newLayout, buffer, 1, &region);
+      if (useCopy) vkCmdCopyImageToBuffer(cmd, img, b.newLayout, buffer, 1, &region);
+      if (useDisp) recordDisplay(*job, b.newLayout, sr);
       // Give the image back in the layout and queue family the core handed it over in.
       VkImageMemoryBarrier back = b;
       back.srcQueueFamilyIndex = transfer ? family : VK_QUEUE_FAMILY_IGNORED;
@@ -685,7 +1224,7 @@ struct VkRenderContext::Impl {
       hb.buffer = buffer;
       hb.size = VK_WHOLE_SIZE;
       vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT | VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0,
-                           nullptr, 1, &hb, 1, &back);
+                           nullptr, useCopy ? 1 : 0, useCopy ? &hb : nullptr, 1, &back);
       (void)copyBytes;
       if (vkEndCommandBuffer(cmd) != VK_SUCCESS) return false;
       cmds.push_back(cmd);
@@ -704,6 +1243,24 @@ struct VkRenderContext::Impl {
     VkSemaphore sig = signalSemaphore;
     si.signalSemaphoreCount = sig != VK_NULL_HANDLE ? 1 : 0;
     si.pSignalSemaphores = sig != VK_NULL_HANDLE ? &sig : nullptr;
+#ifdef _WIN32
+    // The keyed mutex of the D3D11 texture is taken and given on by the submit itself: key 0 (the producer's side) in, key 1
+    // (the consumer's side) out, as the ring's consumer protocol expects.
+    VkWin32KeyedMutexAcquireReleaseInfoKHR km{};
+    VkDeviceMemory kmMem = useDisp ? job->slot->memory : VK_NULL_HANDLE;
+    uint32_t kmTimeout = 100;  // ms; a free slot's key 0 is available
+    if (useDisp && job->ext.keyedMutex) {
+      km.sType = VK_STRUCTURE_TYPE_WIN32_KEYED_MUTEX_ACQUIRE_RELEASE_INFO_KHR;
+      km.acquireCount = 1;
+      km.pAcquireSyncs = &kmMem;
+      km.pAcquireKeys = &job->ext.acquireKey;
+      km.pAcquireTimeouts = &kmTimeout;
+      km.releaseCount = 1;
+      km.pReleaseSyncs = &kmMem;
+      km.pReleaseKeys = &job->ext.releaseKey;
+      si.pNext = &km;
+    }
+#endif
     const bool nothing = cmds.empty() && waits.empty() && sig == VK_NULL_HANDLE;
     coreCmds.clear();
     imageSemaphores.clear();  // waited for once
@@ -783,6 +1340,21 @@ bool VkRenderContext::create(QString* error) {
   return true;
 }
 
+void VkRenderContext::setExternalMemoryWanted(bool wanted) { d->extWanted = wanted; }
+
+void VkRenderContext::setDisplayTarget(std::shared_ptr<GpuDisplayTarget> target) {
+  Impl& s = *d;
+  if (target == s.display) return;
+  if (s.display) {
+    s.freeExternal();
+    s.display->release(true);  // before the images it handed out are gone
+  }
+  s.display = std::move(target);  // the old target may end here (last reference)
+  s.luidChecked = s.importFormatChecked = false;
+}
+bool VkRenderContext::hasDisplayTarget() const { return d->display != nullptr; }
+quint64 VkRenderContext::displayBlitCount() const { return d->displayBlits; }
+
 void VkRenderContext::destroy() { d->destroy(); }
 bool VkRenderContext::hasContext() const { return d->created; }
 const void* VkRenderContext::renderInterface() const { return d->created ? &d->iface : nullptr; }
@@ -799,10 +1371,17 @@ void VkRenderContext::presentDuplicate() {
   if (!d->coreCmds.empty() || !d->imageSemaphores.empty() || d->signalSemaphore != VK_NULL_HANDLE) d->submit(false, 0, 0, 0);
 }
 
-QImage VkRenderContext::presentFrame(int w, int h, const QSize& maxSize, bool read) {
+QImage VkRenderContext::presentFrame(int w, int h, const QSize& maxSize, bool read, const QSize& displayLimit, bool* displayed,
+                                     bool withDisplay) {
   Impl& s = *d;
+  if (displayed) *displayed = false;
   if (!s.created || s.lost || w <= 0 || h <= 0) return {};
   ++s.frames;
+  Impl::DisplayJob job;
+  if (withDisplay && s.display && s.hasImage && s.imageFresh) {
+    s.prepareDisplay(w, h, displayLimit, &job);
+    if (!s.display) read = true;  // the target went away in this frame: it must not cost the game view a frame
+  }
   BytesPerFrame fm;
   if (read && s.hasImage && s.imageFresh) {
     fm = formatMode(s.image.create_info.format);
@@ -811,16 +1390,26 @@ QImage VkRenderContext::presentFrame(int w, int h, const QSize& maxSize, bool re
       s.warnedFormat = true;
     }
   }
-  const bool copy = read && s.hasImage && s.imageFresh && fm.mode != BytesPerFrame::None;
+  bool copy = read && s.hasImage && s.imageFresh && fm.mode != BytesPerFrame::None;
   const VkDeviceSize bytes = static_cast<VkDeviceSize>(w) * static_cast<VkDeviceSize>(h) * static_cast<VkDeviceSize>(fm.bpp ? fm.bpp : 4);
   if (copy && !s.ensureBuffer(bytes)) {
     qCWarning(lcVk) << "readback buffer could not be allocated";
-    s.submit(false, 0, 0, 0);
-    return {};
+    copy = false;  // the display copy (if any) and the core's work still run
   }
-  const bool ok = s.submit(copy, w, h, bytes);
+  const bool wasCopy = copy;
+  const bool ok = s.submit(copy, w, h, bytes, job.active ? &job : nullptr);
   s.imageFresh = false;
-  if (!ok || !copy) return {};
+  if (job.active) {
+    if (ok && s.display) {
+      s.display->present(job.dw, job.dh);
+      ++s.displayBlits;
+      if (displayed) *displayed = true;
+    } else if (s.display) {
+      s.display->abort();
+      s.dropDisplay(QStringLiteral("the copy into the display texture failed"));
+    }
+  }
+  if (!ok || !wasCopy) return {};
   if (!s.coherent) {
     VkMappedMemoryRange range{};
     range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;

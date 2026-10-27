@@ -126,6 +126,51 @@ class D3d11RingTest : public QObject {
     d.producer->release(true);
   }
 
+  // Vulkan mode (ADR 0034 D8): the producer hands out the NT handle and makes no keyed-mutex call; the Vulkan submit would
+  // AcquireSync(0) / ReleaseSync(1) itself. Here device A's own COM view of the handle plays the Vulkan side.
+  void vulkanModeHandsOutHandlesAndOnlyPublishes() {
+    D3d11Display d = makeD3d11DisplayForTest(g_a.dev.Get());
+    ExternalDisplayImage img;
+    QCOMPARE(d.producer->acquireExternal(100, 50, &img), DisplayProducer::Status::Ok);
+    QCOMPARE(img.handleType, ExternalDisplayImage::HandleType::D3D11TextureNt);
+    QVERIFY(img.handle != 0);
+    QCOMPARE(img.texSize, QSize(128, 64));
+    QVERIFY(img.keyedMutex);
+    QCOMPARE(img.acquireKey, quint64(0));
+    QCOMPARE(img.releaseKey, quint64(1));
+    QCOMPARE(img.generation, quint64(1));
+    // The "Vulkan side": open the handle on a device, take key 0, paint, give key 1.
+    ComPtr<ID3D11Device1> dev1;
+    QVERIFY(SUCCEEDED(g_a.dev.As(&dev1)));
+    ComPtr<ID3D11Texture2D> tex;
+    QVERIFY(SUCCEEDED(dev1->OpenSharedResource1(reinterpret_cast<HANDLE>(img.handle), IID_PPV_ARGS(&tex))));
+    ComPtr<IDXGIKeyedMutex> mtx;
+    QVERIFY(SUCCEEDED(tex.As(&mtx)));
+    QCOMPARE(mtx->AcquireSync(0, 0), S_OK);
+    ComPtr<ID3D11RenderTargetView> rtv;
+    QVERIFY(SUCCEEDED(g_a.dev->CreateRenderTargetView(tex.Get(), nullptr, &rtv)));
+    const float green[4] = {0.f, 1.f, 0.f, 1.f};
+    g_a.ctx->ClearRenderTargetView(rtv.Get(), green);
+    g_a.ctx->Flush();
+    QCOMPARE(mtx->ReleaseSync(1), S_OK);
+    d.producer->present(100, 50);  // publishes only
+
+    ConsumerFrame f;
+    QString err;
+    QVERIFY2(d.consumer->frame(g_b.dev.Get(), &f, &err), qPrintable(err));
+    QVERIFY(f.texture);
+    QCOMPARE(f.contentSize, QSize(100, 50));
+    Rgba px{};
+    QVERIFY(readPixel(static_cast<ID3D11Texture2D*>(f.texture), 10, 10, &px));
+    QVERIFY(px == kGreen);
+    d.consumer->frameEnd();
+    unsigned gl = 0;
+    QSize glTex;
+    QCOMPARE(d.producer->acquire(64, 64, &gl, &glTex), DisplayProducer::Status::Unavailable);  // the mode is fixed by the first call
+    d.consumer->close();
+    d.producer->release(true);
+  }
+
   void nothingPublishedYieldsNoTexture() {
     D3d11Display d = makeD3d11DisplayForTest(g_a.dev.Get());
     ConsumerFrame f;

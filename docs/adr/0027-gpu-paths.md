@@ -115,7 +115,7 @@ Exact strings as the code writes them.
 
 ## Not in scope
 
-- Linux zero-copy; Vulkan or D3D cores; NVENC via D3D11 frames (NVIDIA stays on CUDA); HEVC and AV1; Optimus exports (D1).
+- Linux zero-copy; D3D cores (Vulkan display: [ADR 0034](0034-linux-app-and-vulkan.md) D8, Vulkan encode is not); NVENC via D3D11 frames (NVIDIA stays on CUDA); HEVC and AV1; Optimus exports (D1).
 - Zero-copy for Multiview remote tiles (decoded on the CPU).
 - Runtime encoder reconfigure (ADR 0019).
 
