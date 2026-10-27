@@ -75,6 +75,9 @@ class PlayerSettings {
   bool setLibrarySort(const QString& key);  // false: unknown key
   bool libraryReadyFirst() const { return libraryReadyFirst_; }
   bool setLibraryReadyFirst(bool on);
+  // Save states (0.20): ask before a state replaces the running game (default); "Don't ask again" in the load dialog turns it off.
+  bool stateLoadAsk() const { return stateLoadAsk_; }
+  bool setStateLoadAsk(bool on);
   // Library view (readable UI pass 5): "list" (default) or "grid", per device.
   static bool isValidLibraryView(const QString& view);
   QString libraryView() const { return libraryView_; }
@@ -219,6 +222,7 @@ class PlayerSettings {
   bool diagStreamingOpen_ = true;
   QString librarySort_ = QStringLiteral("played");  // recently played; Name order while nothing was played
   bool libraryReadyFirst_ = false;
+  bool stateLoadAsk_ = true;
   QString libraryView_ = QStringLiteral("list");
   QString sessionVisibility_;
   QStringList libraryFolders_;

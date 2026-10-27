@@ -84,6 +84,20 @@ QStringList permissionLabels(const QStringList& perms) {
   return out;
 }
 
+// cheats and memory.write change the running game and its saves: the lists mark them and say what Uzume does about it (F15).
+bool changesGame(const QStringList& perms) { return perms.contains(QStringLiteral("cheats")) || perms.contains(QStringLiteral("memory.write")); }
+
+QString changesGameNote() {
+  return PluginsController::tr("It can change your game. Uzume saves a copy first and asks you for each game.");
+}
+
+QVariantList permissionRows(const QStringList& perms) {
+  QVariantList out;
+  for (const QString& p : perms)
+    out.append(QVariantMap{{QStringLiteral("text"), permissionLabel(p)}, {QStringLiteral("warn"), p == QLatin1String("cheats") || p == QLatin1String("memory.write")}});
+  return out;
+}
+
 QString permissionsText(const QStringList& perms) {
   QStringList out;
   for (const QString& p : perms) out << permissionLabel(p);
@@ -415,6 +429,8 @@ void PluginsController::rebuildHubPlugins() {
           {QStringLiteral("origin"), best->origin},
           {QStringLiteral("originText"), originText(best->origin)},
           {QStringLiteral("permissionsText"), permissionsText(best->permissions)},
+          {QStringLiteral("writesGame"), changesGame(best->permissions)},
+          {QStringLiteral("writesNote"), changesGame(best->permissions) ? changesGameNote() : QString()},
           {QStringLiteral("sizeText"), sizeText(best->size)},
           {QStringLiteral("state"), state},
           {QStringLiteral("installedVersion"), installedVersion},
@@ -607,6 +623,9 @@ void PluginsController::refreshPlugins() {
         {QStringLiteral("canToggle"), !hasProblems},
         {QStringLiteral("needsConfirm"), p.origin == QLatin1String("unverified")},
         {QStringLiteral("permissionsText"), permissionsText(p.manifest.permissions)},
+        {QStringLiteral("writesGame"), changesGame(p.manifest.permissions)},
+        {QStringLiteral("writesNote"), changesGame(p.manifest.permissions) ? changesGameNote() : QString()},
+        {QStringLiteral("permissionRows"), permissionRows(p.manifest.permissions)},
         {QStringLiteral("updateVersion"), updateVersion},
         {QStringLiteral("adds"), p.manifest.ui.addsText()},
         {QStringLiteral("hasScreen"), p.manifest.ui.screen},
@@ -656,7 +675,9 @@ QVariantMap PluginsController::hubOffer(const QString& pluginId, const QString& 
             {QStringLiteral("version"), p.version},
             {QStringLiteral("origin"), p.origin},
             {QStringLiteral("originText"), originText(p.origin)},
-            {QStringLiteral("permissionsText"), permissionsText(p.permissions)}};
+            {QStringLiteral("permissionsText"), permissionsText(p.permissions)},
+            {QStringLiteral("writesGame"), changesGame(p.permissions)},
+            {QStringLiteral("writesNote"), changesGame(p.permissions) ? changesGameNote() : QString()}};
   }
   return {};
 }
@@ -708,6 +729,9 @@ void PluginsController::gameStarted(const QString& system, const QString& romPat
   const plugins::GameResolution res = run.bridge ? manager_->resolveForRun(run.pins) : manager_->resolveForGame(ctx.system, ctx.code);
   for (auto it = res.problems.begin(); it != res.problems.end(); ++it)
     qCInfo(lcPlugins) << "plugin" << it.key() << "not started:" << it.value().join(QStringLiteral("; "));
+  // The service of the app (run rules, consent, cheat list) is there for every game, with or without a plugin: the run rule lives in
+  // the app, so a run game without the cheats plugin still has cheats_list / cheats_apply (MCP) and the live rule toasts.
+  emulation_->gameStarted(gameInfo_, run.bridge);
   if (res.start.isEmpty()) {
     rebuildUiModels();
     return;
@@ -719,7 +743,6 @@ void PluginsController::gameStarted(const QString& system, const QString& romPat
   devConsole_->resetSeen();
   consoleRun_ = run.bridge;
   running_ = true;
-  emulation_->gameStarted(gameInfo_, run.bridge);
   if (storeSync_) {
     for (const plugins::PluginInfo& p : res.start)
       if (p.manifest.permissions.contains(QStringLiteral("store"))) storeSync_->pullPlugin(p.manifest.id);
@@ -758,6 +781,8 @@ void PluginsController::stopGame(bool restartShell) {
     consoleRun_.reset();
     devConsole_->resetSeen();
     devConsole_->memoryRefresh();
+  } else if (emulation_) {
+    emulation_->gameStopped();  // a game without plugins still had the app's service running
   }
   inGame_ = false;
   mutedSession_.clear();
@@ -1039,6 +1064,7 @@ void PluginsController::onUiChanged(const QString& id, const QString& what) {
     for (const auto& r : host_->takePickRequests())
       if (activeIds().contains(r.pluginId) || runViewIds_.contains(r.pluginId)) {
         pickLimits_.insert(r.pluginId + QLatin1Char('/') + QString::number(r.id), r.maxBytes);
+        pendingPicks_.append({r.pluginId, QString::number(r.id)});
         emit pickFileRequested(r.pluginId, QString::number(r.id), r.title, r.filters, static_cast<double>(r.maxBytes));
       } else
         host_->deliverFile(r.pluginId, r.id, {}, {}, QStringLiteral("cancelled"));
@@ -1409,10 +1435,18 @@ void PluginsController::collectToasts() {
   if (changed) emit toastsChanged();
 }
 
+QVariantList PluginsController::pendingPicks() const {
+  QVariantList out;
+  for (const auto& p : pendingPicks_) out.append(QVariantMap{{QStringLiteral("pluginId"), p.first}, {QStringLiteral("requestId"), p.second}});
+  return out;
+}
+
 void PluginsController::completePick(const QString& pluginId, const QString& requestId, const QString& pathOrUrl) {
   bool ok = false;
   const quint64 id = requestId.toULongLong(&ok);
   if (!ok) return;
+  pendingPicks_.removeAll({pluginId, requestId});
+  emit pickCompleted(pluginId, requestId);
   if (pathOrUrl.isEmpty()) {
     host_->deliverFile(pluginId, id, {}, {}, QStringLiteral("cancelled"));
     return;
@@ -1554,6 +1588,7 @@ QString PluginsController::toastMuteMode(const QString& pluginId) const {
 
 void PluginsController::sendAction(const QString& pluginId, const QString& slot, const QString& action, const QVariant& value) {
   emit actionSent(pluginId, slot, action, value);
+  if (emulation_) emulation_->noteUserAction();  // a click in a plugin's UI: a waiting consent question may be asked now
   if ((!activeIds().contains(pluginId) && !runViewIds_.contains(pluginId)) || action.isEmpty()) return;
   host_->sendAction(pluginId, slot, action, value);
 }

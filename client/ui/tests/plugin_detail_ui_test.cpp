@@ -4,6 +4,7 @@
 // library is also saved as PNG (dark and light; never checked in).
 #include <QDir>
 #include <QJsonDocument>
+#include <QTemporaryFile>
 #include <QJsonObject>
 #include <QtTest>
 
@@ -104,6 +105,38 @@ class PluginDetailUiTest : public QObject {
   }
   void init() { uitest::warningCount() = 0; }
   void cleanup() { QCOMPARE(uitest::warningCount().load(), 0); }
+
+  // 0.20 package 6 (F3): without the QtQuick.Dialogs file dialog the picker is a path field; Choose answers the request with the
+  // typed path (the plugin gets the content), Cancel answers with nothing. The dialog is driven directly so the test does not depend
+  // on which Qt modules the machine has.
+  void pickFallbackPathField() {
+    QObject* dlg = h_.window->findChild<QObject*>(QStringLiteral("pluginPickPathDialog"));
+    QVERIFY(dlg != nullptr);
+    QSignalSpy done(pc(), &PluginsController::pickCompleted);
+    QTemporaryFile file;
+    QVERIFY(file.open());
+    file.write("x");
+    file.flush();
+
+    QVERIFY(QMetaObject::invokeMethod(dlg, "ask", Q_ARG(QString, QStringLiteral("net.test.p")), Q_ARG(QString, QStringLiteral("7")),
+                                      Q_ARG(QString, QStringLiteral("Pick it")), Q_ARG(QVariant, QVariant(QStringList{QStringLiteral("*.txt")}))));
+    QTRY_VERIFY(dlg->property("visible").toBool());
+    QTRY_VERIFY(h_.item("pluginPickPathField") != nullptr);
+    QVERIFY(!h_.item("pluginPickPathOk")->isEnabled());  // nothing typed yet
+    h_.item("pluginPickPathField")->setProperty("text", file.fileName());
+    QTRY_VERIFY(h_.item("pluginPickPathOk")->isEnabled());
+    QVERIFY(h_.click("pluginPickPathOk"));
+    QTRY_COMPARE(done.size(), 1);
+    QCOMPARE(done.at(0).at(1).toString(), QStringLiteral("7"));
+    QTRY_VERIFY(!dlg->property("visible").toBool());
+
+    QVERIFY(QMetaObject::invokeMethod(dlg, "ask", Q_ARG(QString, QStringLiteral("net.test.p")), Q_ARG(QString, QStringLiteral("8")),
+                                      Q_ARG(QString, QString()), Q_ARG(QVariant, QVariant(QStringList()))));
+    QTRY_VERIFY(dlg->property("visible").toBool());
+    QVERIFY(h_.click("pluginPickPathCancel"));
+    QTRY_COMPARE(done.size(), 2);
+    QCOMPARE(done.at(1).at(1).toString(), QStringLiteral("8"));
+  }
 
   void noPluginNoSection() {
     QVERIFY(h_.openGame(QStringLiteral("g1")));

@@ -9,6 +9,7 @@
 // from the core while held, like a keyboard hotkey.
 
 #include <QList>
+#include <QMap>
 #include <QSet>
 #include <QString>
 #include <QStringList>
@@ -26,6 +27,8 @@ class PadHotkeyDetector {
   void setBindings(const QString& modifierToken, const QList<PadHotkeyBinding>& bindings);
   // Feed the currently pressed tokens (once per poll). Returns the actions that fired in this update.
   QStringList update(const QSet<QString>& pressed);
+  // Actions whose fired button was let go in the last update() (for hold hotkeys such as rewind).
+  const QStringList& released() const { return released_; }
   // Tokens to leave out of the input sent to the core (valid after update()).
   const QSet<QString>& suppressed() const { return suppressed_; }
   void reset();  // pad gone / capture running: nothing fires, nothing is suppressed
@@ -36,6 +39,8 @@ class PadHotkeyDetector {
   QSet<QString> prev_;
   QSet<QString> active_;  // tokens of fired combos, hidden until released
   QSet<QString> suppressed_;
+  QMap<QString, QString> held_;  // button token of a fired hotkey -> action, until the button is released
+  QStringList released_;
 };
 
 }  // namespace uzume::input

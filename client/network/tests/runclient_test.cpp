@@ -105,6 +105,56 @@ class RunClientTest : public QObject {
     QCOMPARE(parseRunRules(runRulesToJson(r)), r);
   }
 
+  // run_rules_v1: rules go with the create call only when the server knows them; PUT replaces the whole object; 403 is reported.
+  void createWithRulesAndSetRules() {
+    connectHub({QStringLiteral("saves_v1"), QStringLiteral("runs_v1"), QStringLiteral("run_rules_v1")});
+    startClient();
+    QVERIFY(client_->supportsRules());
+    QTRY_VERIFY_WITH_TIMEOUT(client_->loaded(), 8000);
+    RunRules rules;
+    rules.states = true;
+    rules.cheats = QStringLiteral("logged");
+    std::optional<RunResult> created;
+    client_->createRun(QStringLiteral("Rules run"), {}, QStringLiteral("g-1"), {}, QJsonObject(), rules, [&](const RunResult& r) { created = r; });
+    QTRY_VERIFY_WITH_TIMEOUT(created.has_value(), 8000);
+    QVERIFY(created->ok && created->run);
+    QCOMPARE(hub_->lastRunBody.value("rules").toObject().value("cheats").toString(), QStringLiteral("logged"));
+    QCOMPARE(created->run->rules, rules);
+
+    RunRules next = rules;
+    next.memoryWrite = QStringLiteral("logged");
+    next.rewind = true;
+    std::optional<RunResult> put;
+    client_->setRules(created->run->runId, next, [&](const RunResult& r) { put = r; });
+    QTRY_VERIFY_WITH_TIMEOUT(put.has_value(), 8000);
+    QVERIFY(put->ok);
+    QCOMPARE(hub_->runRulesPuts.size(), 1);
+    QCOMPARE(hub_->runRulesPuts.at(0).value("memory_write").toString(), QStringLiteral("logged"));
+    QCOMPARE(hub_->runRulesPuts.at(0).value("states").toBool(), true);  // the whole object, not a patch
+    QTRY_COMPARE_WITH_TIMEOUT(client_->run(created->run->runId)->rules, next, 8000);
+    QTRY_VERIFY_WITH_TIMEOUT(!client_->events(created->run->runId, 0, 50).isEmpty(), 8000);
+
+    hub_->runRulesForbidden = true;
+    std::optional<RunResult> denied;
+    client_->setRules(created->run->runId, rules, [&](const RunResult& r) { denied = r; });
+    QTRY_VERIFY_WITH_TIMEOUT(denied.has_value(), 8000);
+    QVERIFY(!denied->ok);
+    QCOMPARE(denied->errorCode, QStringLiteral("forbidden"));
+  }
+
+  void rulesNotSentWithoutFeature() {
+    connectHub();
+    startClient();
+    QVERIFY(!client_->supportsRules());
+    QTRY_VERIFY_WITH_TIMEOUT(client_->loaded(), 8000);
+    RunRules rules;
+    rules.states = true;
+    std::optional<RunResult> created;
+    client_->createRun(QStringLiteral("Old hub"), {}, QStringLiteral("g-1"), {}, QJsonObject(), rules, [&](const RunResult& r) { created = r; });
+    QTRY_VERIFY_WITH_TIMEOUT(created.has_value(), 8000);
+    QVERIFY(!hub_->lastRunBody.contains(QStringLiteral("rules")));
+  }
+
   void gatedByFeature() {
     connectHub({QStringLiteral("saves_v1")});
     startClient();

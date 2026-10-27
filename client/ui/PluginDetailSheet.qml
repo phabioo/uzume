@@ -223,16 +223,37 @@ Popup {
                 Layout.fillWidth: true
                 spacing: Theme.space05
                 Repeater {
-                    model: root.info ? root.info.permissionList : []
-                    delegate: UzLabel {
-                        textFormat: Text.PlainText
-                        required property string modelData
-                        objectName: "pluginDetailPermission"
+                    model: root.info ? root.info.permissionRows : []
+                    delegate: RowLayout {
+                        id: permRow
+                        required property var modelData
                         Layout.fillWidth: true
-                        text: "• " + modelData
-                        font.pixelSize: Theme.roles.input.size
-                        wrapMode: Text.WordWrap
+                        spacing: Theme.space1
+                        UzLabel {
+                            textFormat: Text.PlainText
+                            objectName: "pluginDetailPermission"
+                            Layout.fillWidth: true
+                            text: "• " + permRow.modelData.text
+                            font.pixelSize: Theme.roles.input.size
+                            wrapMode: Text.WordWrap
+                        }
+                        UzTag {
+                            objectName: "pluginDetailPermissionWarn"
+                            visible: permRow.modelData.warn === true
+                            small: true
+                            tone: "amber"
+                            icon: "warn"
+                            text: qsTr("Changes the game")
+                        }
                     }
+                }
+                UzStatusIcon {
+                    objectName: "pluginDetailWritesNote"
+                    visible: root.info && root.info.writesGame === true
+                    kind: "warning"
+                    small: true
+                    text: root.info ? root.info.writesNote : ""
+                    maxWidth: 440
                 }
                 UzLabel {
                     textFormat: Text.PlainText  // plugin- and peer-supplied strings are never HTML

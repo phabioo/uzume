@@ -98,6 +98,16 @@ class PluginsRuntimeUiTest : public QObject {
   }
   void cleanup() { m_pc.reset(); }
 
+  // 0.20 package 6: the app's emulation service (run rules, cheats_list / cheats_apply) is there for a game without any plugin.
+  void emulationServiceWithoutPlugins() {
+    QVERIFY(!m_pc->emulation()->active());
+    m_pc->gameStarted("nds", m_src.path() + "/missing.nds", "abc", "Homebrew");
+    QVERIFY(!m_pc->pluginsRunning() || m_pc->emulation()->active());
+    QVERIFY(m_pc->emulation()->active());
+    m_pc->gameStopped();
+    QVERIFY(!m_pc->emulation()->active());
+  }
+
   void shellContextAndModels() {
     writePlugin(m_src.path(), "net.test.dep", {{"provides", QJsonArray{"dep.api"}}}, "fb.log.info('dep')", {});
     writePlugin(m_src.path(), "net.test.shell",

@@ -23,6 +23,7 @@ FocusScope {
     property bool canSpeedUp: false
     property bool canScreens: false
     property bool canSnapshot: true
+    property bool canStates: false
     property bool fullscreen: false
     property bool quitting: false
     property var hotkeys: ({})
@@ -32,6 +33,8 @@ FocusScope {
 
     readonly property var leftGroups: [
         { title: qsTr("Game"), rows: [
+            { name: "saveState", label: qsTr("Save state"), key: root.hotkeys.saveState || "F6", enabled: root.canStates, hidden: !root.canStates },
+            { name: "loadState", label: qsTr("Load state"), key: root.hotkeys.loadState || "F8", enabled: root.canStates, hidden: !root.canStates },
             { name: "snapshot", label: qsTr("Save snapshot"), key: root.hotkeys.snapshot || "F5", enabled: root.canSnapshot },
             { name: "saves", label: qsTr("Manage saves…") },
             { name: "screenshot", label: qsTr("Screenshot"), key: root.hotkeys.screenshot || "F12" },

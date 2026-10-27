@@ -8,6 +8,7 @@
     { "name": "ffmpeg", "default-features": false, "features": ["avcodec", "swscale", "openh264", "nvcodec", "qsv", "amf"], "platform": "windows" },
     { "name": "opus", "platform": "windows" },
     { "name": "sdl3", "default-features": false, "platform": "windows" },
-    { "name": "openssl", "platform": "windows" }
+    { "name": "openssl", "platform": "windows" },
+    { "name": "vulkan-headers", "platform": "windows" }
   ]
 }

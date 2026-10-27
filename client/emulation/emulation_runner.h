@@ -23,6 +23,7 @@
 #include "emulator_backend.h"
 #include "frame_stats.h"
 #include "memory_snapshot.h"
+#include "rewind_buffer.h"
 
 namespace uzume::emu {
 
@@ -47,6 +48,7 @@ class EmulationRunner : public QObject {
     QString saveDir;
     QMap<QString, QString> coreOptions;  // e.g. manifest defaults, set before the game starts
     bool requireHwRender = false;        // core profile "requires_hw_render": start fails without an OpenGL context
+    QString preferredRenderer;           // "opengl" (default, also when empty) | "vulkan" (ADR 0034); UZUME_RENDERER overrides
     // Speed-up (fast-forward) settings: chosen speed, start sped up (if the core allows it), audio during speed-up.
     double speedUpRatio = kDefaultSpeedUpRatio;
     bool speedUpOnStart = false;
@@ -66,14 +68,16 @@ class EmulationRunner : public QObject {
   // while paused) in submit order, and report asynchronously: commandFinished() carries the request id that submit()
   // returned. The emulation thread never waits for the GUI thread.
   struct Command {
-    enum class Kind { SaveState, LoadState, SetCheats, WriteMemory };
+    enum class Kind { SaveState, LoadState, SetCheats, WriteMemory, Rewind };
     Kind kind = Kind::SaveState;
     QByteArray data;             // LoadState: the state; WriteMemory: the bytes
     QList<CheatEntry> cheats;    // SetCheats: the whole active list (empty = clear)
     quint64 address = 0;         // WriteMemory: address in the device address space (the core's memory map)
+    int count = 0;               // Rewind: how many kept states to step back
     static Command saveState() { return {}; }
     static Command loadState(QByteArray state) { Command c; c.kind = Kind::LoadState; c.data = std::move(state); return c; }
     static Command setCheats(QList<CheatEntry> list) { Command c; c.kind = Kind::SetCheats; c.cheats = std::move(list); return c; }
+    static Command rewind(int snapshots) { Command c; c.kind = Kind::Rewind; c.count = snapshots; return c; }
     static Command writeMemory(quint64 address, QByteArray bytes) {
       Command c; c.kind = Kind::WriteMemory; c.address = address; c.data = std::move(bytes); return c;
     }
@@ -83,12 +87,12 @@ class EmulationRunner : public QObject {
     Command::Kind kind = Command::Kind::SaveState;
     bool ok = false;
     // On failure: "unsupported" (core has no states/cheats), "no_game", "failed" (the core refused), "unmapped" (address or
-    // part of the range is not in the memory map; nothing was written), "invalid", "stopped" (emulation ended first), "timeout".
+    // part of the range is not in the memory map; nothing was written), "invalid", "stopped" (emulation ended first), "timeout", "empty" (Rewind: nothing kept yet).
     QString error;
     QByteArray state;  // SaveState: the serialized state
     quint64 frame = 0; // SaveState: backend frame number at the time
     QImage preview;    // SaveState: the current video frame (XRGB8888)
-    int applied = 0;   // SetCheats: number of enabled entries handed to the core
+    int applied = 0;   // SetCheats: number of enabled entries handed to the core; Rewind: states stepped back
   };
   static constexpr int kMaxMemoryWriteBytes = 1 << 20;
 
@@ -120,6 +124,27 @@ class EmulationRunner : public QObject {
   // The active cheat list as last accepted by a SetCheats command (thread-safe copy). It is re-applied after reset() and
   // after a state load.
   QList<CheatEntry> activeCheats() const;
+
+  // Rewind (0.20 package 4; thread-safe, effective from the next frame). `seconds` is the length of the ring buffer (0 = off);
+  // the emulation thread keeps one serialized state every kRewindIntervalFrames frames while the core supports states. While
+  // setRewinding(true) is in effect each frame steps back one state and the sound is muted; releasing it plays on from there.
+  void setRewindSeconds(int seconds) { m_rewindSeconds.store((std::max)(0, seconds)); }
+  int rewindSeconds() const { return m_rewindSeconds.load(); }
+  void setRewinding(bool on) { m_rewinding.store(on); }
+  bool rewinding() const { return m_rewinding.load(); }
+  struct RewindInfo {
+    bool active = false;       // a buffer is filling (setting on, core supports states, game running)
+    int snapshots = 0;
+    int capacity = 0;
+    qint64 bytes = 0;
+    qint64 stateBytes = 0;     // size of one state, 0 until the first was taken
+    double secondsAvailable = 0;
+  };
+  RewindInfo rewindInfo() const;
+  // Run-ahead (thread-safe): 0 = off, 1 or 2 frames. Only effective for cores whose profile says `run_ahead`; the caller decides.
+  // Not used at speed-up or while rewinding.
+  void setRunAhead(int frames) { m_runAhead.store((std::clamp)(frames, 0, 2)); }
+  int runAhead() const { return m_runAhead.load(); }
   // Writes the battery save to its file now if it changed (blocking). Without it the file lags up to ~3 s.
   bool flushSaveNow();
   // Whether the running core's battery save memory has exactly `size` bytes (blocking).
@@ -195,6 +220,10 @@ class EmulationRunner : public QObject {
   void stopped();
   // A queued command finished (emulation thread; queued to receivers elsewhere). See submit().
   void commandFinished(const uzume::emu::EmulationRunner::CommandResult& result);
+  // Rewinding: seconds of play that can still be stepped back (emulation thread, at most 4 times a second while the key is held).
+  void rewindProgress(double secondsLeft);
+  // The rewind key was released or the buffer ran out (`exhausted`).
+  void rewindFinished(bool exhausted);
   // The core re-sent its memory map while running; memoryRegions() now returns the new list.
   void memoryRegionsChanged();
 
@@ -216,6 +245,11 @@ class EmulationRunner : public QObject {
   mutable QMutex m_regionsMutex;
   std::vector<MemoryMap::RegionInfo> m_regions;
   std::atomic<quint64> m_nextRequestId{1};
+  std::atomic<int> m_rewindSeconds{0};
+  std::atomic<bool> m_rewinding{false};
+  std::atomic<int> m_runAhead{0};
+  mutable QMutex m_rewindMutex;
+  RewindInfo m_rewindInfo;
   mutable QMutex m_cheatsMutex;
   QList<CheatEntry> m_activeCheats;
 };

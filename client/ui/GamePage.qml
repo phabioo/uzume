@@ -1067,6 +1067,8 @@ Rectangle {
             serverName: root.player.hubName
             pcOnly: root.player.localHub.onThisPcOnly
         }
+        // The dialog fills its parent: inside the Loader (width 0) it was 26 px wide and invisible, so it hangs on the window content.
+        onLoaded: item.parent = Window.contentItem
         function openFor(gameId) {
             active = true
             if (item !== null) item.openStartFor(gameId)

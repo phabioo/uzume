@@ -131,6 +131,10 @@ class PluginEmulationServiceTest : public QObject {
     run->rules = {{"cheats", "logged"}};
     r = svc_->applyCheats("p.one", {poke()});
     QCOMPARE(r.error, QStringLiteral("consent_required"));
+    // 0.20 package 6 (F14): nothing pops up at game start; the question waits for the first action of the person in the game.
+    QTest::qWait(100);
+    QVERIFY(svc_->consentRequest().isEmpty());
+    svc_->noteUserAction();
     QTRY_VERIFY(!svc_->consentRequest().isEmpty());
     QCOMPARE(svc_->consentRequest().value("kind").toString(), QStringLiteral("cheats"));
     QVERIFY(svc_->consentRequest().value("title").toString().contains(QStringLiteral("Test Game")));
@@ -168,6 +172,7 @@ class PluginEmulationServiceTest : public QObject {
     auto run = std::make_shared<FakeRun>();
     run->rules = {{"cheats", "logged"}};
     startGame(run);
+    svc_->noteUserAction();  // the person is acting in the game: the question is asked right away
     QCOMPARE(svc_->applyCheats("p.one", {poke()}).error, QStringLiteral("consent_required"));
     QTRY_VERIFY(!svc_->consentRequest().isEmpty());
     svc_->answerConsent(false);

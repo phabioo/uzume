@@ -6,7 +6,7 @@ import Uzume.App
 // In-game plugin screen (docs/design/legacy/plugins.md, "In-game screen sheet"): opened by fb.ui.open("screen"). Covers the body
 // below the GameHeader (play area and side panel; in fullscreen the play area). In the active theme (the game view is dark). The game keeps running
 // underneath. Top bar: "← Back to game", plugin icon, screen title and plugin name, key hint Esc; below it the plugin's
-// "screen" tree (max 1100 wide, centered, scrolling vertically). Esc and Back emit closeRequested().
+// "screen" tree (max 1100 wide, or 560 with `width = "dialog"` on its root column; centered, scrolling vertically). Esc and Back emit closeRequested().
 Rectangle {
     id: root
     objectName: "pluginScreenSheet"
@@ -137,7 +137,8 @@ Rectangle {
             ColumnLayout {
                 id: content
                 readonly property real avail: flick.width - 2 * Theme.space3
-                width: Math.min(1100, Math.max(0, avail))
+                // 1100 px, or dialog width (560) when the root column of the screen says `width = "dialog"` (forms such as "Add cheats").
+                width: Math.min(root.tree.width === "dialog" ? Theme.dialogLg : 1100, Math.max(0, avail))
                 x: Math.max(Theme.space3, (flick.width - width) / 2)
                 y: Theme.space3
                 spacing: Theme.space2

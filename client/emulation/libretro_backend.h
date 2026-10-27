@@ -25,6 +25,7 @@
 namespace uzume::emu {
 
 class HwRenderContext;
+class VkRenderContext;
 
 class LibretroBackend final : public EmulatorBackend {
  public:
@@ -43,6 +44,7 @@ class LibretroBackend final : public EmulatorBackend {
   void setSaveDirectory(const QString& path) override;
 
   void setRequireHwRender(bool required) override { m_requireHw = required; }
+  void setPreferredRenderer(const QString& renderer) override { m_preferredRenderer = renderer; }
   bool loadGame(const QString& path, QString* error = nullptr) override;
   void unloadGame() override;
   bool isGameLoaded() const override;
@@ -133,6 +135,9 @@ class LibretroBackend final : public EmulatorBackend {
   bool setupHwRender(void* retroHwRenderCallback);
   bool finishHwSetup(unsigned maxWidth, unsigned maxHeight, QString* error);  // after retro_load_game
   void teardownHw();
+  bool setupVulkan(void* retroHwRenderCallback);  // SET_HW_RENDER with RETRO_HW_CONTEXT_VULKAN
+  bool vulkanAvailable();                          // cached probe, reset by loadCore
+  bool vulkanPreferred() const;                    // UZUME_RENDERER, else the launch preference
   void applyTargetChange();  // emulation thread, context current
 
   void handleVideo(const void* data, unsigned width, unsigned height, size_t pitch);
@@ -177,6 +182,10 @@ class LibretroBackend final : public EmulatorBackend {
   QString m_loadedPath;  // path of the loaded game (for the live save reload)
 
   std::unique_ptr<HwRenderContext> m_hw;
+  std::unique_ptr<VkRenderContext> m_vk;  // Vulkan next to OpenGL (ADR 0034); m_hwActive stays OpenGL-only
+  bool m_vkActive = false;                // SET_HW_RENDER accepted with Vulkan (context created in finishHwSetup)
+  int m_vkProbe = -1;                     // -1 unknown, 0 none, 1 a Vulkan device exists
+  QString m_preferredRenderer = QStringLiteral("opengl");
   // Core's hardware callbacks (copied from retro_hw_render_callback).
   void (*m_hwContextReset)() = nullptr;
   void (*m_hwContextDestroy)() = nullptr;

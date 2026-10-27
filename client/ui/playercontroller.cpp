@@ -414,6 +414,7 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
   sessions_->setPlayerSettings(settings_.get());  // diagnostics overlay states live in settings/player.json (0.6 D5)
   runClient_ = std::make_unique<RunClient>(conn_.get(), sessions_->socket(), profiles_->baseDir());
   runs_ = std::make_unique<RunsController>(runClient_.get(), plugins_.get(), library_.get(), conn_.get());
+  setupStates();
   {
     toolCache_ = std::make_unique<ToolCache>(profiles_->toolCacheDir());
     variantCache_ = std::make_unique<VariantCache>(profiles_->variantCacheDir());
@@ -513,6 +514,11 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
     in.cores = *coreCache_;
     in.platform = CoreCache::currentPlatform();
     in.protectedHashes = protectedRomHashes();
+    in.statesDir = statesDir();
+    in.libraryKnown = conn_->state() == HubConnection::State::Connected && libraryState_ == QLatin1String("ready") && !library_->isLoading();
+    if (in.libraryKnown) {
+      for (const GameEntry& g : library_->games()) in.libraryGameIds.insert(g.id);
+    }
     const emu::SystemManifest* man = session_.isActive() && catalog_ ? catalog_->manifestFor(launchGame_) : nullptr;
     if (man != nullptr) {
       in.inUseCoreId = man->coreId;
@@ -813,6 +819,9 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
       }
       plugins_->setGameInfo(gi);
     }
+    stateRunId_ = runStart_.pending() && runStart_.gameId == launchGame_.id ? runStart_.runId : QString();
+    states_->gameStarted(stateContext(launchGame_, true));
+    applyStateOptions();
     // Plugins start asynchronously after the game: they never delay it, failures only show in the console and the log.
     plugins_->gameStarted(launchGame_.system, launchRom_, launchGame_.romSha256, launchGame_.title,
                           plugins_->resolveLanguage(launchGame_.system, emulation_->launchOverrides(launchGame_.system, launchGame_.id)),
@@ -887,6 +896,8 @@ void PlayerController::endGameContext() {
   setBackground(false);
   const bool wasActive = gameActive_;
   gameActive_ = false;
+  if (states_) states_->gameStopped();
+  stateRunId_.clear();
   if (wasActive) {
     // The server adds the play time when the app reports that the game ended (presence): read it back a moment later.
     QTimer::singleShot(1500, this, [this]() {
@@ -907,6 +918,89 @@ void PlayerController::endGameContext() {
   if (sessions_) {
     sessions_->gameEnded();  // ends a shared Session
   }
+}
+
+// ---- save states, rewind, run-ahead (0.20 package 4)
+
+QString PlayerController::statesDir() const {
+  if (!conn_ || !profiles_) return {};
+  return StateStore::userStatesDir(*profiles_, conn_->hubId(), conn_->hubUserId());
+}
+
+void PlayerController::updateStatesLocation() {
+  if (states_) states_->setLocation(statesDir());
+}
+
+StatesController::GameContext PlayerController::stateContext(const GameEntry& game, bool running) const {
+  StatesController::GameContext sc;
+  sc.gameId = game.id;
+  sc.title = game.title;
+  sc.systemId = game.system;
+  QString slot = running ? saves_->activeSlot() : QString();
+  if (slot.isEmpty()) slot = saves_->slotFor(game.id);
+  sc.saveSlot = slot.isEmpty() ? QStringLiteral("default") : slot;
+  const emu::SystemManifest* man = catalog_ ? (running ? catalog_->manifestFor(game) : catalog_->manifestForSystem(game.system, game.id)) : nullptr;
+  if (man != nullptr) {
+    sc.coreId = man->coreId;
+    if (const emu::CoreProfile* prof = manifests_.profile(man->coreId)) {
+      sc.states = prof->statesSupported;
+      sc.runAhead = prof->statesRunAhead;
+    }
+    sc.coreVersion = catalog_->locateCore(*man).version;
+  }
+  if (running) sc.runId = stateRunId_;
+  return sc;
+}
+
+// Rewind length and run-ahead of the running game: game > system > global (Emulation settings), applied by StatesController when
+// the core and the run rules allow them.
+void PlayerController::applyStateOptions() {
+  if (!states_ || !gameActive_) return;
+  bool ok = false;
+  int secs = emulation_->uzumeValue(QString::fromLatin1(EmulationController::kRewindKey), launchGame_.system, launchGame_.id).toInt(&ok);
+  if (!ok) secs = 0;
+  int ahead = emulation_->uzumeValue(QString::fromLatin1(EmulationController::kRunAheadKey), launchGame_.system, launchGame_.id).toInt(&ok);
+  if (!ok) ahead = 0;
+  states_->applyOptions(secs, ahead);
+}
+
+void PlayerController::setupStates() {
+  stateApi_ = std::make_unique<StateApi>(conn_.get());
+  states_ = std::make_unique<StatesController>(&session_, settings_.get());
+  states_->setApi(stateApi_.get());
+  states_->setDeviceName(QSysInfo::machineHostName());
+  states_->setViewResolver([this](const QString& gameId) {
+    const auto g = library_->gameById(gameId);
+    return g ? stateContext(*g, false) : StatesController::GameContext();
+  });
+  states_->setRulesFn([this]() -> std::optional<RunRules> {
+    if (stateRunId_.isEmpty() || !runClient_) return std::nullopt;
+    const auto run = runClient_->run(stateRunId_);
+    if (!run) return std::nullopt;
+    return run->rules;
+  });
+  states_->setRuleOwnerFn([this]() -> QString {
+    if (stateRunId_.isEmpty() || !runClient_) return {};
+    const auto run = runClient_->run(stateRunId_);
+    if (!run) return {};
+    for (const RunParticipant& p : run->participants) {
+      if (p.userId == run->createdBy) return p.userName;
+    }
+    return {};
+  });
+  states_->setRunEventFn([this](const QString& type, const QString& text, const QJsonObject& payload) {
+    if (stateRunId_.isEmpty() || !runClient_) return;
+    const QString err = runClient_->postEvent(stateRunId_, QString(), QStringLiteral("automatic"), type, text, payload);
+    if (!err.isEmpty()) qInfo() << "run log" << type << "not written:" << err;
+  });
+  connect(runClient_.get(), &RunClient::runChanged, states_.get(), [this](const QString& runId) {
+    if (runId == stateRunId_) states_->rulesChanged();
+  });
+  connect(conn_.get(), &HubConnection::stateChanged, this, [this]() {
+    updateStatesLocation();
+    states_->connectionChanged();
+  });
+  updateStatesLocation();
 }
 
 void PlayerController::shutdown() {
@@ -1029,6 +1123,7 @@ void PlayerController::refreshEmulationPage() {
 QString PlayerController::logFile() const { return QDir::toNativeSeparators(filelog::path()); }
 
 QString PlayerController::userName() const { return conn_->userDisplayName(); }
+bool PlayerController::cheatDbSupported() const { return conn_->hubHasFeature(QStringLiteral("cheat_db_v1")); }
 bool PlayerController::isAdmin() const { return conn_->userRole() == QLatin1String("admin"); }
 QString PlayerController::hubVersion() const { return conn_->hubInfo().hubVersion; }
 QString PlayerController::versionRelation() const {
@@ -1651,7 +1746,7 @@ void PlayerController::showServerPage(const QString& page) {
 
 void PlayerController::setServerSettingsPage(const QString& page) {
   static const QStringList pages{QStringLiteral("general"), QStringLiteral("network"), QStringLiteral("signin"), QStringLiteral("updates"),
-                                 QStringLiteral("backups"), QStringLiteral("storage"), QStringLiteral("diagnostics")};
+                                 QStringLiteral("cheatdb"), QStringLiteral("backups"), QStringLiteral("storage"), QStringLiteral("diagnostics")};
   const QString next = pages.contains(page) ? page : QStringLiteral("general");
   if (next == serverSettingsPage_) return;
   serverSettingsPage_ = next;
@@ -1731,6 +1826,7 @@ void PlayerController::applyUzumeOptions() {
         emulation_->uzumeValue(QString::fromLatin1(EmulationController::kIntegerScaleKey), sys, launchGame_.id) == QLatin1String("on"),
         emulation_->uzumeValue(QString::fromLatin1(EmulationController::kAspectRatioKey), sys, launchGame_.id));
   }
+  if (gameActive_) applyStateOptions();
   emit emulationSettingsChanged();
 }
 

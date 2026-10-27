@@ -373,7 +373,7 @@ Needs the permission `ui` and the matching manifest field `ui`. A plugin ships n
 - **Run view:** while a run is open in the detail of the Runs screen, the user is its creator or has joined, and no game runs, the run's plugins that declare `ui.run` or `ui.screen` (plus the plugins they require) run in the shell context as the exact server copies pinned by the run; missing copies are fetched like for "Play run". They get a read-only `fb.run` for that run (see [Run state](#run-state)). A plugin that is in both the shell set and the run view set runs once, as the run view instance. Opening or closing the run view restarts the shell plugins; while it is open, the other shell plugins with `run.state` also see that read-only `fb.run`. Starting a game stops the run view set; it comes back when the game ends and the detail is still open.
 - A paused plugin keeps its last trees, shown dimmed.
 - **Run tabs:** the run view has the tabs Board, Log and one tab per run plugin that declares `ui.run` or `ui.screen`, last. There are no plugin entries in the sidebar (since 0.18, [ADR 0030](../adr/0030-one-app-one-server-uzume.md) D7; the plugin API version stays 1). A run can have no plugin at all (feature `runs_v2`); then it has only Board and Log.
-- **In-game screen:** the run tab does not exist while a game runs, so `fb.ui.open("screen")` shows the `screen` tree in a sheet over the play area and the side panel (always dark, content up to 1100 px wide). The game keeps running; Esc or "← Back to game" closes the sheet, and actions in it reach the plugin with slot `"screen"`.
+- **In-game screen:** the run tab does not exist while a game runs, so `fb.ui.open("screen")` shows the `screen` tree in a sheet over the play area and the side panel (always dark, content up to 1100 px wide). A `screen` tree whose root `column` has `width = "dialog"` keeps its content at dialog width (560 px, centered) instead of 1100 px, which suits forms such as "Add cheats". The game keeps running; Esc or "← Back to game" closes the sheet, and actions in it reach the plugin with slot `"screen"`.
 
 #### `fb.ui`
 
@@ -417,7 +417,7 @@ A block is a table `{ type = "...", id = "...", children = { ... }, <props> }`. 
 
 | `type` | Props | Children |
 |---|---|---|
-| `column`, `row` | `gap`, `align` (`start`, `center`, `end`, `stretch`) | yes |
+| `column`, `row` | `gap`, `align` (`start`, `center`, `end`, `stretch`); `column` also `width` (`"dialog"`, see below) | yes |
 | `grid` | `gap`, `columns` (1..6) | yes |
 | `tabs` | `tabs` (1..12 labels, required), `selected` (1-based), `action` | yes, child `i` is page `i` |
 | `scroll` | `max_height` (`s`, `m`, `l`; omitted = fill) | yes |
@@ -433,7 +433,7 @@ A block is a table `{ type = "...", id = "...", children = { ... }, <props> }`. 
 | `list` | `rows` (up to 500, required), `selected` (row id) | no |
 | `table` | `columns` (1..12 labels), `rows` (up to 500) (both required) | no |
 | `button` | `label`, `action` (required), `variant` (`primary`, `secondary`, `quiet`, `danger`), `value`, `confirm` | no |
-| `toggle` | `action` (required), `label`, `checked`, `value`, `disabled` | no; with `value` the action gets `{ checked = <new boolean>, value = <value> }` instead of the plain boolean (to tell several toggles apart); `disabled = true` greys it out and ignores input |
+| `toggle` | `action` (required), `label`, `accessible`, `checked`, `value`, `disabled` | no; with `value` the action gets `{ checked = <new boolean>, value = <value> }` instead of the plain boolean (to tell several toggles apart); `disabled = true` greys it out and ignores input; the screen reader name is `label`, else `accessible` (give it to every toggle without a visible label, for example one per list row) |
 | `select` | `options` (1..100, required), `selected`, `action` (required) | no |
 | `segmented` | `options` (2..3, required), `selected`, `action` (required) | no |
 | `textfield` | `action` (required), `text`, `placeholder`, `error`, `live` | no; the action fires on Enter; with `live = true` it also fires while typing, debounced to 250 ms |

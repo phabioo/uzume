@@ -643,6 +643,28 @@ Rectangle {
                             color: Theme.muted
                             font.pixelSize: Theme.roles.small.size
                         }
+                        // The core rules (run_rules_v1, design 11f): one line for everyone; Rules… only for the creator and admins.
+                        RowLayout {
+                            objectName: "runRulesRow"
+                            visible: detailCol.d.rulesAvailable === true
+                            Layout.fillWidth: true
+                            spacing: Theme.space15
+                            UzLabel {
+                                objectName: "runRulesLine"
+                                Layout.fillWidth: true
+                                text: qsTr("%1 · set by %2").arg(detailCol.d.rulesLine || "").arg(detailCol.d.rulesSetBy || "")
+                                elide: Text.ElideRight
+                                color: Theme.muted
+                                font.pixelSize: Theme.roles.small.size
+                            }
+                            UzButton {
+                                objectName: "runRulesOpen"
+                                visible: detailCol.d.canEditRules === true
+                                kind: "link"
+                                text: qsTr("Rules…")
+                                onClicked: rulesDialog.openFor(detailCol.d.runId, detailCol.d.rules)
+                            }
+                        }
                     }
 
                     // Tabs: Board, Log, then one tab per run plugin (named after its screen), the plugin tab last.
@@ -890,6 +912,10 @@ Rectangle {
 
     RunJoinDialog {
         id: joinDialog
+        runs: root.runs
+    }
+    RunRulesDialog {
+        id: rulesDialog
         runs: root.runs
     }
     RunStartDialog {

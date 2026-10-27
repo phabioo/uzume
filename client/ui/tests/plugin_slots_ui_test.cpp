@@ -891,7 +891,7 @@ class PluginSlotsUiTest : public QObject {
                                        {hotkeyDecl("toggle-hud", "Show or hide HUD widget", "Ctrl+H"), hotkeyDecl("team", "Open team", "Ctrl+D"),
                                         hotkeyDecl("reload", "Reload run", "Ctrl+R")}),
                           hotkeyPlugin("net.test.b", "Item Helper", "unverified",
-                                       {hotkeyDecl("peek", "Peek bag", "Ctrl+H"), hotkeyDecl("fs", "Quick save", "F11"), hotkeyDecl("bag", "Open bag", "F8")})}}};
+                                       {hotkeyDecl("peek", "Peek bag", "Ctrl+H"), hotkeyDecl("fs", "Quick save", "F11"), hotkeyDecl("bag", "Open bag", "F9")})}}};
   }
 
   void hotkeysInGame() {
@@ -923,7 +923,7 @@ class PluginSlotsUiTest : public QObject {
     QTRY_COMPARE(sent.size(), 2);
     QCOMPARE(sent.at(1).at(0).toString(), QStringLiteral("net.test.b"));
     QCOMPARE(sent.at(1).at(2).toString(), QStringLiteral("peek"));
-    QTest::keyClick(h_.window, Qt::Key_F8);
+    QTest::keyClick(h_.window, Qt::Key_F9);
     QTRY_COMPARE(sent.size(), 3);
     QCOMPARE(sent.at(2).at(2).toString(), QStringLiteral("bag"));
     QTest::keyClick(h_.window, Qt::Key_H);  // without Ctrl: not a hotkey

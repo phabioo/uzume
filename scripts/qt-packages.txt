@@ -11,6 +11,9 @@ qml6-module-qtquick-layouts
 qml6-module-qtquick-window
 qml6-module-qtqml-workerscript
 qml6-module-qtquick-templates
+qml6-module-qtquick-dialogs
+qml6-module-qt-labs-folderlistmodel
+qml6-module-qt-labs-settings
 libgl-dev
 libgl1-mesa-dri
 libglx-mesa0
@@ -23,3 +26,6 @@ libopus-dev
 qt6-websockets-dev
 libssl-dev
 pkg-config
+# Vulkan hardware rendering tests (ADR 0034): headers for the build (the loader is opened at runtime), lavapipe as the CPU device
+libvulkan-dev
+mesa-vulkan-drivers

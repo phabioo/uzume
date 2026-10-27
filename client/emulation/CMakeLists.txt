@@ -9,6 +9,7 @@ add_library(uzume_emulation STATIC
   firmware_materializer.cpp
   core_options.cpp
   hw_render.cpp
+  vk_render.cpp
   memory_map.cpp
   memory_access.cpp
   memory_snapshot.cpp
@@ -19,7 +20,24 @@ qt_add_resources(uzume_emulation uzume_manifests
   PREFIX "/uzume/emulation"
   FILES ${FB_MANIFEST_FILES})
 target_include_directories(uzume_emulation PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_include_directories(uzume_emulation SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
+target_include_directories(uzume_emulation SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party ${CMAKE_CURRENT_SOURCE_DIR}/third_party/libretro)
+# Vulkan hardware rendering (ADR 0034): headers only, the loader is opened at runtime (QLibrary), nothing is linked.
+# Linux: libvulkan-dev; Windows: vcpkg port vulkan-headers. Without them vk_render.cpp compiles to "unavailable".
+find_path(UZUME_VULKAN_INCLUDE_DIR vulkan/vulkan.h)
+set(UZUME_VULKAN_TEST_DEFS "")
+set(UZUME_VULKAN_TEST_INCLUDES "")
+if(UZUME_VULKAN_INCLUDE_DIR)
+  message(STATUS "Vulkan headers: ${UZUME_VULKAN_INCLUDE_DIR} (loaded at runtime, not linked)")
+  target_compile_definitions(uzume_emulation PUBLIC UZUME_HAVE_VULKAN=1)
+  set(UZUME_VULKAN_TEST_DEFS UZUME_HAVE_VULKAN=1)
+  if(NOT UZUME_VULKAN_INCLUDE_DIR IN_LIST CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES)
+    target_include_directories(uzume_emulation SYSTEM PRIVATE ${UZUME_VULKAN_INCLUDE_DIR})
+    set(UZUME_VULKAN_TEST_INCLUDES ${UZUME_VULKAN_INCLUDE_DIR})
+  endif()
+else()
+  message(STATUS "Vulkan headers not found: Vulkan hardware rendering is compiled out")
+  target_compile_definitions(uzume_emulation PUBLIC UZUME_HAVE_VULKAN=0)
+endif()
 target_compile_features(uzume_emulation PUBLIC cxx_std_20)
 target_link_libraries(uzume_emulation PUBLIC uzume_inputmap Qt6::Core Qt6::Gui ${CMAKE_DL_LIBS})
 if(WIN32)
@@ -107,12 +125,24 @@ if(BUILD_TESTING)
   uzume_add_test_module(uzume_test_core tests/test_core.cpp)
   target_include_directories(uzume_test_core PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/tests ${UZUME_TESTUTIL_DIR})
   set_target_properties(uzume_test_core PROPERTIES PREFIX "" OUTPUT_NAME uzume_test_core)
+  # Vulkan render mode of the test core: headers only (no loader link); the core gets every function from the frontend.
+  target_include_directories(uzume_test_core SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/libretro ${UZUME_VULKAN_TEST_INCLUDES})
+  target_compile_definitions(uzume_test_core PRIVATE ${UZUME_VULKAN_TEST_DEFS})
   uzume_warnings(uzume_test_core)
   uzume_add_test(emulation_test_core tests/test_core_test.cpp LIBS uzume_emulation TEST_CORE TEST_CORE_FLAVOR generic)
   target_include_directories(test_emulation_test_core PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
   target_compile_definitions(test_emulation_test_core PRIVATE FB_TEST_CORE_PATH="$<TARGET_FILE:uzume_test_core>")
   add_dependencies(test_emulation_test_core uzume_test_rom)
   target_compile_definitions(test_emulation_test_core PRIVATE FB_TEST_ROM_PATH="${FB_TEST_ROM}")
+
+  # Vulkan hardware rendering (ADR 0034) against the test core's "vulkan" render mode, readback on lavapipe or any other
+  # Vulkan device. SKIP/77 without a device, except with UZUME_REQUIRE_VULKAN=1 (Linux CI).
+  uzume_add_test(emulation_vk_render tests/vk_render_test.cpp LIBS uzume_emulation Qt6::Gui TEST_CORE TEST_CORE_FLAVOR generic)
+  target_include_directories(test_emulation_vk_render PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
+  target_compile_definitions(test_emulation_vk_render PRIVATE FB_TEST_CORE_PATH="$<TARGET_FILE:uzume_test_core>"
+                                                              FB_TEST_ROM_PATH="${FB_TEST_ROM}")
+  add_dependencies(test_emulation_vk_render uzume_test_rom)
+  set_tests_properties(emulation_vk_render PROPERTIES SKIP_RETURN_CODE 77)
 
   # Input mapping chain (Uzume input -> system profile -> libretro mask) ending in the test core, e.g. ZR -> R2.
   uzume_add_test(emulation_test_core_input tests/test_core_input_test.cpp LIBS uzume_emulation uzume_input uzume_sdl3 TEST_CORE TEST_CORE_FLAVOR generic)
@@ -168,4 +198,8 @@ if(BUILD_TESTING)
   target_include_directories(test_emulation_memory_snapshot_testcore PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
   target_compile_definitions(test_emulation_memory_snapshot_testcore PRIVATE FB_TEST_ROM_PATH="${FB_TEST_ROM}")
   add_dependencies(test_emulation_memory_snapshot_testcore uzume_test_rom)
+
+  uzume_add_test(emulation_rewind_testcore tests/rewind_test.cpp LIBS uzume_emulation TEST_CORE)
+  target_compile_definitions(test_emulation_rewind_testcore PRIVATE FB_TEST_ROM_PATH="${FB_TEST_ROM}")
+  add_dependencies(test_emulation_rewind_testcore uzume_test_rom)
 endif()

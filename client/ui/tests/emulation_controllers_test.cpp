@@ -468,7 +468,7 @@ class EmulationControllersTest : public QObject {
     QCOMPARE(emu->lockedCount(), 2);
     QVERIFY(visible(h, "lockedHint"));
     // Category chips: the categories of this scope.
-    QCOMPARE(emu->categories(), (QStringList{QStringLiteral("Audio"), QStringLiteral("System"), QStringLiteral("Picture")}));  // + Uzume's picture options
+    QCOMPARE(emu->categories(), (QStringList{QStringLiteral("Audio"), QStringLiteral("System"), QStringLiteral("Picture")}));  // + Uzume's picture options (the rewind rows have no chip, like speed-up)
     QTRY_VERIFY(visible(h, "category_Audio") && visible(h, "category_System"));  // the tabs fit once the new section is laid out
     // Nothing changed yet: "Default" in every row, no dot, no "Reset N changed".
     QCOMPARE(text(h, "optionOrigin_melonds_audio_interpolation"), QStringLiteral("Default"));
@@ -1453,7 +1453,8 @@ class EmulationControllersTest : public QObject {
     QCOMPARE(rowOf(QStringLiteral("pause")).value(QStringLiteral("key")).toString(), QStringLiteral("Start"));
     QCOMPARE(rowOf(QStringLiteral("layout")).value(QStringLiteral("key")).toString(), QStringLiteral("→"));
     QCOMPARE(rowOf(QStringLiteral("layout")).value(QStringLiteral("label")).toString(), QStringLiteral("Screen layout"));
-    QCOMPARE(rowOf(QStringLiteral("snapshot")).value(QStringLiteral("key")).toString(), QStringLiteral("L"));
+    QCOMPARE(rowOf(QStringLiteral("loadState")).value(QStringLiteral("key")).toString(), QStringLiteral("L"));
+    QVERIFY(rowOf(QStringLiteral("snapshot")).isEmpty());  // its default button went to Load state (0.20)
     QCOMPARE(rowOf(QStringLiteral("speedup")).value(QStringLiteral("key")).toString(), QStringLiteral("R2"));
     QCOMPARE(rowOf(QStringLiteral("volume")).value(QStringLiteral("key")).toString(), QStringLiteral("UpDown"));
     QVERIFY(rowOf(QStringLiteral("volumeUp")).isEmpty() && rowOf(QStringLiteral("volumeDown")).isEmpty());
@@ -1857,7 +1858,7 @@ class EmulationControllersTest : public QObject {
     QCOMPARE(h.controller->screen(), QStringLiteral("settings"));
     QTRY_VERIFY(visible(h, "hotkeysInfo"));
     QCOMPARE(text(h, "hotkeysInfo"), QStringLiteral("Uzume hotkeys work on the keyboard and on a gamepad (hold the hotkey button, then press another one) and are never sent to the game."));
-    QCOMPARE(c->hotkeyRows().size(), 10);  // nine actions + the fixed Esc row
+    QCOMPARE(c->hotkeyRows().size(), 13);  // twelve actions + the fixed Esc row
     QCOMPARE(text(h, "hotkeyText_fullscreen"), QStringLiteral("F11"));
     QCOMPARE(text(h, "hotkeyText_diagnostics"), QStringLiteral("F3"));
     QCOMPARE(text(h, "hotkeyText_snapshot"), QStringLiteral("F5"));
@@ -1866,7 +1867,8 @@ class EmulationControllersTest : public QObject {
     QCOMPARE(text(h, "hotkeyPadText_screenshot"), QStringLiteral("Select+Y"));
     QCOMPARE(text(h, "hotkeyPadText_fullscreen"), QStringLiteral("Select+B"));  // Uzume hotkeys get gamepad defaults (P36, design 9b-1)
     QCOMPARE(text(h, "hotkeyPadText_diagnostics"), QStringLiteral("Select+R3"));
-    QCOMPARE(text(h, "hotkeyPadText_snapshot"), QStringLiteral("Select+LB"));
+    QCOMPARE(text(h, "hotkeyPadText_loadState"), QStringLiteral("Select+LB"));
+    QCOMPARE(text(h, "hotkeyPadText_saveState"), QStringLiteral("Select+RB"));
     QCOMPARE(text(h, "hotkeyPadText_speedup"), QStringLiteral("Select+RT"));
     QCOMPARE(text(h, "padModifierText"), QStringLiteral("Select"));
     QVERIFY(visible(h, "hotkeyPadField_escape"));  // fixed, read-only field (no capture)
@@ -1995,9 +1997,9 @@ class EmulationControllersTest : public QObject {
     pad.button(Back, true);
     poll();
     QCOMPARE(c->padHotkeyListening(), QStringLiteral("fullscreen"));
-    pad.button(LB, true);  // used by Save snapshot
+    pad.button(LB, true);  // used by Load state
     poll();
-    QCOMPARE(c->hotkeyNote(), QStringLiteral("Already used by Save snapshot"));
+    QCOMPARE(c->hotkeyNote(), QStringLiteral("Already used by Load state"));
     QVERIFY(visible(h, "hotkeyNote"));
     QCOMPARE(c->padHotkeyListening(), QStringLiteral("fullscreen"));
     pad.button(LB, false);

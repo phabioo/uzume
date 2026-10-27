@@ -101,6 +101,7 @@ class EmulationRunner::Worker : public QThread {
     // Directories before loadCore (cores already read them in retro_set_environment).
     be.setSystemDirectory(m_req.systemDir);
     be.setSaveDirectory(m_req.saveDir);
+    be.setPreferredRenderer(m_req.preferredRenderer);
     bool ok = be.loadCore(m_req.corePath, &err);
     if (ok) {
       for (auto it = m_req.coreOptions.cbegin(); it != m_req.coreOptions.cend(); ++it) be.setCoreOption(it.key(), it.value());
@@ -161,6 +162,7 @@ class EmulationRunner::Worker : public QThread {
         if (m_reset) {
           m_reset = false;
           be.reset();
+          m_rewindBuf.clear();
           reapplyCheats(be);  // a core may drop its cheat engine state on reset
         }
         drainCommands(be);
@@ -181,7 +183,8 @@ class EmulationRunner::Worker : public QThread {
       // Fast-forward: the UI sees at most the base fps, so only those frames need video (readback/conversion).
       const bool wantVideo = !fast || pacer.wantsFrame(ticks(frameStart));
       be.setVideoWanted(wantVideo);
-      const bool frameOk = be.runFrame();
+      bool muteAudio = false;
+      const bool frameOk = tick(be, fast, wantVideo, &muteAudio);
       const double frameMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - frameStart).count();
       if (frameOk) m_owner->m_timing.recordFrame(monotonicMs(), frameMs, be.lastReadbackMs(), be.lastGpuCopyMs(), be.lastGpuCaptured(),
                                                      be.lastDisplayMs(), be.lastDisplayed());
@@ -220,7 +223,7 @@ class EmulationRunner::Worker : public QThread {
         }
       }
       const QByteArray pcm = be.takeAudio();  // always drained
-      if (!pcm.isEmpty()) {
+      if (!pcm.isEmpty() && !muteAudio) {
         if (!fast) {
           emit m_owner->audioReady(pcm, rate);
         } else if (m_owner->speedUpAudio()) {  // real-time rate again: the sink and a shared Session see a normal stream
@@ -334,10 +337,24 @@ class EmulationRunner::Worker : public QThread {
         if (!be.supportsStates()) { r.error = QStringLiteral("unsupported"); return r; }
         if (cmd.data.isEmpty()) { r.error = QStringLiteral("invalid"); return r; }
         if (!be.unserialize(cmd.data)) { r.error = QStringLiteral("failed"); return r; }
+        m_rewindBuf.clear();  // the older states belong to another timeline now
         r.frame = be.frameCount();
         reapplyCheats(be);  // the core's cheat list is not part of a state
         r.ok = true;
         return r;
+      case Command::Kind::Rewind: {
+        if (!be.supportsStates()) { r.error = QStringLiteral("unsupported"); return r; }
+        if (m_rewindBuf.empty()) { r.error = QStringLiteral("empty"); return r; }
+        QByteArray st;
+        int n = 0;
+        while (n < (std::max)(1, cmd.count) && m_rewindBuf.pop(&st)) ++n;
+        if (!be.unserialize(st)) { m_rewindBuf.clear(); r.error = QStringLiteral("failed"); return r; }
+        r.applied = n;
+        r.frame = be.frameCount();
+        r.ok = true;
+        publishRewind((std::max)(1.0, be.avInfo().fps), false);
+        return r;
+      }
       case Command::Kind::SetCheats:
         if (!be.supportsCheats()) { r.error = QStringLiteral("unsupported"); return r; }
         r.applied = sendCheats(be, cmd.cheats);
@@ -370,6 +387,117 @@ class EmulationRunner::Worker : public QThread {
     }
     return r;
   }
+  // One emulated frame of the main loop (emulation thread): normal, with run-ahead, or one step back while rewinding. Also keeps the
+  // rewind buffer filled. `*muteAudio`: drop this frame's sound.
+  bool tick(EmulatorBackend& be, bool fast, bool wantVideo, bool* muteAudio) {
+    const int secs = m_owner->m_rewindSeconds.load();
+    const bool canStates = be.supportsStates();
+    if (secs != m_rewindSecsApplied || !canStates) {  // setting changed (or no states): rebuild from scratch
+      m_rewindSecsApplied = secs;
+      m_rewindBuf.clear();
+      m_rewindStateBytes = 0;
+      m_sinceSnap = 0;
+      if (!canStates || secs <= 0) m_rewindBuf.setLimits(0, 0);
+      publishRewind(60.0, false);
+    }
+    const bool rewindOn = canStates && secs > 0;
+    const double fps = rewindOn ? (std::max)(1.0, be.avInfo().fps) : 60.0;
+    if (!rewindOn && m_wasRewinding) {
+      m_wasRewinding = false;
+      emit m_owner->rewindFinished(false);
+    }
+    // Rewinding: pop one state and run a frame from it (video yes, sound no).
+    if (rewindOn && m_owner->m_rewinding.load()) {
+      QByteArray st;
+      if (m_rewindBuf.pop(&st)) {
+        if (be.unserialize(st)) {
+          m_wasRewinding = true;
+          *muteAudio = true;
+          const bool ok = be.runFrame();
+          publishRewind(fps, true);
+          return ok;
+        }
+        m_rewindBuf.clear();
+      }
+      if (m_wasRewinding) {  // ran dry: play on from the oldest state
+        m_wasRewinding = false;
+        emit m_owner->rewindFinished(true);
+      }
+    } else if (m_wasRewinding) {
+      m_wasRewinding = false;
+      emit m_owner->rewindFinished(false);
+    }
+    const int ahead = (!fast && canStates) ? m_owner->m_runAhead.load() : 0;
+    const bool snapDue = rewindOn && m_sinceSnap + 1 >= kRewindIntervalFrames;
+    bool ok;
+    bool haveState = false;
+    if (ahead > 0 || snapDue) {
+      // The real frame first; its state is what rewind keeps and what run-ahead returns to.
+      if (ahead > 0) be.setVideoWanted(false);
+      ok = be.runFrame();
+      if (!ok) return false;
+      haveState = be.serialize(&m_stateTmp);
+      if (ahead > 0) {
+        (void)be.takeAudio();
+        if (haveState) {
+          for (int i = 1; i < ahead; ++i) {
+            if (!be.runFrame()) return false;
+            (void)be.takeAudio();
+          }
+          be.setVideoWanted(wantVideo);
+          if (!be.runFrame()) return false;  // the frame the person sees and hears: `ahead` frames into the future
+          if (!be.unserialize(m_stateTmp)) return false;  // back to the real state
+        } else {
+          be.setVideoWanted(wantVideo);  // serialize failed this time: plain frame
+          ok = be.runFrame();
+        }
+      }
+    } else {
+      ok = be.runFrame();
+    }
+    if (!ok) return false;
+    if (rewindOn && ++m_sinceSnap >= kRewindIntervalFrames) {
+      m_sinceSnap = 0;
+      if (!haveState) haveState = be.serialize(&m_stateTmp);
+      if (haveState) {
+        if (m_rewindStateBytes != m_stateTmp.size()) {
+          m_rewindStateBytes = m_stateTmp.size();
+          const auto lim = RewindBuffer::limitsFor(secs, fps, m_rewindStateBytes);
+          m_rewindBuf.setLimits(lim.first, lim.second);
+        }
+        m_rewindBuf.push(m_stateTmp, be.frameCount());
+        publishRewind(fps, false);
+      }
+    }
+    return true;
+  }
+  void publishRewind(double fps, bool rewinding) {
+    const double left = RewindBuffer::secondsFor(m_rewindBuf.count(), fps);
+    {
+      QMutexLocker l(&m_owner->m_rewindMutex);
+      RewindInfo& i = m_owner->m_rewindInfo;
+      i.active = m_rewindBuf.enabled();
+      i.snapshots = m_rewindBuf.count();
+      i.capacity = m_rewindBuf.maxCount();
+      i.bytes = m_rewindBuf.bytes();
+      i.stateBytes = m_rewindStateBytes;
+      i.secondsAvailable = left;
+    }
+    if (rewinding) {
+      const auto now = std::chrono::steady_clock::now();
+      if (now - m_lastRewindSignal >= std::chrono::milliseconds(250)) {
+        m_lastRewindSignal = now;
+        emit m_owner->rewindProgress(left);
+      }
+    }
+  }
+  RewindBuffer m_rewindBuf;
+  QByteArray m_stateTmp;
+  int m_rewindSecsApplied = -1;
+  qint64 m_rewindStateBytes = 0;
+  int m_sinceSnap = 0;
+  bool m_wasRewinding = false;
+  std::chrono::steady_clock::time_point m_lastRewindSignal;
   std::deque<QueuedCommand> m_cmds;
   struct Task {
     std::function<void(EmulatorBackend&)> fn;
@@ -414,6 +542,11 @@ EmulationRunner::EmulationRunner(std::unique_ptr<EmulatorBackend> backend, QObje
 EmulationRunner::~EmulationRunner() {
   stop();
   if (m_abandoned) (void)m_backend.release();  // the hung emulation thread may still use it: leak rather than crash
+}
+
+EmulationRunner::RewindInfo EmulationRunner::rewindInfo() const {
+  QMutexLocker l(&m_rewindMutex);
+  return m_rewindInfo;
 }
 
 std::atomic<int> EmulationRunner::stopTimeoutMsForTest{0};

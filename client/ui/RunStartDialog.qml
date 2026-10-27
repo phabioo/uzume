@@ -254,6 +254,21 @@ UzDialog {
                 }
             }
 
+            // Game rules (run_rules_v1, design 11e): the app enforces them for everyone; the creator or an admin can change them later.
+            ColumnLayout {
+                objectName: "runCoreRules"
+                visible: !root.inviting && root.runs.coreRulesAvailable
+                Layout.fillWidth: true
+                spacing: Theme.space1
+                FieldLabel { objectName: "runCoreRulesTitle"; text: qsTr("Game rules") }
+                RunRulesFields {
+                    id: coreRules
+                    rules: root.runs.startCoreRules
+                    onRuleChanged: (key, value) => root.runs.setStartCoreRule(key, value)
+                }
+                Hint { text: qsTr("You can change these later in the run. Allowed cheats show in the run log for everyone.") }
+            }
+
             // People
             ColumnLayout {
                 Layout.fillWidth: true

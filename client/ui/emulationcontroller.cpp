@@ -1,5 +1,9 @@
 #include "emulationcontroller.h"
 
+#include "localstoragecontroller.h"
+#include "rewind_buffer.h"
+#include "statescontroller.h"
+
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -20,9 +24,32 @@ bool isProfileKey(const QString& key) {
 bool appliesLive(const QString& key) {
   return key == QLatin1String(EmulationController::kIntegerScaleKey) || key == QLatin1String(EmulationController::kAspectRatioKey);
 }
+bool isStatesKey(const QString& key) {
+  return key == QLatin1String(EmulationController::kRunAheadKey) || key == QLatin1String(EmulationController::kRewindKey);
+}
+// "30 seconds · about 180 MB" for a system whose state size is known; "High memory" above half a GB.
+QList<emu::CoreOptionValue> withRewindEstimates(QList<emu::CoreOptionValue> vals, const QString& systemId) {
+  const qint64 stateBytes = StatesController::typicalStateBytes(systemId);
+  if (stateBytes <= 0) return vals;
+  for (emu::CoreOptionValue& v : vals) {
+    const int secs = v.value.toInt();
+    if (secs <= 0) continue;
+    const qint64 bytes = emu::RewindBuffer::estimateBytes(secs, 60.0, stateBytes);
+    v.label += QObject::tr(" · about %1").arg(LocalStorageController::formatBytes(bytes));
+    if (bytes > 512ll * 1024 * 1024) v.label += QObject::tr(" · High memory");
+  }
+  return vals;
+}
 bool isTwoScreenKey(const QString& key) {
   return key == QLatin1String(EmulationController::kScreenLayoutKey) || key == QLatin1String(EmulationController::kScreenSwapKey) ||
          key == QLatin1String(EmulationController::kBottomWindowKey);
+}
+// Run-ahead and rewind exist only for cores whose profile says so (and never for the 3DS: too heavy to run twice or to keep).
+bool statesOptionOffered(const emu::ManifestRegistry* manifests, const QString& key, const emu::SystemManifest* man) {
+  if (man == nullptr || manifests == nullptr || man->systemId == QLatin1String("3ds")) return false;
+  const emu::CoreProfile* prof = manifests->profile(man->coreId);
+  if (prof == nullptr) return false;
+  return key == QLatin1String(EmulationController::kRunAheadKey) ? prof->statesRunAhead : prof->statesSupported;
 }
 QString labelOf(const QList<emu::CoreOptionValue>& values, const QString& value) {
   for (const emu::CoreOptionValue& v : values) {
@@ -93,6 +120,19 @@ const QList<EmulationController::FbOption>& EmulationController::uzumeOptions() 
        QObject::tr("Plays the sound at a higher pitch while sped up; off mutes it."),
        {{QStringLiteral("false"), QObject::tr("Off")}, {QStringLiteral("true"), QObject::tr("On")}},
        QStringLiteral("true"),
+       true},
+      {QString::fromLatin1(kRunAheadKey),
+       QObject::tr("Run-ahead"),
+       QObject::tr("Emulates 1 or 2 frames ahead and shows the last one, so the game answers your input sooner. Costs CPU (about +35 % per frame). Only for cores that can do it; off for the 3DS."),
+       {{QStringLiteral("0"), QObject::tr("Off")}, {QStringLiteral("1"), QObject::tr("1 frame")}, {QStringLiteral("2"), QObject::tr("2 frames")}},
+       QStringLiteral("0"),
+       true},
+      {QString::fromLatin1(kRewindKey),
+       QObject::tr("Rewind length"),
+       QObject::tr("How far back the rewind key (hold Backspace, Select+L2) can go. Uzume keeps states of the last seconds in memory; longer needs more."),
+       {{QStringLiteral("0"), QObject::tr("Off")}, {QStringLiteral("10"), QObject::tr("10 seconds")}, {QStringLiteral("30"), QObject::tr("30 seconds")},
+        {QStringLiteral("60"), QObject::tr("60 seconds")}, {QStringLiteral("120"), QObject::tr("2 minutes")}},
+       QStringLiteral("0"),
        true},
       {QString::fromLatin1(kIntegerScaleKey),
        QObject::tr("Integer scaling"),
@@ -695,7 +735,9 @@ void EmulationController::rebuild() {
         // The screen layout only exists for systems with two screens (DS, 3DS); "Overrides Defaults for DS games."
         const bool twoScreen = o.key == QLatin1String(kScreenLayoutKey) || o.key == QLatin1String(kScreenSwapKey) || o.key == QLatin1String(kBottomWindowKey);
         if (twoScreen && (man == nullptr || man->display.screens.size() < 2)) continue;
+        if (isStatesKey(o.key) && !statesOptionOffered(manifests_, o.key, man)) continue;
         QList<emu::CoreOptionValue> vals = o.values;
+        if (o.key == QLatin1String(kRewindKey)) vals = withRewindEstimates(vals, selected_);
         if (isProfileKey(o.key)) vals = profileValues(o.key, settings_.resolve(o.key, selected_, gameLvl ? selectedGame_ : QString(), QString(), o.defaultValue).value);
         fb.append(row(o.key, o.label, o.description, o.category, vals, QString(), o.defaultValue, true));
       }
@@ -793,13 +835,18 @@ QVariantMap EmulationController::gameSettings(const QString& gameId) const {
   const auto uzumeRow = [&](const FbOption& o) {
     QList<emu::CoreOptionValue> vals = o.values;
     if (isProfileKey(o.key)) vals = profileValues(o.key, settings_.resolve(o.key, sys, gameId, QString(), o.defaultValue).value);
-    return makeRow(o.key, o.label, o.description, o.category, vals, QString(), o.defaultValue, !appliesLive(o.key));
+    if (o.key == QLatin1String(kRewindKey)) vals = withRewindEstimates(vals, sys);
+    return makeRow(o.key, o.label, o.description, o.category, vals, QString(), o.defaultValue, !appliesLive(o.key) && !isStatesKey(o.key));
   };
 
-  QVariantList picture, controls, speed, core;
+  QVariantList picture, controls, speed, statesRows, core;
   for (const FbOption& o : uzumeOptions()) {
     if (!o.perSystem) continue;
     if (isTwoScreenKey(o.key) && (man == nullptr || man->display.screens.size() < 2)) continue;  // DS / 3DS only
+    if (isStatesKey(o.key)) {
+      if (statesOptionOffered(manifests_, o.key, man)) statesRows.append(uzumeRow(o));
+      continue;
+    }
     if (isProfileKey(o.key)) controls.append(uzumeRow(o));
     else if (appliesLive(o.key) || isTwoScreenKey(o.key)) picture.append(uzumeRow(o));
     else speed.append(uzumeRow(o));
@@ -873,6 +920,7 @@ QVariantMap EmulationController::gameSettings(const QString& gameId) const {
   addTab(QStringLiteral("picture"), tr("Picture"), picture, QString());
   addTab(QStringLiteral("controls"), tr("Controls"), controls, QString());
   addTab(QStringLiteral("speedup"), tr("Speed-up"), speed, QString());
+  addTab(QStringLiteral("states"), tr("Rewind"), statesRows, QString());
   addTab(QStringLiteral("core"), tr("Core"), core, coreNote);
 
   bool restartHint = false;

@@ -393,6 +393,8 @@ jobs:
           # tests skip. A skipped *_testcore test fails the check; real cores are covered by cores-nightly.yml.
           UZUME_SKIP_CORES: "1"
           UZUME_REQUIRE_TESTCORE: "1"
+          # The Vulkan render mode test runs on lavapipe (mesa-vulkan-drivers, scripts/qt-packages.txt): no device is a failure.
+          UZUME_REQUIRE_VULKAN: "1"
           CMAKE_C_COMPILER_LAUNCHER: ccache
           CMAKE_CXX_COMPILER_LAUNCHER: ccache
         run: xvfb-run -a make check-client
@@ -669,7 +671,7 @@ jobs:
           # emulation_core_gl_testcore may skip only for lack of GL. Any other skip, e.g. emulation_test_core or another *_testcore
           # test, is an error. (\b does not split at "_", so emulation_core does not match emulation_core_gl_testcore.)
           $skipped = @(Select-String -Path ctest.log -Pattern '\(Skipped\)|\*\*\*Skipped' | ForEach-Object { $_.Line })
-          $allowed = '\b(emulation_core_options|emulation_core|emulation_core_speed|emulation_core_gl|emulation_core_desmume|emulation_core_gl_testcore|emulation_hw_render|media_cuda_gl_capture|media_cuda_gl_hw|media_d3d11_ring|ui_gpu_encode|ui_gpu_display)\b'
+          $allowed = '\b(emulation_core_options|emulation_core|emulation_core_speed|emulation_core_gl|emulation_core_desmume|emulation_core_gl_testcore|emulation_hw_render|emulation_vk_render|media_cuda_gl_capture|media_cuda_gl_hw|media_d3d11_ring|ui_gpu_encode|ui_gpu_display)\b'
           if (@($skipped | Where-Object { $_ -notmatch $allowed }).Count -gt 0) { throw "Unexpected skipped tests (test-core tests must run)" }
           if ($skipped.Count -gt 0) { Write-Host "Note: real-core and GL tests skipped (allowed: no cores in merge CI, ADR 0020; no GL 3.3 context, ADR 0013 D6)" }
       - uses: actions/setup-go@v7

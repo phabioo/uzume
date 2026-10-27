@@ -1,5 +1,6 @@
 #include "gamesession.h"
 
+#include <algorithm>
 #include <QDir>
 #include <QLoggingCategory>
 #include <QMetaObject>
@@ -101,6 +102,9 @@ void GameSession::launch(const LaunchConfig& config, bool restart) {
   if (gpuDisplay_) {
     runner_->setGpuDisplayTarget(gpuDisplay_);
   }
+  runner_->setRewindSeconds(rewindSeconds_);
+  runner_->setRunAhead(runAhead_);
+  rewinding_ = false;
   EmulationRunner* r = runner_.get();
   // Events the emulation thread already posted survive disconnect(): each handler checks that its runner is still the current one.
   const quint64 gen = ++runnerGen_;
@@ -122,6 +126,12 @@ void GameSession::launch(const LaunchConfig& config, bool restart) {
     } else {
       emit started();
     }
+  });
+  connect(r, &EmulationRunner::rewindProgress, this, [this, gen](double left) {
+    if (gen == runnerGen_) emit rewindProgress(left);
+  });
+  connect(r, &EmulationRunner::rewindFinished, this, [this, gen](bool exhausted) {
+    if (gen == runnerGen_) emit rewindFinished(exhausted);
   });
   connect(r, &EmulationRunner::memoryRegionsChanged, this, [this, gen]() {
     if (gen == runnerGen_) emit memoryRegionsChanged();
@@ -173,6 +183,7 @@ void GameSession::launch(const LaunchConfig& config, bool restart) {
   req.saveDir = config.saveDir;
   req.coreOptions = config.coreOptions;
   req.requireHwRender = config.requireHwRender;
+  req.preferredRenderer = config.preferredRenderer;
   req.speedUpRatio = config.speedUpRatio;
   req.speedUpOnStart = config.speedUpOnStart;
   req.speedUpAudio = config.speedUpAudio;
@@ -247,6 +258,21 @@ QVariantList GameSession::speedUpRatios() {
   QVariantList l;
   for (const double r : emu::EmulationRunner::speedUpRatios()) l.append(r);
   return l;
+}
+
+void GameSession::setRewindSeconds(int seconds) {
+  rewindSeconds_ = (std::max)(0, seconds);
+  if (runner_) runner_->setRewindSeconds(rewindSeconds_);
+}
+
+void GameSession::setRunAhead(int frames) {
+  runAhead_ = (std::clamp)(frames, 0, 2);
+  if (runner_) runner_->setRunAhead(runAhead_);
+}
+
+void GameSession::setRewinding(bool on) {
+  rewinding_ = on;
+  if (runner_) runner_->setRewinding(on);
 }
 
 void GameSession::setFastForwardRatio(double ratio) {
@@ -462,7 +488,11 @@ void GameSession::setGpuEncodeTarget(std::shared_ptr<emu::GpuEncodeTarget> targe
   }
 }
 
-bool GameSession::hardwareRendered() const { return runner_ && isActive() && runner_->renderInfo().hwActive; }
+bool GameSession::hardwareRendered() const {
+  if (!runner_ || !isActive()) return false;
+  const emu::RenderInfo ri = runner_->renderInfo();
+  return ri.hwActive && !ri.vulkan;  // the GPU targets (encode, display) need the GL context; Vulkan frames are read back (ADR 0034)
+}
 
 void GameSession::updateReadbackLimit() {
   QSize views;  // empty = nobody reported a size: unlimited

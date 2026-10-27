@@ -1,5 +1,5 @@
 # uzume_core: Player core without GUI (core/ + network/). Add sources here and in ../network.
-add_library(uzume_core STATIC version.cpp credentialstore.cpp profilestore.cpp romcache.cpp localstorage.cpp savestore.cpp playersettings.cpp firmwarecache.cpp corecache.cpp dsvsave.cpp sdtree.cpp emulationsettings.cpp controllerprofiles.cpp
+add_library(uzume_core STATIC version.cpp credentialstore.cpp profilestore.cpp romcache.cpp localstorage.cpp savestore.cpp statestore.cpp playersettings.cpp firmwarecache.cpp corecache.cpp dsvsave.cpp sdtree.cpp emulationsettings.cpp controllerprofiles.cpp
   filelog.cpp diagbundle.cpp problemreport.cpp semver.cpp updateindex.cpp updaterollback.cpp updatesig.cpp installroot.cpp updater.cpp localhub.cpp hubsetup.cpp fsutil.cpp localromindex.cpp securitycode.cpp joinlink.cpp localpin.cpp localserverprocess.cpp
   zipextract.cpp toolcache.cpp variantcache.cpp enginerunner.cpp variantbuilder.cpp variantlaunch.cpp)
 target_include_directories(uzume_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
@@ -7,6 +7,8 @@ target_compile_features(uzume_core PUBLIC cxx_std_20)
 target_link_libraries(uzume_core PUBLIC Qt6::Core Qt6::Concurrent Qt6::Network OpenSSL::Crypto)
 if(WIN32)
   target_link_libraries(uzume_core PUBLIC advapi32 shell32)
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  target_link_libraries(uzume_core PUBLIC Qt6::DBus)  # Secret Service credential store
 endif()
 uzume_warnings(uzume_core)
 # Build identity (see client/CMakeLists.txt): only version.cpp sees it, so a changed version rebuilds one file.
@@ -18,6 +20,7 @@ uzume_add_test(core_profilestore tests/profilestore_test.cpp LIBS uzume_core)
 uzume_add_test(core_envvar tests/envvar_test.cpp LIBS uzume_core)
 uzume_add_test(core_romcache tests/romcache_test.cpp LIBS uzume_core)
 uzume_add_test(core_savestore tests/savestore_test.cpp LIBS uzume_core)
+uzume_add_test(core_statestore tests/statestore_test.cpp LIBS uzume_core)
 uzume_add_test(core_localstorage tests/localstorage_test.cpp LIBS uzume_core)
 uzume_add_test(core_dsvsave tests/dsvsave_test.cpp LIBS uzume_core)
 uzume_add_test(core_sdtree tests/sdtree_test.cpp LIBS uzume_core)
@@ -37,6 +40,10 @@ uzume_add_test(core_securitycode tests/securitycode_test.cpp LIBS uzume_core)
 uzume_add_test(core_joinlink tests/joinlink_test.cpp LIBS uzume_core)
 uzume_add_test(core_localpin tests/localpin_test.cpp LIBS uzume_core)
 uzume_add_test(core_localserverprocess tests/localserverprocess_test.cpp LIBS uzume_core)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  # Secret Service store against an in-test fake service on a private dbus-daemon (SKIP when dbus-daemon is missing).
+  uzume_add_test(core_credential_secret_service tests/secret_service_store_test.cpp LIBS uzume_core)
+endif()
 if(WIN32)
   # Writes/reads/deletes a dummy value in the Windows Credential Manager (Windows CI only).
   uzume_add_test(core_windows_credential_store tests/windows_credential_store_test.cpp LIBS uzume_core)

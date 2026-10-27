@@ -93,6 +93,7 @@ class GameSession : public QObject {
     QString saveDir;
     QMap<QString, QString> coreOptions;
     bool requireHwRender = false;  // core profile: no start without hardware rendering
+    QString preferredRenderer;     // uzume.renderer resolved game > system > global: "opengl" | "vulkan" (ADR 0034)
     emu::DisplayProfile display;
     // Speed-up settings (uzume.speedup_*), resolved game > system > global by the caller.
     double speedUpRatio = emu::EmulationRunner::kDefaultSpeedUpRatio;
@@ -187,6 +188,16 @@ class GameSession : public QObject {
   std::shared_ptr<emu::MemoryWatchSet> memoryWatch() const { return runner_ ? runner_->memoryWatch() : nullptr; }
   std::vector<emu::MemoryMap::RegionInfo> memoryRegions() const { return runner_ ? runner_->memoryRegions() : std::vector<emu::MemoryMap::RegionInfo>(); }
 
+  // Rewind and run-ahead (0.20 package 4). The values are kept here and handed to every runner this session creates (a live-save
+  // restart makes a new one). `seconds` 0 = rewind off; run-ahead 0..2 frames. setRewinding(true) = the key is held.
+  void setRewindSeconds(int seconds);
+  int rewindSeconds() const { return rewindSeconds_; }
+  void setRunAhead(int frames);
+  int runAhead() const { return runAhead_; }
+  void setRewinding(bool on);
+  bool rewinding() const { return rewinding_; }
+  emu::EmulationRunner::RewindInfo rewindInfo() const { return runner_ ? runner_->rewindInfo() : emu::EmulationRunner::RewindInfo(); }
+
   // Debug access (MCP server, ADR 0032): runs `fn` on the emulation thread between frames, also while paused, and waits
   // (GUI thread). false: no game on a core, or the thread did not get to it within `timeoutMs`.
   bool runOnEmuThread(std::function<void(emu::EmulatorBackend&)> fn, int timeoutMs = 3000);
@@ -247,6 +258,8 @@ class GameSession : public QObject {
   void saveWriteFailed();                // an explicit save flush failed: the save file may be stale
   void stopSaveFailed(const QString& reason);  // the final battery save write at stop failed: the latest progress may be lost
   void finished();                       // after stop()
+  void rewindProgress(double secondsLeft);  // rewinding: seconds of play that can still be stepped back
+  void rewindFinished(bool exhausted);      // the key was released or the buffer ran dry
   void memoryRegionsChanged();           // the core re-sent its memory map: memoryRegions() changed
   void memoryWatchReplaced();            // a new runner (live-save restart) has a new memory watch set
   void audioChunk(const QByteArray& pcm, int sampleRate);  // core audio (int16 stereo), also while muted (Session share)
@@ -294,6 +307,9 @@ class GameSession : public QObject {
   bool restarting_ = false;  // a live-save restart is starting the core again
   LaunchConfig config_;
   bool audioMuted_ = false;
+  int rewindSeconds_ = 0;
+  int runAhead_ = 0;
+  bool rewinding_ = false;
   bool fastForwardSupported_ = false;
   bool fastForward_ = false;
   double ffRatio_ = emu::EmulationRunner::kDefaultSpeedUpRatio;
