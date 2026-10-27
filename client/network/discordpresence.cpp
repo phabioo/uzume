@@ -5,6 +5,7 @@
 #include <QJsonDocument>
 #include <QLocalSocket>
 #include <QLoggingCategory>
+#include <QTimer>
 #include <QUuid>
 #include <optional>
 
@@ -235,8 +236,15 @@ void DiscordPresence::closeSocket() {
   if (socket_) {
     QLocalSocket* s = std::exchange(socket_, nullptr);
     s->disconnect(this);
-    s->disconnectFromServer();  // flushes a pending clear
-    s->deleteLater();
+    // A clear written just before must still reach Discord: deleting the socket right away dropped it. It goes once closed.
+    s->flush();
+    if (s->state() == QLocalSocket::UnconnectedState) {
+      s->deleteLater();
+    } else {
+      connect(s, &QLocalSocket::disconnected, s, &QObject::deleteLater);
+      QTimer::singleShot(2000, s, &QObject::deleteLater);
+      s->disconnectFromServer();
+    }
   }
   buffer_.clear();
   sent_.reset();

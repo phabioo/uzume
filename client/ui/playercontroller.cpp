@@ -2387,6 +2387,7 @@ void PlayerController::endRunningWork() {
     saves_->finalSyncBlocking(true);
     if (liveWasOn) liveTimer_->start();
     gameActive_ = false;
+    updateDiscord();
     phase_ = PlayPhase::None;
     finishRunStart();
     if (quitting_) {
@@ -2734,6 +2735,7 @@ void PlayerController::quitGame() {
   session_.stop();  // core unloaded (save flushed), then the final upload
   saves_->finalSync(true);
   gameActive_ = false;
+  updateDiscord();
   phase_ = PlayPhase::None;
   finishRunStart();
   updateScreen();
