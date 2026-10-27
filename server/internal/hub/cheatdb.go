@@ -437,6 +437,10 @@ func (s *Service) installCheatZip(zipPath, source, srcURL string, three bool) er
 		}
 		seen[strings.ToLower(rel)] = true
 		dst := filepath.Join(newDir, filepath.FromSlash(rel))
+		// cheatEntryTarget already drops ".." and "." segments; this keeps every write inside newDir regardless.
+		if !strings.HasPrefix(dst, filepath.Clean(newDir)+string(os.PathSeparator)) {
+			continue
+		}
 		if err := os.MkdirAll(filepath.Dir(dst), 0o750); err != nil {
 			return err
 		}
