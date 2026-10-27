@@ -383,6 +383,15 @@ uzume_add_test(ui_together together_test.cpp LIBS uzume_ui uzume_core uzume_emul
 # Together (0.23, D3): TogetherController (scope, ready check, shared pause) without QML.
 uzume_add_test(ui_together_controller togethercontroller_test.cpp LIBS uzume_ui uzume_core uzume_emulation)
 
+# Together (0.23, D4): ChatController (dedupe, pending, history, unread, mentions, emotes, rows) without QML.
+uzume_add_test(ui_chat_controller chatcontroller_test.cpp LIBS uzume_ui uzume_core uzume_emulation)
+
+# Chat and panel tabs (0.23, D4) in the UI against FakeHub.
+uzume_add_test(ui_chat_ui chat_ui_test.cpp ${FB_NETTEST_DIR}/fakehub.cpp ${FB_NETTEST_DIR}/fakehub.h
+  LIBS ${FB_UI_TEST_LIBS})
+target_include_directories(test_ui_chat_ui PRIVATE ${FB_NETTEST_DIR})
+target_compile_definitions(test_ui_chat_ui PRIVATE FB_TEST_DATA_DIR="${FB_NETTEST_DIR}/testdata")
+
 # Together (0.23) in the UI: ONLINE list, bell, toasts, Settings > Notifications against FakeHub.
 uzume_add_test(ui_together_ui together_ui_test.cpp ${FB_NETTEST_DIR}/fakehub.cpp ${FB_NETTEST_DIR}/fakehub.h
   LIBS ${FB_UI_TEST_LIBS})

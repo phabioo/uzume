@@ -203,6 +203,9 @@ class SessionController : public QObject {
   void refreshDiagnostics();  // also runs every 500 ms while the overlay is open; tests and screenshots call it directly
   void setLinksOverride(bool on, const QList<ViewerLinkStats>& links);
 
+  // People of a Session for the People tab and the chat header: [{userId, name, role: "HOST" | "VIEWER", me, color, connection, tone}].
+  // My own Session: me as host and the viewers; a watched Session: its owner and me (the other viewers are not known to a viewer).
+  Q_INVOKABLE QVariantList sessionPeople(const QString& sessionId) const;
   Q_INVOKABLE void refreshSessions();
   Q_INVOKABLE void shareSession();
   Q_INVOKABLE void stopSharing();

@@ -66,6 +66,7 @@
 #include "mcpcontroller.h"
 #include "discordpresence.h"
 #include "notificationcenter.h"
+#include "chatcontroller.h"
 #include "togethercontroller.h"
 
 namespace uzume::ui {
@@ -177,6 +178,8 @@ class PlayerController : public QObject {
   // "Invite" button. Empty without a server.
   Q_PROPERTY(uzume::ui::NotificationCenter* notifications READ notifications CONSTANT)
   Q_PROPERTY(uzume::ui::TogetherController* together READ together CONSTANT)  // ready check and shared pause (ADR 0033 D3)
+  Q_PROPERTY(QVariantMap gameRun READ gameRun NOTIFY gameRunChanged)  // run of the running game {id, name, status}; empty = not a run game
+  Q_PROPERTY(uzume::ui::ChatController* chat READ chat CONSTANT)  // chat of the run or Session of the game (ADR 0033 D4)
   Q_PROPERTY(QVariantList onlinePeople READ onlinePeople NOTIFY onlineChanged)
   Q_PROPERTY(uzume::ui::VariantsController* variants READ variants CONSTANT)  // game variants (0.21)
   // Play run of a randomized run that has to build the person's variant first (10f-3): {runId, runName, gameTitle, state: building |
@@ -269,6 +272,10 @@ class PlayerController : public QObject {
   RunsController* runs() { return runs_.get(); }
   NotificationCenter* notifications() { return notifications_.get(); }
   TogetherController* together() { return together_.get(); }
+  ChatController* chat() { return chat_.get(); }
+  QVariantMap gameRun() const;
+  // People of the chat scope (kind "run" | "session", id): [{userId, name, role: "HOST" | "VIEWER" | "", me, color, connection, tone}]
+  Q_INVOKABLE QVariantList scopePeople(const QString& kind, const QString& id) const;
   QVariantList onlinePeople() const;
   Q_INVOKABLE void watchOnline(const QString& sessionId);   // "Watch" in the online list
   Q_INVOKABLE void inviteOnline(const QString& userId);     // "Invite": to my shared Session, else to my run
@@ -514,6 +521,7 @@ class PlayerController : public QObject {
   void coreWarningsChanged();  // hub handshake, the server's systems/cores or the local cores changed
   void attentionChanged();
   void onlineChanged();
+  void gameRunChanged();
   void hubLinkChanged();
   void libraryStateChanged();
   void selectedGameChanged();
@@ -614,12 +622,17 @@ class PlayerController : public QObject {
   QString stateRunId_;                          // run the running game was started in ("" = none): its core rules apply to states
   std::unique_ptr<TogetherController> together_;       // after sessions_, runClient_ and session_
   std::unique_ptr<NotificationCenter> notifications_;  // after runs_ and updates_ (connected to both)
+  std::unique_ptr<ChatApi> chatApi_;                   // after notifications_ (mentions)
+  std::unique_ptr<ChatController> chat_;
   QString notifyHubId_;                                // the server the notifications belong to
   QSet<QString> notifiedRunInvites_;
   QSet<QString> notifiedProblems_;
   QString notifiedUpdate_;
   void wireNotifications();
   void wireTogether();
+  void wireChat();
+  QString chatHubId_;  // the server and person the chat belongs to
+  QString hubUserName(const QString& userId) const;  // display name of a person I know from the roster, my runs or my own Session; "" = unknown
   std::unique_ptr<ToolCache> toolCache_;
   std::unique_ptr<VariantCache> variantCache_;
   std::unique_ptr<ToolsClient> toolsClient_;

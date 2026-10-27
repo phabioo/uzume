@@ -342,9 +342,11 @@ class PluginsUiTest : public QObject {
 
     pc->setPreviewConsole(consoleData(false, true));
     QVERIFY(pc->consoleAvailable());
-    QTRY_VERIFY(h.item("panelTab_console") != nullptr && h.item("panelTab_console")->isVisible());
+    // Session, People, Chat and the console do not all fit in 320 px: the console may wait in "More"; opening it shows its tab
+    QTRY_VERIFY((h.item("panelTab_console") != nullptr && h.item("panelTab_console")->isVisible()) || h.item("panelTabOverflow")->isVisible());
     QVERIFY(h.item("pluginConsole") == nullptr || !h.item("pluginConsole")->isVisible());
-    QVERIFY(h.click("panelTab_console"));
+    QVERIFY(QMetaObject::invokeMethod(h.item("gamePanel"), "openTab", Q_ARG(QVariant, QVariant(QStringLiteral("console")))));
+    QTRY_VERIFY(h.item("panelTab_console") != nullptr && h.item("panelTab_console")->isVisible());
     QTRY_VERIFY(h.item("pluginConsole") != nullptr && h.item("pluginConsole")->isVisible());
     QVERIFY(!h.item("consoleError")->isVisible());
     QCOMPARE(h.items("consoleWatched").size(), 3);

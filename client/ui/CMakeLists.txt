@@ -51,6 +51,7 @@ qt_add_qml_module(uzume_ui
     onlineroster.h onlineroster.cpp
     notificationcenter.h notificationcenter.cpp
     togethercontroller.h togethercontroller.cpp
+    chatcontroller.h chatcontroller.cpp
     personalcontroller.h personalcontroller.cpp
     screenshotcontroller.h screenshotcontroller.cpp
     localstoragecontroller.h localstoragecontroller.cpp
@@ -258,6 +259,10 @@ qt_add_qml_module(uzume_ui
     UzToast.qml
     ToastHost.qml
     TogetherCard.qml
+    ChatMessage.qml
+    ChatTab.qml
+    PeopleList.qml
+    PeopleTab.qml
     NotificationsPopover.qml
     UzStageDiagnostics.qml
     UzDiagRows.qml

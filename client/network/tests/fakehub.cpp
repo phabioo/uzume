@@ -749,6 +749,30 @@ void FakeHub::handle(QSslSocket* sock, const FakeRequest& req) {
     respond(sock, 200, json(res));
   } else if (req.path == QLatin1String("/api/v1/ws")) {
     upgradeWs(sock, req);
+  } else if (req.method == "GET" && (req.path.startsWith(QLatin1String("/api/v1/runs/")) || req.path.startsWith(QLatin1String("/api/v1/sessions/"))) &&
+             req.path.left(req.path.indexOf(QLatin1Char('?')) < 0 ? req.path.size() : req.path.indexOf(QLatin1Char('?'))).endsWith(QLatin1String("/chat"))) {
+    const QString path = req.path.left(req.path.indexOf(QLatin1Char('?')) < 0 ? req.path.size() : req.path.indexOf(QLatin1Char('?')));
+    const QStringList parts = path.split(QLatin1Char('/'));  // "", api, v1, runs|sessions, <id>, chat
+    const QString kind = parts.value(3) == QLatin1String("runs") ? QStringLiteral("run") : QStringLiteral("session");
+    const QUrlQuery q(QUrl(req.path).query());
+    const qint64 after = q.queryItemValue(QStringLiteral("after_seq")).toLongLong();
+    const int limit = q.hasQueryItem(QStringLiteral("limit")) ? q.queryItemValue(QStringLiteral("limit")).toInt() : 100;
+    QJsonArray out;
+    bool more = false;
+    qint64 lastSeq = 0;
+    for (const QJsonValue& v : chatLog.value(kind + QLatin1Char(':') + parts.value(4))) {
+      const qint64 seq = static_cast<qint64>(v.toObject().value(QStringLiteral("seq")).toDouble());
+      if (seq <= after) continue;
+      if (kind == QLatin1String("run") && out.size() >= limit) {
+        more = true;
+        break;
+      }
+      out.append(v);
+      lastSeq = seq;
+    }
+    QJsonObject body{{QStringLiteral("messages"), out}};
+    if (more) body.insert(QStringLiteral("next_after_seq"), static_cast<double>(lastSeq));
+    respond(sock, 200, json(body));
   } else if (req.path == QLatin1String("/api/v1/sessions") || req.path.startsWith(QLatin1String("/api/v1/sessions/")) ||
              req.path == QLatin1String("/api/v1/users")) {
     handleSessions(sock, req);
@@ -1632,6 +1656,28 @@ void FakeHub::onWsData(QSslSocket* sock) {
     } else if (op == 0x1) {
       const QJsonObject env = QJsonDocument::fromJson(payload).object();
       wsReceived.append(env);
+      if (env.value(QStringLiteral("type")).toString() == QLatin1String("chat_send") && !chatEchoUser.isEmpty()) {
+        const QJsonObject p = env.value(QStringLiteral("payload")).toObject();
+        const QString key = p.value(QStringLiteral("scope")).toString() + QLatin1Char(':') + p.value(QStringLiteral("id")).toString();
+        QJsonArray log = chatLog.value(key);
+        QJsonObject stored;
+        for (const QJsonValue& v : log)
+          if (v.toObject().value(QStringLiteral("client_id")) == p.value(QStringLiteral("client_id"))) stored = v.toObject();
+        if (stored.isEmpty()) {
+          stored = QJsonObject{{QStringLiteral("seq"), static_cast<int>(log.size()) + 1},
+                               {QStringLiteral("user_id"), chatEchoUser},
+                               {QStringLiteral("text"), p.value(QStringLiteral("text"))},
+                               {QStringLiteral("sent_at"), QDateTime::currentDateTimeUtc().toString(Qt::ISODate)},
+                               {QStringLiteral("mentions"), QJsonArray()},
+                               {QStringLiteral("client_id"), p.value(QStringLiteral("client_id"))}};
+          log.append(stored);
+          chatLog.insert(key, log);
+        }
+        QJsonObject out = stored;
+        out.insert(QStringLiteral("scope"), p.value(QStringLiteral("scope")));
+        out.insert(QStringLiteral("id"), p.value(QStringLiteral("id")));
+        sendWs(QStringLiteral("chat_message"), out);
+      }
       if (env.value(QStringLiteral("type")).toString() == QLatin1String("hello")) {
         QJsonObject ackPayload{{QStringLiteral("protocol_version"), protocolVersion},
                                {QStringLiteral("hub_version"), QStringLiteral("0.1.0")},
