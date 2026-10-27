@@ -276,17 +276,28 @@ ApplicationWindow {
             if (slot === "screen" && window.screenSheetPlugin === pluginId) window.screenSheetPlugin = ""
         }
         function onPickFileRequested(pluginId, requestId, title, filters, maxBytes) {
-            pluginPick.active = true   // loaded on first use: QtQuick.Dialogs may be missing
-            if (pluginPick.status === Loader.Ready && pluginPick.item) pluginPick.item.ask(pluginId, requestId, title, filters)
-            else window.player.plugins.completePick(pluginId, requestId, "")   // no dialog available: same as cancel
+            if (dialogsGate.usable) {
+                pluginPick.active = true   // loaded on first use
+                if (pluginPick.status === Loader.Ready && pluginPick.item) {
+                    pluginPick.item.ask(pluginId, requestId, title, filters)
+                    return
+                }
+            }
+            // QtQuick.Dialogs (or Qt.labs.folderlistmodel, which its QML dialog needs) is missing: the same path field the other pickers use.
+            pluginPickPath.ask(pluginId, requestId, title, filters)
         }
     }
     // fb.ui.pick_file and the consent question of cheats / memory writes (0.20).
+    DialogsGate { id: dialogsGate }
     Loader {
         id: pluginPick
         active: false
         source: "PluginPickDialog.qml"
         onLoaded: item.plugins = window.player.plugins
+    }
+    PluginPickPathDialog {
+        id: pluginPickPath
+        plugins: window.player.plugins
     }
     PluginConsentDialog { plugins: window.player.plugins }
     Connections {

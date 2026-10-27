@@ -268,7 +268,8 @@ const QHash<QString, TypeSpec>& specs() {
   static const QHash<QString, TypeSpec> s = [] {
     QHash<QString, TypeSpec> m;
     const Vfn shortStr = vStr(0, 200);
-    m.insert(QStringLiteral("column"), TypeSpec{true, {{"gap", vGap()}, {"align", vEnum({QStringLiteral("start"), QStringLiteral("center"), QStringLiteral("end"), QStringLiteral("stretch")})}}});
+    // `width` ("dialog") only matters on the root of a `screen` tree: the in-game sheet then keeps its content at dialog width (560 px).
+    m.insert(QStringLiteral("column"), TypeSpec{true, {{"gap", vGap()}, {"align", vEnum({QStringLiteral("start"), QStringLiteral("center"), QStringLiteral("end"), QStringLiteral("stretch")})}, {"width", vEnum(sl({"dialog"}))}}});
     m.insert(QStringLiteral("row"), TypeSpec{true, {{"gap", vGap()}, {"align", vEnum({QStringLiteral("start"), QStringLiteral("center"), QStringLiteral("end"), QStringLiteral("stretch")})}}});
     m.insert(QStringLiteral("grid"), TypeSpec{true, {{"gap", vGap()}, {"columns", vInt(1, 6)}}});
     m.insert(QStringLiteral("tabs"), TypeSpec{true, {{"tabs", vArray(vStr(1, 60), 1, 12), true}, {"selected", vInt(1, 12)}, {"action", vAction()}}});
@@ -299,7 +300,7 @@ const QHash<QString, TypeSpec>& specs() {
                       {"action", vAction(), true},
                       {"value", vAny()},
                       {"confirm", vObject({{"title", vStr(1, 100), true}, {"text", vStr(1, 300), true}, {"confirm_label", vStr(1, 40)}, {"danger", vBool()}})}}});
-    m.insert(QStringLiteral("toggle"), TypeSpec{false, {{"label", shortStr}, {"checked", vBool()}, {"action", vAction(), true}, {"disabled", vBool()}, {"value", vAny()}}});
+    m.insert(QStringLiteral("toggle"), TypeSpec{false, {{"label", shortStr}, {"accessible", shortStr}, {"checked", vBool()}, {"action", vAction(), true}, {"disabled", vBool()}, {"value", vAny()}}});
     m.insert(QStringLiteral("select"), TypeSpec{false, {{"options", vOptions(1, 100), true}, {"selected", vScalar()}, {"action", vAction(), true}}});
     m.insert(QStringLiteral("segmented"), TypeSpec{false, {{"options", vOptions(2, 3), true}, {"selected", vScalar()}, {"action", vAction(), true}}});
     m.insert(QStringLiteral("textfield"), TypeSpec{false, {{"text", vStr()}, {"placeholder", shortStr}, {"error", shortStr}, {"action", vAction(), true}, {"live", vBool()}}});

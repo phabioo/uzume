@@ -751,6 +751,27 @@ Rectangle {
                             Layout.rightMargin: content.wide ? Theme.settingsResetWidth : 0
                         }
 
+                        // Cheat database (design 11h-3): editable here when the server runs only on this PC, else one line.
+                        ColumnLayout {
+                            objectName: "settingsCheatDbSection"
+                            visible: root.player.cheatDbSupported || root.player.localHub.onThisPcOnly
+                            Layout.fillWidth: true
+                            Layout.minimumWidth: 0
+                            Layout.leftMargin: Theme.settingsDotSlot
+                            Layout.rightMargin: content.wide ? Theme.settingsResetWidth : 0
+                            spacing: Theme.space1
+                            UzSectionLabel {
+                                Layout.fillWidth: true
+                                text: qsTr("Cheat database")
+                                meta: root.player.localHub.onThisPcOnly ? qsTr("This PC · no server") : ""
+                            }
+                            CheatDbBlock {
+                                player: root.player
+                                pcOnly: root.player.localHub.onThisPcOnly
+                                readOnly: !root.player.localHub.onThisPcOnly
+                            }
+                        }
+
                         // Stable model keyed by hub id: hubsChanged updates rows in place instead of rebuilding every delegate
                         // (a JS-array model recreates the nested Layouts on each change; Qt 6.4 crashes in
                         // QQuickGridLayoutBase::rearrange when that happens while the layouts are being polished).

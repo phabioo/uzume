@@ -20,5 +20,13 @@ FileDialog {
         open()
     }
     onAccepted: { done = true; if (plugins) plugins.completePick(pluginId, requestId, selectedFile.toString()) }
+    property var completedWatch: Connections {
+        target: dialog.plugins
+        function onPickCompleted(pid, rid) {
+            if (pid !== dialog.pluginId || rid !== dialog.requestId || dialog.done) return
+            dialog.done = true   // answered elsewhere (the debug MCP)
+            dialog.close()
+        }
+    }
     onRejected: { if (!done && plugins) plugins.completePick(pluginId, requestId, "") }
 }

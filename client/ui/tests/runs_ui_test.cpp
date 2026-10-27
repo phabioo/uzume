@@ -928,6 +928,108 @@ class RunsUiTest : public QObject {
     QCOMPARE(got, (QStringList{"net.test.core@0.1.4", "net.test.soul@1.0.0"}));
   }
 
+
+  // 0.20 package 6: the core rules (run_rules_v1). The Start dialog has the four rules and sends them with the run; the run view shows them
+  // in one line; the creator changes them in the Rules dialog (PUT with the whole object); a push from the server updates the line; a
+  // person who is not the creator only reads (and a forced PUT is answered 403).
+  void coreRulesAtStartAndInTheRun() {
+    FakeHub hub(QStringLiteral("a"));
+    hub.hubId = QStringLiteral("hub-core-rules");
+    hub.decision = FakeHub::Decision::Approve;
+    hub.features = {QStringLiteral("saves_v1"), QStringLiteral("plugins_v1"), QStringLiteral("runs_v1"), QStringLiteral("runs_v2"), QStringLiteral("run_rules_v1"),
+                    QStringLiteral("sessions_v1")};
+    hub.games = QJsonObject{{"games", QJsonArray{QJsonObject{{"id", kGameId}, {"title", "Quest"}, {"system", "nds"}, {"code", "ABCD"},
+                                                             {"rom", QJsonObject{{"sha256", QString(64, QLatin1Char('b'))}, {"size", 4096}, {"filename", "q.nds"}}},
+                                                             {"added_at", "2026-01-01T12:00:00Z"}}}}};
+    hub.fakeUsers = QJsonArray{QJsonObject{{"id", "u_test_1"}, {"display_name", "Tester"}, {"online", true}}};
+    QVERIFY(hub.start());
+    Harness h;
+    QVERIFY(h.start());
+    h.window->resize(1440, 900);
+    pair(h, hub);
+    RunsController* runs = h.controller->runs();
+    QTRY_VERIFY_WITH_TIMEOUT(runs->loaded(), 8000);
+    QVERIFY(runs->pluginlessRuns());
+    QVERIFY(runs->coreRulesAvailable());
+
+    // Start dialog: the defaults are everything off; the segments and toggles change the draft.
+    QVERIFY(h.click("navRuns"));
+    QTRY_VERIFY(h.item("runsStartButton") != nullptr);
+    QVERIFY(h.click("runsStartButton"));
+    QTRY_VERIFY(popupOpen(h, "runStartDialog"));
+    QCOMPARE(runs->startCoreRules(), (QVariantMap{{"states", false}, {"rewind", false}, {"cheats", "off"}, {"memoryWrite", "off"}}));
+    QTRY_VERIFY(h.item("runCoreRulesTitle") != nullptr && h.item("runCoreRulesTitle")->isVisible());
+    QTRY_VERIFY(h.item("runRule_cheats") != nullptr && h.item("runRule_cheats")->isVisible());
+    QVERIFY(h.click("runRuleCheatsLogged"));
+    QVERIFY(h.click("runRule_states"));
+    QCOMPARE(runs->startCoreRules().value("cheats").toString(), QStringLiteral("logged"));
+    QCOMPARE(runs->startCoreRules().value("states").toBool(), true);
+    runs->setStartCoreRule(QStringLiteral("cheats"), QStringLiteral("allowed"));  // not a level: ignored
+    runs->setStartCoreRule(QStringLiteral("bogus"), true);
+    QCOMPARE(runs->startCoreRules().value("cheats").toString(), QStringLiteral("logged"));
+    shot(h, QStringLiteral("11e-run-start-rules"));
+    QTRY_COMPARE_WITH_TIMEOUT(runs->games()->rowCount(), 1, 8000);
+    runs->startRun(QStringLiteral("Rules Run"), kGameId);
+    QTRY_VERIFY_WITH_TIMEOUT(hub.runs.size() == 1, 8000);
+    QCOMPARE(hub.lastRunBody.value("rules").toObject(), (QJsonObject{{"states", true}, {"rewind", false}, {"cheats", "logged"}, {"memory_write", "off"}}));
+    const QString runId = hub.runs.keys().first();
+
+    // Run view: one line for everybody, "Rules…" for the creator.
+    QTRY_COMPARE_WITH_TIMEOUT(runs->openRunId(), runId, 8000);
+    QTRY_VERIFY(h.item("runRulesLine") != nullptr && h.item("runRulesLine")->isVisible());
+    QVERIFY(h.item("runRulesLine")->property("text").toString().startsWith(QStringLiteral("Save states on · Rewind off · Cheats allowed, logged · Memory changes off · set by Tester")));
+    QVERIFY(runs->detail().value("canEditRules").toBool());
+    QTRY_VERIFY(h.item("runRulesOpen") != nullptr && h.item("runRulesOpen")->isVisible());
+    QVERIFY(h.click("runRulesOpen"));
+    QTRY_VERIFY(popupOpen(h, "runRulesDialog"));
+    QVERIFY(!h.item("runRulesSave")->property("enabled").toBool());  // nothing changed yet
+    QVERIFY(h.click("runRuleMemoryLogged"));
+    QVERIFY(h.click("runRuleCheatsOff"));
+    QTRY_VERIFY(h.item("runRulesWarning") != nullptr && h.item("runRulesWarning")->isVisible());
+    QVERIFY(h.item("runRulesWarning")->property("text").toString().contains(QStringLiteral("turn off")));
+    QVERIFY(h.item("runRulesSave")->property("enabled").toBool());
+    shot(h, QStringLiteral("11f-run-rules-dialog"));
+    QVERIFY(h.click("runRulesSave"));
+    QTRY_COMPARE_WITH_TIMEOUT(hub.runRulesPuts.size(), 1, 8000);
+    QCOMPARE(hub.runRulesPuts.last(), (QJsonObject{{"states", true}, {"rewind", false}, {"cheats", "off"}, {"memory_write", "logged"}}));  // the whole object
+    QTRY_VERIFY_WITH_TIMEOUT(!popupOpen(h, "runRulesDialog"), 8000);
+    QTRY_VERIFY(h.item("runRulesLine")->property("text").toString().contains(QStringLiteral("Cheats off · Memory changes allowed, logged")));
+
+    // The log row of rules.changed names who changed what.
+    runs->setRunTab(QStringLiteral("log"));
+    bool logged = false;
+    for (int i = 0; i < 40 && !logged; ++i) {
+      QTest::qWait(100);
+      for (const QVariantMap& r : static_cast<uzume::ui::KeyedRowsModel*>(runs->events())->rows())
+        logged = logged || r.value("text").toString() == QStringLiteral("Tester changed Cheats: Allowed, logged → Off; Memory changes: Off → Allowed, logged");
+    }
+    QVERIFY(logged);
+
+    // A change from elsewhere (the server pushes run_updated) shows at once; a person who did not start the run only reads.
+    QJsonObject run = hub.runs.value(runId);
+    run.insert("rules", QJsonObject{{"states", false}, {"rewind", true}, {"cheats", "logged"}, {"memory_write", "logged"}});
+    hub.runs.insert(runId, run);
+    hub.pushRun(runId);
+    QTRY_VERIFY_WITH_TIMEOUT(h.item("runRulesLine")->property("text").toString().startsWith(QStringLiteral("Save states off · Rewind on · Cheats allowed, logged")), 8000);
+    QJsonObject other = hub.makeRun(QStringLiteral("Theirs"), {hub.runsMe, QStringLiteral("u_other")}, QStringLiteral("u_other"));
+    other.insert("rules", QJsonObject{{"states", false}, {"rewind", false}, {"cheats", "logged"}, {"memory_write", "off"}});
+    hub.runs.insert(other.value("run_id").toString(), other);
+    hub.pushRun(other.value("run_id").toString());
+    QTRY_VERIFY_WITH_TIMEOUT(runs->client()->run(other.value("run_id").toString()).has_value(), 8000);
+    runs->openRun(other.value("run_id").toString());
+    QTRY_COMPARE_WITH_TIMEOUT(runs->detail().value("name").toString(), QStringLiteral("Theirs"), 8000);
+    QVERIFY(!runs->detail().value("canEditRules").toBool());
+    QVERIFY(runs->detail().value("rulesLine").toString().contains(QStringLiteral("Cheats allowed, logged")));
+    QTRY_VERIFY(h.item("runRulesLine") != nullptr && h.item("runRulesLine")->isVisible());
+    QVERIFY(h.item("runRulesOpen") == nullptr || !h.item("runRulesOpen")->isVisible());
+    QSignalSpy saved(runs, &RunsController::rulesSaved);
+    runs->saveRunRules(other.value("run_id").toString(), QVariantMap{{"cheats", "off"}});  // the server says 403
+    QTRY_VERIFY_WITH_TIMEOUT(!runs->rulesError().isEmpty(), 8000);
+    QCOMPARE(runs->rulesError(), QStringLiteral("Only the person who started the run or an admin can change its rules."));
+    QCOMPARE(saved.count(), 0);
+    QVERIFY(!runs->rulesBusy());
+  }
+
   // A requirement the Hub cannot satisfy blocks the start with a clear error.
   void startDialogRequiresMissing() {
     FakeHub hub(QStringLiteral("a"));

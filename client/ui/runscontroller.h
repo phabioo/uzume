@@ -88,6 +88,12 @@ class RunsController : public QObject {
   // The "Rules" section (empty = hidden): one header row per plugin with run settings, then one row per setting:
   // {rowId, kind: header|setting, pluginId, title, key, widget: toggle|segments|select, label, hint, value, options: [{value, label}]}.
   Q_PROPERTY(QAbstractItemModel* startRules READ startRules CONSTANT)
+  // Core run rules (run_rules_v1, design 11e): the draft of the Start dialog {states, rewind, cheats, memoryWrite}; false on an older server.
+  Q_PROPERTY(QVariantMap startCoreRules READ startCoreRules NOTIFY startStateChanged)
+  Q_PROPERTY(bool coreRulesAvailable READ coreRulesAvailable NOTIFY startStateChanged)
+  // The Rules dialog of the open run (design 11f): saving, and why it failed.
+  Q_PROPERTY(bool rulesBusy READ rulesBusy NOTIFY rulesStateChanged)
+  Q_PROPERTY(QString rulesError READ rulesError NOTIFY rulesStateChanged)
   Q_PROPERTY(QString startError READ startError NOTIFY startStateChanged)
   Q_PROPERTY(bool startBusy READ startBusy NOTIFY startStateChanged)
   Q_PROPERTY(bool startUsersLoading READ startUsersLoading NOTIFY startStateChanged)
@@ -135,6 +141,10 @@ class RunsController : public QObject {
   QAbstractItemModel* startRules() { return &startRules_; }
   QAbstractItemModel* startUsers() { return &startUsers_; }
   QString startError() const { return startError_; }
+  QVariantMap startCoreRules() const;
+  bool coreRulesAvailable() const { return client_ && client_->supportsRules(); }
+  bool rulesBusy() const { return rulesBusy_; }
+  QString rulesError() const { return rulesError_; }
   bool startBusy() const { return startBusy_; }
   bool startUsersLoading() const { return startUsersLoading_; }
 
@@ -169,6 +179,13 @@ class RunsController : public QObject {
   Q_INVOKABLE void selectStartRules(const QString& pluginId);
   // Sets one run rule of the Start dialog (bool for a toggle, the option value for an enum); unknown keys and values are ignored.
   Q_INVOKABLE void setStartRule(const QString& pluginId, const QString& key, const QVariant& value);
+  // Sets one core rule of the Start dialog: states / rewind (bool), cheats / memoryWrite ("off" | "logged"); unknown keys and levels are ignored.
+  Q_INVOKABLE void setStartCoreRule(const QString& key, const QVariant& value);
+  // PUT /runs/{id}/rules with the whole object {states, rewind, cheats, memoryWrite} (creator or admin). rulesSaved() on success.
+  Q_INVOKABLE void saveRunRules(const QString& runId, const QVariantMap& rules);
+  Q_INVOKABLE void clearRulesError();
+  // The warning line of the Rules dialog for a draft against the open run's saved rules ("" = none).
+  Q_INVOKABLE QString rulesDraftWarning(const QVariantMap& draft) const;
   Q_INVOKABLE void toggleStartUser(const QString& userId);
   Q_INVOKABLE void startRun(const QString& name, const QString& gameId);
   Q_INVOKABLE void inviteSelected(const QString& runId);
@@ -183,6 +200,8 @@ class RunsController : public QObject {
   void messageChanged();
   void busyChanged();
   void startStateChanged();
+  void rulesStateChanged();
+  void rulesSaved(const QString& runId);
   void joinPluginsChanged();
   // Everything for the run is ready: start `gameId` with the run context (PlayerController).
   void launchRequested(const QString& runId, const QString& gameId);
@@ -205,6 +224,7 @@ class RunsController : public QObject {
   QString pluginsText(const RunInfo& run) const;
   QString gameTitle(const QString& gameId) const;
   QString userName(const RunInfo& run, const QString& userId) const;
+  QString rulesSetBy(const RunInfo& run) const;
   QString errorText(const RunResult& r, const QString& what) const;
   QString hubEventText(const RunEvent& e) const;
   QString timeText(const QString& iso) const;
@@ -254,6 +274,9 @@ class RunsController : public QObject {
   bool busy_ = false;
   QString busyText_;
   QString startError_;
+  RunRules startCore_;
+  bool rulesBusy_ = false;
+  QString rulesError_;
   bool startBusy_ = false;
   bool startUsersLoading_ = false;
   QSet<QString> startPluginIds_;

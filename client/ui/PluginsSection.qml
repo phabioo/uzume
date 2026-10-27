@@ -55,6 +55,7 @@ ColumnLayout {
     onHighlightIdChanged: if (highlightId !== "") highlightTimer.restart()
     spacing: Theme.space15
 
+    DialogsGate { id: dialogsGate }   // the dialogs below need QtQuick.Dialogs and Qt.labs.folderlistmodel, else the path field is used
     Loader {
         id: dialogLoader
         active: false
@@ -69,7 +70,7 @@ ColumnLayout {
     }
     function openFolderDialog(mode: string) {
         root.pathMode = mode
-        dialogLoader.active = true
+        dialogLoader.active = dialogsGate.usable
         if (dialogLoader.status === Loader.Ready && dialogLoader.item !== null) {
             dialogLoader.item.mode = mode
             dialogLoader.item.open()
@@ -79,7 +80,7 @@ ColumnLayout {
     }
     function openFileDialog() {
         root.pathMode = "file"
-        fileDialogLoader.active = true
+        fileDialogLoader.active = dialogsGate.usable
         if (fileDialogLoader.status === Loader.Ready && fileDialogLoader.item !== null) {
             fileDialogLoader.item.open()
         } else {
@@ -213,6 +214,15 @@ ColumnLayout {
                                     objectName: "pluginOrigin"
                                     origin: row.modelData.origin
                                     text: row.modelData.originText
+                                }
+                                UzTag {
+                                    objectName: "pluginWrites"
+                                    textFormat: Text.PlainText
+                                    visible: row.modelData.writesGame === true
+                                    small: true
+                                    tone: "amber"
+                                    icon: "warn"
+                                    text: qsTr("Changes the game")
                                 }
                                 UzTag {
                                     textFormat: Text.PlainText
@@ -467,6 +477,14 @@ ColumnLayout {
                                     origin: hrow.modelData.origin
                                     text: hrow.modelData.originText
                                 }
+                                UzTag {
+                                    objectName: "hubPluginWrites"
+                                    visible: hrow.modelData.writesGame === true
+                                    small: true
+                                    tone: "amber"
+                                    icon: "warn"
+                                    text: qsTr("Changes the game")
+                                }
                                 Item { Layout.fillWidth: true }
                             }
                             UzLabel {
@@ -476,7 +494,17 @@ ColumnLayout {
                                 text: qsTr("Can: %1").arg(hrow.modelData.permissionsText) + (hrow.modelData.sizeText !== "" ? " · " + hrow.modelData.sizeText : "")
                                 color: Theme.muted
                                 font.pixelSize: Theme.roles.small.size
-                                elide: Text.ElideRight
+                                wrapMode: Text.Wrap       // the whole list, never cut off
+                            }
+                            UzLabel {
+                                textFormat: Text.PlainText
+                                objectName: "hubPluginWritesNote"
+                                visible: hrow.modelData.writesGame === true
+                                Layout.fillWidth: true
+                                text: hrow.modelData.writesNote
+                                color: Theme.ink2
+                                font.pixelSize: Theme.roles.small.size
+                                wrapMode: Text.Wrap
                             }
                         }
                         UzButton {

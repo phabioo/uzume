@@ -65,6 +65,7 @@ AdminPage {
             const previous = versions.length > 1 ? versions[versions.length - 2] : null
             return { plugin_id: id, name: latest.info.name, version: latest.info.version, official: latest.info.origin === "official",
                      origin: latest.info.origin, permissions: root.permissionsText(latest.info.permissions ?? []), source: latest.source,
+                     writes: root.changesGame(latest.info.permissions ?? []), permissionCount: (latest.info.permissions ?? []).length,
                      uploadedBy: latest.uploaded_by_name ?? "", previous: previous ? previous.info.version : "",
                      previousDate: previous ? root.dateText(previous.info.created_at) : "" }
         })
@@ -82,6 +83,8 @@ AdminPage {
         default: return p
         }
     }
+    // cheats and memory.write change the running game and its saves: they get a warning tag and one explanatory line.
+    function changesGame(list: var): bool { return list.indexOf("cheats") >= 0 || list.indexOf("memory.write") >= 0 }
     function permissionsText(list: var): string {
         return list.length === 0 ? qsTr("None") : list.map(p => root.permissionLabel(p)).join(", ")
     }
@@ -323,7 +326,7 @@ AdminPage {
                 { key: "name", title: qsTr("Plugin"), fill: 1.2 },
                 { key: "version", title: qsTr("Version"), width: 90, mono: true },
                 { key: "origin", title: qsTr("Origin"), width: 130, custom: true },
-                { key: "permissions", title: qsTr("Permissions"), fill: 1.6 }
+                { key: "permissions", title: qsTr("Permissions"), fill: 1.6, custom: true }
             ]
             rows: root.pluginRows
             cellDelegate: Item {
@@ -331,7 +334,31 @@ AdminPage {
                 property var column: null
                 implicitHeight: Theme.row32
                 height: implicitHeight
+                // Permissions: the list can be long, so the row shows a warning tag for the ones that change the game, else a count; the
+                // whole list is in the details under the table.
+                Row {
+                    visible: column !== null && column.key === "permissions"
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: Theme.space1
+                    UzTag {
+                        objectName: row ? "pluginWrites_" + row.plugin_id : ""
+                        visible: row !== null && row.writes === true
+                        tone: "amber"
+                        icon: "warn"
+                        text: qsTr("Changes the game")
+                    }
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: row === null ? "" : row.permissionCount === 0 ? qsTr("None")
+                              : Theme.plural(row.permissionCount, qsTr("permission"), qsTr("permissions"))
+                        textFormat: Text.PlainText
+                        font.family: Theme.sans
+                        font.pixelSize: Theme.roles.small.size
+                        color: Theme.muted
+                    }
+                }
                 UzTag {
+                    visible: column === null || column.key === "origin"
                     objectName: row ? "pluginOrigin_" + row.plugin_id : ""
                     anchors.verticalCenter: parent.verticalCenter
                     tone: row !== null && row.official ? "ok" : "danger"
@@ -356,6 +383,24 @@ AdminPage {
                     kind: "warning"
                     small: true
                     text: qsTr("Uzume hasn't checked this file. People see a warning before turning it on.")
+                    maxWidth: 640
+                }
+                Text {
+                    objectName: "pluginPermissionsLine"
+                    Layout.fillWidth: true
+                    wrapMode: Text.Wrap
+                    text: root.selected ? qsTr("Permissions: %1").arg(root.selected.permissions) : ""
+                    textFormat: Text.PlainText
+                    font.family: Theme.sans
+                    font.pixelSize: Theme.roles.input.size
+                    color: Theme.ink2
+                }
+                UzStatusIcon {
+                    objectName: "pluginWritesNote"
+                    visible: root.selected !== null && root.selected.writes === true
+                    kind: "warning"
+                    small: true
+                    text: qsTr("It can change the game: turn cheats on and change game memory. Uzume saves a copy first and asks each person for each game.")
                     maxWidth: 640
                 }
                 Text {

@@ -233,7 +233,7 @@ Rectangle {
             border.width: root.ctl.shared ? 0 : 1
             border.color: Theme.dim
             HoverHandler { id: dotHover }
-            ToolTip.visible: dotHover.hovered
+            ToolTip.visible: dotHover.hovered && root.shareText !== ""
             ToolTip.text: root.shareText
         }
         // The tab names, vertical; a click opens the panel on that tab

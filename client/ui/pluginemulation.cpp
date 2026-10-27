@@ -69,6 +69,8 @@ void PluginEmulationService::gameStarted(const GameInfo& info, std::shared_ptr<p
       sessionDenied_[i] = snapDone_[i] = snapBusy_[i] = false;
     }
     usedMarked_ = false;
+    userActed_ = false;
+    queuedConsentPlugin_.clear();
     memToldPlugins_.clear();
     lastMemEvent_.clear();
     lastWrite_.clear();
@@ -187,12 +189,50 @@ void PluginEmulationService::onRulesChanged() {
       postApp(QStringLiteral("cheats.blocked"), QVariantMap{{QStringLiteral("reason"), QStringLiteral("run_rule")}});
   }
   if (cheatsOk && !lastAllowed_) postApp(QStringLiteral("cheats.allowed"), QVariantMap());
+  const bool newCheats = r.inRun && cheatsOk && !lastAllowed_;
+  const bool newMem = r.inRun && memOk && !lastMemAllowed_;
+  if (newCheats || newMem) {
+    // The rules.changed event can arrive just after run_updated: wait a moment so the actor is known.
+    QTimer::singleShot(300, this, [this, newCheats, newMem]() { announceRulesAllowed(newCheats, newMem); });
+  }
   lastAllowed_ = cheatsOk;
   if (!memOk && lastMemAllowed_) {
     QMutexLocker l(&mu_);
     pendingWrites_.clear();  // writes stop at once
   }
   lastMemAllowed_ = memOk;
+}
+
+// F25: somebody else allowed cheats (or memory changes) in the run while this game runs: say who, as an info notice.
+void PluginEmulationService::announceRulesAllowed(bool cheats, bool memory) {
+  std::shared_ptr<plugins::RunBridge> run;
+  {
+    QMutexLocker l(&mu_);
+    run = run_;
+  }
+  if (!run) return;
+  const QString me = run->current().value(QStringLiteral("me")).toString();
+  QString who;
+  QString byId;
+  const QJsonArray events = run->events(0, 500);
+  for (qsizetype i = events.size() - 1; i >= 0; --i) {
+    const QJsonObject e = events.at(i).toObject();
+    if (e.value(QStringLiteral("type")).toString() != QLatin1String("rules.changed")) continue;
+    const QJsonObject p = e.value(QStringLiteral("payload")).toObject();
+    byId = p.value(QStringLiteral("by_user_id")).toString();
+    who = p.value(QStringLiteral("by_user_name")).toString();
+    if (who.isEmpty()) who = e.value(QStringLiteral("user_name")).toString();
+    break;
+  }
+  if (!me.isEmpty() && byId == me) return;  // the person who changed it knows
+  if (who.isEmpty()) who = tr("Someone");
+  Notice n;
+  n.pluginName = tr("Uzume");
+  n.tone = QStringLiteral("info");
+  n.title = tr("Run rules");
+  n.text = cheats ? tr("%1 allowed cheats in this run").arg(who) : tr("%1 allowed memory changes in this run").arg(who);
+  Q_UNUSED(memory)
+  raise(n);
 }
 
 void PluginEmulationService::logRun(const QString& type, const QString& text, const QJsonObject& payload) {
@@ -289,6 +329,18 @@ void PluginEmulationService::setConsent(Kind kind, Consent value, const QString&
   consent_[idx(kind)] = value == Consent::Allowed ? Consent::Allowed : Consent::Ask;
 }
 
+void PluginEmulationService::noteUserAction() {
+  QString queued;
+  {
+    QMutexLocker l(&mu_);
+    if (!active_ || userActed_) return;
+    userActed_ = true;
+    queued = std::move(queuedConsentPlugin_);
+    queuedConsentPlugin_.clear();
+  }
+  if (!queued.isEmpty()) requestConsent(Kind::Cheats, queued);
+}
+
 void PluginEmulationService::requestConsent(Kind kind, const QString& pluginId) {
   if (consent(kind) != Consent::Ask) return;
   const QString plugin = nameOf(pluginId);
@@ -310,16 +362,16 @@ void PluginEmulationService::requestConsent(Kind kind, const QString& pluginId) 
   if (kind == Kind::Cheats) {
     m.insert(QStringLiteral("title"), tr("Turn on cheats for %1?").arg(title));
     m.insert(QStringLiteral("label"), tr("CHEATS · ONCE PER GAME"));
-    m.insert(QStringLiteral("items"), QStringList{tr("Uzume first saves a safety copy of your save: it is kept as \"Before cheats\"."),
-                                                  tr("Later saves are marked \"Made with cheats\"."),
+    m.insert(QStringLiteral("items"), QStringList{tr("Uzume first saves a safety copy of your save: it is kept as \u201cBefore cheats\u201d."),
+                                                  tr("Later saves are marked \u201cMade with cheats\u201d."),
                                                   tr("In a run, everyone sees each cheat in the run log.")});
     m.insert(QStringLiteral("meta"), tr("Asked once per game. Codes run inside the emulator core."));
     m.insert(QStringLiteral("confirmLabel"), tr("Turn on cheats"));
   } else {
     m.insert(QStringLiteral("title"), tr("Let plugins change game memory in %1?").arg(title));
     m.insert(QStringLiteral("label"), tr("GAME MEMORY · ONCE PER GAME"));
-    m.insert(QStringLiteral("items"), QStringList{tr("Uzume first saves a safety copy of your save: it is kept as \"Before memory changes\"."),
-                                                  tr("Later saves are marked \"Made with cheats\"."),
+    m.insert(QStringLiteral("items"), QStringList{tr("Uzume first saves a safety copy of your save: it is kept as \u201cBefore memory changes\u201d."),
+                                                  tr("Later saves are marked \u201cMade with cheats\u201d."),
                                                   tr("In a run, everyone sees in the run log that memory was changed.")});
     m.insert(QStringLiteral("meta"), tr("Asked once per game. Asked by: %1.").arg(plugin));
     m.insert(QStringLiteral("confirmLabel"), tr("Allow changes"));
@@ -540,7 +592,14 @@ CheatApplyResult PluginEmulationService::applyInternal(const QString& pluginId, 
       return {QStringLiteral("consent_denied"), 0, {}};
     }
     if (ask) {
-      QMetaObject::invokeMethod(this, [this, pluginId] { requestConsent(Kind::Cheats, pluginId); }, Qt::QueuedConnection);
+      // Remembered cheats applied by the plugin at the start of the game: queue the question until the person acts in a plugin.
+      bool acted = true;
+      {
+        QMutexLocker l(&mu_);
+        acted = userActed_;
+        if (!acted) queuedConsentPlugin_ = pluginId;
+      }
+      if (acted) QMetaObject::invokeMethod(this, [this, pluginId] { requestConsent(Kind::Cheats, pluginId); }, Qt::QueuedConnection);
       return {QStringLiteral("consent_required"), 0, {}};
     }
   }

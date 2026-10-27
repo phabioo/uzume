@@ -290,6 +290,8 @@ class FakeHub : public QTcpServer {
   QList<QJsonObject> runStatePuts;               // bodies of the state PUTs (accepted or answered 409)
   QList<QJsonObject> runEventPosts;              // bodies of every event POST (also retried ones)
   int runBoardPuts = 0;
+  QList<QJsonObject> runRulesPuts;               // bodies of PUT /runs/{id}/rules (run_rules_v1)
+  bool runRulesForbidden = false;                // the next rules PUTs answer 403 forbidden
   static QString makeUuid();
   // Appends an event (Hub event when userId is empty) and pushes run_event to the WSS clients; returns the seq.
   qint64 addRunEvent(const QString& runId, const QString& type, const QString& text, const QString& userId = {},

@@ -129,7 +129,13 @@ class PluginEmulationService : public QObject, public plugins::EmulationBridge {
   };
   Rules rulesNow() const;                       // any thread
   void onRulesChanged();                        // GUI thread
+  void announceRulesAllowed(bool cheats, bool memory);  // GUI thread: info toast "<name> allowed cheats in this run"
   void requestConsent(Kind kind, const QString& pluginId);
+public:
+  // The person acted in a plugin (a click in its UI, a hotkey). The consent question for cheats that a plugin applied by itself at
+  // the start of the game (remembered cheats) waits for this: it never pops up before the person does something (design 11d).
+  void noteUserAction();
+private:
   void finishConsent(Kind kind, bool allow);
   void saveConsent() const;
   void loadConsent();
@@ -173,6 +179,8 @@ class PluginEmulationService : public QObject, public plugins::EmulationBridge {
   bool applyPending_ = false;                        // an apply waits for the consent answer
   QList<plugins::CheatItem> pendingApply_;
   QString pendingApplyPlugin_;
+  bool userActed_ = false;                           // the person used a plugin since this game started (mu_)
+  QString queuedConsentPlugin_;                      // a consent question waits for the first action (mu_)
   std::vector<std::pair<quint64, quint64>> regions_;  // merged [start, end) of the memory map
   std::map<QString, std::chrono::steady_clock::time_point> lastMemEvent_;
   QSet<QString> memToldPlugins_;
