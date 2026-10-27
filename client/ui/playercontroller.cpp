@@ -444,6 +444,7 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
     };
     vd.titleIdOf = [this](const GameEntry& g) { return titleIdOf(g); };
     variants_ = std::make_unique<VariantsController>(vd, bridge);
+    runs_->setVariants(variants_.get());
     plugins_->setVariantsProvider(bridge);
     connect(variants_.get(), &VariantsController::launchRequested, this, &PlayerController::startVariantGame);
     // Library status "N variants" / "Building n %" and Continue (10g-1).
@@ -451,16 +452,29 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
     connect(variants_.get(), &VariantsController::variantsChanged, this, syncBadges);
     connect(variants_.get(), &VariantsController::progressChanged, this, syncBadges);
     connect(variants_.get(), &VariantsController::runVariantReady, this, [this](const QString& runId) {
-      // A run start waited for its variant: the game of the run starts now.
+      // A run start waited for its variant: the game of the run starts now (unless "Start when it's ready" was turned off).
       if (pendingRunPlay_.runId == runId) {
         const QString game = std::exchange(pendingRunPlay_.gameId, {});
+        const bool start = pendingRunPlay_.startWhenReady;
         pendingRunPlay_ = {};
-        startRunGame(runId, game);
+        refreshRunBuild();
+        if (start) startRunGame(runId, game);
       }
     });
     connect(variants_.get(), &VariantsController::runVariantFailed, this, [this](const QString& runId, const QString&) {
-      if (pendingRunPlay_.runId == runId) pendingRunPlay_ = {};
+      if (pendingRunPlay_.runId == runId) {
+        pendingRunPlay_ = {};
+        runBuild_ = {};
+        if (const auto r = runClient_->run(runId)) {
+          runBuild_ = {{QStringLiteral("runId"), runId}, {QStringLiteral("runName"), r->name}, {QStringLiteral("state"), QStringLiteral("failed")},
+                       {QStringLiteral("error"), variants_->runVariantState(runId).value(QStringLiteral("error"))}, {QStringLiteral("startWhenReady"), false},
+                       {QStringLiteral("background"), false}};
+        }
+        emit runBuildChanged();
+      }
     });
+    connect(variants_.get(), &VariantsController::runVariantChanged, this, [this](const QString&) { refreshRunBuild(); });
+    connect(variants_.get(), &VariantsController::progressChanged, this, [this]() { refreshRunBuild(); });
   }
   personal_ = std::make_unique<PersonalController>(conn_.get(), &model_);
   screenshots_ = std::make_unique<ScreenshotController>(conn_.get(), profiles_.get());
@@ -494,6 +508,9 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
   });
   connect(&model_, &LibraryModel::collectionsChanged, this, &PlayerController::selectedGameChanged);
   connect(runs_.get(), &RunsController::launchRequested, this, &PlayerController::startRunGame);
+  connect(runs_.get(), &RunsController::ownVariantJoined, this, [this](const QString& runId, const QString& variantId) {
+    if (variants_) variants_->setRunOwnVariant(runId, variantId);
+  });
   connect(runs_.get(), &RunsController::availableChanged, this, [this]() {
     if (page_ == QLatin1String("runs") && !runs_->available()) showLibrary();  // the entry went away
   });
@@ -1583,7 +1600,7 @@ void PlayerController::showServerPage(const QString& page) {
     return;
   }
   static const QStringList pages{QStringLiteral("overview"), QStringLiteral("people"), QStringLiteral("games"),   QStringLiteral("systems"),
-                                 QStringLiteral("plugins"),  QStringLiteral("reports"), QStringLiteral("settings")};
+                                 QStringLiteral("tools"),    QStringLiteral("plugins"),  QStringLiteral("reports"), QStringLiteral("settings")};
   QString next = page;
   if (next == QLatin1String("status")) next = QStringLiteral("overview");  // the pages before the tabs
   else if (next == QLatin1String("users")) next = QStringLiteral("people");
@@ -2567,7 +2584,9 @@ void PlayerController::startRunGame(const QString& runId, const QString& gameId)
   // A run with a randomizer builds the person's run variant first; the game of the run starts when it is ready (0.21).
   if (variants_ && variants_->runUsesVariant(runId) && !variants_->runVariantBuilt(runId)) {
     pendingRunPlay_ = {runId, gameId};
+    runBuild_ = {};
     variants_->ensureRunVariant(runId, gameId);
+    refreshRunBuild();
     return;
   }
   runStart_ = {runId, gameId, saves_->slotFor(gameId)};
@@ -2579,6 +2598,63 @@ void PlayerController::startRunGame(const QString& runId, const QString& gameId)
   selectGame(gameId);
   cancelBackgroundUpdateForSelected();
   starter_->startSelected(false);
+}
+
+// The state of the "Building your variant" dialog (10f-3) from the pending run start and the build that is running for it.
+void PlayerController::refreshRunBuild() {
+  QVariantMap m;
+  if (pendingRunPlay_.runId.isEmpty() || variants_ == nullptr) {
+    if (runBuild_.value(QStringLiteral("state")).toString() == QLatin1String("failed")) return;  // the failure stays until it is dismissed
+  } else {
+    const QString runId = pendingRunPlay_.runId;
+    const auto run = runClient_->run(runId);
+    const QVariantMap vs = variants_->runVariantState(runId);
+    const QVariantMap cur = variants_->current();
+    const bool mine = cur.value(QStringLiteral("variantId")).toString() == variants_->runVariantId(runId);
+    const auto game = library_->gameById(pendingRunPlay_.gameId);
+    m = {{QStringLiteral("runId"), runId},
+         {QStringLiteral("runName"), run ? run->name : QString()},
+         {QStringLiteral("gameTitle"), game ? game->title : QString()},
+         {QStringLiteral("state"), QStringLiteral("building")},
+         {QStringLiteral("step"), mine ? cur.value(QStringLiteral("step")).toString() : QString()},
+         {QStringLiteral("fraction"), mine ? cur.value(QStringLiteral("fraction")).toDouble() : vs.value(QStringLiteral("fraction")).toDouble()},
+         {QStringLiteral("percent"), mine ? cur.value(QStringLiteral("percent")).toInt() : 0},
+         {QStringLiteral("etaText"), mine ? cur.value(QStringLiteral("etaText")).toString() : QString()},
+         {QStringLiteral("error"), QString()},
+         {QStringLiteral("startWhenReady"), pendingRunPlay_.startWhenReady},
+         {QStringLiteral("background"), pendingRunPlay_.background}};
+  }
+  if (m != runBuild_) {
+    runBuild_ = m;
+    emit runBuildChanged();
+  }
+}
+
+void PlayerController::setRunBuildStartWhenReady(bool on) {
+  if (pendingRunPlay_.runId.isEmpty()) return;
+  pendingRunPlay_.startWhenReady = on;
+  refreshRunBuild();
+}
+
+void PlayerController::runBuildInBackground() {
+  if (pendingRunPlay_.runId.isEmpty()) return;
+  pendingRunPlay_.background = true;
+  refreshRunBuild();
+}
+
+void PlayerController::cancelRunBuild() {
+  if (pendingRunPlay_.runId.isEmpty() || variants_ == nullptr) return;
+  const QString runId = std::exchange(pendingRunPlay_, {}).runId;
+  const QString id = variants_->runVariantId(runId);
+  if (!id.isEmpty()) variants_->cancel(id);
+  runBuild_ = {};
+  emit runBuildChanged();
+}
+
+void PlayerController::dismissRunBuild() {
+  if (runBuild_.isEmpty()) return;
+  runBuild_ = {};
+  emit runBuildChanged();
 }
 
 void PlayerController::finishRunStart() {

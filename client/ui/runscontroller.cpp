@@ -150,6 +150,8 @@ QString RunsController::errorText(const RunResult& r, const QString& what) const
   if (r.networkError) return tr("%1: the server is not reachable.").arg(what);
   if (r.status == 403) return tr("%1: you are not allowed to do that.").arg(what);
   if (r.status == 404) return tr("%1: this run does not exist (any more).").arg(what);
+  if (r.errorCode == QLatin1String("own_variants_off")) return tr("%1: this run builds everyone's variant. Own variants are off.").arg(what);
+  if (r.errorCode == QLatin1String("own_variant_mismatch")) return tr("%1: that variant doesn't use the run's engine version.").arg(what);
   if (r.status == 409) return tr("%1: the run changed in the meantime. Its current state is shown.").arg(what);
   if (r.status == 429) return tr("%1: too many requests, try again in a moment.").arg(what);
   return r.message.isEmpty() ? tr("%1 failed.").arg(what) : tr("%1: %2").arg(what, r.message);
@@ -242,7 +244,8 @@ QVariantMap RunsController::rowFor(const RunInfo& run) const {
           {QStringLiteral("game"), game},
           {QStringLiteral("rulesName"), ruleNames.join(QStringLiteral(" & "))},
           {QStringLiteral("rulesVersion"), ruleVersion},
-          {QStringLiteral("playTimeText"), LibraryModel::formatPlayTime(run.playSeconds)}};
+          {QStringLiteral("playTimeText"), LibraryModel::formatPlayTime(run.playSeconds)},
+          {QStringLiteral("randomized"), run.randomizerMode() != QLatin1String("off")}};
 }
 
 void RunsController::rebuild() {
@@ -329,17 +332,24 @@ void RunsController::rebuildDetail() {
          {QStringLiteral("canLeave"), joined && !creator && !over},
          {QStringLiteral("canInvite"), joined && !over && run->participants.size() < kRunMaxParticipants},
          {QStringLiteral("over"), over},
-         {QStringLiteral("note"), note}};
+         {QStringLiteral("note"), note},
+         {QStringLiteral("randomized"), run->randomizerMode() != QLatin1String("off")},
+         {QStringLiteral("randomizer"), randomizerOf(run->runId)}};
+    const bool rnd = run->randomizerMode() != QLatin1String("off");
     for (const RunParticipant& p : run->participants) {
       QString st;
-      if (p.status == QLatin1String("joined")) st = tr("Joined");
+      if (p.status == QLatin1String("joined")) st = (rnd && p.variantState == QLatin1String("building")) ? tr("Building") : tr("Joined");
       else if (p.status == QLatin1String("invited")) st = tr("Invited");
       else if (p.status == QLatin1String("declined")) st = tr("Declined");
       else st = tr("Left");
       parts.append({{QStringLiteral("userId"), p.userId},
                     {QStringLiteral("name"), p.userName},
                     {QStringLiteral("color"), p.color},
-                    {QStringLiteral("gameTitle"), p.gameId.isEmpty() ? QStringLiteral("—") : gameTitle(p.gameId)},
+                    // A randomized run's board shows only which kind of variant a person plays, never the world (10f-4).
+                    {QStringLiteral("gameTitle"), rnd ? (p.status == QLatin1String("joined") && p.variantKind == QLatin1String("own") ? tr("Own variant")
+                                                         : p.status == QLatin1String("joined") && p.variantKind == QLatin1String("run") ? tr("Run variant") : QStringLiteral("—"))
+                                                      : (p.gameId.isEmpty() ? QStringLiteral("—") : gameTitle(p.gameId))},
+                    {QStringLiteral("variantState"), p.variantState},
                     {QStringLiteral("statusText"), st},
                     {QStringLiteral("slotText"), p.status == QLatin1String("joined") ? tr("Run: %1").arg(run->name) : QStringLiteral("—")},
                     {QStringLiteral("me"), p.userId == me},
@@ -600,7 +610,8 @@ int RunsController::fillGames(const QList<QJsonArray>& patterns) {
     rows.append({{{QStringLiteral("id"), g.id},
                   {QStringLiteral("title"), g.title},
                   {QStringLiteral("system"), g.system},
-                  {QStringLiteral("hint"), unknown ? tr("Game not recognized") : QString()}},
+                  {QStringLiteral("hint"), unknown ? tr("Game not recognized") : QString()},
+                  {QStringLiteral("sha"), g.romSha256}},
                  unknown});
   }
   std::sort(rows.begin(), rows.end(), [](const Row& a, const Row& b) {
@@ -646,22 +657,46 @@ int RunsController::prepareGames(const QString& runId) {
 
 // ------------------------------------------------------------------ actions
 
+QVariantMap RunsController::randomizerOf(const QString& runId) const {
+  const auto run = client_->run(runId.toLower());
+  if (!run || run->randomizerMode() == QLatin1String("off")) return {};
+  const QJsonObject& o = run->randomizer;
+  return {{QStringLiteral("mode"), run->randomizerMode()},
+          {QStringLiteral("presetId"), o.value(QStringLiteral("preset_id")).toString()},
+          {QStringLiteral("toolVersion"), o.value(QStringLiteral("tool_version")).toString()},
+          {QStringLiteral("allowOwn"), o.value(QStringLiteral("allow_own")).toBool()},
+          {QStringLiteral("baseSha256"), o.value(QStringLiteral("base_sha256")).toString()},
+          {QStringLiteral("titleId"), o.value(QStringLiteral("title_id")).toString()},
+          {QStringLiteral("creatorName"), userName(*run, run->createdBy)},
+          {QStringLiteral("over"), run->isOver()}};
+}
+
 void RunsController::joinRun(const QString& runId, const QString& gameId) {
+  joinRun(runId, gameId, QString(), QString());
+}
+
+void RunsController::joinRun(const QString& runId, const QString& gameId, const QString& variantKind, const QString& variantId) {
   if (gameId.isEmpty()) {
     setMessage(tr("Pick the game you play in this run."), true);
     return;
   }
   setBusy(true, tr("Joining…"));
-  client_->joinRun(runId, gameId, [this, runId](const RunResult& r) {
+  QJsonObject variant;
+  if (!variantKind.isEmpty()) {
+    variant.insert(QStringLiteral("kind"), variantKind);
+    if (variantKind == QLatin1String("own") && !variantId.isEmpty()) variant.insert(QStringLiteral("variant_id"), variantId);
+  }
+  client_->joinRun(runId, gameId, [this, runId, variantKind, variantId](const RunResult& r) {
     setBusy(false);
     if (!r.ok) {
       setMessage(errorText(r, tr("Joining")), true);
       return;
     }
     setMessage({}, false);
+    if (variantKind == QLatin1String("own") && !variantId.isEmpty()) emit ownVariantJoined(runId.toLower(), variantId);
     openRun(runId);
     if (r.run) ensureCopies(*r.run, [this](bool, const QString&) { setBusy(false); });  // get the plugins ready in the background
-  });
+  }, variant);
 }
 
 void RunsController::declineRun(const QString& runId) {
@@ -1040,6 +1075,10 @@ void RunsController::cancelStart() {
 }
 
 void RunsController::startRun(const QString& name, const QString& gameId) {
+  startRun(name, gameId, QVariantMap());
+}
+
+void RunsController::startRun(const QString& name, const QString& gameId, const QVariantMap& randomizer) {
   const QString trimmed = name.trimmed();
   const StartResolution resolved = currentStartResolution();
   QString problem;
@@ -1051,6 +1090,21 @@ void RunsController::startRun(const QString& name, const QString& gameId) {
   else if (gameId.isEmpty()) problem = tr("Pick the game you play in this run.");
   else if (std::none_of(games_.rows().begin(), games_.rows().end(), [&](const QVariantMap& r) { return r.value(QStringLiteral("id")).toString() == gameId; })) problem = tr("The picked game does not fit the plugins of this run. Pick another game.");
   else if (startUserIds_.size() + 1 > kRunMaxParticipants) problem = tr("A run has room for %1 players.").arg(kRunMaxParticipants);
+  const QString rzMode = randomizer.value(QStringLiteral("mode")).toString();
+  QJsonObject rz;
+  if (!rzMode.isEmpty() && rzMode != QLatin1String("off")) {
+    const QString settings = randomizer.value(QStringLiteral("settings")).toString().trimmed();
+    const QString toolVersion = randomizer.value(QStringLiteral("tool_version")).toString();
+    if (problem.isEmpty() && settings.isEmpty()) problem = tr("Pick a preset or paste a settings string for the randomizer.");
+    else if (problem.isEmpty() && toolVersion.isEmpty()) problem = tr("Home server offers no randomizer. Admins: Server › Tools.");
+    rz = {{QStringLiteral("mode"), rzMode},
+          {QStringLiteral("settings"), settings},
+          {QStringLiteral("tool_id"), QStringLiteral("randomizer")},
+          {QStringLiteral("tool_version"), toolVersion},
+          {QStringLiteral("allow_own"), randomizer.value(QStringLiteral("allow_own")).toBool()}};
+    const QString presetId = randomizer.value(QStringLiteral("preset_id")).toString();
+    if (!presetId.isEmpty() && presetId != QLatin1String("custom")) rz.insert(QStringLiteral("preset_id"), presetId);
+  }
   if (!problem.isEmpty()) {
     startError_ = problem;
     emit startStateChanged();
@@ -1078,7 +1132,7 @@ void RunsController::startRun(const QString& name, const QString& gameId) {
     openRun(r.run->runId);
     ensureCopies(*r.run, [this](bool, const QString&) { setBusy(false); });
     emit runCreated(r.run->runId);
-  });
+  }, rz);
 }
 
 void RunsController::inviteSelected(const QString& runId) {

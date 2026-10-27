@@ -136,8 +136,13 @@ class VariantsController : public QObject {
   Q_INVOKABLE void refresh();
   // A plugin registered this game (RANDOMIZER Supported).
   Q_INVOKABLE bool supported(const QString& gameId) const;
+  // Some plugin registered games at all (the Randomizer plugin is on): New run shows its Randomizer section.
+  Q_INVOKABLE bool pluginRegistered() const;
   // [{id, label, hint, custom}] of the registered presets for the game plus Uzume's own "custom" entry last; empty when unsupported.
   Q_INVOKABLE QVariantList presets(const QString& gameId) const;
+  // The settings string of a registered preset (highest settings version) and its label; "" / the id when the preset is unknown (New run).
+  Q_INVOKABLE QString presetSettings(const QString& presetId) const;
+  Q_INVOKABLE QString presetLabel(const QString& presetId) const;
   Q_INVOKABLE QVariantMap variantMap(const QString& variantId) const;
   Q_INVOKABLE QVariantList variantsOf(const QString& gameId) const;
 

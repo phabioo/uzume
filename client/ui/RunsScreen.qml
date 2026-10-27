@@ -55,7 +55,7 @@ Rectangle {
         const names = []
         for (let i = 0; i < m.participants.length; ++i) names.push(m.participants[i].name)
         return { runId: m.runId, name: m.name, game: m.game, rules: m.rulesName + (m.rulesVersion !== "" ? " " + m.rulesVersion : ""),
-                 people: names.join(", "), peopleCount: names.length, updated: m.timeText, statusText: m.statusText, played: m.playTimeText,
+                 people: names.join(", "), peopleCount: names.length, randomized: m.randomized === true, updated: m.timeText, statusText: m.statusText, played: m.playTimeText,
                  tone: m.tone, over: over }
     }
     function buildRows(): var {
@@ -118,14 +118,24 @@ Rectangle {
                     color: Theme.muted
                 }
             }
-            UzTag {
-                visible: cell.key === "rules" && cell.row !== null && cell.row.rules !== ""
+            Row {
+                visible: cell.key === "rules" && cell.row !== null && (cell.row.rules !== "" || cell.row.randomized === true)
                 anchors.verticalCenter: parent.verticalCenter
-                width: Math.min(implicitWidth, parent.width)
-                text: cell.row ? cell.row.rules : ""
+                width: parent.width
+                spacing: Theme.space1
+                UzTag {
+                    visible: cell.row !== null && cell.row.rules !== ""
+                    width: Math.min(implicitWidth, Math.max(0, parent.width))
+                    text: cell.row ? cell.row.rules : ""
+                }
+                UzTag {
+                    objectName: cell.row ? "runRowRandomized_" + cell.row.runId : ""
+                    visible: cell.row !== null && cell.row.randomized === true
+                    text: qsTr("Randomized")
+                }
             }
             Text {
-                visible: cell.key === "rules" && cell.row !== null && cell.row.rules === ""
+                visible: cell.key === "rules" && cell.row !== null && cell.row.rules === "" && cell.row.randomized !== true
                 anchors.verticalCenter: parent.verticalCenter
                 text: "—"
                 font.family: Theme.sans
@@ -458,7 +468,7 @@ Rectangle {
                         Layout.fillWidth: true
                         columns: {
                             const c = [{ key: "name", title: qsTr("Run"), fill: 1.3, custom: true }]
-                            if (page.width >= 640) c.push({ key: "rules", title: qsTr("Rules"), width: 150, custom: true })
+                            if (page.width >= 640) c.push({ key: "rules", title: qsTr("Rules"), width: 200, custom: true })
                             if (page.width >= 520) c.push({ key: "people", title: qsTr("People"), fill: 1, custom: true })
                             if (page.width >= 560) c.push({ key: "played", title: qsTr("Play time"), width: 80, custom: true })
                             c.push({ key: "updated", title: qsTr("Updated"), width: 96, custom: true })
@@ -571,7 +581,7 @@ Rectangle {
                     UzPageHeader {
                         objectName: "runDetailHeader"
                         Layout.fillWidth: true
-                        label: detailCol.plain ? qsTr("Plain run") : qsTr("Run · %1").arg(detailCol.d.pluginsText || "")
+                        label: detailCol.plain ? (detailCol.d.randomized === true ? qsTr("Randomized run") : qsTr("Plain run")) : qsTr("Run · %1").arg(detailCol.d.pluginsText || "")
                         title: detailCol.d.name || ""
                         UzButton {
                             objectName: "runPlay"
@@ -699,11 +709,72 @@ Rectangle {
                             }
                             UzLabel {
                                 Layout.fillWidth: true
-                                text: qsTr("Each person plays in “%1”. Their Main slot is not touched.").arg(detailCol.d.saveSlotText || "")
+                                text: detailCol.d.randomized === true
+                                      ? qsTr("Each runner plays in “%1”. Main and their own variants are not touched.").arg(detailCol.d.saveSlotText || "")
+                                      : qsTr("Each person plays in “%1”. Their Main slot is not touched.").arg(detailCol.d.saveSlotText || "")
                                 wrapMode: Text.WordWrap
                                 color: Theme.ink2
                                 lineHeight: Theme.roles.body.line
                                 lineHeightMode: Text.FixedHeight
+                            }
+                        }
+                        // Randomizer (10f-4): what was set at the start. The board shows only Run variant / Own variant; nobody sees
+                        // another person's world, seed or settings, admins neither.
+                        ColumnLayout {
+                            id: rzBlock
+                            objectName: "runBoardRandomizer"
+                            visible: detailCol.d.randomized === true
+                            Layout.fillWidth: true
+                            spacing: Theme.space1
+                            readonly property var rz: detailCol.d.randomizer || ({})
+                            UzSectionLabel {
+                                Layout.fillWidth: true
+                                number: 3
+                                text: qsTr("Randomizer")
+                                meta: qsTr("Set at the start")
+                            }
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 0
+                                Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Theme.rule }
+                                DefRow {
+                                    label: qsTr("World")
+                                    valueName: "runRzWorld"
+                                    value: rzBlock.rz.mode === "same" ? qsTr("Same world for everyone") : qsTr("Each person gets their own")
+                                }
+                                DefRow {
+                                    label: qsTr("Preset")
+                                    valueName: "runRzPreset"
+                                    value: (rzBlock.rz.presetId || "") !== "" ? root.player.variants.presetLabel(rzBlock.rz.presetId) : qsTr("Custom settings")
+                                }
+                                DefRow {
+                                    label: qsTr("Engine")
+                                    valueName: "runRzEngine"
+                                    value: qsTr("%1 · pinned").arg(rzBlock.rz.toolVersion || "—")
+                                }
+                                DefRow {
+                                    label: qsTr("Own")
+                                    valueName: "runRzOwn"
+                                    value: rzBlock.rz.allowOwn === true ? qsTr("Allowed, same engine") : qsTr("Not allowed")
+                                }
+                            }
+                            UzLabel {
+                                objectName: "runRzNote"
+                                Layout.fillWidth: true
+                                text: qsTr("Nobody sees another person’s world, seed or settings, admins neither.")
+                                wrapMode: Text.WordWrap
+                                color: Theme.muted
+                                font.pixelSize: Theme.roles.small.size
+                            }
+                            // 10f-5f: the spoiler log of the own variant opens from Saves after the run, never during it.
+                            UzLabel {
+                                objectName: "runRzSpoiler"
+                                visible: detailCol.d.over === true
+                                Layout.fillWidth: true
+                                text: qsTr("When %1 ends: each person can open the spoiler log of their own variant from Saves.").arg(detailCol.d.name || "")
+                                wrapMode: Text.WordWrap
+                                color: Theme.ink2
+                                font.pixelSize: Theme.roles.small.size
                             }
                         }
                     }

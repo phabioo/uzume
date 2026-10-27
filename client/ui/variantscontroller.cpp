@@ -415,6 +415,10 @@ void VariantsController::publishPluginState() {
   bridge_->setRows(rows);
 }
 
+bool VariantsController::pluginRegistered() const {
+  return !bridge_->registry()->all().isEmpty();
+}
+
 bool VariantsController::supported(const QString& gameId) const {
   const auto game = deps_.library ? deps_.library->gameById(gameId) : std::nullopt;
   if (!game) return false;
@@ -614,6 +618,16 @@ QVariantList VariantsController::storage() const {
   std::sort(rows.begin(), rows.end(), [](const Row& a, const Row& b) { return a.played > b.played; });
   for (const Row& r : rows) out.append(r.m);
   return out;
+}
+
+QString VariantsController::presetSettings(const QString& presetId) const {
+  const plugins::VariantPreset p = bridge_->registry()->preset(presetId);
+  return p.id.isEmpty() ? QString() : p.bestSettings();
+}
+
+QString VariantsController::presetLabel(const QString& presetId) const {
+  const plugins::VariantPreset p = bridge_->registry()->preset(presetId);
+  return p.id.isEmpty() || p.label.isEmpty() ? presetId : p.label;
 }
 
 // ---------------------------------------------------------------- building

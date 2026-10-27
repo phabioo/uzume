@@ -156,7 +156,8 @@ class AdminUiTest : public QObject {
         {"status", "overview", "Overview", "serverStatusPage"},   {"users", "people", "People", "serverUsersPage"},
         {"overview", "overview", "Overview", "serverStatusPage"}, {"people", "people", "People", "serverUsersPage"},
         {"games", "games", "Games", "serverGamesPage"},           {"systems", "systems", "Systems & cores", "serverSystemsPage"},
-        {"plugins", "plugins", "Plugins", "serverPluginsPage"},   {"reports", "reports", "Reports", "serverReportsPage"},
+        {"tools", "tools", "Tools", "serverToolsPage"},           {"plugins", "plugins", "Plugins", "serverPluginsPage"},
+        {"reports", "reports", "Reports", "serverReportsPage"},
         {"settings", "settings", "Settings", "serverSettingsTab"}, {"nonsense", "overview", "Overview", "serverStatusPage"},
     };
     for (const Case& c : cases) {
@@ -168,9 +169,9 @@ class AdminUiTest : public QObject {
       QTRY_VERIFY2(shown(h.item(c.object)), c.id);
       QVERIFY2(shown(h.item((QByteArray("tab_") + c.label).constData())), c.id);
     }
-    // Seven tabs, in this order; the header is the one page header with the server name.
+    // Eight tabs, in this order; the header is the one page header with the server name.
     QCOMPARE(h.item("serverTabs")->property("items").toStringList(),
-             (QStringList{"Overview", "People", "Games", "Systems & cores", "Plugins", "Reports", "Settings"}));
+             (QStringList{"Overview", "People", "Games", "Systems & cores", "Tools", "Plugins", "Reports", "Settings"}));
     QCOMPARE(text(h.item("serverTitle")), QStringLiteral("Home server"));
     // Clicking a tab opens its page.
     QVERIFY(h.click("tab_Reports"));

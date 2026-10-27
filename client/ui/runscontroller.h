@@ -17,6 +17,7 @@
 #include "keyedrowsmodel.h"
 #include "pluginscontroller.h"
 #include "runclient.h"
+#include "variantscontroller.h"
 
 namespace uzume::ui {
 
@@ -91,6 +92,8 @@ class RunsController : public QObject {
   Q_PROPERTY(QString startError READ startError NOTIFY startStateChanged)
   Q_PROPERTY(bool startBusy READ startBusy NOTIFY startStateChanged)
   Q_PROPERTY(bool startUsersLoading READ startUsersLoading NOTIFY startStateChanged)
+  // The variants controller (0.21): the Randomizer section of Start a run and the join dialog read presets and own variants from it.
+  Q_PROPERTY(uzume::ui::VariantsController* variants READ variants CONSTANT)
 
  public:
   RunsController(RunClient* client, PluginsController* plugins, HubLibrary* library, HubConnection* connection, QObject* parent = nullptr);
@@ -139,6 +142,8 @@ class RunsController : public QObject {
   bool startUsersLoading() const { return startUsersLoading_; }
 
   RunClient* client() { return client_; }
+  VariantsController* variants() const { return variants_; }
+  void setVariants(VariantsController* v) { variants_ = v; }
 
   // The run context for a game start: the bridge of fb.run and the pins of the plugins (null bridge: unknown run).
   RunLaunch launchFor(const QString& runId);
@@ -155,6 +160,11 @@ class RunsController : public QObject {
   // games without a known code stay in the list after the matching ones with the hint "Game not recognized".
   Q_INVOKABLE int prepareGames(const QString& runId);
   Q_INVOKABLE void joinRun(const QString& runId, const QString& gameId);
+  // Join a randomized run (variants_v1): variantKind "run" (the run's own variant) or "own" with the id of an own variant. A 409
+  // own_variants_off / own_variant_mismatch is shown as its own sentence in `message`.
+  Q_INVOKABLE void joinRun(const QString& runId, const QString& gameId, const QString& variantKind, const QString& variantId);
+  // The randomizer block of the run to join (10f-1): {mode, presetId, toolVersion, allowOwn, baseSha256} or empty for an ordinary run.
+  Q_INVOKABLE QVariantMap randomizerOf(const QString& runId) const;
   Q_INVOKABLE void declineRun(const QString& runId);
   Q_INVOKABLE void leaveRun(const QString& runId);
   // status: "active" (start / resume), "paused", "finished", "abandoned".
@@ -171,6 +181,9 @@ class RunsController : public QObject {
   Q_INVOKABLE void setStartRule(const QString& pluginId, const QString& key, const QVariant& value);
   Q_INVOKABLE void toggleStartUser(const QString& userId);
   Q_INVOKABLE void startRun(const QString& name, const QString& gameId);
+  // With the Randomizer section of the dialog (10e): {mode: off|each|same, preset_id, settings, tool_version, allow_own}. Mode off or an
+  // empty map starts an ordinary run.
+  Q_INVOKABLE void startRun(const QString& name, const QString& gameId, const QVariantMap& randomizer);
   Q_INVOKABLE void inviteSelected(const QString& runId);
   Q_INVOKABLE void cancelStart();
 
@@ -188,6 +201,8 @@ class RunsController : public QObject {
   void launchRequested(const QString& runId, const QString& gameId);
   // A run was created (the Start dialog closes and the detail opens).
   void runCreated(const QString& runId);
+  // Joined a randomized run with an own variant: the variants controller remembers the choice (it plays in the run slot).
+  void ownVariantJoined(const QString& runId, const QString& variantId);
 
  private:
   void scheduleRebuild();
@@ -219,6 +234,7 @@ class RunsController : public QObject {
   bool gamesPrepared_ = false;
   QString gamesFor_;
 
+  VariantsController* variants_ = nullptr;
   QPointer<RunClient> client_;
   PluginsController* plugins_;
   HubLibrary* library_;
@@ -227,17 +243,17 @@ class RunsController : public QObject {
   static QStringList runRoles() {
     return {QStringLiteral("runId"),  QStringLiteral("name"),     QStringLiteral("status"),  QStringLiteral("statusText"), QStringLiteral("tone"),
             QStringLiteral("subText"), QStringLiteral("timeText"), QStringLiteral("action"), QStringLiteral("participants"),
-            QStringLiteral("game"), QStringLiteral("rulesName"), QStringLiteral("rulesVersion"), QStringLiteral("playTimeText")};
+            QStringLiteral("game"), QStringLiteral("rulesName"), QStringLiteral("rulesVersion"), QStringLiteral("playTimeText"), QStringLiteral("randomized")};
   }
   KeyedRowsModel active_{runRoles(), QStringLiteral("runId")};
   KeyedRowsModel finished_{runRoles(), QStringLiteral("runId")};
   KeyedRowsModel participants_{{QStringLiteral("userId"), QStringLiteral("name"), QStringLiteral("color"), QStringLiteral("gameTitle"), QStringLiteral("statusText"),
                                 QStringLiteral("slotText"), QStringLiteral("me"), QStringLiteral("playTimeText"),
-                                QStringLiteral("lastPlayedText")},
+                                QStringLiteral("lastPlayedText"), QStringLiteral("variantState")},
                                QStringLiteral("userId")};
   KeyedRowsModel events_{{QStringLiteral("seq"), QStringLiteral("timeText"), QStringLiteral("fullTimeText"), QStringLiteral("author"), QStringLiteral("text"), QStringLiteral("sourceText")},
                          QStringLiteral("seq")};
-  KeyedRowsModel games_{{QStringLiteral("id"), QStringLiteral("title"), QStringLiteral("system"), QStringLiteral("hint")}, QStringLiteral("id")};
+  KeyedRowsModel games_{{QStringLiteral("id"), QStringLiteral("title"), QStringLiteral("system"), QStringLiteral("hint"), QStringLiteral("sha")}, QStringLiteral("id")};
   KeyedRowsModel startPlugins_{{QStringLiteral("id"), QStringLiteral("name"), QStringLiteral("version"), QStringLiteral("description"), QStringLiteral("origin"), QStringLiteral("originText"), QStringLiteral("permissionsText"), QStringLiteral("checked")},
                                QStringLiteral("id")};
   KeyedRowsModel startIncluded_{{QStringLiteral("id"), QStringLiteral("name"), QStringLiteral("version"), QStringLiteral("text")}, QStringLiteral("id")};

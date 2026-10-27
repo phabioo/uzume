@@ -326,6 +326,7 @@ ApplicationWindow {
     ConflictDialog { player: window.player }
     UzConfirmDialog { controller: window.player.admin; parent: Window.contentItem; z: 200 }   // "Confirm it's you": opens for any admin request that needs it
     ShareDialogs { player: window.player; parent: Window.contentItem; z: 190 }
+    RunVariantBuildDialog { player: window.player }  // Play run of a randomized run builds the person's variant first (10f-3)
     ReportProblemDialog { player: window.player }  // Settings > Diagnostics and the game "⋯" menu open it
     WhatsNewDialog { player: window.player }   // once per new app version (release notes of the signed updates index)
     SetupAssistant { player: window.player }   // player.showSetupAssistant()

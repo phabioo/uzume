@@ -177,6 +177,8 @@ qt_add_qml_module(uzume_ui
     UnverifiedNote.qml
     GamePickList.qml
     RunJoinDialog.qml
+    RunVariantBuildDialog.qml
+    RunRandomizerSection.qml
     ConnectionCheckDialog.qml
     RunStartDialog.qml
     PluginConsole.qml
@@ -286,6 +288,7 @@ qt_add_qml_module(uzume_ui
     ServerSystemsPage.qml
     ServerSystemsFileDialog.qml
     ServerPluginsPage.qml
+    ServerToolsPage.qml
     ServerSettingsPane.qml
     ServerGamesPage.qml
     ServerSettingsGames.qml

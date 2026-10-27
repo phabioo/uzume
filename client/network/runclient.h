@@ -63,8 +63,9 @@ class RunClient : public QObject {
 
   // --- REST (callbacks run on the UI thread, after the Run was applied) ---
   void createRun(const QString& name, const QList<RunPluginRef>& plugins, const QString& gameId, const QStringList& inviteUserIds,
-                 const QJsonObject& settings, RunCallback cb);
-  void joinRun(const QString& runId, const QString& gameId, RunCallback cb);
+                 const QJsonObject& settings, RunCallback cb, const QJsonObject& randomizer = QJsonObject());
+  // variant: {kind: run|own, variant_id?} of a randomized run (variants_v1); empty = the Hub's default (the run variant).
+  void joinRun(const QString& runId, const QString& gameId, RunCallback cb, const QJsonObject& variant = QJsonObject());
   void declineRun(const QString& runId, RunCallback cb);
   void leaveRun(const QString& runId, RunCallback cb);
   void setStatus(const QString& runId, const QString& status, RunCallback cb);
