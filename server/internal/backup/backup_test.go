@@ -43,6 +43,8 @@ func dataDir(t *testing.T) string {
 	write(t, filepath.Join(d, "plugins", "p", "1.0.0", "main.lua"), "-- plugin")
 	write(t, filepath.Join(d, "firmware", "nds", "fw.bin"), "fw")
 	write(t, filepath.Join(d, "screenshots", "u1", "g1", "s1.png"), "png-bytes")
+	write(t, filepath.Join(d, "states", "u1", "g1", "main", "1.state"), "state-bytes")
+	write(t, filepath.Join(d, "states", "u1", "g1", "main", "1.png"), "state-preview")
 	write(t, filepath.Join(d, "tls", "cert.pem"), "CERT")
 	write(t, filepath.Join(d, "tls", "key.pem"), "KEY")
 	write(t, filepath.Join(d, "roms", "ab", "abcd"), "rom-bytes")
@@ -78,7 +80,7 @@ func TestRoundTrip(t *testing.T) {
 			t.Fatalf("unexpected member %s", n.Name)
 		}
 	}
-	if got := m.ContentsText(); got != "Database · saves · plugins · firmware · settings · screenshots" {
+	if got := m.ContentsText(); got != "Database · saves · states · plugins · firmware · settings · screenshots" {
 		t.Fatalf("contents %q", got)
 	}
 	// Nothing but the finished archive is left in the target.
@@ -96,11 +98,14 @@ func TestRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Join(items, ",") != "firmware,plugins,saves,screenshots,tls,uzume.db" {
+	if strings.Join(items, ",") != "firmware,plugins,saves,screenshots,states,tls,uzume.db" {
 		t.Fatalf("items %v", items)
 	}
 	if read(t, filepath.Join(stage, "screenshots", "u1", "g1", "s1.png")) != "png-bytes" {
 		t.Fatal("screenshots group missing")
+	}
+	if read(t, filepath.Join(stage, "states", "u1", "g1", "main", "1.state")) != "state-bytes" || read(t, filepath.Join(stage, "states", "u1", "g1", "main", "1.png")) != "state-preview" {
+		t.Fatal("states group missing")
 	}
 	if read(t, filepath.Join(stage, "saves", "u1", "g1", "main", "bbbb")) != "save-two" || read(t, filepath.Join(stage, "uzume.db")) != "DB-v1" {
 		t.Fatal("content differs")

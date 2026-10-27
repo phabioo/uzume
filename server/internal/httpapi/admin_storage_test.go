@@ -57,17 +57,17 @@ func TestAdminStorageOverviewAndCleanup(t *testing.T) {
 			t.Fatalf("kind %d: %+v", i, k)
 		}
 	}
-	if len(got.Cleanup) != 3 || got.Cleanup[0].ID != "old_snapshots" || got.Cleanup[1].ID != "upload_leftovers" || got.Cleanup[2].ID != "unused_cores" {
+	if len(got.Cleanup) != 4 || got.Cleanup[0].ID != "old_snapshots" || got.Cleanup[1].ID != "upload_leftovers" || got.Cleanup[2].ID != "unused_cores" || got.Cleanup[3].ID != "deleted_game_states" {
 		t.Fatalf("cleanup %+v", got.Cleanup)
 	}
 
 	// Clean-up needs "Confirm it's you" (all ids), the overview does not.
-	for _, id := range []string{"old_snapshots", "upload_leftovers", "unused_cores"} {
+	for _, id := range []string{"old_snapshots", "upload_leftovers", "unused_cores", "deleted_game_states"} {
 		rec = e.do("POST", "/api/v1/admin/storage/cleanup", map[string]any{"id": id}, opt{token: tok})
 		wantStatus(t, rec, 403, "confirmation_required")
 	}
 	e.confirm(tok)
-	for _, id := range []string{"old_snapshots", "upload_leftovers", "unused_cores"} {
+	for _, id := range []string{"old_snapshots", "upload_leftovers", "unused_cores", "deleted_game_states"} {
 		rec = e.do("POST", "/api/v1/admin/storage/cleanup", map[string]any{"id": id}, opt{token: tok})
 		wantStatus(t, rec, 200, "")
 		res := decode[struct {

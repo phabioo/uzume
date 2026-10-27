@@ -177,6 +177,8 @@ Library (admin, in the app): the game page's Manage tab has Rename (display titl
 
 Server › Settings › Network & sharing edits port, embedded TURN, public host, TURN port, relay range and IP, STUN servers and save retention. These values live in the server database and win over flags and `server.env`, which only give the initial values (reset per field to return to the `server.env` value). Changes that need it are applied by a restart the server triggers itself (no root). The app refuses ports below 1024; set those with `install-server.sh --port` (a port saved in the app still wins until reset). Startup fallbacks keep the server reachable after a bad setting. Decisions: [ADR 0015](../adr/0015-hub-ui-pass.md).
 
+Save state quota: each person may store up to 2 GiB of save states on the server (blobs and previews). The admin changes the limit with `state_quota_bytes` (bytes, at least 65 MiB) in `PATCH /api/v1/admin/settings`; uploads beyond it answer 413 `state_quota_exceeded`. The Storage page lists states as their own kind and offers "States of deleted games" as a clean-up.
+
 ## Diagnostics bundle
 
 When something does not work, hand over one file instead of describing it: Server › Settings › Diagnostics › "Download diagnostics bundle" (admin only, `POST /api/v1/admin/diagnostics/bundle`, answered with `uzume-diagnostics-<UTC timestamp>.zip`). The bundle contains:

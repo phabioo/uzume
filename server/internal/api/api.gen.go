@@ -603,14 +603,17 @@ func (e AdminStatusSessionVisibility) Valid() bool {
 
 // Defines values for AdminStorageCleanupId.
 const (
-	OldSnapshots    AdminStorageCleanupId = "old_snapshots"
-	UnusedCores     AdminStorageCleanupId = "unused_cores"
-	UploadLeftovers AdminStorageCleanupId = "upload_leftovers"
+	DeletedGameStates AdminStorageCleanupId = "deleted_game_states"
+	OldSnapshots      AdminStorageCleanupId = "old_snapshots"
+	UnusedCores       AdminStorageCleanupId = "unused_cores"
+	UploadLeftovers   AdminStorageCleanupId = "upload_leftovers"
 )
 
 // Valid indicates whether the value is a known member of the AdminStorageCleanupId enum.
 func (e AdminStorageCleanupId) Valid() bool {
 	switch e {
+	case DeletedGameStates:
+		return true
 	case OldSnapshots:
 		return true
 	case UnusedCores:
@@ -927,6 +930,7 @@ const (
 	ErrorCodeSessionRunning       ErrorCode = "session_running"
 	ErrorCodeSetupCodeExpired     ErrorCode = "setup_code_expired"
 	ErrorCodeStateConflict        ErrorCode = "state_conflict"
+	ErrorCodeStateQuotaExceeded   ErrorCode = "state_quota_exceeded"
 	ErrorCodeTooLarge             ErrorCode = "too_large"
 	ErrorCodeUnauthorized         ErrorCode = "unauthorized"
 	ErrorCodeUploadsDisabled      ErrorCode = "uploads_disabled"
@@ -1019,6 +1023,8 @@ func (e ErrorCode) Valid() bool {
 	case ErrorCodeSetupCodeExpired:
 		return true
 	case ErrorCodeStateConflict:
+		return true
+	case ErrorCodeStateQuotaExceeded:
 		return true
 	case ErrorCodeTooLarge:
 		return true
@@ -1270,6 +1276,42 @@ func (e RunParticipantStatus) Valid() bool {
 	case RunParticipantStatusJoined:
 		return true
 	case RunParticipantStatusLeft:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RunRulesCheats.
+const (
+	RunRulesCheatsLogged RunRulesCheats = "logged"
+	RunRulesCheatsOff    RunRulesCheats = "off"
+)
+
+// Valid indicates whether the value is a known member of the RunRulesCheats enum.
+func (e RunRulesCheats) Valid() bool {
+	switch e {
+	case RunRulesCheatsLogged:
+		return true
+	case RunRulesCheatsOff:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RunRulesMemoryWrite.
+const (
+	RunRulesMemoryWriteLogged RunRulesMemoryWrite = "logged"
+	RunRulesMemoryWriteOff    RunRulesMemoryWrite = "off"
+)
+
+// Valid indicates whether the value is a known member of the RunRulesMemoryWrite enum.
+func (e RunRulesMemoryWrite) Valid() bool {
+	switch e {
+	case RunRulesMemoryWriteLogged:
+		return true
+	case RunRulesMemoryWriteOff:
 		return true
 	default:
 		return false
@@ -2416,19 +2458,25 @@ type AdminSecurity struct {
 
 // AdminSettings defines model for AdminSettings.
 type AdminSettings struct {
-	AllowUserUploads bool                `json:"allow_user_uploads"`
-	HubName          string              `json:"hub_name"`
-	Network          AdminNetwork        `json:"network"`
-	Security         AdminSecurity       `json:"security"`
-	Updates          AdminUpdateSettings `json:"updates"`
+	AllowUserUploads bool          `json:"allow_user_uploads"`
+	HubName          string        `json:"hub_name"`
+	Network          AdminNetwork  `json:"network"`
+	Security         AdminSecurity `json:"security"`
+
+	// StateQuotaBytes Per-user limit for save states (`states_v1`); default 2 GiB, at least 65 MiB
+	StateQuotaBytes int64               `json:"state_quota_bytes"`
+	Updates         AdminUpdateSettings `json:"updates"`
 }
 
 // AdminSettingsUpdate defines model for AdminSettingsUpdate.
 type AdminSettingsUpdate struct {
-	AllowUserUploads *bool                             `json:"allow_user_uploads,omitempty"`
-	Name             *string                           `json:"name,omitempty"`
-	UpdateAuto       *bool                             `json:"update_auto,omitempty"`
-	UpdateChannel    *AdminSettingsUpdateUpdateChannel `json:"update_channel,omitempty"`
+	AllowUserUploads *bool   `json:"allow_user_uploads,omitempty"`
+	Name             *string `json:"name,omitempty"`
+
+	// StateQuotaBytes Per-user limit for save states (`states_v1`); at least 65 MiB (400 below)
+	StateQuotaBytes *int64                            `json:"state_quota_bytes,omitempty"`
+	UpdateAuto      *bool                             `json:"update_auto,omitempty"`
+	UpdateChannel   *AdminSettingsUpdateUpdateChannel `json:"update_channel,omitempty"`
 }
 
 // AdminSettingsUpdateUpdateChannel defines model for AdminSettingsUpdate.UpdateChannel.
@@ -3436,9 +3484,14 @@ type Run struct {
 	Participants []RunParticipant `json:"participants"`
 
 	// PlaySeconds Total play time of all people in this run. Sent by `listRuns`, `getRun` and the admin run reads, not by pushes.
-	PlaySeconds *int64             `json:"play_seconds,omitempty"`
-	Plugins     []RunPlugin        `json:"plugins"`
-	RunId       openapi_types.UUID `json:"run_id"`
+	PlaySeconds *int64      `json:"play_seconds,omitempty"`
+	Plugins     []RunPlugin `json:"plugins"`
+
+	// Rules Core rules of a run (`run_rules_v1`), enforced by the app. A new run has `states` false, `rewind` false and
+	// `cheats` / `memory_write` `off`; without a run everything is allowed. `logged` allows the feature and writes the
+	// run events `cheat.enabled`, `cheat.disabled` and `memory.write`.
+	Rules RunRules           `json:"rules"`
+	RunId openapi_types.UUID `json:"run_id"`
 
 	// SaveSlot Feature `runs_v2`. The app's save slot of this run: "run-" plus the first 8 hex characters of the run id (lowercase, dashes ignored).
 	SaveSlot string `json:"save_slot"`
@@ -3472,6 +3525,9 @@ type RunCreateRequest struct {
 	// Plugins Zero to 8 plugins (feature `runs_v2`; a run without plugins is valid).
 	Plugins []RunPluginRef `json:"plugins"`
 
+	// Rules Optional (`run_rules_v1`); a new run without it gets the defaults (everything off).
+	Rules *RunRules `json:"rules,omitempty"`
+
 	// Settings An opaque JSON object the server stores byte-exact and never interprets.
 	Settings *RunJsonObject `json:"settings,omitempty"`
 }
@@ -3491,7 +3547,7 @@ type RunEvent struct {
 	Source RunEventSource `json:"source"`
 	Text   string         `json:"text"`
 
-	// Type server events: `run.created`, `run.joined`, `run.declined`, `run.invited`, `run.left`, `run.status`
+	// Type server events: `run.created`, `run.joined`, `run.declined`, `run.invited`, `run.left`, `run.status`, `rules.changed`; app events: `cheat.enabled`, `cheat.disabled`, `memory.write`, `state.loaded`
 	Type string `json:"type"`
 
 	// UserId null for server events (who it is about is in the payload)
@@ -3513,8 +3569,10 @@ type RunEventRequest struct {
 	ClientId openapi_types.UUID `json:"client_id"`
 
 	// Payload An opaque JSON object the server stores byte-exact and never interprets.
-	Payload  *RunJsonObject        `json:"payload,omitempty"`
-	PluginId string                `json:"plugin_id"`
+	Payload *RunJsonObject `json:"payload,omitempty"`
+
+	// PluginId Required (and a plugin of the run) except for the events the app writes itself (`cheat.enabled`, `cheat.disabled`, `memory.write`, `state.loaded`; `run_rules_v1`): there it is optional and names the plugin that caused the event when there is one.
+	PluginId *string               `json:"plugin_id,omitempty"`
 	Source   RunEventRequestSource `json:"source"`
 	Text     *string               `json:"text,omitempty"`
 	Type     string                `json:"type"`
@@ -3593,6 +3651,22 @@ type RunPluginState struct {
 	UpdatedAt time.Time     `json:"updated_at"`
 }
 
+// RunRules Core rules of a run (`run_rules_v1`), enforced by the app. A new run has `states` false, `rewind` false and
+// `cheats` / `memory_write` `off`; without a run everything is allowed. `logged` allows the feature and writes the
+// run events `cheat.enabled`, `cheat.disabled` and `memory.write`.
+type RunRules struct {
+	Cheats      RunRulesCheats      `json:"cheats"`
+	MemoryWrite RunRulesMemoryWrite `json:"memory_write"`
+	Rewind      bool                `json:"rewind"`
+	States      bool                `json:"states"`
+}
+
+// RunRulesCheats defines model for RunRules.Cheats.
+type RunRulesCheats string
+
+// RunRulesMemoryWrite defines model for RunRules.MemoryWrite.
+type RunRulesMemoryWrite string
+
 // RunStateConflictError Error body of the state 409. `state_rev` and `state` are present with `state_conflict` and carry the current values.
 type RunStateConflictError struct {
 	Error struct {
@@ -3632,6 +3706,8 @@ type RunStatusRequestStatus string
 
 // SaveCheckpoint Current checkpoint of a slot (one opaque blob).
 type SaveCheckpoint struct {
+	// CheatsUsed `run_rules_v1`. The save was made while cheats or memory writes were active (sent by the app with `X-Uzume-Cheats-Used`). Absent = false.
+	CheatsUsed *bool              `json:"cheats_used,omitempty"`
 	CreatedAt  time.Time          `json:"created_at"`
 	DeviceId   openapi_types.UUID `json:"device_id"`
 	DeviceName string             `json:"device_name"`
@@ -3697,11 +3773,13 @@ type SaveHistoryReason string
 
 // SaveHistoryVersion Permanent history version with its own per-slot counter ("vN").
 type SaveHistoryVersion struct {
+	// CheatsUsed `run_rules_v1`. The version was captured from a save that was made while cheats or memory writes were active. Absent = false.
+	CheatsUsed *bool              `json:"cheats_used,omitempty"`
 	CreatedAt  time.Time          `json:"created_at"`
 	DeviceId   openapi_types.UUID `json:"device_id"`
 	DeviceName string             `json:"device_name"`
 
-	// Label Optional label (manual snapshots, `saves_v2`); null or absent when none
+	// Label Optional label (manual snapshots, `saves_v2`; up to 120 characters since `run_rules_v1`): the user's own text, "Before cheats", "Before memory changes" or "<plugin name>: <reason>"; null or absent when none
 	Label  *string           `json:"label"`
 	Reason SaveHistoryReason `json:"reason"`
 
@@ -3753,7 +3831,44 @@ type SaveSlotSummary struct {
 
 // SaveSnapshotRequest defines model for SaveSnapshotRequest.
 type SaveSnapshotRequest struct {
+	// Label Up to 120 characters (64 before `run_rules_v1`)
 	Label *string `json:"label,omitempty"`
+}
+
+// SaveState One stored save state (metadata only; the blob is `downloadSaveState`).
+type SaveState struct {
+	CoreId      string             `json:"core_id"`
+	CoreVersion string             `json:"core_version"`
+	CreatedAt   time.Time          `json:"created_at"`
+	DeviceId    string             `json:"device_id"`
+	DeviceName  string             `json:"device_name"`
+	GameId      openapi_types.UUID `json:"game_id"`
+	HasPreview  bool               `json:"has_preview"`
+
+	// N 0 = quick slot
+	N            int    `json:"n"`
+	PreviewBytes *int64 `json:"preview_bytes,omitempty"`
+	Sha256       string `json:"sha256"`
+	SizeBytes    int64  `json:"size_bytes"`
+
+	// Slot Save slot the state belongs to
+	Slot string `json:"slot"`
+}
+
+// SaveStateList defines model for SaveStateList.
+type SaveStateList struct {
+	// QuotaBytes Per-user limit (default 2 GiB, set by the admin)
+	QuotaBytes int64       `json:"quota_bytes"`
+	States     []SaveState `json:"states"`
+
+	// UsedBytes All states of the caller on this server (every game; blobs and previews)
+	UsedBytes int64 `json:"used_bytes"`
+}
+
+// SaveStateMeta defines model for SaveStateMeta.
+type SaveStateMeta struct {
+	CoreId      string `json:"core_id"`
+	CoreVersion string `json:"core_version"`
 }
 
 // SaveSyncReason defines model for SaveSyncReason.
@@ -4078,6 +4193,9 @@ type RunPluginId = string
 // SaveSlotName defines model for SaveSlotName.
 type SaveSlotName = string
 
+// SaveStateNumber defines model for SaveStateNumber.
+type SaveStateNumber = int
+
 // ScreenshotId defines model for ScreenshotId.
 type ScreenshotId = openapi_types.UUID
 
@@ -4222,6 +4340,9 @@ type PutSaveParams struct {
 	// XUzumeContentSHA256 Lowercase hex SHA-256 of the body; verified by the server.
 	XUzumeContentSHA256 string         `json:"X-Uzume-Content-SHA256"`
 	XUzumeSyncReason    SaveSyncReason `json:"X-Uzume-Sync-Reason"`
+
+	// XUzumeCheatsUsed `run_rules_v1`. `true` when cheats or memory writes were active while this save was made; stored on the new checkpoint and copied to the history versions made from it (`cheats_used`). Absent = false.
+	XUzumeCheatsUsed *bool `json:"X-Uzume-Cheats-Used,omitempty"`
 }
 
 // UploadSaveFileParams defines parameters for UploadSaveFile.
@@ -4236,6 +4357,18 @@ type UploadSaveFileParams struct {
 // UploadScreenshotParams defines parameters for UploadScreenshot.
 type UploadScreenshotParams struct {
 	RunId *openapi_types.UUID `form:"run_id,omitempty" json:"run_id,omitempty"`
+}
+
+// ListSaveStatesParams defines parameters for ListSaveStates.
+type ListSaveStatesParams struct {
+	Slot *string `form:"slot,omitempty" json:"slot,omitempty"`
+}
+
+// PutSaveStateMultipartBody defines parameters for PutSaveState.
+type PutSaveStateMultipartBody struct {
+	Meta    SaveStateMeta       `json:"meta"`
+	Preview *openapi_types.File `json:"preview,omitempty"`
+	State   openapi_types.File  `json:"state"`
 }
 
 // GetPluginFileParams defines parameters for GetPluginFile.
@@ -4391,6 +4524,9 @@ type RenameSaveSlotJSONRequestBody = SaveSlotRenameRequest
 // CreateSaveSnapshotJSONRequestBody defines body for CreateSaveSnapshot for application/json ContentType.
 type CreateSaveSnapshotJSONRequestBody = SaveSnapshotRequest
 
+// PutSaveStateMultipartRequestBody defines body for PutSaveState for multipart/form-data ContentType.
+type PutSaveStateMultipartRequestBody PutSaveStateMultipartBody
+
 // PostHandshakeJSONRequestBody defines body for PostHandshake for application/json ContentType.
 type PostHandshakeJSONRequestBody = HandshakeRequest
 
@@ -4426,6 +4562,9 @@ type InviteRunJSONRequestBody = RunInviteRequest
 
 // JoinRunJSONRequestBody defines body for JoinRun for application/json ContentType.
 type JoinRunJSONRequestBody = RunJoinRequest
+
+// SetRunRulesJSONRequestBody defines body for SetRunRules for application/json ContentType.
+type SetRunRulesJSONRequestBody = RunRules
 
 // PutRunStateJSONRequestBody defines body for PutRunState for application/json ContentType.
 type PutRunStateJSONRequestBody = RunStateRequest
@@ -5373,6 +5512,21 @@ type ServerInterface interface {
 	// Store a screenshot of a game
 	// (POST /api/v1/games/{game_id}/screenshots)
 	UploadScreenshot(w http.ResponseWriter, r *http.Request, gameId GameId, params UploadScreenshotParams)
+	// The caller's own save states of a game (`states_v1`)
+	// (GET /api/v1/games/{game_id}/states)
+	ListSaveStates(w http.ResponseWriter, r *http.Request, gameId GameId, params ListSaveStatesParams)
+	// Delete a save state (`states_v1`)
+	// (DELETE /api/v1/games/{game_id}/states/{slot}/{n})
+	DeleteSaveState(w http.ResponseWriter, r *http.Request, gameId GameId, slot SaveSlotName, n SaveStateNumber)
+	// The state blob (`states_v1`)
+	// (GET /api/v1/games/{game_id}/states/{slot}/{n})
+	DownloadSaveState(w http.ResponseWriter, r *http.Request, gameId GameId, slot SaveSlotName, n SaveStateNumber)
+	// Store or replace a save state (`states_v1`)
+	// (PUT /api/v1/games/{game_id}/states/{slot}/{n})
+	PutSaveState(w http.ResponseWriter, r *http.Request, gameId GameId, slot SaveSlotName, n SaveStateNumber)
+	// The preview PNG of a save state (`states_v1`)
+	// (GET /api/v1/games/{game_id}/states/{slot}/{n}/preview)
+	DownloadSaveStatePreview(w http.ResponseWriter, r *http.Request, gameId GameId, slot SaveSlotName, n SaveStateNumber)
 	// Handshake with capability negotiation
 	// (POST /api/v1/handshake)
 	PostHandshake(w http.ResponseWriter, r *http.Request)
@@ -5439,6 +5593,9 @@ type ServerInterface interface {
 	// Leave a run the caller joined (leaving again is a no-op); colour and state stay
 	// (POST /api/v1/runs/{run_id}/leave)
 	LeaveRun(w http.ResponseWriter, r *http.Request, runId RunId)
+	// Replace the core rules of a run (`run_rules_v1`)
+	// (PUT /api/v1/runs/{run_id}/rules)
+	SetRunRules(w http.ResponseWriter, r *http.Request, runId RunId)
 	// Screenshots of all members of a run, newest first
 	// (GET /api/v1/runs/{run_id}/screenshots)
 	ListRunScreenshots(w http.ResponseWriter, r *http.Request, runId RunId)
@@ -9979,6 +10136,25 @@ func (siw *ServerInterfaceWrapper) PutSave(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// ------------- Optional header parameter "X-Uzume-Cheats-Used" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Uzume-Cheats-Used")]; found {
+		var XUzumeCheatsUsed bool
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Uzume-Cheats-Used", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Uzume-Cheats-Used", valueList[0], &XUzumeCheatsUsed, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "boolean", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Uzume-Cheats-Used", Err: err})
+			return
+		}
+
+		params.XUzumeCheatsUsed = &XUzumeCheatsUsed
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PutSave(w, r, gameId, slot, params)
 	}))
@@ -10517,6 +10693,254 @@ func (siw *ServerInterfaceWrapper) UploadScreenshot(w http.ResponseWriter, r *ht
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.UploadScreenshot(w, r, gameId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListSaveStates operation middleware
+func (siw *ServerInterfaceWrapper) ListSaveStates(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "game_id" -------------
+	var gameId GameId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "game_id", r.PathValue("game_id"), &gameId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "game_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListSaveStatesParams
+
+	// ------------- Optional query parameter "slot" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "slot", r.URL.Query(), &params.Slot, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "slot"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "slot", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListSaveStates(w, r, gameId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteSaveState operation middleware
+func (siw *ServerInterfaceWrapper) DeleteSaveState(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "game_id" -------------
+	var gameId GameId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "game_id", r.PathValue("game_id"), &gameId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "game_id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "slot" -------------
+	var slot SaveSlotName
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slot", r.PathValue("slot"), &slot, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "slot", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "n" -------------
+	var n SaveStateNumber
+
+	err = runtime.BindStyledParameterWithOptions("simple", "n", r.PathValue("n"), &n, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "n", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteSaveState(w, r, gameId, slot, n)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DownloadSaveState operation middleware
+func (siw *ServerInterfaceWrapper) DownloadSaveState(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "game_id" -------------
+	var gameId GameId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "game_id", r.PathValue("game_id"), &gameId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "game_id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "slot" -------------
+	var slot SaveSlotName
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slot", r.PathValue("slot"), &slot, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "slot", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "n" -------------
+	var n SaveStateNumber
+
+	err = runtime.BindStyledParameterWithOptions("simple", "n", r.PathValue("n"), &n, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "n", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DownloadSaveState(w, r, gameId, slot, n)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutSaveState operation middleware
+func (siw *ServerInterfaceWrapper) PutSaveState(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "game_id" -------------
+	var gameId GameId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "game_id", r.PathValue("game_id"), &gameId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "game_id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "slot" -------------
+	var slot SaveSlotName
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slot", r.PathValue("slot"), &slot, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "slot", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "n" -------------
+	var n SaveStateNumber
+
+	err = runtime.BindStyledParameterWithOptions("simple", "n", r.PathValue("n"), &n, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "n", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutSaveState(w, r, gameId, slot, n)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DownloadSaveStatePreview operation middleware
+func (siw *ServerInterfaceWrapper) DownloadSaveStatePreview(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "game_id" -------------
+	var gameId GameId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "game_id", r.PathValue("game_id"), &gameId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "game_id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "slot" -------------
+	var slot SaveSlotName
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slot", r.PathValue("slot"), &slot, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "slot", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "n" -------------
+	var n SaveStateNumber
+
+	err = runtime.BindStyledParameterWithOptions("simple", "n", r.PathValue("n"), &n, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "n", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DownloadSaveStatePreview(w, r, gameId, slot, n)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -11154,6 +11578,38 @@ func (siw *ServerInterfaceWrapper) LeaveRun(w http.ResponseWriter, r *http.Reque
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.LeaveRun(w, r, runId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SetRunRules operation middleware
+func (siw *ServerInterfaceWrapper) SetRunRules(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "run_id" -------------
+	var runId RunId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "run_id", r.PathValue("run_id"), &runId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "run_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SetRunRules(w, r, runId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -12205,6 +12661,11 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/games/{game_id}/saves/{slot}/upload", wrapper.UploadSaveFile)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/games/{game_id}/screenshots", wrapper.ListScreenshots)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/games/{game_id}/screenshots", wrapper.UploadScreenshot)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/games/{game_id}/states", wrapper.ListSaveStates)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/api/v1/games/{game_id}/states/{slot}/{n}", wrapper.DeleteSaveState)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/games/{game_id}/states/{slot}/{n}", wrapper.DownloadSaveState)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/api/v1/games/{game_id}/states/{slot}/{n}", wrapper.PutSaveState)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/games/{game_id}/states/{slot}/{n}/preview", wrapper.DownloadSaveStatePreview)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/handshake", wrapper.PostHandshake)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/invites/redeem", wrapper.RedeemInvite)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/local/pair", wrapper.LocalPair)
@@ -12227,6 +12688,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/runs/{run_id}/invite", wrapper.InviteRun)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/runs/{run_id}/join", wrapper.JoinRun)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/runs/{run_id}/leave", wrapper.LeaveRun)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/api/v1/runs/{run_id}/rules", wrapper.SetRunRules)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/runs/{run_id}/screenshots", wrapper.ListRunScreenshots)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/api/v1/runs/{run_id}/state/{plugin_id}", wrapper.PutRunState)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/runs/{run_id}/status", wrapper.SetRunStatus)
@@ -22760,6 +23222,342 @@ func (response UploadScreenshot413JSONResponse) VisitUploadScreenshotResponse(w 
 	return err
 }
 
+type ListSaveStatesRequestObject struct {
+	GameId GameId `json:"game_id"`
+	Params ListSaveStatesParams
+}
+
+type ListSaveStatesResponseObject interface {
+	VisitListSaveStatesResponse(w http.ResponseWriter) error
+}
+
+type ListSaveStates200JSONResponse SaveStateList
+
+func (response ListSaveStates200JSONResponse) VisitListSaveStatesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListSaveStates400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response ListSaveStates400JSONResponse) VisitListSaveStatesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListSaveStates401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListSaveStates401JSONResponse) VisitListSaveStatesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListSaveStates404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ListSaveStates404JSONResponse) VisitListSaveStatesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteSaveStateRequestObject struct {
+	GameId GameId          `json:"game_id"`
+	Slot   SaveSlotName    `json:"slot"`
+	N      SaveStateNumber `json:"n"`
+}
+
+type DeleteSaveStateResponseObject interface {
+	VisitDeleteSaveStateResponse(w http.ResponseWriter) error
+}
+
+type DeleteSaveState204Response struct {
+}
+
+func (response DeleteSaveState204Response) VisitDeleteSaveStateResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteSaveState401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteSaveState401JSONResponse) VisitDeleteSaveStateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteSaveState404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteSaveState404JSONResponse) VisitDeleteSaveStateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DownloadSaveStateRequestObject struct {
+	GameId GameId          `json:"game_id"`
+	Slot   SaveSlotName    `json:"slot"`
+	N      SaveStateNumber `json:"n"`
+}
+
+type DownloadSaveStateResponseObject interface {
+	VisitDownloadSaveStateResponse(w http.ResponseWriter) error
+}
+
+type DownloadSaveState200ResponseHeaders struct {
+	ContentLength     *int64
+	ETag              *string
+	XUzumeCoreId      *string
+	XUzumeCoreVersion *string
+}
+
+type DownloadSaveState200ApplicationoctetStreamResponse struct {
+	Body          io.Reader
+	Headers       DownloadSaveState200ResponseHeaders
+	ContentLength int64
+}
+
+func (response DownloadSaveState200ApplicationoctetStreamResponse) VisitDownloadSaveStateResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "application/octet-stream")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	if response.Headers.ContentLength != nil {
+		w.Header().Set("Content-Length", fmt.Sprint(*response.Headers.ContentLength))
+	}
+	if response.Headers.ETag != nil {
+		w.Header().Set("ETag", fmt.Sprint(*response.Headers.ETag))
+	}
+	if response.Headers.XUzumeCoreId != nil {
+		w.Header().Set("X-Uzume-Core-Id", fmt.Sprint(*response.Headers.XUzumeCoreId))
+	}
+	if response.Headers.XUzumeCoreVersion != nil {
+		w.Header().Set("X-Uzume-Core-Version", fmt.Sprint(*response.Headers.XUzumeCoreVersion))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type DownloadSaveState401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DownloadSaveState401JSONResponse) VisitDownloadSaveStateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DownloadSaveState404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DownloadSaveState404JSONResponse) VisitDownloadSaveStateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutSaveStateRequestObject struct {
+	GameId GameId          `json:"game_id"`
+	Slot   SaveSlotName    `json:"slot"`
+	N      SaveStateNumber `json:"n"`
+	Body   *multipart.Reader
+}
+
+type PutSaveStateResponseObject interface {
+	VisitPutSaveStateResponse(w http.ResponseWriter) error
+}
+
+type PutSaveState200JSONResponse SaveState
+
+func (response PutSaveState200JSONResponse) VisitPutSaveStateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutSaveState400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response PutSaveState400JSONResponse) VisitPutSaveStateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutSaveState401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response PutSaveState401JSONResponse) VisitPutSaveStateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutSaveState404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response PutSaveState404JSONResponse) VisitPutSaveStateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutSaveState413JSONResponse Error
+
+func (response PutSaveState413JSONResponse) VisitPutSaveStateResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(413)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DownloadSaveStatePreviewRequestObject struct {
+	GameId GameId          `json:"game_id"`
+	Slot   SaveSlotName    `json:"slot"`
+	N      SaveStateNumber `json:"n"`
+}
+
+type DownloadSaveStatePreviewResponseObject interface {
+	VisitDownloadSaveStatePreviewResponse(w http.ResponseWriter) error
+}
+
+type DownloadSaveStatePreview200ResponseHeaders struct {
+	ContentLength *int64
+}
+
+type DownloadSaveStatePreview200ImagepngResponse struct {
+	Body          io.Reader
+	Headers       DownloadSaveStatePreview200ResponseHeaders
+	ContentLength int64
+}
+
+func (response DownloadSaveStatePreview200ImagepngResponse) VisitDownloadSaveStatePreviewResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "image/png")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	if response.Headers.ContentLength != nil {
+		w.Header().Set("Content-Length", fmt.Sprint(*response.Headers.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type DownloadSaveStatePreview401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DownloadSaveStatePreview401JSONResponse) VisitDownloadSaveStatePreviewResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DownloadSaveStatePreview404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DownloadSaveStatePreview404JSONResponse) VisitDownloadSaveStatePreviewResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type PostHandshakeRequestObject struct {
 	Body *PostHandshakeJSONRequestBody
 }
@@ -24507,6 +25305,99 @@ func (response LeaveRun404JSONResponse) VisitLeaveRunResponse(w http.ResponseWri
 type LeaveRun409JSONResponse struct{ RunConflictJSONResponse }
 
 func (response LeaveRun409JSONResponse) VisitLeaveRunResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetRunRulesRequestObject struct {
+	RunId RunId `json:"run_id"`
+	Body  *SetRunRulesJSONRequestBody
+}
+
+type SetRunRulesResponseObject interface {
+	VisitSetRunRulesResponse(w http.ResponseWriter) error
+}
+
+type SetRunRules200JSONResponse Run
+
+func (response SetRunRules200JSONResponse) VisitSetRunRulesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetRunRules400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response SetRunRules400JSONResponse) VisitSetRunRulesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetRunRules401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response SetRunRules401JSONResponse) VisitSetRunRulesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetRunRules403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response SetRunRules403JSONResponse) VisitSetRunRulesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetRunRules404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response SetRunRules404JSONResponse) VisitSetRunRulesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetRunRules409JSONResponse struct{ RunConflictJSONResponse }
+
+func (response SetRunRules409JSONResponse) VisitSetRunRulesResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -26800,6 +27691,21 @@ type StrictServerInterface interface {
 	// Store a screenshot of a game
 	// (POST /api/v1/games/{game_id}/screenshots)
 	UploadScreenshot(ctx context.Context, request UploadScreenshotRequestObject) (UploadScreenshotResponseObject, error)
+	// The caller's own save states of a game (`states_v1`)
+	// (GET /api/v1/games/{game_id}/states)
+	ListSaveStates(ctx context.Context, request ListSaveStatesRequestObject) (ListSaveStatesResponseObject, error)
+	// Delete a save state (`states_v1`)
+	// (DELETE /api/v1/games/{game_id}/states/{slot}/{n})
+	DeleteSaveState(ctx context.Context, request DeleteSaveStateRequestObject) (DeleteSaveStateResponseObject, error)
+	// The state blob (`states_v1`)
+	// (GET /api/v1/games/{game_id}/states/{slot}/{n})
+	DownloadSaveState(ctx context.Context, request DownloadSaveStateRequestObject) (DownloadSaveStateResponseObject, error)
+	// Store or replace a save state (`states_v1`)
+	// (PUT /api/v1/games/{game_id}/states/{slot}/{n})
+	PutSaveState(ctx context.Context, request PutSaveStateRequestObject) (PutSaveStateResponseObject, error)
+	// The preview PNG of a save state (`states_v1`)
+	// (GET /api/v1/games/{game_id}/states/{slot}/{n}/preview)
+	DownloadSaveStatePreview(ctx context.Context, request DownloadSaveStatePreviewRequestObject) (DownloadSaveStatePreviewResponseObject, error)
 	// Handshake with capability negotiation
 	// (POST /api/v1/handshake)
 	PostHandshake(ctx context.Context, request PostHandshakeRequestObject) (PostHandshakeResponseObject, error)
@@ -26866,6 +27772,9 @@ type StrictServerInterface interface {
 	// Leave a run the caller joined (leaving again is a no-op); colour and state stay
 	// (POST /api/v1/runs/{run_id}/leave)
 	LeaveRun(ctx context.Context, request LeaveRunRequestObject) (LeaveRunResponseObject, error)
+	// Replace the core rules of a run (`run_rules_v1`)
+	// (PUT /api/v1/runs/{run_id}/rules)
+	SetRunRules(ctx context.Context, request SetRunRulesRequestObject) (SetRunRulesResponseObject, error)
 	// Screenshots of all members of a run, newest first
 	// (GET /api/v1/runs/{run_id}/screenshots)
 	ListRunScreenshots(ctx context.Context, request ListRunScreenshotsRequestObject) (ListRunScreenshotsResponseObject, error)
@@ -31178,6 +32087,152 @@ func (sh *strictHandler) UploadScreenshot(w http.ResponseWriter, r *http.Request
 	}
 }
 
+// ListSaveStates operation middleware
+func (sh *strictHandler) ListSaveStates(w http.ResponseWriter, r *http.Request, gameId GameId, params ListSaveStatesParams) {
+	var request ListSaveStatesRequestObject
+
+	request.GameId = gameId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListSaveStates(ctx, request.(ListSaveStatesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListSaveStates")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListSaveStatesResponseObject); ok {
+		if err := validResponse.VisitListSaveStatesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteSaveState operation middleware
+func (sh *strictHandler) DeleteSaveState(w http.ResponseWriter, r *http.Request, gameId GameId, slot SaveSlotName, n SaveStateNumber) {
+	var request DeleteSaveStateRequestObject
+
+	request.GameId = gameId
+	request.Slot = slot
+	request.N = n
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteSaveState(ctx, request.(DeleteSaveStateRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteSaveState")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteSaveStateResponseObject); ok {
+		if err := validResponse.VisitDeleteSaveStateResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DownloadSaveState operation middleware
+func (sh *strictHandler) DownloadSaveState(w http.ResponseWriter, r *http.Request, gameId GameId, slot SaveSlotName, n SaveStateNumber) {
+	var request DownloadSaveStateRequestObject
+
+	request.GameId = gameId
+	request.Slot = slot
+	request.N = n
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DownloadSaveState(ctx, request.(DownloadSaveStateRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DownloadSaveState")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DownloadSaveStateResponseObject); ok {
+		if err := validResponse.VisitDownloadSaveStateResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutSaveState operation middleware
+func (sh *strictHandler) PutSaveState(w http.ResponseWriter, r *http.Request, gameId GameId, slot SaveSlotName, n SaveStateNumber) {
+	var request PutSaveStateRequestObject
+
+	request.GameId = gameId
+	request.Slot = slot
+	request.N = n
+
+	if reader, err := r.MultipartReader(); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode multipart body: %w", err))
+		return
+	} else {
+		request.Body = reader
+	}
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutSaveState(ctx, request.(PutSaveStateRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutSaveState")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutSaveStateResponseObject); ok {
+		if err := validResponse.VisitPutSaveStateResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DownloadSaveStatePreview operation middleware
+func (sh *strictHandler) DownloadSaveStatePreview(w http.ResponseWriter, r *http.Request, gameId GameId, slot SaveSlotName, n SaveStateNumber) {
+	var request DownloadSaveStatePreviewRequestObject
+
+	request.GameId = gameId
+	request.Slot = slot
+	request.N = n
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DownloadSaveStatePreview(ctx, request.(DownloadSaveStatePreviewRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DownloadSaveStatePreview")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DownloadSaveStatePreviewResponseObject); ok {
+		if err := validResponse.VisitDownloadSaveStatePreviewResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // PostHandshake operation middleware
 func (sh *strictHandler) PostHandshake(w http.ResponseWriter, r *http.Request) {
 	var request PostHandshakeRequestObject
@@ -31810,6 +32865,39 @@ func (sh *strictHandler) LeaveRun(w http.ResponseWriter, r *http.Request, runId 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(LeaveRunResponseObject); ok {
 		if err := validResponse.VisitLeaveRunResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SetRunRules operation middleware
+func (sh *strictHandler) SetRunRules(w http.ResponseWriter, r *http.Request, runId RunId) {
+	var request SetRunRulesRequestObject
+
+	request.RunId = runId
+
+	var body SetRunRulesJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SetRunRules(ctx, request.(SetRunRulesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SetRunRules")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SetRunRulesResponseObject); ok {
+		if err := validResponse.VisitSetRunRulesResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

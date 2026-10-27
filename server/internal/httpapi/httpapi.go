@@ -81,6 +81,9 @@ func Register(mux *http.ServeMux, svc *hub.Service, log *slog.Logger, opts ...Op
 				if r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/api/v1/games/") && strings.HasSuffix(r.URL.Path, "/screenshots") {
 					limit = hub.MaxScreenshotBytes + 1 // the service answers 413 payload_too_large
 				}
+				if r.Method == http.MethodPut && strings.HasPrefix(r.URL.Path, "/api/v1/games/") && strings.Contains(r.URL.Path, "/states/") {
+					limit = hub.MaxStateBytes + hub.MaxStatePreviewBytes + 1<<20 // state, preview and the multipart framing; the service answers 413
+				}
 				if r.Method == http.MethodPost && r.URL.Path == "/api/v1/reports" {
 					limit = hub.ReportMaxBytes + 1<<20 // attachments plus the multipart framing and meta
 				}
@@ -184,6 +187,7 @@ func (s *Server) authMiddleware(next api.StrictHandlerFunc, op string) api.Stric
 			"GetAdminFirmwareFile", "PutAdminFirmwareFile", "PinAdminFirmwareFile", "RemoveAdminFirmwareFile",
 			"ListAdminPlugins", "StageAdminPlugin", "OfferAdminPlugin", "DiscardAdminPlugin", "RemoveAdminPlugin", "RefreshAdminPluginIndex", "InstallAdminIndexPlugin",
 			"CreateAdminDiagnosticsBundle", "DeleteAdminGame", "RenameAdminGame", "GetAdminLibraryRescan", "StartAdminLibraryRescan", "ListAdminRuns", "DeleteAdminRun", "GetAdminRun", "ArchiveAdminRun", "ExportAdminRun", "FinishAdminRun", "RemoveAdminRunInvite", "ResendAdminRunInvite", "PauseAdminRun", "ResendAdminRunInvites", "ResumeAdminRun", "StartAdminRun", "UnarchiveAdminRun", "ListAdminSaves", "RenewAdminCertificate", "GetAdminSettings", "UpdateAdminSettings", "DeleteAdminExternalTurn", "SaveAdminExternalTurn", "ResetAdminExternalTurn", "RestartAdminServer", "ResetAdminNetSetting", "SetAdminNetSetting", "CheckAdminUpdates", "InstallAdminUpdate", "DeleteAdminSaveSlot", "GetAdminSaveSlot", "ResolveAdminSaveConflict", "DownloadAdminSaveContent", "ListAdminSaveHistory", "DeleteAdminSaveVersion", "DownloadAdminSaveHistoryContent", "RestoreAdminSaveVersion", "RenameAdminSaveSlot", "CreateAdminSaveSlot", "CreateAdminSaveSnapshot", "UploadAdminSaveFile",
+			"ListSaveStates", "DownloadSaveState", "PutSaveState", "DeleteSaveState", "DownloadSaveStatePreview", "SetRunRules",
 			"UploadScreenshot", "ListScreenshots", "ListRunScreenshots", "DownloadScreenshotContent", "DeleteScreenshot",
 			"AddFavorite", "RemoveFavorite", "ListCollections", "CreateCollection", "RenameCollection", "DeleteCollection", "AddCollectionGame", "RemoveCollectionGame",
 			"ListRuns", "CreateRun", "GetRun", "JoinRun", "DeclineRun", "LeaveRun", "InviteRun", "SetRunStatus", "PutRunState", "AppendRunEvent", "ListRunEvents", "PutRunBoard":
@@ -269,7 +273,7 @@ func httpStatus(c hub.Code) int {
 		hub.CodeSessionFull, hub.CodeCapabilityMissing, hub.CodeDisplayNameTaken,
 		hub.CodeSaveSlotExists, hub.CodeSessionRunning, hub.CodeSaveSlotProtected, hub.CodePasswordNotSet, hub.CodeAlreadySetUp:
 		return http.StatusConflict
-	case hub.CodePayloadTooLarge:
+	case hub.CodePayloadTooLarge, hub.CodeStateQuotaExceeded:
 		return http.StatusRequestEntityTooLarge
 	case hub.CodeRateLimited:
 		return http.StatusTooManyRequests
