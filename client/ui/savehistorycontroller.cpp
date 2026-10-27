@@ -106,9 +106,20 @@ QVariantList SaveHistoryController::slotOptions() const {
   QVariantList out;
   for (const QString& n : names) {
     const int count = n == active ? versionCount() : slotVersionCounts_.value(n, -1);
+    const QString kind = n == QLatin1String("default") ? QStringLiteral("main") : (env_.slotKind ? env_.slotKind(n) : QString());
+    // "Variant · v6", "Run · v44", "Variant · new" (a slot without a save yet) beside the slot name (10g-2).
+    QString hint;
+    if (kind == QLatin1String("variant") || kind == QLatin1String("run")) {
+      hint = kind == QLatin1String("variant") ? tr("Variant") : tr("Run");
+      hint += count > 0 ? QStringLiteral(" · v%1").arg(count) : (count == 0 ? tr(" · new") : QString());
+    } else if (kind == QLatin1String("main") && count > 0) {
+      hint = QStringLiteral("v%1").arg(count);
+    }
     out.append(QVariantMap{{QStringLiteral("value"), n},
                            {QStringLiteral("label"), slotName(n)},
-                           {QStringLiteral("count"), count}});
+                           {QStringLiteral("count"), count},
+                           {QStringLiteral("kind"), kind},
+                           {QStringLiteral("hint"), hint}});
   }
   return out;
 }

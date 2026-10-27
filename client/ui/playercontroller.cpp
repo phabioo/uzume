@@ -446,6 +446,10 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
     variants_ = std::make_unique<VariantsController>(vd, bridge);
     plugins_->setVariantsProvider(bridge);
     connect(variants_.get(), &VariantsController::launchRequested, this, &PlayerController::startVariantGame);
+    // Library status "N variants" / "Building n %" and Continue (10g-1).
+    const auto syncBadges = [this]() { model_.setVariantBadges(variants_->summary()); };
+    connect(variants_.get(), &VariantsController::variantsChanged, this, syncBadges);
+    connect(variants_.get(), &VariantsController::progressChanged, this, syncBadges);
     connect(variants_.get(), &VariantsController::runVariantReady, this, [this](const QString& runId) {
       // A run start waited for its variant: the game of the run starts now.
       if (pendingRunPlay_.runId == runId) {
@@ -472,6 +476,7 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
     LocalStorageInput in;
     in.dataDir = profiles_->baseDir();
     in.firmwareDir = fwCache_->dir();
+    in.variantsDir = variantCache_ ? variantCache_->root() : QString();
     in.roms = *cache_;
     in.cores = *coreCache_;
     in.platform = CoreCache::currentPlatform();
@@ -521,9 +526,17 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
       const auto g = model_.game(id);
       return g ? SaveStore::expectedSaveName(g->romSha256 + QLatin1Char('.') + RomCache::extensionFromFilename(g->romFilename)) : QString();
     };
-    env.slotDisplayName = [this](const QString& slot) { return runs_ ? runs_->slotDisplayName(slot) : QString(); };
+    env.slotDisplayName = [this](const QString& slot) {
+      const QString run = runs_ ? runs_->slotDisplayName(slot) : QString();
+      return run.isEmpty() && variants_ ? variants_->slotDisplayName(slot) : run;
+    };
+    env.slotKind = [this](const QString& slot) {
+      if (runs_ && !runs_->slotDisplayName(slot).isEmpty()) return QStringLiteral("run");
+      return variants_ && !variants_->slotDisplayName(slot).isEmpty() ? QStringLiteral("variant") : QString();
+    };
     history_ = std::make_unique<SaveHistoryController>(env);
     connect(runs_.get(), &RunsController::runsChanged, history_.get(), &SaveHistoryController::onSlotNamesChanged);
+    if (variants_) connect(variants_.get(), &VariantsController::cacheChanged, history_.get(), &SaveHistoryController::onSlotNamesChanged);
     connect(this, &PlayerController::selectedGameChanged, history_.get(), [this]() {
       history_->setGame(selectedId_);
       history_->onGameStateChanged();

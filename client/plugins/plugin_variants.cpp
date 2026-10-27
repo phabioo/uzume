@@ -4,27 +4,61 @@
 
 namespace uzume::plugins {
 
-void VariantRegistry::set(const VariantRegistration& reg) {
+void VariantRegistry::setOnChange(std::function<void()> cb) {
   QMutexLocker l(&mutex_);
-  byPlugin_.insert(reg.pluginId, reg);
+  onChange_ = std::move(cb);
+}
+
+void VariantRegistry::changed() {
+  std::function<void()> cb;
+  {
+    QMutexLocker l(&mutex_);
+    cb = onChange_;
+  }
+  if (cb) cb();
+}
+
+void VariantRegistry::set(const VariantRegistration& reg) {
+  {
+    QMutexLocker l(&mutex_);
+    byPlugin_.insert(reg.pluginId, reg);
+  }
+  changed();
 }
 
 void VariantRegistry::remove(const QString& pluginId) {
-  QMutexLocker l(&mutex_);
-  byPlugin_.remove(pluginId);
+  bool had;
+  {
+    QMutexLocker l(&mutex_);
+    had = byPlugin_.remove(pluginId) > 0;
+  }
+  if (had) changed();
 }
 
 void VariantRegistry::clear() {
-  QMutexLocker l(&mutex_);
-  byPlugin_.clear();
+  bool had;
+  {
+    QMutexLocker l(&mutex_);
+    had = !byPlugin_.isEmpty();
+    byPlugin_.clear();
+  }
+  if (had) changed();
 }
 
 void VariantRegistry::keepOnly(const QSet<QString>& pluginIds) {
-  QMutexLocker l(&mutex_);
-  for (auto it = byPlugin_.begin(); it != byPlugin_.end();) {
-    if (pluginIds.contains(it.key())) ++it;
-    else it = byPlugin_.erase(it);
+  bool any = false;
+  {
+    QMutexLocker l(&mutex_);
+    for (auto it = byPlugin_.begin(); it != byPlugin_.end();) {
+      if (pluginIds.contains(it.key())) {
+        ++it;
+      } else {
+        it = byPlugin_.erase(it);
+        any = true;
+      }
+    }
   }
+  if (any) changed();
 }
 
 QList<VariantRegistration> VariantRegistry::all() const {

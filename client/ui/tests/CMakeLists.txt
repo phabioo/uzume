@@ -343,3 +343,11 @@ uzume_add_test(ui_screenshots screenshots_ui_test.cpp ${FB_NETTEST_DIR}/fakehub.
   LIBS ${FB_UI_TEST_LIBS})
 target_include_directories(test_ui_screenshots PRIVATE ${FB_NETTEST_DIR})
 target_compile_definitions(test_ui_screenshots PRIVATE FB_TEST_DATA_DIR="${FB_NETTEST_DIR}/testdata")
+
+# Randomizer variants on the game page, in the Library and in Storage (0.21, design sheet 5): Randomize… visible / disabled / hidden, the
+# build through the dialog with the test engine, Delete keeping the saves, the Storage section. Offscreen, FakeHub, no core needed.
+uzume_add_test(ui_variants variants_ui_test.cpp ${FB_NETTEST_DIR}/fakehub.cpp ${FB_NETTEST_DIR}/fakehub.h
+  LIBS ${FB_UI_TEST_LIBS})
+target_include_directories(test_ui_variants PRIVATE ${FB_NETTEST_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/../../testutil)
+target_compile_definitions(test_ui_variants PRIVATE FB_TEST_DATA_DIR="${FB_NETTEST_DIR}/testdata" FB_TEST_ENGINE_PATH="$<TARGET_FILE:uzume_test_engine>")
+add_dependencies(test_ui_variants uzume_test_engine)

@@ -259,6 +259,12 @@ qt_add_qml_module(uzume_ui
     ScreenshotSaveDialog.qml
     LibraryAdminBar.qml
     LibraryContinue.qml
+    RandomizeDialog.qml
+    VariantEngineDialog.qml
+    VariantBuildDialog.qml
+    VariantDialogs.qml
+    VariantsSection.qml
+    VariantNotices.qml
     LibraryNotices.qml
     LibraryAdminDetails.qml
     SavesAdminSwitch.qml

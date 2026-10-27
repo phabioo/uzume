@@ -7,7 +7,12 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLoggingCategory>
+#include <QPointer>
 #include <QRandomGenerator>
+#include <QRegularExpression>
+#include <QDate>
+#include <QDateTime>
+#include <QLocale>
 #include <QTimer>
 #include <algorithm>
 #include <cmath>
@@ -88,6 +93,12 @@ VariantsController::VariantsController(Deps deps, std::shared_ptr<VariantsPlugin
       builder_(deps_.toolCache, deps_.cache, ToolCache::normalizePlatform(deps_.platform.isEmpty() ? CoreCache::currentPlatform() : deps_.platform)) {
   if (!bridge_) bridge_ = std::make_shared<VariantsPluginBridge>();
   bridge_->attach(this);
+  {
+    const QPointer<VariantsController> self(this);
+    bridge_->registry()->setOnChange([self]() {
+      if (self) QMetaObject::invokeMethod(self.data(), [self]() { if (self) { ++self->registryRevision_; emit self->registryChanged(); } }, Qt::QueuedConnection);
+    });
+  }
   connect(&builder_, &VariantBuilder::progress, this, &VariantsController::onProgress);
   connect(&builder_, &VariantBuilder::finished, this, &VariantsController::onFinished);
   if (deps_.tools != nullptr) {
@@ -104,6 +115,7 @@ VariantsController::VariantsController(Deps deps, std::shared_ptr<VariantsPlugin
       if (s == HubConnection::State::Connected) {
         if (deps_.tools != nullptr && deps_.tools->available()) deps_.tools->refresh();
         reloadList();
+        reloadAll();
       }
       refreshEngine();
     });
@@ -122,7 +134,10 @@ VariantsController::VariantsController(Deps deps, std::shared_ptr<VariantsPlugin
 }
 
 VariantsController::~VariantsController() {
-  if (bridge_) bridge_->attach(nullptr);
+  if (bridge_) {
+    bridge_->attach(nullptr);
+    bridge_->registry()->setOnChange({});
+  }
 }
 
 QString VariantsController::platformKey() const {
@@ -181,6 +196,8 @@ void VariantsController::refreshEngine() {
   e.insert(QStringLiteral("sourceUrl"), t ? t->sourceUrl : QString());
   e.insert(QStringLiteral("received"), engineReceived_);
   e.insert(QStringLiteral("total"), engineTotal_);
+  e.insert(QStringLiteral("receivedText"), formatBytesText(static_cast<qint64>(engineReceived_)));
+  e.insert(QStringLiteral("totalText"), formatBytesText(static_cast<qint64>(engineTotal_)));
   e.insert(QStringLiteral("percent"), engineTotal_ > 0 ? std::min(100.0, engineReceived_ * 100.0 / engineTotal_) : 0.0);
   e.insert(QStringLiteral("error"), engineError_);
   e.insert(QStringLiteral("offline"), !online);
@@ -351,6 +368,7 @@ void VariantsController::rebuildLists() {
   }
   variantList_ = out;
   emit variantsChanged();
+  emit cacheChanged();
 }
 
 QVariantMap VariantsController::variantMap(const QString& variantId) const {
@@ -412,6 +430,189 @@ QVariantList VariantsController::presets(const QString& gameId) const {
   for (const plugins::VariantPreset& p : bridge_->registry()->presetsFor(game->system, code.isEmpty() ? game->gameCode : code))
     out.append(QVariantMap{{QStringLiteral("id"), p.id}, {QStringLiteral("label"), p.label}, {QStringLiteral("hint"), p.hint}, {QStringLiteral("custom"), false}});
   out.append(QVariantMap{{QStringLiteral("id"), QStringLiteral("custom")}, {QStringLiteral("label"), tr("Custom settings")}, {QStringLiteral("hint"), QString()}, {QStringLiteral("custom"), true}});
+  return out;
+}
+
+
+// ---------------------------------------------------------------- what the screens ask
+
+QString VariantsController::randomizeState(const QString& gameId) const {
+  const auto game = deps_.library ? deps_.library->gameById(gameId) : std::nullopt;
+  if (!game) return QStringLiteral("none");
+  if (supported(gameId)) return QStringLiteral("ok");
+  for (const plugins::VariantRegistration& reg : bridge_->registry()->all())
+    for (const plugins::VariantGameSupport& g : reg.games)
+      if (g.system == game->system) return QStringLiteral("unsupported");
+  return QStringLiteral("none");
+}
+
+bool VariantsController::pluginAvailable() const { return !bridge_->registry()->all().isEmpty(); }
+
+QVariantMap VariantsController::gameFile(const QString& gameId) const {
+  const auto game = deps_.library ? deps_.library->gameById(gameId) : std::nullopt;
+  if (!game) return {{QStringLiteral("onPc"), false}, {QStringLiteral("sizeText"), QString()}};
+  const RomSourceChoice src = deps_.romSource ? deps_.romSource(*game) : RomSourceChoice{};
+  return {{QStringLiteral("onPc"), src.source == RomSource::Local},
+          {QStringLiteral("sizeText"), game->romSize > 0 ? formatBytesText(game->romSize) : QString()}};
+}
+
+QString VariantsController::defaultName(const QString& gameId) const {
+  int highest = 0;
+  int count = 0;
+  static const QRegularExpression rx(QStringLiteral("^Randomizer #(\\d+)$"));
+  for (const VariantInfo& v : byGame_.value(gameId)) {
+    if (!v.deletedAt.isEmpty() || !v.runId.isEmpty()) continue;
+    ++count;
+    const auto m = rx.match(v.name);
+    if (m.hasMatch()) highest = std::max(highest, m.captured(1).toInt());
+  }
+  int n = std::max(highest, count) + 1;
+  while (nameTaken(gameId, QStringLiteral("Randomizer #%1").arg(n))) ++n;
+  return QStringLiteral("Randomizer #%1").arg(n);
+}
+
+bool VariantsController::nameTaken(const QString& gameId, const QString& name, const QString& exceptVariantId) const {
+  const QString wanted = name.trimmed();
+  if (wanted.isEmpty()) return false;
+  for (const VariantInfo& v : byGame_.value(gameId))
+    if (v.id != exceptVariantId && v.deletedAt.isEmpty() && v.name.compare(wanted, Qt::CaseInsensitive) == 0) return true;
+  return false;
+}
+
+bool VariantsController::smallGame(const QString& gameId) const {
+  const auto game = deps_.library ? deps_.library->gameById(gameId) : std::nullopt;
+  if (!game) return false;
+  return game->system == QLatin1String("gb") || game->system == QLatin1String("gbc") || game->system == QLatin1String("gba");
+}
+
+QVariantMap VariantsController::checkSettings(const QString& gameId, const QString& text) const {
+  const QString t = text.trimmed();
+  QVariantMap out{{QStringLiteral("state"), QStringLiteral("empty")}, {QStringLiteral("valid"), false}, {QStringLiteral("prefix"), QString()}, {QStringLiteral("text"), t}};
+  if (t.isEmpty()) return out;
+  static const QRegularExpression rx(QStringLiteral("^(\\d{3})[A-Za-z0-9+/=]+$"));
+  const auto m = rx.match(t);
+  if (!m.hasMatch() || t.size() > 4096) {
+    out[QStringLiteral("state")] = QStringLiteral("invalid");
+    return out;
+  }
+  const QString prefix = m.captured(1);
+  out[QStringLiteral("prefix")] = prefix;
+  const auto game = deps_.library ? deps_.library->gameById(gameId) : std::nullopt;
+  int newest = -1;
+  bool known = false;
+  if (game) {
+    const QString code = game->system == QLatin1String("3ds") && deps_.titleIdOf ? deps_.titleIdOf(*game) : QString();
+    for (const plugins::VariantPreset& p : bridge_->registry()->presetsFor(game->system, code.isEmpty() ? game->gameCode : code))
+      for (auto it = p.settings.begin(); it != p.settings.end(); ++it) {
+        newest = std::max(newest, it.key().toInt());
+        known = known || it.key() == prefix;
+      }
+  }
+  // A string the engine knows (a preset has one for the same settings version) matches it; an older version is upgraded by the
+  // engine itself; a newer one cannot be read by the engine this server offers.
+  const bool newer = !known && newest >= 0 && prefix.toInt() > newest;
+  out[QStringLiteral("state")] = newer ? QStringLiteral("other_version") : QStringLiteral("ok");
+  out[QStringLiteral("valid")] = !newer;
+  return out;
+}
+
+QString VariantsController::slotDisplayName(const QString& slot) const {
+  if (slot.isEmpty() || slot == QLatin1String("default")) return {};
+  for (auto it = byGame_.begin(); it != byGame_.end(); ++it)
+    for (const VariantInfo& v : it.value())
+      if (v.slot == slot) return v.name;
+  if (deps_.cache) {
+    const QFileInfoList dirs = QDir(deps_.cache->root()).entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const QFileInfo& d : dirs) {
+      const auto r = deps_.cache->recipe(d.fileName());
+      if (r && r->slot == slot && !d.fileName().startsWith(QLatin1String("run-"))) return r->name;
+    }
+  }
+  return {};
+}
+
+void VariantsController::reloadAll() {
+  if (deps_.client == nullptr || !deps_.client->available()) return;
+  deps_.client->list(QString(), [this](const QList<VariantInfo>& list, const VariantCall& c) {
+    if (!c.ok) return;
+    QHash<QString, QList<VariantInfo>> grouped;
+    for (const VariantInfo& v : list) grouped[v.gameId].append(v);
+    if (!gameId_.isEmpty() && !grouped.contains(gameId_)) grouped.insert(gameId_, {});
+    byGame_ = grouped;
+    for (auto it = grouped.begin(); it != grouped.end(); ++it) loadedOk_[it.key()] = true;
+    rebuildLists();
+    publishPluginState();
+  });
+}
+
+QVariantMap VariantsController::summary() const {
+  QVariantMap out;
+  QHash<QString, qint64> lastPlayed;
+  if (deps_.cache)
+    for (const auto& e : deps_.cache->entries()) lastPlayed.insert(e.id, e.lastPlayedMs);
+  for (auto it = byGame_.begin(); it != byGame_.end(); ++it) {
+    int count = 0;
+    QString lastId, lastName;
+    qint64 lastMs = 0;
+    for (const VariantInfo& v : it.value()) {
+      if (!v.deletedAt.isEmpty() || !v.runId.isEmpty() || v.id.startsWith(QLatin1String("run-"))) continue;
+      ++count;
+      const qint64 ms = lastPlayed.value(v.id, 0);
+      if (ms > lastMs) {
+        lastMs = ms;
+        lastId = v.id;
+        lastName = v.name;
+      }
+    }
+    const bool building = active_ && active_->gameId == it.key() && active_->runId.isEmpty();
+    if (count == 0 && !building) continue;
+    QVariantMap m{{QStringLiteral("count"), count}, {QStringLiteral("buildPercent"), building ? current_.value(QStringLiteral("percent"), 0).toInt() : -1},
+                  {QStringLiteral("buildName"), building ? active_->recipe.name : QString()}, {QStringLiteral("lastId"), lastId},
+                  {QStringLiteral("lastName"), lastName}, {QStringLiteral("lastPlayedMs"), static_cast<double>(lastMs)}};
+    out.insert(it.key(), m);
+  }
+  return out;
+}
+
+QVariantList VariantsController::storage() const {
+  QVariantList out;
+  if (!deps_.cache) return out;
+  QHash<QString, VariantCache::Entry> built;
+  for (const auto& e : deps_.cache->entries()) built.insert(e.id, e);
+  struct Row {
+    QVariantMap m;
+    qint64 played = 0;
+  };
+  QList<Row> rows;
+  const QDate today = QDate::currentDate();
+  const QFileInfoList dirs = QDir(deps_.cache->root()).entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
+  for (const QFileInfo& d : dirs) {
+    const auto r = deps_.cache->recipe(d.fileName());
+    if (!r) continue;
+    const bool run = d.fileName().startsWith(QLatin1String("run-"));
+    const bool removed = !built.contains(r->variantId);
+    const auto e = built.value(r->variantId);
+    const auto game = deps_.library ? deps_.library->gameById(r->gameId) : std::nullopt;
+    QString played;
+    if (removed || e.lastPlayedMs <= 0) {
+      played = QString();
+    } else {
+      const QDate day = QDateTime::fromMSecsSinceEpoch(e.lastPlayedMs).date();
+      if (day == today) played = tr("Played today");
+      else if (day == today.addDays(-1)) played = tr("Played yesterday");
+      else played = tr("Played %1 %2").arg(day.day()).arg(QLocale::c().monthName(day.month(), QLocale::ShortFormat));
+    }
+    if (played.isEmpty() && !removed) played = tr("Never played");
+    const QString title = game ? game->title : QString();
+    QVariantMap m{{QStringLiteral("id"), r->variantId}, {QStringLiteral("name"), r->name},
+                  {QStringLiteral("subtitle"), run ? (title.isEmpty() ? tr("Run variant") : tr("%1 · run variant").arg(title)) : title},
+                  {QStringLiteral("isRun"), run}, {QStringLiteral("removed"), removed},
+                  {QStringLiteral("lastPlayedMs"), static_cast<double>(e.lastPlayedMs)}, {QStringLiteral("lastPlayedText"), played},
+                  {QStringLiteral("bytes"), static_cast<double>(e.bytes)}, {QStringLiteral("sizeText"), removed ? QString() : formatBytesText(e.bytes)}};
+    rows.append({m, removed ? -1 : e.lastPlayedMs});
+  }
+  std::sort(rows.begin(), rows.end(), [](const Row& a, const Row& b) { return a.played > b.played; });
+  for (const Row& r : rows) out.append(r.m);
   return out;
 }
 
@@ -892,7 +1093,7 @@ QVariantMap VariantsController::ownSeed(const QString& variantId) const {
   const auto v = info(variantId);
   if (!v || !v->runId.isEmpty() || variantId.startsWith(QLatin1String("run-")) || v->seed.isEmpty())
     return {{QStringLiteral("ok"), false}, {QStringLiteral("error"), QStringLiteral("not_available")}};
-  return {{QStringLiteral("ok"), true}, {QStringLiteral("seed"), v->seed}};
+  return {{QStringLiteral("ok"), true}, {QStringLiteral("seed"), v->seed}, {QStringLiteral("settings"), v->settings}};
 }
 
 QString VariantsController::failureDetails(const QString& variantId) const {
@@ -934,6 +1135,27 @@ void VariantsController::setUnplayedDays(int days) {
     trimCache();
     emit cacheChanged();
   }
+}
+
+QVariantMap VariantsController::freeCache() {
+  if (!deps_.cache) return {};
+  QSet<QString> prot = deps_.protectedVariantIds ? deps_.protectedVariantIds() : QSet<QString>();
+  if (active_) prot.insert(active_->variantId);
+  for (const Job& j : queue_) prot.insert(j.variantId);
+  qint64 freed = 0;
+  int removed = 0;
+  for (const auto& e : deps_.cache->entries()) {
+    if (prot.contains(e.id)) continue;
+    if (deps_.cache->remove(e.id, /*keepRecipe=*/true)) {
+      freed += e.bytes;
+      ++removed;
+    }
+  }
+  if (removed > 0) {
+    rebuildLists();
+    publishPluginState();
+  }
+  return {{QStringLiteral("freedBytes"), static_cast<double>(freed)}, {QStringLiteral("freedText"), formatBytesText(freed)}, {QStringLiteral("removed"), removed}};
 }
 
 QVariantMap VariantsController::trimCache() {

@@ -9,6 +9,7 @@
 #include <QSet>
 #include <QString>
 #include <QStringList>
+#include <functional>
 #include <memory>
 
 namespace uzume::plugins {
@@ -60,10 +61,14 @@ class VariantRegistry {
   QList<VariantPreset> presetsFor(const QString& system, const QString& code) const;
   // The preset with this id of any registration (any plugin) and the settings string for a settings version ("" = first one).
   VariantPreset preset(const QString& id) const;
+  // Called (on the thread that changed the registry, without the lock) after every change; the UI turns it into a signal.
+  void setOnChange(std::function<void()> cb);
 
  private:
+  void changed();
   mutable QMutex mutex_;
   QMap<QString, VariantRegistration> byPlugin_;
+  std::function<void()> onChange_;
 };
 
 struct VariantEngineInfo {
