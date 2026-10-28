@@ -14,6 +14,7 @@
 
 #include "fakehub.h"
 #include "keyedrowsmodel.h"
+#include "plugin_manager.h"
 #include "uzplugin_testutil.h"
 #include "runrecapcontroller.h"
 #include "runscontroller.h"
@@ -888,6 +889,49 @@ class RunsUiTest : public QObject {
     QJsonObject o{{"plugin_id", id}, {"version", version}, {"name", name}, {"origin", "unverified"}, {"sha256", QString(64, QLatin1Char('c'))},
                   {"permissions", QJsonArray{"run.state"}}, {"requires", requires_}};
     return *uzume::parseHubPluginInfo(o);
+  }
+
+  // Recap mapping: the pinned copy wins when it declares a `recap`; a pinned version without one (older than the block) falls back to the
+  // installed manifest of that plugin id; with neither the plugin maps nothing.
+  void recapMappingFallsBackToInstalled() {
+    auto copy = [](const QString& id, const QString& version, const QJsonArray& recap) {
+      FbSpec s;
+      s.id = id;
+      s.version = version;
+      s.recap = recap;
+      return makeUzPlugin(s);
+    };
+    const QJsonArray oldMap{QJsonObject{{"type", "t.old"}, {"glyph", "note"}}};
+    const QJsonArray newMap{QJsonObject{{"type", "t.catch"}, {"glyph", "catch"}}};
+    auto runWith = [](const QString& id, const QString& version) {
+      RunInfo run;
+      run.plugins.append(RunPluginRef{id, version});
+      return run;
+    };
+    QTemporaryDir root;
+    plugins::PluginManager m(root.path());
+    const QByteArray bare = copy("net.t.a", "0.8.0", {});
+    const QByteArray fresh = copy("net.t.a", "0.9.0", newMap);
+    QVERIFY(m.installHubCopy(bare, "net.t.a", "0.8.0", sha256Hex(bare)).ok);
+    // Neither the pinned copy nor an installed one has a mapping.
+    RecapMappings r = recapMappingsFor(runWith("net.t.a", "0.8.0"), &m);
+    QVERIFY(r.contains("net.t.a"));
+    QVERIFY(r.value("net.t.a").isEmpty());
+    // An installed version with a mapping fills in for the pinned one without.
+    QVERIFY(m.installHubCopy(fresh, "net.t.a", "0.9.0", sha256Hex(fresh)).ok);
+    QCOMPARE(m.info("net.t.a")->manifest.version.toString(), QString("0.9.0"));
+    r = recapMappingsFor(runWith("net.t.a", "0.8.0"), &m);
+    QCOMPARE(r.value("net.t.a").value("t.catch"), QString("catch"));
+    // A pinned copy with its own mapping wins over the installed one.
+    const QByteArray pinned = copy("net.t.b", "1.0.0", oldMap);
+    const QByteArray newer = copy("net.t.b", "1.1.0", newMap);
+    QVERIFY(m.installHubCopy(pinned, "net.t.b", "1.0.0", sha256Hex(pinned)).ok);
+    QVERIFY(m.installHubCopy(newer, "net.t.b", "1.1.0", sha256Hex(newer)).ok);
+    r = recapMappingsFor(runWith("net.t.b", "1.0.0"), &m);
+    QCOMPARE(r.value("net.t.b").size(), 1);
+    QCOMPARE(r.value("net.t.b").value("t.old"), QString("note"));
+    // A plugin that is not on this PC contributes nothing.
+    QVERIFY(!recapMappingsFor(runWith("net.t.gone", "1.0.0"), &m).contains("net.t.gone"));
   }
 
   // Requires: newest fitting version, transitive, deduplicated; missing and conflicting ranges give a start error.

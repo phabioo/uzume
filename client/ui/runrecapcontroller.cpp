@@ -22,16 +22,19 @@ RecapMappings recapMappingsFor(const RunInfo& run, plugins::PluginManager* manag
   if (manager == nullptr) return out;
   const QList<plugins::PluginInfo> copies = manager->hubCopies();
   for (const RunPluginRef& ref : run.plugins) {
+    // The pinned copy's mapping wins when it declares one. A version that predates the manifest `recap` block (or leaves it empty)
+    // would otherwise drop every event of the plugin, so the installed manifest of that plugin id fills in (a recap only maps event
+    // types to glyphs).
     const plugins::Manifest* found = nullptr;
-    std::optional<plugins::PluginInfo> installed;
     for (const plugins::PluginInfo& c : copies)
       if (c.manifest.id == ref.pluginId && c.manifest.version.toString() == ref.version) {
         found = &c.manifest;
         break;
       }
-    if (found == nullptr) {
+    std::optional<plugins::PluginInfo> installed;
+    if (found == nullptr || found->recap.isEmpty()) {
       installed = manager->info(ref.pluginId);
-      if (installed) found = &installed->manifest;
+      if (installed && (found == nullptr || !installed->manifest.recap.isEmpty())) found = &installed->manifest;
     }
     if (found == nullptr) continue;
     QMap<QString, QString> m;
