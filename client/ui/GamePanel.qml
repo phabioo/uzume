@@ -90,10 +90,11 @@ Rectangle {
         }
         return out
     }
-    // Fitting: every tab shows a short label (a Game or plugin tab its icon in front of it; a label never grows past `tabLabelMax`). Game
-    // and the open tab always stay; when the rest does not fit, the last tabs move into the "More" tab menu. In a very wide font
-    // the labels of Session and the open tab elide to a share of the bar.
+    // Fitting: every tab shows a short label (a Game or plugin tab its icon in front of it; a label never grows past `tabLabelMax`). The base tabs (Session/Run, People, Chat, Saves)
+    // always stay; when the rest does not fit, the last plugin tabs and the Plugin console move into the "More" tab menu. In a wide font
+    // the gap shrinks to tabGapMin, Chat shows a dot instead of the count, and as a last resort the labels elide.
     readonly property int tabGap: 18
+    readonly property int tabGapMin: 8   // gap between tabs when the labels do not fit at tabGap
     readonly property int tabLabelMax: 96
     readonly property int tabIconSize: 16
     function tabCap(e) { return root.tabLabelMax }
@@ -114,15 +115,21 @@ Rectangle {
         var overflow = []
         while (total() + overflowW(overflow.length) > avail && shown.length > 1) {
             var idx = -1
-            for (var m = shown.length - 1; m > 0; --m) if (shown[m].e.id !== root.activeTab) { idx = m; break }
+            // Only plugin tabs and the Plugin console may move into "More"; Session/Run, People, Chat and Saves always stay
+            for (var m = shown.length - 1; m > 0; --m) if (shown[m].e.id !== root.activeTab && (shown[m].e.kind === "plugin" || shown[m].e.kind === "console")) { idx = m; break }
             if (idx < 0) break
             overflow.unshift(shown.splice(idx, 1)[0].e)
+        }
+        // Still too wide (wide font): tighter gaps first, then the unread count of Chat becomes a dot, then the labels elide
+        if (total() + overflowW(overflow.length) > avail) gapW = root.tabGapMin
+        if (total() + overflowW(overflow.length) > avail) {
+            for (var c = 0; c < shown.length; ++c) if (shown[c].e.badge > 0) shown[c] = { e: Object.assign({}, shown[c].e, { badge: 0, dot: "chat" }), label: true }
         }
         var textSum = 0
         for (var q = 0; q < shown.length; ++q) textSum += Math.min(root.tabCap(shown[q].e), Math.ceil(tabFm.advanceWidth(shown[q].e.name)))
         var fixedW = total() - textSum - (shown.reduce(function (a, s) { return a + (s.e.dot !== "" ? 10 : 0) + badgeW(s.e) }, 0)) + overflowW(overflow.length)
         var textMax = shown.length > 0 && fixedW + textSum > avail ? Math.max(16, Math.floor((avail - fixedW) / shown.length)) : 9999
-        return { shown: shown, overflow: overflow, textMax: textMax }
+        return { shown: shown, overflow: overflow, textMax: textMax, gap: gapW }
     }
     FontMetrics { id: tabFm; font.family: Theme.sans; font.pixelSize: 13 }
     function openTab(id) {
@@ -377,7 +384,7 @@ Rectangle {
                 anchors.fill: parent
                 anchors.leftMargin: Theme.space3
                 anchors.rightMargin: Theme.space3
-                spacing: root.tabGap
+                spacing: root.tabPlan.gap
                 Repeater {
                     model: root.tabPlan.shown
                     delegate: Item {
@@ -411,6 +418,7 @@ Rectangle {
                                 icon: tabItem.entry.icon
                             }
                             Text {
+                                id: tabLabel
                                 objectName: "panelTabLabel"
                                 text: tabItem.entry.name
                                 textFormat: Text.PlainText
@@ -446,8 +454,8 @@ Rectangle {
                         UzFocusRing { visible: tabItem.activeFocus }
                         TapHandler { onTapped: root.openTab(tabItem.entry.id) }
                         HoverHandler { id: tabHover; cursorShape: Qt.PointingHandCursor }
-                        // Only plugin tabs (origin marker) explain themselves; the labels of the built-in tabs are read in full
-                        ToolTip.visible: tabHover.hovered && tabItem.entry.kind === "plugin"
+                        // Only plugin tabs (origin marker) explain themselves; the built-in tabs only when their label is elided
+                        ToolTip.visible: tabHover.hovered && (tabItem.entry.kind === "plugin" || tabLabel.truncated)
                         ToolTip.delay: 400
                         ToolTip.text: tabItem.entry.name + (tabItem.marker !== "" ? " · " + tabItem.marker : "")
                     }
