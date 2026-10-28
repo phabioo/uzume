@@ -202,6 +202,8 @@ class RunsController : public QObject {
   QString pluginUpdateError() const { return pluginUpdateError_; }
   QVariantMap pluginConsent() const { return pluginConsent_; }
   // Pins of the run that ask for permissions the person has not agreed to yet: [{pluginId, name, version, text}].
+  // Closes a pending consent sheet that nobody can see (a start routed from the game page) and reports `why` as an error.
+  void dismissPluginConsent(const QString& why);
   QVariantList consentNeeded(const RunInfo& run) const;
   QVariantList consentNeededFor(const QString& runId, const QList<RunPluginRef>& pins) const;
   bool permissionsOf(const QString& pluginId, const QString& version, QStringList* out) const;

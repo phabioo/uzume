@@ -1084,6 +1084,10 @@ class RunsUiTest : public QObject {
                                                              {"rom", QJsonObject{{"sha256", QString(64, QLatin1Char('b'))}, {"size", 4096}, {"filename", "q.nds"}}},
                                                              {"added_at", "2026-01-01T12:00:00Z"}}}}};
     hub.fakeUsers = QJsonArray{QJsonObject{{"id", "u_test_1"}, {"display_name", "Tester"}, {"online", true}}};
+    // The catalog lists net.test.gone (no new permissions, so "Play run" needs no consent) but the server has no package for it.
+    hub.pluginList.append(QJsonObject{{"plugin_id", "net.test.gone"}, {"version", "1.0.0"}, {"name", "Gone"}, {"description", ""}, {"api", 1}, {"origin", "unverified"},
+                                      {"sha256", QString(64, QLatin1Char('d'))}, {"size", 10}, {"permissions", QJsonArray{"run.state"}},
+                                      {"games", QJsonArray{QJsonObject{{"system", "nds"}}}}, {"created_at", "2026-10-12T10:00:00Z"}});
     QVERIFY(hub.start());
     Harness h;
     QVERIFY(h.start());
@@ -1091,6 +1095,7 @@ class RunsUiTest : public QObject {
     pair(h, hub);
     RunsController* runs = h.controller->runs();
     QTRY_VERIFY_WITH_TIMEOUT(runs->loaded(), 8000);
+    QTRY_VERIFY_WITH_TIMEOUT(!h.controller->plugins()->hubClient()->plugins().isEmpty(), 8000);
     QVERIFY(runs->pluginlessRuns());
     QVERIFY(runs->coreRulesAvailable());
 
@@ -1211,6 +1216,28 @@ class RunsUiTest : public QObject {
       h.controller->playSelected();
       QTRY_VERIFY_WITH_TIMEOUT(h.controller->selectedGame().value("error").toString().contains(QStringLiteral("could not be prepared")), 8000);
       QCOMPARE(launch.size(), 3);  // never launched
+      QVERIFY(h.controller->saveSync()->setSlot(kGameId, QStringLiteral("default")));
+
+      // A routed Play whose plugin still needs the person's consent (permissions not known): the sheet lives on the Runs screen, so the game
+      // page says what is pending and where to agree; no sheet stays queued and nothing is launched.
+      QJsonObject ask = hub.makeRun(QStringLiteral("Needs consent"), {hub.runsMe}, hub.runsMe,
+                                    QJsonArray{QJsonObject{{"plugin_id", "net.test.unlisted"}, {"version", "1.0.0"}, {"sha256", QString(64, QLatin1Char('e'))}}});
+      const QString askId = ask.value("run_id").toString();
+      QJsonArray ap = ask.value("participants").toArray();
+      QJsonObject me2 = ap.at(0).toObject();
+      me2.insert("game_id", kGameId);
+      ap.replace(0, me2);
+      ask.insert("participants", ap);
+      hub.runs.insert(askId, ask);
+      hub.pushRun(askId);
+      QTRY_VERIFY_WITH_TIMEOUT(runs->client()->run(askId).has_value(), 8000);
+      h.controller->showLibrary();
+      h.controller->selectGame(kGameId);
+      QVERIFY(h.controller->saveSync()->setSlot(kGameId, runSaveSlot(askId)));
+      h.controller->playSelected();
+      QTRY_VERIFY_WITH_TIMEOUT(h.controller->selectedGame().value("error").toString().contains(QStringLiteral("press Play run")), 8000);
+      QVERIFY(runs->pluginConsent().isEmpty());
+      QCOMPARE(launch.size(), 3);
       QVERIFY(h.controller->saveSync()->setSlot(kGameId, QStringLiteral("default")));
     }
     run = hub.runs.value(runId);

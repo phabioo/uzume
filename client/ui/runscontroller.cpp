@@ -967,6 +967,13 @@ QVariantList RunsController::consentNeededFor(const QString& runId, const QList<
   return out;
 }
 
+void RunsController::dismissPluginConsent(const QString& why) {
+  if (pluginConsent_.isEmpty()) return;
+  pluginConsent_ = {};
+  emit pluginConsentChanged();
+  setMessage(why, true);
+}
+
 void RunsController::answerPluginConsent(bool agree) {
   const QVariantMap ask = std::exchange(pluginConsent_, {});
   emit pluginConsentChanged();
