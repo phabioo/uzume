@@ -375,6 +375,17 @@ class RunsUiTest : public QObject {
     QVERIFY(h.controller->saveSync()->setSlot(kGameId, QStringLiteral("default")));
     h.controller->playSelected();
     QCOMPARE(h.controller->saveSync()->slotFor(kGameId), QStringLiteral("default"));
+    // #355: a normal start from the slot of an active run is routed through Play run (rules, plugins, RunLaunch apply).
+    {
+      const int before = launch.size();
+      QVERIFY(h.controller->saveSync()->setSlot(kGameId, runSaveSlot(runId)));
+      h.controller->playSelected();
+      QTRY_COMPARE_WITH_TIMEOUT(launch.size(), before + 1, 8000);
+      QCOMPARE(launch.last().at(0).toString(), runId);
+      QCOMPARE(launch.last().at(1).toString(), kGameId);
+      // Play run never leaves the run's own slot behind as the "previous" slot.
+      QVERIFY(h.controller->saveSync()->setSlot(kGameId, QStringLiteral("default")));
+    }
 
     // Back to the list: the run sits in the Active group.
     runs->closeRun();
@@ -1159,6 +1170,34 @@ class RunsUiTest : public QObject {
     QCOMPARE(runs->rulesError(), QStringLiteral("Only the person who started the run or an admin can change its rules."));
     QCOMPARE(saved.count(), 0);
     QVERIFY(!runs->rulesBusy());
+
+    // #355: a normal Play from the slot of an active run enforces the run (Play run path); from the slot of a finished
+    // run, or of a run that is not known, the game starts in Main.
+    QSignalSpy launch(runs, &RunsController::launchRequested);
+    h.controller->selectGame(kGameId);
+    QVERIFY(h.controller->saveSync()->setSlot(kGameId, runSaveSlot(runId)));
+    h.controller->playSelected();
+    QTRY_COMPARE_WITH_TIMEOUT(launch.size(), 1, 8000);
+    QCOMPARE(launch.first().at(0).toString(), runId);
+    QCOMPARE(launch.first().at(1).toString(), kGameId);
+    QVERIFY(h.controller->saveSync()->setSlot(kGameId, QStringLiteral("default")));
+    run = hub.runs.value(runId);
+    run.insert("status", "finished");
+    hub.runs.insert(runId, run);
+    hub.pushRun(runId);
+    QTRY_VERIFY_WITH_TIMEOUT(runs->client()->run(runId)->isOver(), 8000);
+    h.controller->selectGame(kGameId);
+    QVERIFY(h.controller->saveSync()->setSlot(kGameId, runSaveSlot(runId)));
+    h.controller->playSelected();
+    QCOMPARE(h.controller->saveSync()->slotFor(kGameId), QStringLiteral("default"));
+    QCOMPARE(launch.size(), 1);
+    QVERIFY(h.controller->saveSync()->setSlot(kGameId, QStringLiteral("run-deadbeef")));  // unknown run
+    h.controller->playSelected();
+    QCOMPARE(h.controller->saveSync()->slotFor(kGameId), QStringLiteral("default"));
+    QVERIFY(h.controller->saveSync()->setSlot(kGameId, QStringLiteral("var-cafe1234")));  // variants are left alone
+    h.controller->playSelected();
+    QCOMPARE(h.controller->saveSync()->slotFor(kGameId), QStringLiteral("var-cafe1234"));
+    QCOMPARE(launch.size(), 1);
   }
 
   // A requirement the Hub cannot satisfy blocks the start with a clear error.

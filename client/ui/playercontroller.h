@@ -693,6 +693,7 @@ class PlayerController : public QObject {
   VariantLaunch variantLaunchFor(const GameEntry& game);
   QString titleIdOf(const GameEntry& game);
   bool startPending() const { return runStart_.pending() || variantStart_.pending(); }
+  bool routeRunSlotStart();  // a normal start from a run's slot: Play run, or back to Main (#355)
   void finishRunStart();  // the run's game is over (or never started): the game's own slot is selected again
   std::unique_ptr<SaveHistoryController> history_;  // after saves_/conn_: destroyed first
   std::unique_ptr<EmulationController> emulation_;

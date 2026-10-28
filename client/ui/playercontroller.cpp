@@ -3004,8 +3004,40 @@ void PlayerController::playSelected() {
     }
     return;
   }
+  if (routeRunSlotStart()) return;
   cancelBackgroundUpdateForSelected();
   starter_->startSelected(false);
+}
+
+// Every normal start goes through here: a run's save slot is never played without the run's rules (#355).
+// The slot can be a run's because the person picked it, or because the restore after "Play run" was skipped.
+//  - slot of an unfinished run the person has joined (for this game): the start is routed through "Play run" (rules,
+//    RunLaunch, run plugins, variant build); returns true, the start goes on from RunsController::launchRequested.
+//  - slot of a finished, unknown or foreign run (or of another game): the game's slot goes back to Main and the start
+//    carries on there; returns false.
+// Main, variant slots and other named slots are left alone.
+bool PlayerController::routeRunSlotStart() {
+  if (startPending() || selectedId_.isEmpty() || !runClient_) return false;
+  const QString slot = saves_->slotFor(selectedId_);
+  if (slot == QLatin1String("default") || slot.startsWith(QLatin1String("var-"))) return false;
+  const RunInfo* found = nullptr;
+  const QList<RunInfo> all = runClient_->runs();
+  for (const RunInfo& run : all) {
+    if ((run.saveSlot.isEmpty() ? runSaveSlot(run.runId) : run.saveSlot) == slot) {
+      found = &run;
+      break;
+    }
+  }
+  if (found == nullptr && !slot.startsWith(QLatin1String("run-"))) return false;  // a slot the person named themselves
+  if (found != nullptr && !found->isOver()) {
+    const RunParticipant* mine = found->participant(runClient_->myUserId());
+    if (mine != nullptr && mine->status == QLatin1String("joined") && mine->gameId == selectedId_) {
+      runs_->playRun(found->runId);
+      return true;
+    }
+  }
+  saves_->setSlot(selectedId_, QStringLiteral("default"));
+  return false;
 }
 
 void PlayerController::resolveSaveConflict(const QString& action) { starter_->resolveSaveConflict(action); }
@@ -3125,6 +3157,7 @@ void PlayerController::confirmQuitAndStart() {
   }
   const bool share = confirmShare_;
   quitGame();  // saved and synced first (core unloaded, final upload), also clears the confirmation
+  if (routeRunSlotStart()) return;
   cancelBackgroundUpdateForSelected();
   starter_->startSelected(share);
 }
@@ -3142,6 +3175,7 @@ void PlayerController::playAndShareSelected() {
   if (phase_ != PlayPhase::None || session_.isActive()) {
     return;
   }
+  if (routeRunSlotStart()) return;
   cancelBackgroundUpdateForSelected();
   starter_->startSelected(true);
 }
@@ -3239,6 +3273,8 @@ void PlayerController::startRunGame(const QString& runId, const QString& gameId)
     return;
   }
   runStart_ = {runId, gameId, saves_->slotFor(gameId)};
+  // Never "restore" the run's own slot afterwards: that would leave it selected for the next normal start (#355).
+  if (runStart_.previousSlot == runs_->saveSlotFor(runId)) runStart_.previousSlot = QStringLiteral("default");
   // The run keeps its own saves: the run's save slot (run-<first 8 hex of the run id>), never the game's default slot.
   if (!saves_->setSlot(gameId, runs_->saveSlotFor(runId))) {
     runStart_ = {};
