@@ -216,8 +216,12 @@ class VoiceUiTest : public QObject {
     hub.sendWs(QStringLiteral("presence_update"), presence("u_jonas", "Jonas"));
     hub.sendWs(QStringLiteral("voice_room"), {{"scope", "session"}, {"id", "own1"},
                {"members", QJsonArray{vmember(me, dev), vmember("u_lena", "dev-lena"), vmember("u_sam", "dev-sam", "off", true), vmember("u_jonas", "dev-jonas")}}});
-    QTRY_VERIFY(std::any_of(h.controller->notifications()->entries().begin(), h.controller->notifications()->entries().end(),
-                            [](const QVariant& e) { return e.toMap().value("text").toString() == QLatin1String("Jonas joined voice"); }));
+    // entries() builds a new list on each call: take begin and end from one copy
+    const auto toasted = [&](const QString& text) {
+      const QVariantList entries = h.controller->notifications()->entries();
+      return std::any_of(entries.begin(), entries.end(), [&](const QVariant& e) { return e.toMap().value("text").toString() == text; });
+    };
+    QTRY_VERIFY(toasted(QStringLiteral("Jonas joined voice")));
   }
 
   // Settings > This PC > Voice (board 6w-1)
