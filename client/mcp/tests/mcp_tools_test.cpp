@@ -210,6 +210,18 @@ class McpToolsTest : public QObject {
   }
 
   // 0.20 final live check: settings_set, saves_history, toasts_list, plugin id under both names, hold_ms and confirm in the schema.
+  // Allow hands the controller to another person: it needs confirm: true plus UZUME_MCP_CONFIRM=1; Deny stays free.
+  void controlAnswerAllowNeedsConfirmation() {
+    qunsetenv("UZUME_MCP_CONFIRM");
+    QCOMPARE(call("control_answer", {{"allow", true}}).content.value(0).text, QStringLiteral("needs_confirmation_in_app"));
+    QCOMPARE(call("control_answer", {{"allow", true}, {"confirm", true}}).content.value(0).text, QStringLiteral("needs_confirmation_in_app"));
+    qputenv("UZUME_MCP_CONFIRM", "1");
+    QCOMPARE(call("control_answer", {{"allow", true}}).content.value(0).text, QStringLiteral("needs_confirmation_in_app"));
+    QCOMPARE(call("control_answer", {{"allow", true}, {"confirm", true}}).content.value(0).text, QStringLiteral("no_pending_request"));
+    qunsetenv("UZUME_MCP_CONFIRM");
+    QCOMPARE(call("control_answer", {{"allow", false}}).content.value(0).text, QStringLiteral("no_pending_request"));  // Deny needs no confirmation
+  }
+
   void liveCheckGapTools() {
     QCOMPARE(call("settings_set", {{"key", "uzume.nope"}, {"value", "1"}}).content.value(0).text, QStringLiteral("unknown_key"));
     QCOMPARE(call("settings_set", {{"key", "uzume.run_ahead"}, {"value", "7"}}).content.value(0).text, QStringLiteral("invalid_value"));

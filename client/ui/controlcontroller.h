@@ -64,7 +64,8 @@ class ControlController : public QObject {
   Q_INVOKABLE void allow() { answer(true); }
   Q_INVOKABLE void deny() { answer(false); }
   Q_INVOKABLE void takeBack();  // every holder
-  // Esc while somebody plays: the first press says so, the second within 2 s takes the controller back. True = the key was used.
+  // Esc while somebody plays P1: the first press says so, the second within 2 s takes P1 back. True = the key was used (a guest on
+  // P2 does not take it: Esc pauses as usual).
   Q_INVOKABLE bool escapePressed();
 
   // Viewer capture for the tile of `sessionId`. remoteKey: true if the key was used (mapped); touch: normalized over the whole frame.
@@ -109,6 +110,8 @@ class ControlController : public QObject {
   int askSeconds_ = 0;
   QTimer ticker_;
   QElapsedTimer escClock_;
+  QElapsedTimer askSwitched_;  // valid while the card switched from one request to another
+  QString lastGameTitle_;
   bool escArmed_ = false;
   // Viewer
   KeyboardJoypad keys_;

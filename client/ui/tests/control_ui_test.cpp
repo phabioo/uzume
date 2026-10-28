@@ -194,6 +194,43 @@ class ControlUiTest : public QObject {
     QVERIFY(!gs->remoteControlled(0));
   }
 
+  // P2 guest: Esc is not taken (the game pauses as usual); a game switch ends the hold; two pending requests above a lowered port
+  // count are denied "unsupported" and the viewer's Asking resets.
+  void guestEscPausesAndPortDropDeniesAsk() {
+    FakeHub hub(QStringLiteral("a"));
+    Harness h;
+    QVERIFY(h.start());
+    pair(h, hub);
+    startPreviewGame(h);
+    hostSession(h);
+    ControlController* cc = h.controller->control();
+    static int ports = 2;  // read by the provider for as long as the controller lives
+    ports = 2;
+    cc->setPortsProvider([]() { return ports; });
+    SessionHost* host = h.controller->sessions()->host();
+    host->open(QStringLiteral("own1"), {});
+    Peer lena;
+    lena.wire(host, QStringLiteral("v1"));
+    QTRY_COMPARE_WITH_TIMEOUT(lena.viewer.hostPorts(), 2, 20000);
+    QVERIFY(lena.viewer.requestControl(1));
+    QTRY_VERIFY_WITH_TIMEOUT(cc->askOpen(), 10000);
+    cc->allow();
+    QTRY_COMPARE_WITH_TIMEOUT(lena.viewer.controlState(), SessionViewer::ControlState::Granted, 10000);
+    QVERIFY(cc->hasHolder());
+    QVERIFY(!cc->escapePressed());  // P2 is not P1: Esc is left to the pause
+    QVERIFY(lena.viewer.controlState() == SessionViewer::ControlState::Granted);
+    host->takeBack(1);
+    QTRY_COMPARE_WITH_TIMEOUT(lena.viewer.controlState(), SessionViewer::ControlState::Idle, 10000);
+
+    // the host's port count drops while Lena asks for P2
+    QVERIFY(lena.viewer.requestControl(1));
+    QTRY_VERIFY_WITH_TIMEOUT(cc->askOpen(), 10000);
+    ports = 1;
+    host->setControlPorts(1);
+    QTRY_COMPARE_WITH_TIMEOUT(lena.viewer.controlState(), SessionViewer::ControlState::Idle, 10000);
+    QTRY_VERIFY(!cc->askOpen());
+  }
+
   // 20 s without an answer: denied with "timeout"; the viewer leaving takes its hold along.
   void timeoutAndLeaving() {
     FakeHub hub(QStringLiteral("a"));

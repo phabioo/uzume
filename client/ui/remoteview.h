@@ -59,6 +59,7 @@ class RemoteView : public QQuickPaintedItem {
 
  private:
   QPointer<ControlController> control_;
+  bool wasControlling_ = false;  // the tile was the one I play in at the last change
   bool touching_ = false;
   QPointer<SessionController> controller_;
   QString surfaceId_;

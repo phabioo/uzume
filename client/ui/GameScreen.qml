@@ -157,7 +157,7 @@ Rectangle {
         if (hudLayer.closeMenu()) return   // a HUD or notice menu takes the Esc first, the game keeps running
         if (root.hotkeySheetPinned) { root.hotkeySheetPinned = false; return }
         if (root.closePopover()) return
-        if (root.control.escapePressed()) return   // somebody plays: Esc twice takes the controller back
+        if (root.control.escapePressed()) return   // somebody plays P1: Esc twice takes P1 back (P2: Esc pauses)
         if (root.together.holdActive) return   // paused for everyone: Resume (toast, menu) or Shift+Esc, not Esc
         if (root.session.active) root.session.togglePause()
     }

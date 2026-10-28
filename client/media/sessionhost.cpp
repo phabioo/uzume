@@ -923,9 +923,11 @@ void SessionHost::sendDiagTo(const QString& viewerId, const QByteArray& msg) {
 
 void SessionHost::setControlPorts(int ports) {
   const int before = control_.portCount();
-  const QList<ControlArbiter::End> ended = control_.setPortCount(ports);
+  QList<ControlArbiter::Pending> dropped;
+  const QList<ControlArbiter::End> ended = control_.setPortCount(ports, &dropped);
   for (const auto& e : ended) reportEnd(e, true);
-  if (control_.portCount() == before && ended.isEmpty()) return;
+  for (const auto& d : dropped) sendDiagTo(d.viewerId, makeControlAnswer(d.port, false, QStringLiteral("unsupported")));
+  if (control_.portCount() == before && ended.isEmpty() && dropped.isEmpty()) return;
   const QByteArray caps = makeControlCaps(control_.portCount());
   for (const QString& id : viewers_.keys()) sendDiagTo(id, caps);
   emit controlChanged();
@@ -933,9 +935,11 @@ void SessionHost::setControlPorts(int ports) {
 
 void SessionHost::onControlRequest(const QString& viewerId, int port) {
   const auto it = viewers_.constFind(viewerId);
-  if (!open_ || it == viewers_.constEnd()) return;
+  if (it == viewers_.constEnd()) return;
   ControlArbiter::Request r;
-  if (!it->input || !it->input->isOpen()) {
+  if (!open_) {
+    r.reason = QStringLiteral("unsupported");  // not sharing (any more): tell the viewer instead of leaving it asking
+  } else if (!it->input || !it->input->isOpen()) {
     r.reason = QStringLiteral("unsupported");  // the input channel is not up (an older app, or not connected yet)
   } else {
     r = control_.request(viewerId, port, controlNowMs());
