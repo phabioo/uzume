@@ -178,9 +178,10 @@ class ChatUiTest : public QObject {
     };
     push(3, QStringLiteral("anyone there?"), {});
     QTRY_COMPARE(chat->unread(), 1);
-    QTRY_VERIFY(shown(h.item("tabBadge")));
-    QCOMPARE(text(h.item("tabBadge")), QStringLiteral("1"));
-    QVERIFY(!shown(h.item("tabDot")));
+    // The count shows when the tabs fit, else a dot (wide fonts, Windows fallback font).
+    QTRY_VERIFY(shown(h.item("tabBadge")) != shown(h.item("tabDot")));
+    const bool counted = shown(h.item("tabBadge"));
+    if (counted) QCOMPARE(text(h.item("tabBadge")), QStringLiteral("1"));
     QCOMPARE(n->entries().size(), 0);  // plain messages stay out of the bell
     QCOMPARE(n->toasts().size(), 0);
     const QString myName = QStringLiteral("Max");  // the fake server has no display name for the test device
@@ -191,10 +192,11 @@ class ChatUiTest : public QObject {
     QCOMPARE(n->entries().first().toMap().value("kind").toString(), QStringLiteral("chat"));
     QVERIFY(n->entries().first().toMap().value("mention").toBool());
     QCOMPARE(n->entries().first().toMap().value("actionLabel").toString(), QStringLiteral("OPEN CHAT"));
-    QTRY_COMPARE(text(h.item("tabBadge")), QStringLiteral("2"));
+    if (counted) QTRY_COMPARE(text(h.item("tabBadge")), QStringLiteral("2"));
+    else QVERIFY(shown(h.item("tabDot")));
     QVERIFY(h.click("panelTab_chat"));
     QTRY_COMPARE(chat->unread(), 0);
-    QTRY_VERIFY(!shown(h.item("tabBadge")));
+    QTRY_VERIFY(!shown(h.item("tabBadge")) && !shown(h.item("tabDot")));
     int rules = 0;  // the mention row has its rule and a bold name
     for (QQuickItem* r : h.items("chatMentionRule")) rules += r->isVisible() ? 1 : 0;
     QCOMPARE(rules, 1);
