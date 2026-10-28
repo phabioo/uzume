@@ -53,7 +53,7 @@ class VoiceDspTest : public QObject {
     for (auto& s : in) s = int16_t(r.next() * 800);
     for (int f = 0; f < frames; ++f) dsp.process(&in[size_t(f) * kVoiceFrame], &out[size_t(f) * kVoiceFrame]);
     const size_t a = size_t(frames - 100) * kVoiceFrame;
-    const double db = 10 * std::log10(energy(in, a, in.size()) / std::max(1.0, energy(out, a, out.size())));
+    const double db = 10 * std::log10(energy(in, a, in.size()) / (std::max)(1.0, energy(out, a, out.size())));
     qInfo("denoise: stationary noise reduced by %.1f dB", db);
     QVERIFY2(db > 10.0, qPrintable(QString::number(db)));
   }
@@ -64,16 +64,16 @@ class VoiceDspTest : public QObject {
     o.agc = false;
     QVERIFY(dsp.open(o));
     const int frames = 500;  // 10 s
-    const auto far = farEnd(frames, 99);
+    const auto farSig = farEnd(frames, 99);
     const int delay = 1200;  // 25 ms room + device path
-    std::vector<int16_t> mic(far.size()), out(far.size());
-    for (size_t i = 0; i < mic.size(); ++i) mic[i] = i >= size_t(delay) ? int16_t(far[i - delay] * 0.6) : 0;
+    std::vector<int16_t> mic(farSig.size()), out(farSig.size());
+    for (size_t i = 0; i < mic.size(); ++i) mic[i] = i >= size_t(delay) ? int16_t(farSig[i - delay] * 0.6) : 0;
     for (int f = 0; f < frames; ++f) {
-      dsp.pushFarEnd(&far[size_t(f) * kVoiceFrame], kVoiceFrame);
+      dsp.pushFarEnd(&farSig[size_t(f) * kVoiceFrame], kVoiceFrame);
       dsp.process(&mic[size_t(f) * kVoiceFrame], &out[size_t(f) * kVoiceFrame]);
     }
     const size_t a = size_t(frames - 100) * kVoiceFrame;
-    const double db = 10 * std::log10(energy(mic, a, mic.size()) / std::max(1.0, energy(out, a, out.size())));
+    const double db = 10 * std::log10(energy(mic, a, mic.size()) / (std::max)(1.0, energy(out, a, out.size())));
     qInfo("echo canceller: delayed copy reduced by %.1f dB (ERLE, last 2 s of 10 s)", db);
     QVERIFY2(db > 15.0, qPrintable(QString::number(db)));
   }
@@ -123,14 +123,14 @@ class VoiceDspTest : public QObject {
     QVERIFY(enc.open());
     QVERIFY(dec.open());
     const int frames = 500;
-    const auto far = farEnd(frames, 7);
-    std::vector<int16_t> mic(far.size()), out(kVoiceFrame), dec_out(kVoiceFrame);
-    for (size_t i = 0; i < mic.size(); ++i) mic[i] = int16_t(far[i] / 2);
+    const auto farSig = farEnd(frames, 7);
+    std::vector<int16_t> mic(farSig.size()), out(kVoiceFrame), dec_out(kVoiceFrame);
+    for (size_t i = 0; i < mic.size(); ++i) mic[i] = int16_t(farSig[i] / 2);
     using clk = std::chrono::steady_clock;
     double dspUs = 0, encUs = 0, decUs = 0;
     std::vector<uint8_t> pkt;
     for (int f = 0; f < frames; ++f) {
-      dsp.pushFarEnd(&far[size_t(f) * kVoiceFrame], kVoiceFrame);
+      dsp.pushFarEnd(&farSig[size_t(f) * kVoiceFrame], kVoiceFrame);
       auto t0 = clk::now();
       dsp.process(&mic[size_t(f) * kVoiceFrame], out.data());
       auto t1 = clk::now();

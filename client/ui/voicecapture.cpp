@@ -108,8 +108,8 @@ void VoiceCapture::onReadyRead() {
 }
 
 void VoiceCapture::convert(const char* data, qsizetype bytes, QByteArray& out) {
-  const int ch = std::max(1, fmt_.channelCount());
-  const int bps = std::max(1, fmt_.bytesPerSample());
+  const int ch = (std::max)(1, fmt_.channelCount());
+  const int bps = (std::max)(1, fmt_.bytesPerSample());
   const qsizetype frameBytes = static_cast<qsizetype>(ch) * bps;
   QByteArray in = carry_;
   in.append(data, bytes);
@@ -133,7 +133,7 @@ void VoiceCapture::convert(const char* data, qsizetype bytes, QByteArray& out) {
     mono[static_cast<size_t>(i)] = static_cast<float>(sum / ch);
   }
   // Resample to 48 kHz (linear, stateful) and convert to int16.
-  const double step = double(std::max(1, fmt_.sampleRate())) / double(uzume::kVoiceRate);
+  const double step = double((std::max)(1, fmt_.sampleRate())) / double(uzume::kVoiceRate);
   const bool pass = fmt_.sampleRate() == uzume::kVoiceRate;
   auto put = [&out](double v) {
     const int s = std::clamp(int(std::lround(v * 32767.0)), -32768, 32767);
