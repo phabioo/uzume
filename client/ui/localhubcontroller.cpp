@@ -158,6 +158,11 @@ void LocalHubController::onState(S s) {
       if (phase_ == QLatin1String("connecting") || phase_ == QLatin1String("working")) loadStatus(true);
       break;
     case S::Unreachable:
+      if (deps_.conn->credentialStoreLocked()) {  // a retry would only open the unlock prompt again
+        active_ = false;
+        setPhase(QStringLiteral("error"), tr("Your password store is locked. Unlock it to sign in."));
+        break;
+      }
       if (retries_ > 0) {  // the Hub service was just installed and may still be starting
         --retries_;
         QTimer::singleShot(1500, this, [this]() {
@@ -558,7 +563,7 @@ void LocalHubController::onChildReady(int port) {
     // app had lost it.
     const auto prof = deps_.conn->profile();
     if (mode() == QLatin1String("child") && !hubId.isEmpty() && prof && prof->hubId == hubId && deps_.conn->state() != S::Connected &&
-        deps_.conn->state() != S::Disconnected && deps_.connectProfile) {
+        deps_.conn->state() != S::Disconnected && !deps_.conn->credentialStoreLocked() && deps_.connectProfile) {
       deps_.connectProfile(hubId);
     }
     emit changed();
@@ -607,6 +612,10 @@ void LocalHubController::onChildState(S s) {
       if (phase_ == QLatin1String("connecting")) pairChild();
       break;
     case S::Unreachable:
+      if (deps_.conn->credentialStoreLocked()) {  // a retry would only open the unlock prompt again
+        failChild(tr("Your password store is locked. Unlock it to sign in."));
+        break;
+      }
       if (childRetries_ > 0) {
         --childRetries_;
         QTimer::singleShot(1000, this, [this]() {

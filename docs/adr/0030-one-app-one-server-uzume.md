@@ -54,6 +54,12 @@ Consequences:
 - The editor plugin id `uzume.pokemon-editor` (D7) becomes `uzume.monster-editor`; the repository is `phabioo/uzume-plugin-monster-editor` (renamed from `uzume-plugin-pokemon-editor`, the old URL redirects).
 - The releases `plugin-index` and `updates-index` are titled "Uzume plugin index" and "Uzume update index".
 
+#### Amendment (2026-10-28, decided by Fabio): editor plugin `uzume.creature-editor`
+
+- The editor plugin id `uzume.monster-editor` becomes `uzume.creature-editor` to match its name "Creature Editor"; the repository is `phabioo/uzume-plugin-creature-editor` (old URLs redirect).
+- No run migration: no runs depend on it.
+- The plugin index lists only `uzume.creature-editor`, which declares `replaces: ["uzume.monster-editor"]`: a server that still offers the old id shows the new plugin as "Replace"; installing it carries over people's plugin store data to the new id and removes the old id, except versions an unfinished run pins (issue #384).
+
 ### D2 One app, no web admin
 
 - Every administration task moves into the app: AppNav groups PLAY, SERVER (admins only) and THIS PC; Settings have a This PC / Server switch. Admin actions on the library and on saves appear inline where a member sees the same list.
@@ -120,7 +126,7 @@ Consequences:
 
 - Runs are always visible under PLAY, also without a run plugin. A run has its own save slot "Run: <Name>"; the main slot stays untouched.
 - A run plugin is chosen under "Rules" when creating the run; its screens become run tabs. Plugins get no sidebar entries any more; the plugin API's sidebar slot becomes a run-tab slot.
-- Plugin IDs: `uzume.soullink-core` and `uzume.soullink` (later `uzume.monster-editor`, `uzume.cheats`; the editor was renamed on 2026-10-27, see the amendment in D1). There are no open runs, so the IDs change without a migration; the plugin index is republished without the old IDs. SoulLink and Nuzlocke become one plugin "SoulLink & Nuzlocke" with a mode.
+- Plugin IDs: `uzume.soullink-core` and `uzume.soullink` (later `uzume.creature-editor`, `uzume.cheats`; the editor was renamed on 2026-10-27 and 2026-10-28, see the amendments in D1). There are no open runs, so the IDs change without a migration; the plugin index is republished without the old IDs. SoulLink and Nuzlocke become one plugin "SoulLink & Nuzlocke" with a mode.
 
 ### D8 Design
 

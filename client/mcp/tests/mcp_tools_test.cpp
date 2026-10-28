@@ -17,6 +17,7 @@
 #include "filelog.h"
 #include "mcp_test_client.h"
 #include "mcp_tools.h"
+#include "gamesession.h"
 #include "playercontroller.h"
 #include "test_core_layout.h"
 
@@ -140,6 +141,26 @@ class McpToolsTest : public QObject {
                           "run_recap", "together_state", "notifications_act", "session_share",
                           "session_stop_sharing", "together_ready_check", "together_pause", "chat_send", "chat_history", "session_quality", "session_viewers", "voice_state", "voice_join", "voice_leave", "voice_mic", "voice_inject", "control_request", "control_answer", "control_release", "control_state", "remote_input"})
       QVERIFY2(names.contains(QLatin1String(n)), n);
+  }
+
+  void gameDiagnosticsReportsVulkanFallback() {
+    ui::EmulationDiagnostics d;
+    d.valid = true;
+    d.hwRequested = d.hwActive = true;
+    d.api = QStringLiteral("OpenGL 4.5 Core");
+    d.vulkanFallback = QStringLiteral("no Vulkan device");
+    QJsonObject o = gameDiagnosticsJson(d);
+    QCOMPARE(o.value("fallback_reason").toString(), QStringLiteral("no Vulkan device"));
+    QJsonObject vk = o.value("vulkan_fallback").toObject();
+    QVERIFY(vk.value("requested").toBool());
+    QVERIFY(!vk.value("used").toBool());
+    QCOMPARE(vk.value("reason").toString(), QStringLiteral("no Vulkan device"));
+    d.vulkanFallback.clear();
+    d.api = QStringLiteral("Vulkan 1.3");
+    o = gameDiagnosticsJson(d);
+    vk = o.value("vulkan_fallback").toObject();
+    QVERIFY(vk.value("requested").toBool() && vk.value("used").toBool());
+    QVERIFY(o.value("fallback_reason").toString().isEmpty());
   }
 
   void statusAndSettings() {

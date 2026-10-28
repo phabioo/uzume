@@ -59,6 +59,29 @@ var idRe = regexp.MustCompile(`^[a-z0-9-]+(\.[a-z0-9-]+)+$`)
 // ValidID reports whether id is a valid plugin id (reverse DNS, lowercase letters, digits, '-' and '.').
 func ValidID(id string) bool { return len(id) <= 128 && idRe.MatchString(id) }
 
+// MaxReplaces is the most plugin ids one plugin may replace.
+const MaxReplaces = 8
+
+// ValidateReplaces checks the ids a plugin replaces: valid plugin ids, not its own id, no duplicates, at most MaxReplaces.
+func ValidateReplaces(self string, ids []string) error {
+	if len(ids) > MaxReplaces {
+		return fmt.Errorf("replaces: at most %d plugin ids", MaxReplaces)
+	}
+	seen := map[string]bool{}
+	for _, id := range ids {
+		switch {
+		case !ValidID(id):
+			return fmt.Errorf("replaces: invalid plugin id %q", id)
+		case id == self:
+			return errors.New("a plugin cannot replace itself")
+		case seen[id]:
+			return fmt.Errorf("replaces: duplicate plugin id %q", id)
+		}
+		seen[id] = true
+	}
+	return nil
+}
+
 // Game is one entry of the manifest field "games".
 type Game struct {
 	System string   `json:"system"`
@@ -76,7 +99,9 @@ type Manifest struct {
 	Permissions []string          `json:"permissions"`
 	Requires    map[string]string `json:"requires"`
 	Provides    []string          `json:"provides"`
-	Games       []Game            `json:"games"`
+	// Replaces is the optional manifest field replaces: ids of plugins this plugin takes over (a renamed plugin).
+	Replaces []string `json:"replaces,omitempty"`
+	Games    []Game   `json:"games"`
 	// RunSettings is the optional manifest field run_settings (validated; entries normalized to the known fields).
 	RunSettings []RunSetting `json:"run_settings,omitempty"`
 	// RunUpdateFrom is the optional manifest field run_update_from (SemVer): the lowest pinned version from which this
@@ -381,6 +406,18 @@ func ParseManifest(raw []byte) (Manifest, error) {
 				return m, invalid("requires: invalid version range %q for %s (use ^1.2, ~1.2, >=1.0, 1.2.3 or *)", rs, k)
 			}
 			m.Requires[k] = rs
+		}
+	}
+	if v, ok := o["replaces"]; ok && string(v) != "null" {
+		var l []string
+		if json.Unmarshal(v, &l) != nil {
+			return m, invalid("manifest field 'replaces' must be an array of strings")
+		}
+		if err := ValidateReplaces(m.ID, l); err != nil {
+			return m, invalid("%v", err)
+		}
+		if len(l) > 0 {
+			m.Replaces = l
 		}
 	}
 	list := func(key string) ([]string, error) {

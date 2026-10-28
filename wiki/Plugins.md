@@ -23,7 +23,7 @@ Each lives in its own repository.
 - [SoulLink & Nuzlocke](https://github.com/phabioo/uzume-plugin-soullink): Nuzlocke alone or SoulLink with 2 to 4 people: detects routes, encounters, catches and deaths, applies the run rules, shows teams, routes and a region map.
 - [SoulLink Core](https://github.com/phabioo/uzume-plugin-soullink-core): detects the Pokémon game and reads team, boxes, location, battles and badges from the running game; the shared base for the other Pokémon plugins.
 - [Cheats](https://github.com/phabioo/uzume-plugin-cheats): cheat lists per game, added by hand, imported or taken from the server's cheat database.
-- [Creature Editor](https://github.com/phabioo/uzume-plugin-monster-editor): edits team and box creatures and money in a running game (with your consent and a save copy first).
+- [Creature Editor](https://github.com/phabioo/uzume-plugin-creature-editor): edits team and box creatures and money in a running game (with your consent and a save copy first).
 - [Randomizer](https://github.com/phabioo/uzume-plugin-randomizer): presets for randomized games and runs where each person plays their own randomized world.
 - [Splits](https://github.com/phabioo/uzume-plugin-splits): split timer with game time and real time, personal bests and autosplit rules.
 - [Randomizer Tracker](https://github.com/phabioo/uzume-plugin-tracker): spoiler-free notes of what you have seen in a randomized run.

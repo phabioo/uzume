@@ -115,9 +115,14 @@ QVariantMap HubPresenter::hubCard(const HubProfile& p) const {
         break;
       case S::Unreachable:
         status = QStringLiteral("unreachable");
-        text = tr("Not reachable");
         tone = QStringLiteral("error");
-        message = friendlyConnectError(conn_->errorMessage(), &messageDetail);
+        if (conn_->credentialStoreLocked()) {
+          text = tr("Password store locked");
+          message = tr("Your password store is locked. Unlock it to sign in.");
+        } else {
+          text = tr("Not reachable");
+          message = friendlyConnectError(conn_->errorMessage(), &messageDetail);
+        }
         break;
       default:
         break;

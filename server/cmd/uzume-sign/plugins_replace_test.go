@@ -1,6 +1,7 @@
 package main
 
 import (
+	"archive/zip"
 	"bytes"
 	"crypto/ed25519"
 	"encoding/base64"
@@ -68,4 +69,43 @@ func TestPluginAddRefusesDifferentFileForSameVersion(t *testing.T) {
 	if len(idx.Plugins) != 1 || idx.Plugins[0].SHA256 != pluginpkg.SHA256Hex(bd) {
 		t.Fatalf("index %+v", idx.Plugins)
 	}
+}
+
+// plugin-add copies the manifest field replaces into the index entry.
+func TestPluginAddCopiesReplaces(t *testing.T) {
+	dir := t.TempDir()
+	now := func() time.Time { return time.Date(2026, 10, 12, 8, 0, 0, 0, time.UTC) }
+	seed := base64.StdEncoding.EncodeToString(make([]byte, ed25519.SeedSize))
+	env := map[string]string{signingKeyEnv: seed}
+	var out bytes.Buffer
+	runE := func(args ...string) error {
+		out.Reset()
+		return run(args, func(k string) string { return env[k] }, &out, now)
+	}
+	raw, signed := filepath.Join(dir, "r.raw"), filepath.Join(dir, "r.uzplugin")
+	os.WriteFile(raw, pluginZipReplaces(t, "1.2.0", `["net.example.old"]`), 0o644)
+	if err := runE("plugin-sign", "-in", raw, "-out", signed); err != nil {
+		t.Fatal(err)
+	}
+	idxFile := filepath.Join(dir, "plugin-index.json")
+	if err := runE("plugin-add", "-index", idxFile, "-plugin", signed, "-url", "https://example.org/t.uzplugin"); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := os.ReadFile(idxFile)
+	idx, errs := pluginpkg.ParseIndex(b, false)
+	if len(errs) != 0 || len(idx.Plugins) != 1 || len(idx.Plugins[0].Replaces) != 1 || idx.Plugins[0].Replaces[0] != "net.example.old" {
+		t.Fatalf("%v %+v", errs, idx.Plugins)
+	}
+}
+
+func pluginZipReplaces(t *testing.T, version, replaces string) []byte {
+	t.Helper()
+	var b bytes.Buffer
+	zw := zip.NewWriter(&b)
+	w, _ := zw.Create("manifest.json")
+	w.Write([]byte(`{"api":1,"id":"net.example.tracker","name":"Tracker","version":"` + version + `","entry":"main.lua","permissions":["ui"],"description":"Tracks","replaces":` + replaces + `}`))
+	w, _ = zw.Create("main.lua")
+	w.Write([]byte("return {}"))
+	zw.Close()
+	return b.Bytes()
 }

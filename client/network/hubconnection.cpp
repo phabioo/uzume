@@ -436,7 +436,7 @@ void HubConnection::trusted() {
   if (stored.status == CredentialRead::Status::Error) {
     // Locked, dismissed or timed out: the credential may still exist, so the person is not sent to pairing.
     fail(State::Unreachable, QStringLiteral("credential_store_unavailable"),
-         QStringLiteral("The credential store did not answer. Unlock it and retry."));
+         tr("Your password store is locked. Unlock it to sign in."));
   } else if (stored.status == CredentialRead::Status::Ok) {
     authenticate();
   } else {
@@ -716,7 +716,7 @@ void HubConnection::authenticate() {
     refreshInFlight_ = false;
     if (secret.status == CredentialRead::Status::Error) {
       fail(State::Unreachable, QStringLiteral("credential_store_unavailable"),
-           QStringLiteral("The credential store did not answer. Unlock it and retry."));
+           tr("Your password store is locked. Unlock it to sign in."));
     } else {
       setState(State::NeedsPairing);
     }

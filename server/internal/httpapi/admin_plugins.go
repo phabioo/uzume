@@ -19,9 +19,17 @@ func adminPluginIndexBody(st hub.PluginIndexStatus) api.AdminPluginIndex {
 	out := api.AdminPluginIndex{Configured: st.Configured, LastCheck: st.LastCheck, LastError: strPtr(st.LastError),
 		Catalog: make([]api.AdminPluginCatalogEntry, 0, len(st.Catalog))}
 	for _, c := range st.Catalog {
-		out.Catalog = append(out.Catalog, api.AdminPluginCatalogEntry{Id: c.ID, Name: c.Name, Version: c.Version, Api: c.API,
+		ce := api.AdminPluginCatalogEntry{Id: c.ID, Name: c.Name, Version: c.Version, Api: c.API,
 			Description: c.Description, Permissions: nz(c.Permissions), Size: c.Size, State: api.AdminPluginCatalogEntryState(c.State),
-			InstalledVersion: strPtr(c.InstalledVersion)})
+			InstalledVersion: strPtr(c.InstalledVersion)}
+		if c.State == hub.CatalogReplace {
+			ce.Replaces = &struct {
+				Id      string `json:"id"`
+				Name    string `json:"name"`
+				Version string `json:"version"`
+			}{c.ReplacesID, c.ReplacesName, c.ReplacesVersion}
+		}
+		out.Catalog = append(out.Catalog, ce)
 	}
 	return out
 }

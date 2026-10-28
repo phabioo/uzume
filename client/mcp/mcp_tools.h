@@ -9,9 +9,13 @@
 
 namespace uzume::ui {
 class PlayerController;
+struct EmulationDiagnostics;
 }
 
 namespace uzume::mcp {
+
+// The "diagnostics" object of game_state: renderer, measurements and the Vulkan fallback (`vulkan_fallback` {requested, used, reason}).
+QJsonObject gameDiagnosticsJson(const ui::EmulationDiagnostics& d);
 
 // Everything the debug server offers: installAppTools + installPluginTools + installGameTools + installUiTools.
 void installTools(McpToolRegistry& registry, ui::PlayerController& player);

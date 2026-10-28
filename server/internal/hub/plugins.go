@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -423,8 +424,62 @@ func (s *Service) PruneOldPlugins(ctx context.Context) {
 		}
 	}
 	rows.Close()
+	replaced := s.replacedPluginIDsLocked(ctx)
 	for _, id := range ids {
+		if replaced[id] {
+			s.removeAllPluginVersionsLocked(ctx, id)
+			continue
+		}
 		s.prunePluginLocked(ctx, id, false, "")
+	}
+}
+
+// replacedPluginIDsLocked returns the ids that an offered plugin replaces (manifest field replaces). Callers hold plug.mu.
+func (s *Service) replacedPluginIDsLocked(ctx context.Context) map[string]bool {
+	out := map[string]bool{}
+	rows, err := s.db.QueryContext(ctx, `SELECT plugin_id, manifest FROM plugins`)
+	if err != nil {
+		return out
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id, mf string
+		if rows.Scan(&id, &mf) != nil {
+			continue
+		}
+		var m struct {
+			Replaces []string `json:"replaces"`
+		}
+		if json.Unmarshal([]byte(mf), &m) != nil {
+			continue
+		}
+		for _, r := range m.Replaces {
+			if r != id {
+				out[r] = true
+			}
+		}
+	}
+	return out
+}
+
+// removeAllPluginVersionsLocked removes every offered version of a replaced id that no unfinished run pins.
+func (s *Service) removeAllPluginVersionsLocked(ctx context.Context, id string) {
+	rows, err := s.db.QueryContext(ctx, `SELECT version FROM plugins WHERE plugin_id = ?`, id)
+	if err != nil {
+		return
+	}
+	var vers []string
+	for rows.Next() {
+		var v string
+		if rows.Scan(&v) == nil {
+			vers = append(vers, v)
+		}
+	}
+	rows.Close()
+	for _, v := range vers {
+		if used, err := s.plug.inUse(ctx, id, v); err == nil && !used {
+			s.removePluginLocked(ctx, id, v)
+		}
 	}
 }
 

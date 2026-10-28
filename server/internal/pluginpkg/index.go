@@ -38,6 +38,8 @@ type IndexEntry struct {
 	URL         string   `json:"url"`
 	SHA256      string   `json:"sha256"`
 	Size        int64    `json:"size"`
+	// Replaces are the ids of plugins this one takes over (copied from the manifest); old servers ignore the field.
+	Replaces []string `json:"replaces,omitempty"`
 }
 
 // Index is the content of plugin-index.json (signed by a detached plugin-index.json.sig, like the updates index).
@@ -112,6 +114,9 @@ func ValidateEntry(e IndexEntry, allowFile bool) error {
 		return errors.New("sha256 must be 64 lowercase hex characters")
 	case e.Size <= 0 || e.Size > MaxCompressedBytes:
 		return errors.New("size must be 1 byte to 32 MiB")
+	}
+	if err := ValidateReplaces(e.ID, e.Replaces); err != nil {
+		return err
 	}
 	for _, p := range e.Permissions {
 		if p == "" || len(p) > 64 {
@@ -220,5 +225,5 @@ func EntryFor(p *Package, rawURL string) IndexEntry {
 		perms = []string{}
 	}
 	return IndexEntry{ID: p.Manifest.ID, Name: p.Manifest.Name, Version: p.Manifest.Version, API: p.Manifest.API,
-		Description: strings.TrimSpace(desc), Permissions: perms, URL: rawURL, SHA256: SHA256Hex(p.Data()), Size: int64(len(p.Data()))}
+		Description: strings.TrimSpace(desc), Permissions: perms, URL: rawURL, SHA256: SHA256Hex(p.Data()), Size: int64(len(p.Data())), Replaces: p.Manifest.Replaces}
 }

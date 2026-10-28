@@ -693,6 +693,11 @@ class PlayerController : public QObject {
   VariantLaunch variantLaunchFor(const GameEntry& game);
   QString titleIdOf(const GameEntry& game);
   bool startPending() const { return runStart_.pending() || variantStart_.pending(); }
+  bool routeRunSlotStart(bool share);  // a normal start from a run's slot: Play run, or back to Main (#355); `share` survives the routing
+  void launchProblem(const QString& text);
+ public:
+  bool lastRunStartShared() const { return lastRunStartShared_; }  // the last startRunGame asked for a shared start (routed Play and share)
+ private:  // a run start failed: the Runs screen says it, a routed one also on the screen the person is on
   void finishRunStart();  // the run's game is over (or never started): the game's own slot is selected again
   std::unique_ptr<SaveHistoryController> history_;  // after saves_/conn_: destroyed first
   std::unique_ptr<EmulationController> emulation_;
@@ -767,6 +772,11 @@ class PlayerController : public QObject {
   bool hubLinkDown_ = false;  // see hubLink(); read by GameDetail
   bool confirmActive_ = false;   // "Quit X and start Y?" is open
   bool confirmShare_ = false;
+  bool lastRunStartShared_ = false;
+  struct RoutedStart {  // a normal Play/Play and share that was routed through Play run (#355); consumed by the start or by a failure
+    QString runId;
+    bool share = false;
+  } routed_;
   void setBackground(bool on);
   void askQuitAndStart(bool share);
   // Start of a game: after the ROM and the save sync

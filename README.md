@@ -29,7 +29,7 @@ Sandboxed Lua plugins add game-specific features ([Plugin API](docs/guides/plugi
 
 - [`uzume-plugin-soullink-core`](https://github.com/phabioo/uzume-plugin-soullink-core): Pokémon game data for other plugins.
 - [`uzume-plugin-soullink`](https://github.com/phabioo/uzume-plugin-soullink): SoulLink and Nuzlocke runs.
-- [`uzume-plugin-monster-editor`](https://github.com/phabioo/uzume-plugin-monster-editor): monster editor.
+- [`uzume-plugin-creature-editor`](https://github.com/phabioo/uzume-plugin-creature-editor): Creature Editor.
 - [`uzume-plugin-cheats`](https://github.com/phabioo/uzume-plugin-cheats): cheats.
 - [`uzume-plugin-randomizer`](https://github.com/phabioo/uzume-plugin-randomizer): randomized variants.
 - [`uzume-plugin-splits`](https://github.com/phabioo/uzume-plugin-splits): split timer with autosplits.

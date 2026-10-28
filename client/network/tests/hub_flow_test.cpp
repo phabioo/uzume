@@ -16,6 +16,18 @@ using State = HubConnection::State;
 
 #define WAIT_STATE(conn, st) QTRY_VERIFY_WITH_TIMEOUT((conn).state() == (st), 8000)
 
+// Memory store that behaves like a Secret Service whose unlock prompt was cancelled; counts the reads (each one is a prompt).
+class CancelledStore final : public MemoryCredentialStore {
+ public:
+  bool cancelled = false;
+  mutable int reads = 0;
+  CredentialRead readChecked(const QString& t) const override {
+    ++reads;
+    if (cancelled) return {CredentialRead::Status::Error, {}};
+    return MemoryCredentialStore::readChecked(t);
+  }
+};
+
 class HubFlowTest : public QObject {
   Q_OBJECT
  private:
@@ -418,6 +430,46 @@ class HubFlowTest : public QObject {
     conn_->connectToProfile(hub.hubId);
     WAIT_STATE(*conn_, State::NeedsPairing);
     QCOMPARE(conn_->errorCode(), QStringLiteral("invalid_credentials"));
+  }
+
+  void cancelledCredentialStoreStopsWithoutRetryLoop() {
+    FakeHub hub(QStringLiteral("a"));
+    QVERIFY(hub.start());
+    auto store = std::make_unique<CancelledStore>();
+    conn_ = std::make_unique<HubConnection>(profiles_.get(), store.get());
+    conn_->setPollIntervalMs(50);
+    pairViaApproval(hub);
+    conn_->disconnectFromHub();
+
+    store->cancelled = true;
+    store->reads = 0;
+    QSignalSpy states(conn_.get(), &HubConnection::stateChanged);
+    conn_->connectToProfile(hub.hubId);
+    WAIT_STATE(*conn_, State::Unreachable);
+    QCOMPARE(conn_->errorCode(), QStringLiteral("credential_store_unavailable"));
+    QVERIFY(conn_->credentialStoreLocked());
+    QVERIFY(!conn_->errorMessage().isEmpty());
+    const int readsAfterCancel = store->reads;
+    QCOMPARE(readsAfterCancel, 1);
+    // Nothing asks again on its own: the state stays and the store is not read again.
+    const int statesAfterCancel = states.count();
+    QTest::qWait(600);
+    QCOMPARE(store->reads, readsAfterCancel);
+    QCOMPARE(states.count(), statesAfterCancel);
+    QVERIFY(conn_->state() == State::Unreachable);
+
+    // Retry asks exactly once more (and fails again while the store stays cancelled).
+    conn_->retry();
+    WAIT_STATE(*conn_, State::Unreachable);
+    QTRY_COMPARE_WITH_TIMEOUT(store->reads, readsAfterCancel + 1, 8000);
+    QTest::qWait(300);
+    QCOMPARE(store->reads, readsAfterCancel + 1);
+
+    // Unlocked: Retry signs in.
+    store->cancelled = false;
+    conn_->retry();
+    WAIT_STATE(*conn_, State::Connected);
+    conn_.reset();
   }
 
   void insecureHttpOnlyOnLoopbackOrDevFlag() {
