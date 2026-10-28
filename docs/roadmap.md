@@ -1,6 +1,6 @@
 # Roadmap
 
-Status and plan of Uzume after the proof of concept: what is finished, what comes next up to 1.0 and what is deliberately left for later. Work is cut into one work package per thread and PR (see [workflow](workflow.md)). 0.20 to 0.24 are built in parallel and all ship as betas 0.20.N; when all features and fixes are in, one release PR raises `VERSION` to 0.21.0, the first stable release ([ADR 0016](adr/0016-release-numbering-and-promotion.md), amendment 2026-10-27). 0.20, 0.23 and 0.24 are finished (their leftovers and Fabio's tests are below), 0.21 is built (real-engine test and 3DS updates open), 0.22 is open. Finished milestones and the decisions behind the old numbering are in [history](history.md); what the product does today is in [features](features.md).
+Status and plan of Uzume after the proof of concept: what is finished, what comes next up to 1.0 and what is deliberately left for later. Work is cut into one work package per thread and PR (see [workflow](workflow.md)). 0.20 to 0.24 are built in parallel and all ship as betas 0.20.N; when all features and fixes are in, one release PR raises `VERSION` to 0.21.0, the first stable release ([ADR 0016](adr/0016-release-numbering-and-promotion.md), amendment 2026-10-27). 0.20, 0.22, 0.23 and 0.24 are finished (their leftovers and Fabio's tests are below), 0.21 is built (real-engine test and 3DS updates open). Finished milestones and the decisions behind the old numbering are in [history](history.md); what the product does today is in [features](features.md).
 
 ## Goal 1.0
 
@@ -41,9 +41,10 @@ Decided by Fabio on 2026-10-11: 1.0 is reached when a group of friends completes
 | 0.19.x | Readable UI pass (design system r6) | [decisions](design/uzume/decisions.md#sheet-6--readable-pass-2026-10-26) |
 | 0.19.x | In-game redesign (sheet 7): control bar, Quick menu, Game tab | [decisions](design/uzume/decisions.md#sheet-7--in-game-redesign-2026-10-26) |
 | 0.20 | Emulation: save states, rewind, run-ahead, `memory.write`, snapshots, cheats, plugin store | [ADR 0023](adr/0023-plugins.md), [cheats design](design/uzume/cheats.md) |
+| 0.22 | Plugins: developer console, run recap, Discord Rich Presence, Splits and Tracker plugins, fb.ui `disabled` | [ADR 0023](adr/0023-plugins.md) |
 | 0.23 | Together: online status, notifications, ready check, chat, viewer role, mixer, voice chat, controller hand-over | [ADR 0033](adr/0033-together.md) |
 | 0.24 | Platforms: Linux AppImage, Secret Service, Vulkan | [ADR 0034](adr/0034-linux-app-and-vulkan.md) |
-| 0.21, 0.22, 1.0 | Planned, see below | |
+| 0.21, 1.0 | Planned, see below | |
 
 Not all items of the finished milestones are closed. Open leftovers are recorded in their [history](history.md) sections, among them: the 0.11 plugin open points (non-admin plugin upload, Azahar memory maps), the 0.16 "What's new" screen and plugin repository PR templates, the 0.10.x library speed with many games.
 
@@ -79,6 +80,16 @@ Tests only Fabio can do at the end: Azahar with Vulkan on a real GPU (and the Re
 
 Tests only Fabio can do at the end: save states, rewind and run-ahead in a real game on Windows (hotkeys, preview images, Undo after a load, frame pacing); cheats from the database in a DS, GBA and 3DS game, and switching `rules.cheats` to off in a running run; a plugin memory write with the consent, the "Before memory changes" copy and the run log; "Before gym N" from SoulLink; Windows hardware checks of the new Game rules and Cheat database screens.
 
+## 0.22 leftovers
+
+- Other array-model Repeaters inside plugin layouts (Plugin console, menu, detail sheet, toast, plugins section, map view) still recreate their items on every update; on Qt older than 6.7 (Linux 6.4) this can read a freed layout item, as the plugin blocks did before PR #267. The Windows build uses a newer Qt.
+- The ORAS badge path (`badges.changed`, `soullink.badge`, Splits badge autosplit) and `battle().foes` are untested against the real game; the cloud used the soullink-core demo adapter.
+- Discord Rich Presence is tested only against a fake IPC server.
+- Developer console board 4d-2C is not built.
+- The Tracker's catch detection is a census heuristic.
+
+Tests only Fabio can do at the end (list: project notes `notes/0.22/weekend-tests.md`): SoulLink with real Omega Ruby / Alpha Sapphire (team, route names, catch, faint, badge, "before Gym N" snapshot, region map), the Recap tab of that run, Splits with the badge autosplit, the Tracker on a randomized ORAS, Discord Rich Presence with the real Discord client on Windows (shows, clears on quit and switch-off, appears when Discord starts later), Tab order and Esc in a plugin screen.
+
 ## 0.23 leftovers
 
 - The plugin sound bus (`fb.sound`) and the real audio sink are untested without an audio device.
@@ -98,7 +109,6 @@ Planned, in this order. Each section is the work list; check an item off here an
 | Version | Theme |
 |---|---|
 | [0.21](#021-randomizer) | Randomizer: game variants, tools catalog, plugin, runs with their own randomized game |
-| [0.22](#022-plugins) | Plugins: developer console, run recap, Discord Rich Presence, tracker plugins |
 | [1.0](#10-test-phase) | Test phase and the SoulLink run |
 
 ## 0.21 Randomizer
@@ -112,15 +122,6 @@ Decided by Fabio on 2026-10-23 (as 0.22; renumbered on 2026-10-23); [ADR 0031](a
 - [x] Plugin `uzume-plugin-randomizer` v0.1 in its own repository: presets as settings strings, supported games and the overview card; Uzume draws the dialogs, the variant list and the run setting itself (ADR 0031 amendment) (M)
 - [x] Runs with variants: run seed and pinned engine version, per-person seed derived from the run seed and the user ID or "Same world for everyone", own variants if allowed, "Building your variant", run board column Game and Randomizer block (M)
 - [ ] SoulLink: show the variant in the run, read encounter data from the variant, test with ORAS (S, plugin repositories)
-
-## 0.22 Plugins
-
-Decided by Fabio on 2026-10-21 (as 0.21; renumbered on 2026-10-22 and 2026-10-23). The UI parts are drawn in the Uzume design (developer console 4d-1/4d-2, run recap 4jh-app-2); no own design round. The plugin UI language moved forward to 0.17.
-
-- [ ] Developer console: live log with filter, reload, memory viewer and search, inspect state (M)
-- [ ] Run recap: timeline from the run event log, recap page per run in the app, export as image or HTML (M, server and SoulLink)
-- [ ] Discord Rich Presence as a local app option, switch in My account (S)
-- [ ] Tracker plugins (speedrun splits and autosplitter, randomizer tracker) in their own plugin repositories (M per plugin)
 
 ## 1.0 Test phase
 

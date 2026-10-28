@@ -32,6 +32,8 @@ Sandboxed Lua plugins add game-specific features ([Plugin API](docs/guides/plugi
 - [`uzume-plugin-monster-editor`](https://github.com/phabioo/uzume-plugin-monster-editor): monster editor.
 - [`uzume-plugin-cheats`](https://github.com/phabioo/uzume-plugin-cheats): cheats.
 - [`uzume-plugin-randomizer`](https://github.com/phabioo/uzume-plugin-randomizer): randomized variants.
+- [`uzume-plugin-splits`](https://github.com/phabioo/uzume-plugin-splits): split timer with autosplits.
+- [`uzume-plugin-tracker`](https://github.com/phabioo/uzume-plugin-tracker): spoiler-free randomizer tracker.
 - [`uzume-plugin-template`](https://github.com/phabioo/uzume-plugin-template): starting point for plugins.
 
 ## Quick start
