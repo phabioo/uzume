@@ -172,7 +172,11 @@ func (c *Client) chatSend(env envelope) {
 	if k.scope == scopeRun {
 		msg, err = s.storeRunChat(ctx, k.id, msg)
 	} else {
-		msg = s.appendSessionChat(k.id, msg)
+		var live bool
+		if msg, live = s.appendSessionChatChecked(ctx, k.id, msg); !live {
+			c.sendError(env.ID, CodeForbidden, "Not a member of this "+m.Scope)
+			return
+		}
 	}
 	if err != nil {
 		c.sendError(env.ID, CodeInternal, "Internal error")
@@ -206,6 +210,19 @@ func (s *Service) findChat(ctx context.Context, k scopeKey, userID, clientID str
 		return ChatMessage{}, false, nil
 	}
 	return m, err == nil, err
+}
+
+// appendSessionChatChecked appends to the ring of a Session and then checks that the Session is still running. The
+// end of a Session drops the ring after marking it ended in the database, so an append that lost the race against
+// the end (the ring is created again after the drop) is seen by this check and dropped again: an ended Session never
+// keeps a ring. live is false in that case and the message is not delivered. The database is read outside chat.mu.
+func (s *Service) appendSessionChatChecked(ctx context.Context, id string, m ChatMessage) (ChatMessage, bool) {
+	m = s.appendSessionChat(id, m)
+	if _, ok := s.membersOf(ctx, scopeKey{scopeSession, id}); !ok {
+		s.dropSessionChat(id)
+		return m, false
+	}
+	return m, true
 }
 
 func (s *Service) appendSessionChat(id string, m ChatMessage) ChatMessage {
@@ -308,12 +325,16 @@ func (s *Service) ListRunChat(ctx context.Context, userID, runID string, after i
 
 // ListSessionChat returns the ring of an active Session (owner and active viewers only).
 func (s *Service) ListSessionChat(ctx context.Context, p Principal, id string) ([]ChatMessage, error) {
-	d, err := s.loadActive(ctx, id)
+	d, err := s.loadSession(ctx, id)
 	if err != nil {
 		return nil, err
 	}
+	// Non-members get the same answer as for an unknown Session, before "ended" would reveal that it existed.
 	if !slices.Contains(sessionMembers(d), p.User.ID) {
-		return nil, ErrSessionForbidden
+		return nil, ErrSessionNotFound
+	}
+	if d.ended {
+		return nil, ErrSessionEnded
 	}
 	s.chat.mu.Lock()
 	defer s.chat.mu.Unlock()

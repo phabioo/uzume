@@ -2414,7 +2414,9 @@ paths:
       summary: The chat of a Session (owner and viewers)
       description: |
         `together_v1`. Returns the in-memory ring (the last 200 messages, oldest first; no `next_after_seq`). Only the
-        owner and the active viewers may read it (403 `session_forbidden`).
+        owner and the active viewers may read it; everyone else gets the same 404 `session_not_found` as for an unknown
+        Session, so the answer does not reveal whether a Session exists or has ended (410 `session_ended` only for
+        the owner of an ended Session).
       security:
         - bearerAuth: []
       responses:
@@ -2424,7 +2426,6 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ChatMessageList' }
         '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/SessionForbidden' }
         '404': { $ref: '#/components/responses/SessionNotFound' }
         '410': { $ref: '#/components/responses/SessionEnded' }
   /api/v1/sessions/{session_id}:

@@ -1666,6 +1666,14 @@ func (s *Service) DeleteRun(ctx context.Context, runID string) (err error) {
 	defer s.publishOK(&err, TopicRuns)
 	s.runs.mu.Lock()
 	defer s.runs.mu.Unlock()
+	var joined []string // the members learn that a shared pause ended with the run
+	if run, lerr := loadRun(ctx, s.db, runID, false); lerr == nil {
+		for _, p := range run.Participants {
+			if p.Status == ParticipantJoined {
+				joined = append(joined, p.UserID)
+			}
+		}
+	}
 	res, err := s.db.ExecContext(ctx, `DELETE FROM runs WHERE id = ?`, runID)
 	if err != nil {
 		return internal(err)
@@ -1674,7 +1682,7 @@ func (s *Service) DeleteRun(ctx context.Context, runID string) (err error) {
 		return ErrNotFound
 	}
 	s.dropRunBuckets(runID)
-	s.reconcileTogether(scopeRun, runID, nil)
+	s.endTogether(scopeRun, runID, joined)
 	s.PruneOldPlugins(ctx)
 	return nil
 }

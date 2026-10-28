@@ -104,6 +104,9 @@ func newTogetherFx(t *testing.T, mod func(*hub.Options)) *togetherFx {
 	f := &togetherFx{svc: svc, clk: clk, admin: admin, anna: anna, bob: bob, run: run}
 	f.pAdmin, f.pAnna, f.pB = principal(t, svc, admin.ID, "Desktop"), principal(t, svc, anna.ID, "Anna-PC"), principal(t, svc, bob.ID, "Bob-PC")
 	f.cAdmin, f.cAnna, f.cBob = connect(t, svc, f.pAdmin), connect(t, svc, f.pAnna), connect(t, svc, f.pB)
+	if _, err := svc.SetRunStatus(ctx, admin.ID, run.ID, hub.RunActive); err != nil { // ready checks and pauses need an active run
+		t.Fatal(err)
+	}
 	got(f.cAdmin)
 	got(f.cAnna)
 	got(f.cBob)
@@ -361,9 +364,6 @@ func TestRunLeavingActiveStateEndsCheckAndPause(t *testing.T) {
 	for _, to := range []string{hub.RunPaused, hub.RunFinished} {
 		t.Run(to, func(t *testing.T) {
 			f := newTogetherFx(t, nil)
-			if _, err := f.svc.SetRunStatus(ctx, f.admin.ID, f.run.ID, hub.RunActive); err != nil {
-				t.Fatal(err)
-			}
 			f.start(t, f.cAdmin)
 			send(t, f.cAnna, "pause_request", fmt.Sprintf(`{"scope":"run","id":%q,"paused":true}`, f.run.ID))
 			got(f.cAdmin)

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"log/slog"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -648,7 +649,7 @@ func (s *Service) endLocked(ctx context.Context, d *sessionData, reason string) 
 	for _, v := range d.viewers {
 		s.cancelViewerGrace(v.id)
 	}
-	s.reconcileTogether(scopeSession, d.id, nil) // the ready check is cancelled and the pause cleared
+	s.endTogether(scopeSession, d.id, sessionMembers(d)) // the ready check is cancelled and the pause cleared
 	s.dropSessionChat(d.id)
 	for _, c := range s.clients() {
 		if d.allows(c.userID, c.deviceID) {
@@ -663,7 +664,15 @@ func (s *Service) endLocked(ctx context.Context, d *sessionData, reason string) 
 // session_ended(no_longer_visible) to devices that could see it before and cannot now.
 func (s *Service) broadcastSession(before, after *sessionData, inviteUser string) {
 	if after.ended {
-		s.reconcileTogether(scopeSession, after.id, nil)
+		recipients := sessionMembers(after)
+		if before != nil {
+			for _, u := range sessionMembers(before) {
+				if !slices.Contains(recipients, u) {
+					recipients = append(recipients, u)
+				}
+			}
+		}
+		s.endTogether(scopeSession, after.id, recipients)
 		s.dropSessionChat(after.id)
 	} else {
 		s.reconcileTogether(scopeSession, after.id, sessionMembers(after))

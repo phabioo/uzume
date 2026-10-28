@@ -56,7 +56,7 @@ func TestSessionChatREST(t *testing.T) {
 			t.Fatalf("ring: %+v", l)
 		}
 	}
-	wantStatus(t, s.api(bob, "GET", path, nil), 403, "") // allowed to see the Session, but no viewer
+	wantStatus(t, s.api(bob, "GET", path, nil), 404, "session_not_found") // may see the Session, but no viewer: same as unknown
 	wantStatus(t, s.api(owner, "DELETE", "/api/v1/sessions/"+sess.SessionID, nil), 204, "")
 	wantStatus(t, s.api(owner, "GET", path, nil), 410, "")
 }
