@@ -23,3 +23,7 @@ Windows dependency builds in CI are expensive. The binary cache was keyed only b
 ## Amendment 2026-10-19
 
 The vcpkg baseline has a single pin, `builtin-baseline` in `client/vcpkg.json`; `scripts/bootstrap-vcpkg.sh` (Linux) reads it from there instead of repeating the commit, and `scripts/check-vcpkg-pin.sh` (in `make check-hub`) fails on a second copy. Dependabot (ecosystem `vcpkg`, monthly) proposes baseline bumps, which the Windows CI run tests because the MSI ships the vcpkg DLLs. At this date the baseline (tag 2026.07.29) is the newest vcpkg release tag, so no bump was needed. The baseline is part of the cache key through the hash of `client/vcpkg.json`, so a bump starts one cold Windows dependency build.
+
+## Amendment 2026-10-28: merge queue
+
+Windows no longer runs on every PR push. It runs in the GitHub merge queue (`merge_group`), on pushes to `main` and manually; PRs run only the fast Linux checks. Reason: PR rounds took 35 to 40 minutes, mostly the Windows and Linux C++ builds. Decided by the owner on 2026-10-28. The required check `Player (C++, Windows MSVC)` is skipped on PRs (counts as passed) and decides in the queue.

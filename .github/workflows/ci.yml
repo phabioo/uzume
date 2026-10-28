@@ -2,28 +2,35 @@ name: CI
 
 on:
   push:
-    branches: [main]   # other branches: ci-branch.yml (calls this workflow unless the branch has an open PR)
+    branches: [main]
   pull_request:
     branches: [main]
-  workflow_dispatch:
-  workflow_call:
+  merge_group:
+    types: [checks_requested]
+  workflow_dispatch:   # branches without a PR are not built on push: run CI manually there
 
 concurrency:
   # main: one group per commit, so no run is cancelled or replaced by a newer pending run (GitHub keeps only one pending
   # run per group; a shared group would drop the middle commit of two quick merges). The tag reservation in the version
   # job copes with parallel main runs. Everything else: one group per ref, a newer push cancels the older run.
-  # When called from ci-branch.yml, github.workflow is "CI (branch)" and the group differs from the caller's own.
+  # merge_group refs (refs/heads/gh-readonly-queue/...) are unique per queue entry, so they never share a group.
   group: ci-${{ github.workflow }}-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read
 
+# Two lanes, so a PR round stays short:
+#   pull_request (fast lane): version, changes, hub (without the race detector), client-linux incl. its E2E.
+#   merge_group (merge queue), push to main, workflow_dispatch (full lane): everything, including the race detector,
+#   hub-docker, hub-windows, app-appimage and client-windows (Windows and packages are skipped on pull_request only).
+# The merge queue must be enabled in the ruleset of main; the required checks then report on the queue's merge commit.
+# A job skipped by `if:` counts as passed for a required check, so skipping Windows on PRs does not block merging.
 jobs:
   # Build version and channel, computed once (ADR 0011, ADR 0036). A push to main gets a plain, auto-incremented beta version
   # R.B.0 (release line R from VERSION, running build number B, scripts/next-beta-version.sh) and reserves it by creating the lightweight tag vR.B.0 on the
   # commit; release.yml publishes the prerelease for that tag and promote.yml turns it into the stable release without
-  # a rebuild. Everything else (PRs, branches, manual runs) is R.0.0-dev.<run>, channel dev, and publishes nothing.
+  # a rebuild. Everything else (PRs, merge queue, manual runs) is R.0.0-dev.<run>, channel dev, and publishes nothing.
   version:
     name: Version and channel
     runs-on: ubuntu-24.04
@@ -83,9 +90,10 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           echo "Version $version, channel $channel" >> "$GITHUB_STEP_SUMMARY"
 
-  # Docs-only gate: true only for PRs and non-main branch pushes whose diff touches nothing but docs/** and *.md.
-  # Pushes classify the whole branch vs main (origin/main...sha), not just the last push, so a docs-only push that
-  # cancels an earlier code run (concurrency) still runs the builds. PRs use base...head.
+  # Docs-only gate: true only for PRs, merge queue entries and non-main branch runs whose diff touches nothing but
+  # docs/** and *.md. Pushes classify the whole branch vs main (origin/main...sha), not just the last push, so a docs-only
+  # push that cancels an earlier code run (concurrency) still runs the builds. PRs use base...head, a merge queue entry
+  # its base...head (the queue's merge commit against the current main).
   # Always false for main (beta release, Windows cache priming per ADR 0008) and workflow_dispatch on main; a
   # workflow_dispatch on another ref is classified like a branch push (used for the changelog PR, see promote.yml).
   changes:
@@ -106,6 +114,8 @@ jobs:
           SHA: ${{ github.sha }}
           PR_BASE: ${{ github.event.pull_request.base.sha }}
           PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          MQ_BASE: ${{ github.event.merge_group.base_sha }}
+          MQ_HEAD: ${{ github.event.merge_group.head_sha }}
         run: |
           set -euo pipefail
           docs_only=false
@@ -113,6 +123,14 @@ jobs:
           range=""
           if [ "$EVENT" = pull_request ]; then
             range="$PR_BASE...$PR_HEAD"
+          elif [ "$EVENT" = merge_group ]; then
+            # The queue's base commit may be missing from a shallow or stale clone; fetch it by sha like a fallback.
+            git cat-file -e "$MQ_BASE^{commit}" 2>/dev/null || git fetch --no-tags origin "$MQ_BASE" || true
+            if git cat-file -e "$MQ_BASE^{commit}" 2>/dev/null && git cat-file -e "$MQ_HEAD^{commit}" 2>/dev/null; then
+              range="$MQ_BASE...$MQ_HEAD"
+            else
+              reason="merge queue base or head commit not available"
+            fi
           elif { [ "$EVENT" = push ] || [ "$EVENT" = workflow_dispatch ]; } && [ "$REF" != refs/heads/main ]; then
             # Whole branch since the merge base with main (covers new branches and cancelled earlier runs).
             git rev-parse --verify -q refs/remotes/origin/main >/dev/null || git fetch --no-tags origin main || true
@@ -195,6 +213,8 @@ jobs:
         timeout-minutes: 20
         run: make check-hub
       - name: Hub tests with the race detector
+        # Full lane only (merge queue, main, manual); PRs skip it to stay fast.
+        if: github.event_name != 'pull_request'
         # check-hub runs with CGO_ENABLED=0; -race needs cgo (gcc is on the runner, sqlite is pure Go). CI-4.
         timeout-minutes: 15
         run: make check-hub-race
@@ -237,7 +257,7 @@ jobs:
   hub-docker:
     name: Hub (Docker image)
     # Builds the image for amd64 and arm64 and starts the amd64 one; never pushes (release.yml pushes, ADR 0029 D1).
-    if: needs.changes.outputs.docs_only != 'true'
+    if: needs.changes.outputs.docs_only != 'true' && github.event_name != 'pull_request'
     needs: [version, changes]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -272,7 +292,7 @@ jobs:
     name: Hub (Go, Windows)
     # Same triggers as client-windows (ADR 0008); also skipped for docs-only changes.
     # Not a required check unless the repository settings say so.
-    if: needs.changes.outputs.docs_only != 'true' && (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main'))
+    if: needs.changes.outputs.docs_only != 'true' && github.event_name != 'pull_request'
     needs: [version, changes]
     runs-on: windows-2025-vs2026
     timeout-minutes: 30
@@ -443,7 +463,7 @@ jobs:
     name: App package (AppImage, Linux)
     # Skipped for docs-only changes (see job changes); every other push, PR and main build runs it, because the beta
     # prerelease of main carries the AppImage (release.yml).
-    if: needs.changes.outputs.docs_only != 'true'
+    if: needs.changes.outputs.docs_only != 'true' && github.event_name != 'pull_request'
     needs: [version, changes]
     runs-on: ubuntu-24.04
     timeout-minutes: 120
@@ -645,9 +665,9 @@ jobs:
 
   client-windows:
     name: Player (C++, Windows MSVC)
-    # ADR 0008: PRs, manual runs, pushes to main (cache priming and beta releases).
+    # ADR 0008, amendment 2026-10-28: merge queue, manual runs, pushes to main (cache priming and beta releases); not on PRs.
     # Also skipped for docs-only changes (see job changes).
-    if: needs.changes.outputs.docs_only != 'true' && (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main'))
+    if: needs.changes.outputs.docs_only != 'true' && github.event_name != 'pull_request'
     needs: [version, changes]
     runs-on: windows-2025-vs2026
     timeout-minutes: 300
