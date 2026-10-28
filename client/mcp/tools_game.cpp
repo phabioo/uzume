@@ -68,6 +68,25 @@ void waitFor(Obj* obj, Signal signal, Ready ready, int ms, Done done) {
 
 }  // namespace
 
+QJsonObject gameDiagnosticsJson(const ui::EmulationDiagnostics& d) {
+  // Vulkan ran when the API string says so; it was requested but not used when a reason was recorded (RenderInfo::vulkanFallback).
+  const bool vkUsed = d.hwActive && d.api.startsWith(QLatin1String("Vulkan"));
+  const bool vkRequested = vkUsed || !d.vulkanFallback.isEmpty();
+  // fallback_reason also names the Vulkan to OpenGL fallback, which the old software fallback reason never covered.
+  const QString fallbackReason = d.fallbackReason.isEmpty() ? d.vulkanFallback : d.fallbackReason;
+  QJsonObject o{
+            {QStringLiteral("core"), d.core}, {QStringLiteral("hw_requested"), d.hwRequested}, {QStringLiteral("hw_active"), d.hwActive},
+            {QStringLiteral("api"), d.api}, {QStringLiteral("gpu"), d.gpu}, {QStringLiteral("fallback_reason"), fallbackReason},
+            {QStringLiteral("frame_size"), sizeJson(d.frameSize)}, {QStringLiteral("readback_size"), sizeJson(d.readbackSize)},
+            {QStringLiteral("base_size"), sizeJson(d.baseSize)}, {QStringLiteral("screen_count"), d.screens},
+            {QStringLiteral("requested_scale"), d.requestedScale}, {QStringLiteral("cpu_threads"), d.cpuThreads},
+            {QStringLiteral("fps"), d.fps}, {QStringLiteral("target_fps"), d.targetFps}, {QStringLiteral("frame_ms"), d.frameMs},
+            {QStringLiteral("emu_ms"), d.emuMs}, {QStringLiteral("readback_ms"), d.readbackMs}, {QStringLiteral("zero_copy"), d.zeroCopy},
+            {QStringLiteral("audio_active"), d.audioActive}, {QStringLiteral("audio_buffer_ms"), d.audioBufferMs}, {QStringLiteral("underruns"), d.underruns}};
+  o.insert(QStringLiteral("vulkan_fallback"), QJsonObject{{QStringLiteral("requested"), vkRequested}, {QStringLiteral("used"), vkUsed}, {QStringLiteral("reason"), d.vulkanFallback}});
+  return o;
+}
+
 void installGameTools(McpToolRegistry& registry, ui::PlayerController& player) {
   QPointer<ui::PlayerController> pc(&player);
   const auto session = [pc]() -> ui::GameSession* { return pc ? pc->gameSession() : nullptr; };
@@ -101,15 +120,7 @@ void installGameTools(McpToolRegistry& registry, ui::PlayerController& player) {
                     {QStringLiteral("fast_forward"), gs->fastForward()}};
       const ui::EmulationDiagnostics d = gs->diagnostics();
       if (d.valid) {
-        o.insert(QStringLiteral("diagnostics"), QJsonObject{
-            {QStringLiteral("core"), d.core}, {QStringLiteral("hw_requested"), d.hwRequested}, {QStringLiteral("hw_active"), d.hwActive},
-            {QStringLiteral("api"), d.api}, {QStringLiteral("gpu"), d.gpu}, {QStringLiteral("fallback_reason"), d.fallbackReason},
-            {QStringLiteral("frame_size"), sizeJson(d.frameSize)}, {QStringLiteral("readback_size"), sizeJson(d.readbackSize)},
-            {QStringLiteral("base_size"), sizeJson(d.baseSize)}, {QStringLiteral("screen_count"), d.screens},
-            {QStringLiteral("requested_scale"), d.requestedScale}, {QStringLiteral("cpu_threads"), d.cpuThreads},
-            {QStringLiteral("fps"), d.fps}, {QStringLiteral("target_fps"), d.targetFps}, {QStringLiteral("frame_ms"), d.frameMs},
-            {QStringLiteral("emu_ms"), d.emuMs}, {QStringLiteral("readback_ms"), d.readbackMs}, {QStringLiteral("zero_copy"), d.zeroCopy},
-            {QStringLiteral("audio_active"), d.audioActive}, {QStringLiteral("audio_buffer_ms"), d.audioBufferMs}, {QStringLiteral("underruns"), d.underruns}});
+        o.insert(QStringLiteral("diagnostics"), gameDiagnosticsJson(d));
       }
       reply(ToolResult::json(o));
     };

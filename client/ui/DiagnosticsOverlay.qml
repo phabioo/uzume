@@ -22,6 +22,7 @@ UzStageDiagnostics {
         if (e.valid === true) {
             r.push([qsTr("Core"), e.core || ""])
             r.push([qsTr("Renderer"), (e.renderer || "") + (e.fallback === true ? " · " + qsTr("fallback") : ""), e.fallback === true ? "warn" : undefined])
+            if (e.rendererSub) r.push(["", e.rendererSub])   // GPU and "Vulkan requested, not used (reason)" under the renderer line
             r.push([qsTr("Resolution"), (e.resolution || "") + (e.resolutionSub ? " · " + e.resolutionSub : "")])
             r.push([qsTr("FPS"), e.fps || ""])
             r.push([qsTr("Frame"), e.frame || ""])
@@ -77,7 +78,7 @@ UzStageDiagnostics {
     // The full text for "Copy"
     function fullText() {
         const lines = [root.title]
-        for (const r of root.modelRows) lines.push(r[0] + ": " + r[1])
+        for (const r of root.modelRows) lines.push(r[0] === "" ? "  " + r[1] : r[0] + ": " + r[1])
         if (root.emu.valid === true && root.emu.fallback === true && root.emu.fallbackText) lines.push(root.emu.fallbackText)
         for (const g of root.groups) {
             for (const p of (g.participants || [])) {
