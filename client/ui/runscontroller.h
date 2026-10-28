@@ -207,8 +207,7 @@ class RunsController : public QObject {
   QVariantList consentNeeded(const RunInfo& run) const;
   QVariantList consentNeededFor(const QString& runId, const QList<RunPluginRef>& pins) const;
   bool permissionsOf(const QString& pluginId, const QString& version, QStringList* out) const;
-  QSet<QString> appendedPlugins(const QString& runId) const;
-  QStringList acceptedBaseline(const QString& runId, const QString& pluginId, const QString& previousVersion, bool appended, const QStringList& now) const;
+  QStringList acceptedBaseline(const QString& runId, const QString& pluginId) const;
   QStringList additionsFor(const RunInfo& run, const QList<RunPluginRef>& request) const;
   void requestCatalogRefresh(const QString& runId, const RunPluginRef& p) const;
   Q_INVOKABLE void dismissMessage();

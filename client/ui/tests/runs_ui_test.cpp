@@ -482,6 +482,7 @@ class RunsUiTest : public QObject {
     pair(h, hub);
     RunsController* runs = h.controller->runs();
     PluginsController* pc = h.controller->plugins();
+    pc->acceptRunPermissions(mine, spec.id, {QStringLiteral("run.state"), QStringLiteral("ui")});  // the person reviewed them when they created or joined the run; no record would ask
     QTRY_VERIFY_WITH_TIMEOUT(runs->loaded(), 8000);
     QTRY_COMPARE_WITH_TIMEOUT(pc->hubPlugins().size(), 1, 8000);
 
@@ -571,6 +572,7 @@ class RunsUiTest : public QObject {
     pair(h, hub);
     RunsController* runs = h.controller->runs();
     PluginsController* pc = h.controller->plugins();
+    pc->acceptRunPermissions(mine, spec.id, {QStringLiteral("run.state"), QStringLiteral("ui")});  // the person reviewed them when they created or joined the run; no record would ask
     QTRY_VERIFY_WITH_TIMEOUT(runs->loaded(), 8000);
     QTRY_COMPARE_WITH_TIMEOUT(pc->hubPlugins().size(), 1, 8000);
     QVERIFY(h.click("navRuns"));
@@ -1068,6 +1070,17 @@ class RunsUiTest : public QObject {
     for (const QJsonValue& v : pins) got << v.toObject().value("plugin_id").toString() + "@" + v.toObject().value("version").toString();
     got.sort();
     QCOMPARE(got, (QStringList{"net.test.core@0.1.4", "net.test.soul@1.0.0"}));
+    // The creator reviewed the permissions in the start dialog: they are recorded for every pin when the run is created, dependencies included.
+    QString created;
+    QTRY_VERIFY_WITH_TIMEOUT(([&] {
+      for (const RunInfo& r : runs->client()->runs())
+        if (r.name == QStringLiteral("Rules Run")) created = r.runId;
+      return !created.isEmpty();
+    })(), 8000);
+    QTRY_VERIFY_WITH_TIMEOUT(h.controller->plugins()->runAcceptedPermissions(created, QStringLiteral("net.test.core")).has_value(), 8000);
+    QCOMPARE(h.controller->plugins()->runAcceptedPermissions(created, QStringLiteral("net.test.core")).value(), QStringList{QStringLiteral("memory.read")});
+    QCOMPARE(h.controller->plugins()->runAcceptedPermissions(created, QStringLiteral("net.test.soul")).value(), QStringList{QStringLiteral("run.state")});
+    QVERIFY(runs->consentNeeded(*runs->client()->run(created)).isEmpty());
   }
 
 
@@ -1369,6 +1382,7 @@ class RunsUiTest : public QObject {
     QVERIFY(!runs->detail().value("canUpdatePlugins").toBool());
     QVERIFY(changes().isEmpty());
     QSignalSpy launched(runs, &RunsController::launchRequested);
+    QTRY_VERIFY_WITH_TIMEOUT(!runs->busy(), 8000);  // the fetch the restore of B started (its pins were accepted by the person who switched) is done
     runs->playRun(runC);
     QTRY_VERIFY_WITH_TIMEOUT(!runs->pluginConsent().isEmpty(), 8000);
     const QVariantList items = runs->pluginConsent().value("items").toList();
@@ -1418,6 +1432,58 @@ class RunsUiTest : public QObject {
     QVERIFY(runs->consentNeeded(*runs->client()->run(runF)).isEmpty());  // accepted once: not asked again
     // A legacy file (accepted versions only) migrates: 1.1.0 accepted covers memory.read.
 
+    // G1: a dependency appended by an update, with new permissions, arrives in run_updated before (and without) the plugins.updated event.
+    // The gate decides from the pins and the stored acceptance alone, so it asks at once; it does not wait for the event.
+    {
+      hub.pluginList.append(QJsonObject{{"plugin_id", "net.test.dep"}, {"version", "1.0.0"}, {"name", "Dep"}, {"description", ""}, {"api", 1}, {"origin", "unverified"},
+                                        {"sha256", QString(64, QLatin1Char('d'))}, {"size", 10}, {"permissions", QJsonArray{"run.state", "memory.read"}},
+                                        {"games", QJsonArray{QJsonObject{{"system", "nds"}}}}, {"created_at", "2026-10-12T10:00:00Z"}});
+      h.controller->plugins()->refreshHubPlugins();
+      QTRY_COMPARE_WITH_TIMEOUT(h.controller->plugins()->hubClient()->plugins().size(), 5, 8000);
+      QJsonObject dep{{"plugin_id", "net.test.dep"}, {"version", "1.0.0"}, {"sha256", QString(64, QLatin1Char('d'))}};  // no previous_version: appended
+      QJsonArray both = pin(QStringLiteral("1.0.0"));
+      const QString runDep = hub.makeRun(QStringLiteral("Run Dep"), {hub.runsMe}, hub.runsMe, both).value("run_id").toString();
+      h.controller->plugins()->acceptRunPermissions(runDep, kPluginId, {QStringLiteral("run.state")});
+      h.controller->plugins()->acceptRunPermissions(runDep, QStringLiteral("net.test.dep"), {QStringLiteral("run.state")});  // a former dependency, accepted at run.state
+      hub.pushRun(runDep);
+      QTRY_VERIFY_WITH_TIMEOUT(runs->client()->run(runDep).has_value(), 8000);
+      QVERIFY(runs->consentNeeded(*runs->client()->run(runDep)).isEmpty());
+      both.append(dep);
+      QJsonObject updated = hub.runs.value(runDep);
+      updated.insert("plugins", both);
+      hub.runs.insert(runDep, updated);
+      hub.pushRun(runDep);  // run_updated only: no plugins.updated event yet
+      QTRY_COMPARE_WITH_TIMEOUT(runs->client()->run(runDep)->plugins.size(), 2, 8000);
+      QVERIFY(runs->client()->events(runDep, 0, 500).isEmpty());
+      const QVariantList need = runs->consentNeeded(*runs->client()->run(runDep));
+      QCOMPARE(need.size(), 1);
+      QCOMPARE(need.first().toMap().value("pluginId").toString(), QStringLiteral("net.test.dep"));
+      QCOMPARE(need.first().toMap().value("permissions").toStringList(), QStringList{QStringLiteral("memory.read")});
+    }
+
+    // G2: no record at all (never reviewed here, e.g. a run joined on another device): the permissions are asked for, whatever the pin history.
+    {
+      const QString runNone = hub.makeRun(QStringLiteral("Run None"), {hub.runsMe}, hub.runsMe, pin(QStringLiteral("1.1.0"))).value("run_id").toString();
+      hub.pushRun(runNone);
+      QTRY_VERIFY_WITH_TIMEOUT(runs->client()->run(runNone).has_value(), 8000);
+      QVERIFY(!h.controller->plugins()->runAcceptedPermissions(runNone, kPluginId).has_value());
+      const QVariantList need = runs->consentNeeded(*runs->client()->run(runNone));
+      QCOMPARE(need.size(), 1);
+      QCOMPARE(need.first().toMap().value("permissions").toStringList(), QStringList{QStringLiteral("memory.read")});
+    }
+
+    // G3: the creator started the run at 1.0.0 (recorded run.state), an admin went 1.0.0 -> 1.1.0 (declined or never seen) -> 1.2.0. The unaccepted
+    // 1.1.0 is not a baseline for 1.2.0: memory.read is asked for, and agreeing once covers it.
+    {
+      const QString runK = hub.makeRun(QStringLiteral("Run K"), {hub.runsMe}, hub.runsMe, pin(QStringLiteral("1.2.0"), QStringLiteral("1.1.0"))).value("run_id").toString();
+      h.controller->plugins()->acceptRunPermissions(runK, kPluginId, {QStringLiteral("run.state")});
+      hub.pushRun(runK);
+      QTRY_VERIFY_WITH_TIMEOUT(runs->client()->run(runK).has_value(), 8000);
+      QCOMPARE(runs->consentNeeded(*runs->client()->run(runK)).size(), 1);
+      h.controller->plugins()->acceptRunPermissions(runK, kPluginId, {QStringLiteral("memory.read")});
+      QVERIFY(runs->consentNeeded(*runs->client()->run(runK)).isEmpty());
+    }
+
     // (a) A stale catalog refreshes once per run and version, not on every evaluation, and never for a run that is over.
     const int requests0 = hub.pluginListRequests;
     for (int i = 0; i < 30; ++i) runs->consentNeeded(*runs->client()->run(runD));
@@ -1452,7 +1518,7 @@ class RunsUiTest : public QObject {
       QJsonObject saved = hub.pluginList.at(3).toObject();  // hide 1.2.0 (its copy was never fetched) from the catalog (stale)
       hub.pluginList.removeAt(3);
       h.controller->plugins()->refreshHubPlugins();
-      QTRY_COMPARE_WITH_TIMEOUT(h.controller->plugins()->hubClient()->plugins().size(), 3, 8000);
+      QTRY_COMPARE_WITH_TIMEOUT(h.controller->plugins()->hubClient()->plugins().size(), 4, 8000);
       hub.pushRun(runU);
       QTRY_VERIFY_WITH_TIMEOUT(runs->client()->run(runU).has_value(), 8000);
       h.controller->plugins()->acceptRunPermissions(runU, kPluginId, {QStringLiteral("run.state")});

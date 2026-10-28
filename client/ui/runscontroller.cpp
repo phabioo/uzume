@@ -42,20 +42,15 @@ RunsController::RunsController(RunClient* client, PluginsController* plugins, Hu
     : QObject(parent), client_(client), plugins_(plugins), library_(library), conn_(connection) {
   recap_ = new RunRecapController(client, plugins, connection, this);
   // A game that runs when its run's plugins change restarts them only when the person agreed to the new permissions.
+  // Decided from the pins alone against what this person accepted (never from run events or the run cache), so an unknown run, an unknown
+  // dependency or a missing record all fail closed: the plugins stay off until the sheet is agreed to.
   plugins->setRunPinsGate([this](const QString& runId, const QList<plugins::RunPluginPin>& pins, bool raise) {
-    const auto run = client_->run(runId.toLower());
-    if (!run) return true;
     QList<RunPluginRef> refs;
-    for (const plugins::RunPluginPin& p : pins) {
-      RunPluginRef ref{p.id, p.version, p.sha256, {}};
-      for (const RunPluginRef& cur : run->plugins)
-        if (cur.pluginId == p.id && cur.version == p.version) ref.previousVersion = cur.previousVersion;
-      refs.append(ref);
-    }
-    const QVariantList need = consentNeededFor(run->runId, refs);
+    for (const plugins::RunPluginPin& p : pins) refs.append({p.id, p.version, p.sha256, {}});
+    const QVariantList need = consentNeededFor(runId, refs);
     if (need.isEmpty()) return true;
     if (raise && pluginConsent_.isEmpty()) {
-      pluginConsent_ = {{QStringLiteral("runId"), run->runId}, {QStringLiteral("items"), need}};
+      pluginConsent_ = {{QStringLiteral("runId"), runId.toLower()}, {QStringLiteral("items"), need}};
       emit pluginConsentChanged();
     }
     return false;
@@ -491,8 +486,8 @@ void RunsController::syncRunView() {
   viewFetching_ = true;
   setRunViewState(QStringLiteral("loading"), tr("Getting the plugins of this run from the server…"));
   ensureCopies(*run, [this, gen, start](bool ok, const QString& error) {
+    setBusy(false);  // also for a superseded fetch: ensureCopies raised the busy flag and nobody else would lower it
     if (gen != viewGen_) return;
-    setBusy(false);
     if (!ok) {
       viewFetching_ = false;
       setRunViewState(QStringLiteral("error"), error);
@@ -876,35 +871,14 @@ bool RunsController::permissionsOf(const QString& pluginId, const QString& versi
   return false;
 }
 
-// What these pins ask for beyond what the person accepted (baseline per run + plugin id, run.state exempt). Nothing recorded: legacy consent
-// versions, else the previous pin (never joined with this feature), else the pin itself (nothing changed since the person saw the run).
-// A plugin an update appended has an empty baseline. Unknown permissions are unresolved and ask.
-QSet<QString> RunsController::appendedPlugins(const QString& runId) const {
-  QSet<QString> appended;
-  for (const RunEvent& e : client_->events(runId, 0, 500)) {
-    if (e.type != QLatin1String("plugins.updated")) continue;
-    for (const QJsonValue& v : e.payload.value(QStringLiteral("changes")).toArray()) {
-      const QJsonObject o = v.toObject();
-      if (o.value(QStringLiteral("from")).toString().isEmpty()) appended.insert(o.value(QStringLiteral("plugin_id")).toString());
-    }
-  }
-  return appended;
-}
-
-// What the person accepted for this plugin in this run. Nothing recorded: legacy consent versions, else the previous pin (never joined with
-// this feature), else the version itself (an unchanged pin of a run the person saw before this feature; not stored). An appended plugin has none.
-QStringList RunsController::acceptedBaseline(const QString& runId, const QString& pluginId, const QString& previousVersion, bool appended, const QStringList& now) const {
+// What the person accepted for this plugin in this run, and nothing else: the stored permissions, else the permissions of the versions a legacy
+// consent file proves they accepted. No record means nothing accepted (fail closed): never inferred from the previous pin or the run events.
+QStringList RunsController::acceptedBaseline(const QString& runId, const QString& pluginId) const {
   if (const auto stored = plugins_->runAcceptedPermissions(runId, pluginId)) return *stored;
   QStringList baseline;
-  if (const QStringList legacy = plugins_->runLegacyVersions(runId, pluginId); !legacy.isEmpty()) {
-    for (const QString& ver : legacy) {
-      QStringList lp;
-      if (permissionsOf(pluginId, ver, &lp)) baseline += lp;
-    }
-  } else if (!previousVersion.isEmpty()) {
-    permissionsOf(pluginId, previousVersion, &baseline);
-  } else if (!appended) {
-    baseline = now;
+  for (const QString& ver : plugins_->runLegacyVersions(runId, pluginId)) {
+    QStringList lp;
+    if (permissionsOf(pluginId, ver, &lp)) baseline += lp;
   }
   return baseline;
 }
@@ -923,7 +897,6 @@ void RunsController::requestCatalogRefresh(const QString& runId, const RunPlugin
 
 // Permissions a switch to `request` adds to what the person accepted, over the whole bundle (dependencies included), run.state exempt.
 QStringList RunsController::additionsFor(const RunInfo& run, const QList<RunPluginRef>& request) const {
-  const QSet<QString> appended = appendedPlugins(run.runId);
   QStringList out;
   for (const RunPluginRef& r : request) {
     QStringList now;
@@ -931,12 +904,7 @@ QStringList RunsController::additionsFor(const RunInfo& run, const QList<RunPlug
     QString current;
     for (const RunPluginRef& p : run.plugins)
       if (p.pluginId == r.pluginId) current = p.version;
-    QStringList baseline;  // a plugin new to the run has accepted nothing
-    if (!current.isEmpty()) {
-      QStringList cur;
-      permissionsOf(r.pluginId, current, &cur);
-      baseline = acceptedBaseline(run.runId, r.pluginId, {}, appended.contains(r.pluginId), cur);
-    }
+    const QStringList baseline = current.isEmpty() ? QStringList() : acceptedBaseline(run.runId, r.pluginId);  // a plugin new to the run has accepted nothing
     for (const QString& perm : now)
       if (perm != QLatin1String("run.state") && !baseline.contains(perm) && !out.contains(perm)) out << perm;
   }
@@ -945,7 +913,6 @@ QStringList RunsController::additionsFor(const RunInfo& run, const QList<RunPlug
 
 QVariantList RunsController::consentNeededFor(const QString& runId, const QList<RunPluginRef>& pins) const {
   QVariantList out;
-  const QSet<QString> appended = appendedPlugins(runId);
   const auto item = [&](const RunPluginRef& p, const QString& text, const QStringList& perms) {
     return QVariantMap{{QStringLiteral("pluginId"), p.pluginId}, {QStringLiteral("name"), pluginName(p.pluginId)},
                        {QStringLiteral("version"), p.version}, {QStringLiteral("permissions"), perms}, {QStringLiteral("text"), text}};
@@ -957,7 +924,7 @@ QVariantList RunsController::consentNeededFor(const QString& runId, const QList<
       out.append(item(p, tr("%1 %2 may ask for new permissions that are not known yet").arg(pluginName(p.pluginId), p.version), {}));
       continue;
     }
-    const QStringList baseline = acceptedBaseline(runId, p.pluginId, p.previousVersion, appended.contains(p.pluginId), now);
+    const QStringList baseline = acceptedBaseline(runId, p.pluginId);
     QStringList added;
     for (const QString& perm : now)
       if (perm != QLatin1String("run.state") && !baseline.contains(perm) && !added.contains(perm)) added << perm;
@@ -1447,12 +1414,20 @@ void RunsController::startRun(const QString& name, const QString& gameId, const 
   startBusy_ = true;
   startError_.clear();
   emit startStateChanged();
-  client_->createRun(trimmed, pins, gameId, QStringList(startUserIds_.begin(), startUserIds_.end()), settings, startCore_, [this](const RunResult& r) {
+  // The creator accepts exactly the versions and permissions the start dialog offered, like joining does; a pin that differs stays unaccepted.
+  QMap<QString, QPair<QString, QStringList>> reviewed;
+  for (const HubPluginInfo& p : resolved.picked) reviewed.insert(p.id, {p.version, p.permissions});
+  for (const StartIncluded& i : resolved.included) reviewed.insert(i.info.id, {i.info.version, i.info.permissions});
+  client_->createRun(trimmed, pins, gameId, QStringList(startUserIds_.begin(), startUserIds_.end()), settings, startCore_, [this, reviewed](const RunResult& r) {
     startBusy_ = false;
     if (!r.ok || !r.run) {
       startError_ = errorText(r, tr("Starting the run"));
       emit startStateChanged();
       return;
+    }
+    for (const RunPluginRef& p : r.run->plugins) {
+      const auto it = reviewed.constFind(p.pluginId);
+      if (it != reviewed.constEnd() && it->first == p.version) plugins_->acceptRunPermissions(r.run->runId, p.pluginId, it->second);
     }
     emit startStateChanged();
     openRun(r.run->runId);
