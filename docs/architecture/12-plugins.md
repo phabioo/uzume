@@ -190,7 +190,7 @@ Built in package 3 (Hub) and in the Player's delivery part.
 
 **Runs** use exactly the plugin versions the run pins (id, version, SHA-256); a locally installed copy is not enough and never replaces the Hub version a run uses.
 
-Official plugin repositories (created 2026-10-11, no code yet, each with its own docs and roadmap): `uzume-plugin-pokemon-core`, `uzume-plugin-soullink`, `uzume-plugin-monster-editor`, `uzume-plugin-cheats`, `uzume-plugin-template`.
+Official plugin repositories (created 2026-10-11, no code yet, each with its own docs and roadmap): `uzume-plugin-pokemon-core`, `uzume-plugin-soullink`, `uzume-plugin-creature-editor`, `uzume-plugin-cheats`, `uzume-plugin-template`.
 
 ### 16.11 Hub: runs
 
