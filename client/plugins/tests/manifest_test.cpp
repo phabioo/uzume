@@ -110,6 +110,18 @@ class ManifestTest : public QObject {
     QVERIFY(errOf(R"({"requires":{"net.x.y":"huh"}})").contains("invalid version range"));
     QVERIFY(errOf(R"({"requires":{"net.example.tracker":"*"}})").contains("cannot require itself"));
   }
+  void replaces() {
+    const ManifestResult r = parseManifest(base(R"({"replaces":["net.example.old","net.example.older"]})"));
+    QVERIFY2(r.ok, qPrintable(r.error));
+    QCOMPARE(r.manifest.replaces, (QStringList{"net.example.old", "net.example.older"}));
+    QVERIFY(parseManifest(base()).manifest.replaces.isEmpty());
+    QVERIFY(errOf(R"({"replaces":"net.example.old"})").contains("must be an array"));
+    QVERIFY(errOf(R"({"replaces":["Bad Id"]})").contains("invalid plugin id"));
+    QVERIFY(errOf(R"({"replaces":[7]})").contains("invalid plugin id"));
+    QVERIFY(errOf(R"({"replaces":["net.example.tracker"]})").contains("cannot replace itself"));
+    QVERIFY(errOf(R"({"replaces":["net.example.old","net.example.old"]})").contains("duplicate"));
+    QVERIFY(errOf(R"({"replaces":["a.a1","a.a2","a.a3","a.a4","a.a5","a.a6","a.a7","a.a8","a.a9"]})").contains("at most 8"));
+  }
   void minPlayer() {
     // Optional: the oldest Uzume that runs the plugin (a plugin that needs a newer one is turned off).
     QVERIFY(errOf(R"({"min_player":"0.16.4"})").isEmpty());

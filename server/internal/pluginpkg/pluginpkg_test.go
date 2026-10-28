@@ -380,3 +380,29 @@ func TestSignRefusesInvalidInput(t *testing.T) {
 		t.Fatal("short seed accepted")
 	}
 }
+
+func TestManifestReplaces(t *testing.T) {
+	m := func(extra string) []byte {
+		return mkzip(t, zf{name: "manifest.json", body: `{"api":1,"id":"net.example.t","name":"T","version":"1.0.0","entry":"main.lua"` + extra + `}`}, zf{name: "main.lua", body: "x"})
+	}
+	p, err := Open(m(`,"replaces":["net.example.old","net.example.older"]`))
+	if err != nil || len(p.Manifest.Replaces) != 2 || p.Manifest.Replaces[1] != "net.example.older" {
+		t.Fatalf("%v %+v", err, p.Manifest.Replaces)
+	}
+	if p, err = Open(m(``)); err != nil || p.Manifest.Replaces != nil {
+		t.Fatalf("%v %+v", err, p.Manifest.Replaces)
+	}
+	if p, err = Open(m(`,"replaces":[]`)); err != nil || p.Manifest.Replaces != nil {
+		t.Fatalf("%v %+v", err, p.Manifest.Replaces)
+	}
+	many := `"net.example.a","net.example.b","net.example.c","net.example.d","net.example.e","net.example.f","net.example.g","net.example.h","net.example.i"`
+	for name, c := range map[string]struct{ in, want string }{
+		"not array": {`,"replaces":"net.example.old"`, "replaces"},
+		"bad id":    {`,"replaces":["Old"]`, "invalid plugin id"},
+		"self":      {`,"replaces":["net.example.t"]`, "itself"},
+		"duplicate": {`,"replaces":["net.example.a","net.example.a"]`, "duplicate"},
+		"too many":  {`,"replaces":[` + many + `]`, "at most"},
+	} {
+		t.Run(name, func(t *testing.T) { wantInvalid(t, m(c.in), c.want) })
+	}
+}

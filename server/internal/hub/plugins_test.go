@@ -414,3 +414,78 @@ func TestLegacyPluginFilesMigrated(t *testing.T) {
 		t.Fatal("legacy file of a removed version left")
 	}
 }
+
+func TestPluginIndexReplace(t *testing.T) {
+	dir := t.TempDir()
+	repl := map[string]any{"replaces": []string{"net.example.gone", "net.example.old"}}
+	oldZip := hubtest.PluginZip(t, "net.example.old", "1.0.0", nil, nil)
+	oldV2 := hubtest.PluginZip(t, "net.example.old", "1.1.0", nil, nil)
+	newV := hubtest.SignPlugin(t, hubtest.PluginZipWith(t, "net.example.new", "2.0.0", nil, repl, nil))
+	url := hubtest.PluginIndex(t, dir, false, newV)
+	svc := pluginHub(t, func(o *hub.Options) { o.PluginIndexURL = url })
+	for _, z := range [][]byte{oldZip, oldV2} {
+		if _, err := svc.OfferStagedPlugin(ctx, stage(t, svc, z).StageID, []string{"x"}, ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// The older version 1.0.0 was pruned by 1.1.0; offer it again so that a run can pin it.
+	if _, err := svc.OfferStagedPlugin(ctx, stage(t, svc, oldZip).StageID, []string{"x"}, ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.RefreshPluginIndex(ctx); err != nil {
+		t.Fatal(err)
+	}
+	st, _ := svc.PluginIndexStatus(ctx)
+	if len(st.Catalog) != 1 {
+		t.Fatalf("%+v", st.Catalog)
+	}
+	c := st.Catalog[0]
+	if c.State != hub.CatalogReplace || c.ReplacesID != "net.example.old" || c.ReplacesVersion != "1.1.0" || c.ReplacesName == "" || c.InstalledVersion != "" {
+		t.Fatalf("%+v", c)
+	}
+
+	anna, err := svc.CreateUser(ctx, "anna", "Anna")
+	if err != nil {
+		t.Fatal(err)
+	}
+	bob, err := svc.CreateUser(ctx, "bob", "Bob")
+	if err != nil {
+		t.Fatal(err)
+	}
+	put := func(user, plugin, val string) {
+		if _, err := svc.PutStore(ctx, user, plugin, "settings", []byte(val), 0); err != nil {
+			t.Fatal(err)
+		}
+	}
+	put(anna.ID, "net.example.old", `{"a":1}`)
+	put(bob.ID, "net.example.old", `{"b":1}`)
+	put(bob.ID, "net.example.new", `{"b":2}`) // bob already has a choice for the new id
+	svc.SetPluginInUseCheck(func(_ context.Context, id, v string) (bool, error) {
+		return id == "net.example.old" && v == "1.0.0", nil
+	})
+
+	if _, err := svc.InstallIndexPlugin(ctx, "net.example.new", "2.0.0"); err != nil {
+		t.Fatal(err)
+	}
+	ps, _ := svc.ListPlugins(ctx)
+	var got []string
+	for _, p := range ps {
+		got = append(got, p.PluginID+"@"+p.Version)
+	}
+	if strings.Join(got, ",") != "net.example.new@2.0.0,net.example.old@1.0.0" {
+		t.Fatalf("offered after replace: %v", got)
+	}
+	if e, err := svc.GetStore(ctx, anna.ID, "net.example.new", "settings"); err != nil || string(e.Value) != `{"a":1}` {
+		t.Fatalf("anna carried over: %+v %v", e, err)
+	}
+	if e, err := svc.GetStore(ctx, bob.ID, "net.example.new", "settings"); err != nil || string(e.Value) != `{"b":2}` {
+		t.Fatalf("bob kept: %+v %v", e, err)
+	}
+	// The pinned version goes once the run is over; the catalog now shows a normal state for the new id.
+	svc.SetPluginInUseCheck(func(context.Context, string, string) (bool, error) { return false, nil })
+	svc.PruneOldPlugins(ctx)
+	st, _ = svc.PluginIndexStatus(ctx)
+	if st.Catalog[0].State != hub.CatalogInstalled || st.Catalog[0].ReplacesID != "" {
+		t.Fatalf("%+v", st.Catalog[0])
+	}
+}

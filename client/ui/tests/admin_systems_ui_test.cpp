@@ -72,7 +72,9 @@ QByteArray pluginsBody() {
     ],
     "index": {"configured": true, "last_check": "2026-10-22T08:00:00Z", "catalog": [
       {"id": "net.example.splits", "name": "Splits Timer", "version": "0.5.1", "api": 1, "description": "Run timer.", "permissions": ["ui"], "size": 10, "state": "install"},
-      {"id": "net.example.core", "name": "Example Core", "version": "1.4.0", "api": 1, "description": "Shared base.", "permissions": [], "size": 10, "state": "installed"}
+      {"id": "net.example.core", "name": "Example Core", "version": "1.4.0", "api": 1, "description": "Shared base.", "permissions": [], "size": 10, "state": "installed"},
+      {"id": "net.example.notes2", "name": "Run Notes 2", "version": "1.0.0", "api": 1, "description": "Notes.", "permissions": [], "size": 10, "state": "replace",
+       "replaces": {"id": "net.example.notes", "name": "Run Notes", "version": "0.2.0"}}
     ]}
   })JSON";
 }
@@ -321,6 +323,10 @@ class AdminSystemsUiTest : public QObject {
     QCOMPARE(text(h.item("pluginOrigin_net.example.core")), QStringLiteral("Official"));
     QTRY_VERIFY(h.item("indexAdd_net.example.splits") != nullptr);
     QVERIFY(h.item("indexAdd_net.example.core") == nullptr || !h.item("indexAdd_net.example.core")->isVisible());
+    QTRY_VERIFY(h.item("indexAdd_net.example.notes2") != nullptr);
+    QCOMPARE(text(h.item("indexAdd_net.example.notes2")), QStringLiteral("Replace"));
+    QVERIFY(text(h.item("indexTableCell_2_description")).contains(QStringLiteral("Replaces Run Notes 0.2.0")));
+    QCOMPARE(text(h.item("pluginReplaced_net.example.notes")), QStringLiteral("Replaced by Run Notes 2"));
     QVERIFY(h.clickWhenReady("indexAdd_net.example.splits"));
     QTRY_COMPARE(calls(hub, install), 1);
     QCOMPARE(bodyOf(hub, install).value("id").toString(), QStringLiteral("net.example.splits"));

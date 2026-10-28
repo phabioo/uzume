@@ -8484,8 +8484,16 @@ components:
         description: { type: string }
         permissions: { type: array, items: { type: string } }
         size: { type: integer, format: int64 }
-        state: { type: string, enum: [install, update, installed] }
-        installed_version: { type: string, description: The newest offered version; absent for `install` }
+        state: { type: string, enum: [install, update, installed, replace], description: '`replace`: not offered, but it takes over an offered plugin id (manifest field `replaces`); installing carries over people''s plugin data and removes the old id' }
+        installed_version: { type: string, description: The newest offered version; absent for `install` and `replace` }
+        replaces:
+          type: object
+          description: The offered plugin a `replace` entry takes over (newest offered version); present only for state `replace`
+          required: [id, name, version]
+          properties:
+            id: { type: string }
+            name: { type: string }
+            version: { type: string }
     AdminPluginIndex:
       type: object
       required: [configured, catalog]

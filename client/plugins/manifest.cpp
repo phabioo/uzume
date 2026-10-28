@@ -415,6 +415,20 @@ ManifestResult parseManifest(const QByteArray& json, const QString& pluginDir) {
     }
   }
 
+  const QJsonValue repl = o.value(QLatin1String("replaces"));
+  if (!repl.isUndefined() && !repl.isNull()) {
+    if (!repl.isArray()) return fail(QStringLiteral("manifest field 'replaces' must be an array of plugin ids"));
+    const QJsonArray ra = repl.toArray();
+    if (ra.size() > 8) return fail(QStringLiteral("replaces: at most 8 plugin ids"));
+    for (const QJsonValue& e : ra) {
+      if (!e.isString() || !validId(e.toString())) return fail(QStringLiteral("replaces: invalid plugin id '%1'").arg(e.toString()));
+      const QString rid = e.toString();
+      if (rid == m.id) return fail(QStringLiteral("a plugin cannot replace itself"));
+      if (m.replaces.contains(rid)) return fail(QStringLiteral("replaces: duplicate plugin id '%1'").arg(rid));
+      m.replaces.append(rid);
+    }
+  }
+
   auto stringList = [&](const char* key, QStringList& out, QString& err) {
     const QJsonValue v = o.value(QLatin1String(key));
     if (v.isUndefined() || v.isNull()) return;

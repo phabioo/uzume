@@ -415,6 +415,31 @@ InstallResult PluginManager::installPackage(const UzPluginPackage& pkg, const QS
       scan();
     }
   }
+  // A renamed plugin (manifest `replaces`) takes over the person's choice for the old id once: turned on when the old id was
+  // on and the new one asks for no permission the old one lacked (otherwise it stays off and the normal consent flow asks).
+  // An old id that was on is always turned off, so the two never run side by side.
+  if (!pkg.manifest.replaces.isEmpty()) {
+    const bool firstTime = !m_enabled.contains(r.id);
+    bool takeOver = false;
+    for (const QString& oldId : pkg.manifest.replaces) {
+      if (oldId == r.id || !m_enabled.value(oldId, false)) continue;
+      if (firstTime && m_entries.contains(oldId)) {
+        const QStringList oldPerms = m_entries.value(oldId).info.manifest.permissions;
+        bool covered = true;
+        for (const QString& p : pkg.manifest.permissions)
+          if (!oldPerms.contains(p)) covered = false;
+        if (covered) takeOver = true;
+      }
+      m_enabled.insert(oldId, false);
+      auto oit = m_entries.find(oldId);
+      if (oit != m_entries.end()) oit->info.enabled = false;
+    }
+    auto it = m_entries.find(r.id);
+    if (takeOver && it != m_entries.end() && it->info.problems.isEmpty()) {
+      m_enabled.insert(r.id, true);
+      it->info.enabled = true;
+    }
+  }
   saveState();
   r.ok = true;
   r.version = pkg.manifest.version.toString();

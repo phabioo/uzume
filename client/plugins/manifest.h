@@ -86,6 +86,7 @@ struct Manifest {
   QString type = QStringLiteral("script");
   QList<Dependency> dependencies;  // manifest field "requires"
   std::optional<update::SemVer> minPlayer;  // optional field "min_player": the oldest Uzume that runs the plugin
+  QStringList replaces;            // optional field "replaces": ids of older plugins this one takes over (renames)
   QStringList provides;
   QList<GamePattern> games;        // empty = all games
   QStringList permissions;

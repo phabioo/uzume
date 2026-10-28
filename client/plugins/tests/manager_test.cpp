@@ -384,6 +384,50 @@ class ManagerTest : public QObject {
     QVERIFY(!QFileInfo::exists(root.path() + "/installed/.tmp-net.test.file"));
   }
 
+  void replacedPluginCarriesTheChoiceOver() {
+    QTemporaryDir root;
+    PluginManager m(root.path());
+    const auto hub = [&](const FbSpec& s) {
+      const QByteArray f = makeUzPlugin(s);
+      return m.installHubCopy(f, s.id, s.version, sha256Hex(f));
+    };
+    FbSpec old;
+    old.id = "net.test.old";
+    old.permissions = {"memory.read", "ui"};
+    QVERIFY(hub(old).ok);
+    QVERIFY(m.setEnabled("net.test.old", true));
+    // New id, same or fewer permissions: turned on once; the old choice stays.
+    FbSpec n;
+    n.id = "net.test.new";
+    n.permissions = {"ui"};
+    n.replaces = {"net.test.old"};
+    QVERIFY(hub(n).ok);
+    QVERIFY(m.info("net.test.new")->enabled);
+    QVERIFY(!m.info("net.test.old")->enabled);   // never side by side
+    // The person turns it off: a reinstall does not turn it on again.
+    QVERIFY(m.setEnabled("net.test.new", false));
+    n.version = "1.1.0";
+    QVERIFY(hub(n).ok);
+    QVERIFY(!m.info("net.test.new")->enabled);
+    // A new id that asks for a permission the old one lacked stays off (the normal consent flow asks).
+    QVERIFY(m.setEnabled("net.test.old", true));
+    FbSpec more;
+    more.id = "net.test.more";
+    more.permissions = {"ui", "run.state"};
+    more.replaces = {"net.test.old"};
+    QVERIFY(hub(more).ok);
+    QVERIFY(!m.info("net.test.more")->enabled);
+    QVERIFY(!m.info("net.test.old")->enabled);   // turned off even though the new one stays off
+    // Old plugin was off: nothing carried over.
+    QVERIFY(m.setEnabled("net.test.old", false));
+    FbSpec off;
+    off.id = "net.test.off";
+    off.permissions = {"ui"};
+    off.replaces = {"net.test.old"};
+    QVERIFY(hub(off).ok);
+    QVERIFY(!m.info("net.test.off")->enabled);
+  }
+
   void hubCopiesNeedNoDeveloperMode() {
     QTemporaryDir root;
     PluginManager m(root.path());

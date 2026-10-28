@@ -81,3 +81,35 @@ func TestSortEntries(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+func TestIndexReplaces(t *testing.T) {
+	e := goodEntry()
+	e.Replaces = []string{"net.example.old"}
+	if err := ValidateEntry(e, false); err != nil {
+		t.Fatal(err)
+	}
+	b, err := MarshalIndex(Index{Format: 1, GeneratedAt: time.Date(2026, 10, 12, 0, 0, 0, 0, time.UTC), Plugins: []IndexEntry{e, func() IndexEntry { g := goodEntry(); g.Version = "1.3.0"; return g }()}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(string(b), `"replaces"`) != 1 {
+		t.Fatalf("replaces must be omitted when empty:\n%s", b)
+	}
+	got, errs := ParseIndex(b, false)
+	if len(errs) != 0 || len(got.Plugins[0].Replaces) != 1 || got.Plugins[0].Replaces[0] != "net.example.old" {
+		t.Fatalf("%v %+v", errs, got.Plugins)
+	}
+	many := []string{}
+	for _, s := range "abcdefghi" {
+		many = append(many, "net.example."+string(s))
+	}
+	for name, r := range map[string][]string{
+		"invalid": {"Old"}, "self": {"net.example.tracker"}, "duplicate": {"net.example.a", "net.example.a"}, "too many": many,
+	} {
+		e := goodEntry()
+		e.Replaces = r
+		if err := ValidateEntry(e, false); err == nil {
+			t.Errorf("%s accepted", name)
+		}
+	}
+}
