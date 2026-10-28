@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -23,6 +24,19 @@ type toolRelease struct {
 type toolAsset struct {
 	URL  string
 	Size int64
+}
+
+// toolTagRe matches the release tags of the randomizer engine: v1.6.2 and the real vFVX1.6.2 (prefix case-insensitive).
+var toolTagRe = regexp.MustCompile(`^(?i:v?(?:fvx)?)(\d{1,4}\.\d{1,4}\.\d{1,4})$`)
+
+// toolTagVersion returns the plain version (1.6.2) of a release tag, or "" when the tag is not a release tag. Only the
+// stored/displayed version is derived here; downloads use the asset URLs of the release list, never a rebuilt tag.
+func toolTagVersion(tag string) string {
+	m := toolTagRe.FindStringSubmatch(strings.TrimSpace(tag))
+	if m == nil {
+		return ""
+	}
+	return m[1]
 }
 
 // parseToolReleases reads the GitHub releases JSON (an array of releases with tag_name, draft, prerelease and assets
@@ -49,8 +63,8 @@ func parseToolReleases(data []byte) ([]toolRelease, error) {
 		if r.Draft || r.Prerelease {
 			continue
 		}
-		version := strings.TrimPrefix(strings.TrimSpace(r.TagName), "v")
-		if !toolVersionRe.MatchString(version) || seen[version] {
+		version := toolTagVersion(r.TagName)
+		if version == "" || seen[version] {
 			continue
 		}
 		rel := toolRelease{Version: version, Assets: map[string]toolAsset{}}

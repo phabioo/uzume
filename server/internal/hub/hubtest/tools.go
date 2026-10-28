@@ -79,7 +79,7 @@ func (s *ToolSource) AddRelease(t *testing.T, version string, prerelease bool, p
 	t.Helper()
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	r := toolRelease{Tag: "v" + version, Prerelease: prerelease}
+	r := toolRelease{Tag: "vFVX" + version, Prerelease: prerelease}
 	for _, p := range platforms {
 		name := ToolAssetName(version, p)
 		path := "/dl/" + version + "/" + name
@@ -93,7 +93,7 @@ func (s *ToolSource) AddRelease(t *testing.T, version string, prerelease bool, p
 func (s *ToolSource) AddDraft(version string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.releases = append(s.releases, toolRelease{Tag: "v" + version, Draft: true,
+	s.releases = append(s.releases, toolRelease{Tag: "vFVX" + version, Draft: true,
 		Assets: []toolAsset{{Name: ToolAssetName(version, "linux-x64"), Path: "/dl/draft"}}})
 }
 
