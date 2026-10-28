@@ -173,6 +173,19 @@ class QualityTierTest : public QObject {
     QVERIFY(!m.alive(Quality::Medium));
     QCOMPARE(m.encoderCount(), 3);
   }
+  void evictForgetsAFailedTier() {
+    TierManager m;
+    m.addViewer("a", 0);
+    m.setPick("a", Quality::Low, 0);
+    QVERIFY(m.alive(Quality::Low));
+    m.setPick("a", Quality::Auto, 100);  // the host moves its viewers off a failed tier first
+    m.evict(Quality::Low);
+    QVERIFY(!m.alive(Quality::Low));
+    QCOMPARE(m.fixedMask(), 0);
+    QVERIFY(!m.tick(100'000));
+    m.evict(Quality::Auto);  // never drops the adaptive encoder
+    QVERIFY(m.alive(Quality::Auto));
+  }
   void removingEveryViewerAndClear() {
     TierManager m;
     m.addViewer("a", 0);

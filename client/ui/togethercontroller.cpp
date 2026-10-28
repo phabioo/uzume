@@ -161,16 +161,20 @@ void TogetherController::onPauseState(const PauseStateMessage& m) {
   if (m.paused) {
     paused_ = true;
     pausedBy_ = m.by;
-    if (scope_.hostsGame && game_.isPaused && !game_.isPaused() && game_.pause) {
-      hold_ = true;  // only a game that this pause stops is resumed by it
-      game_.pause();
-    }
+    holdAndPause();
   } else {
     paused_ = false;
     pausedBy_.clear();
     releaseHold(true);
   }
   emit pauseChanged();
+}
+
+// Pauses my game for the shared pause. Only a game that this pause stops is resumed by it.
+void TogetherController::holdAndPause() {
+  if (hold_ || !scope_.hostsGame || !game_.isPaused || game_.isPaused() || !game_.pause) return;
+  hold_ = true;
+  game_.pause();
 }
 
 void TogetherController::onSocketState(HubSocket::State s) {
@@ -201,6 +205,8 @@ void TogetherController::refresh() {
       releaseHold(true);
       emit pauseChanged();
     }
+  } else if (paused_) {
+    holdAndPause();  // my game started inside a scope that is already paused
   }
   emit scopeChanged();
 }

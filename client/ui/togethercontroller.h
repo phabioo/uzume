@@ -102,6 +102,7 @@ class TogetherController : public QObject {
 
   // The scope may have changed (game, Session, run, Hub link): recomputes it and drops what belongs to a scope that is gone.
   void refresh();
+  void holdAndPause();
   // The local game was paused or resumed by someone else than the shared pause.
   void noteLocalPauseChanged();
   void tick();  // 250 ms timer; tests call it

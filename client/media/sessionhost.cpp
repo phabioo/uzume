@@ -132,6 +132,8 @@ class EncodeWorker {
     fixedMask_ = fixedMask;
     adaptiveWanted_ = adaptive;
   }
+  // A failed fixed tier was evicted by the host: its next pick starts a fresh encoder instead of staying skipped.
+  void resetTierFailure(int tier) { failedReset_ |= (1 << tier); }
   // Bitrate adaptation: picked up before the next frame (runtime change or reopen, see applyTargetBitrate()).
   void setTargetBitrate(int kbps) { targetKbps_ = kbps; }
   // GPU input was switched off by the owner: the worker leaves GPU mode before its next job (any thread).
@@ -340,6 +342,7 @@ class EncodeWorker {
     const int mask = fixedMask_.load();
     for (int t = 1; t < 4; ++t) {
       Fixed& f = fixed_[t];
+      if (failedReset_.fetch_and(~(1 << t)) & (1 << t)) f.failed = false;
       if (!(mask & (1 << t))) {
         if (f.enc.isOpen()) f.enc.close();
         f.failed = false;
@@ -617,6 +620,7 @@ class EncodeWorker {
   std::function<void(QString)> onGpuOff_;   // ... likewise: the GPU path failed, reason
   std::function<void(int)> onTierFailed_;   // ... likewise: a fixed tier's encoder does not open or failed (tier)
   std::atomic<int> fixedMask_{0};
+  std::atomic<int> failedReset_{0};
   std::atomic<bool> adaptiveWanted_{true};
   std::atomic<bool> gpuSeen_{false};
 
@@ -1116,6 +1120,7 @@ void SessionHost::onRxReport(const QString& viewerId, const RxReport& report) {
 void SessionHost::onQualityPick(const QString& viewerId, Quality pick) {
   if (!open_ || !viewers_.contains(viewerId)) return;
   const TierManager::Change ch = tiers_.setPick(viewerId, pick, tierNowMs());
+  if (ch.effective != Quality::Auto) bitrate_.removeViewer(viewerId);  // a frozen report must not keep steering the adaptive encoder
   qCInfo(lcHost).noquote() << QStringLiteral("Viewer %1 picked %2, served by %3%4")
                                   .arg(viewerId, qualityLabel(pick), qualityLabel(ch.effective), ch.switched ? QStringLiteral(" (switched)") : QString());
   applyTiers();
@@ -1194,6 +1199,9 @@ void SessionHost::requestKeyframeFor(const QString& viewerId) {
 // Sinks, worker encoders and keyframes after any change of viewers or picks. A viewer that moved to another encoder gets a
 // keyframe from it (its decoder needs a fresh start) and the matching tier message.
 void SessionHost::applyTiers() {
+  for (auto it = viewers_.begin(); it != viewers_.end(); ++it) {
+    if (!tiers_.isAuto(it.key())) bitrate_.removeViewer(it.key());  // also covers tick() and substitution moves
+  }
   for (auto it = viewers_.begin(); it != viewers_.end(); ++it) {
     const Quality eff = tiers_.effective(it.key());
     if (eff != it->fedTier) {
@@ -1307,12 +1315,14 @@ void SessionHost::startEncoder() {
           if (gen != workerGen_ || !worker_) return;
           qCWarning(lcHost) << "Quality tier" << qualityLabel(static_cast<Quality>(tier)) << "failed; its viewers return to Auto";
           for (const QString& id : viewers_.keys()) {
-            if (static_cast<int>(tiers_.effective(id)) == tier) {
+            if (static_cast<int>(tiers_.effective(id)) == tier || static_cast<int>(tiers_.pick(id)) == tier) {
               tiers_.setPick(id, Quality::Auto, tierNowMs());
               sendTier(id, true);
             }
           }
+          tiers_.evict(static_cast<Quality>(tier));  // not pickable again from the idle cache; a later pick starts it fresh
           applyTiers();
+          worker_->resetTierFailure(tier);
         });
       });
   worker_->setTiers(tiers_.fixedMask(), tiers_.adaptiveAlive());

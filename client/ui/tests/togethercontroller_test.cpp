@@ -192,6 +192,20 @@ class TogetherControllerTest : public QObject {
     QCOMPARE(f.resumes, 1);
   }
 
+  void gameStartingInAPausedScopeIsPaused() {
+    Fixture f;
+    f.scope.hostsGame = false;  // watching the run: no game of mine yet
+    f.tc.refresh();
+    f.socket.pauseStateReceived(pauseState(true));
+    QCOMPARE(f.pauses, 0);
+    f.scope.hostsGame = true;  // my game starts inside the same run
+    f.tc.refresh();
+    QCOMPARE(f.pauses, 1);
+    QVERIFY(f.gamePaused);
+    f.socket.pauseStateReceived(pauseState(false, QString()));
+    QVERIFY(!f.gamePaused);
+  }
+
   void ownPauseTextAndManualResumeReleasesTheHold() {
     Fixture f;
     f.socket.pauseStateReceived(pauseState(true, QStringLiteral("u_max")));

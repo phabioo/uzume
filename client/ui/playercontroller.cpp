@@ -1181,6 +1181,7 @@ void PlayerController::wireControl() {
 void PlayerController::wireNotifications() {
   notifications_ = std::make_unique<NotificationCenter>(settings_.get());
   connect(notifications_.get(), &NotificationCenter::actionRequested, this, &PlayerController::runNotificationAction);
+  notifications_->setSoundHook([bus = soundBus_]() { bus->play(QStringLiteral("uzume.notifications"), NotificationCenter::chime(), 1.0); });  // through the mixer
   // The list belongs to one server and person: another one starts empty.
   connect(this, &PlayerController::hubChanged, this, [this]() {
     const QString id = conn_->hubId().isEmpty() ? QString() : conn_->hubId() + QLatin1Char('/') + conn_->hubUserId();
