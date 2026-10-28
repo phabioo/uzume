@@ -78,6 +78,16 @@ bool bundle(const RunInfo& run, const QList<HubPluginInfo>& offered, const HubPl
 }
 }  // namespace
 
+QStringList newPermissions(const QList<HubPluginInfo>& offered, const QString& pluginId, const QString& version, bool* known) {
+  const HubPluginInfo* now = find(offered, pluginId, version);
+  if (known != nullptr) *known = now != nullptr;
+  QStringList out;
+  if (now != nullptr)
+    for (const QString& p : now->permissions)
+      if (p != QLatin1String("run.state")) out << p;
+  return out;
+}
+
 QStringList addedPermissions(const QList<HubPluginInfo>& offered, const QString& pluginId, const QString& version, const QString& previousVersion) {
   if (previousVersion.isEmpty()) return {};
   const HubPluginInfo* now = find(offered, pluginId, version);

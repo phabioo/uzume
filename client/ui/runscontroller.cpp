@@ -9,6 +9,7 @@
 #include <QLocale>
 #include <QLoggingCategory>
 #include <QMap>
+#include <QJsonArray>
 #include <QSet>
 #include <algorithm>
 #include <memory>
@@ -755,7 +756,7 @@ void RunsController::joinRun(const QString& runId, const QString& gameId, const 
     openRun(runId);
     if (r.run) {
       for (const RunPluginRef& p : r.run->plugins)  // the join dialog listed the permissions of the pinned versions: joining agrees to them
-        if (!p.previousVersion.isEmpty()) plugins_->setRunPluginConsent(r.run->runId, p.pluginId, p.version);
+        plugins_->setRunPluginConsent(r.run->runId, p.pluginId, p.version);
       ensureCopies(*r.run, [this](bool, const QString&) { setBusy(false); });  // get the plugins ready in the background
     }
   }, variant);
@@ -817,11 +818,57 @@ void RunsController::ensureCopies(const RunInfo& run, std::function<void(bool, c
 
 QVariantList RunsController::consentNeeded(const RunInfo& run) const {
   QVariantList out;
-  const PluginHubClient* hub = plugins_->hubClient();
-  if (hub == nullptr) return out;
+  const QList<HubPluginInfo> offered = plugins_->hubClient() != nullptr ? plugins_->hubClient()->plugins() : QList<HubPluginInfo>();
+  // Plugins an update appended (no previous_version, "from" empty in plugins.updated) were never part of what the person joined.
+  QSet<QString> appended;
+  for (const RunEvent& e : client_->events(run.runId, 0, 500)) {
+    if (e.type != QLatin1String("plugins.updated")) continue;
+    for (const QJsonValue& v : e.payload.value(QStringLiteral("changes")).toArray()) {
+      const QJsonObject o = v.toObject();
+      if (o.value(QStringLiteral("from")).toString().isEmpty()) appended.insert(o.value(QStringLiteral("plugin_id")).toString());
+    }
+  }
   for (const RunPluginRef& p : run.plugins) {
-    if (p.previousVersion.isEmpty() || plugins_->runPluginConsent(run.runId, p.pluginId, p.version)) continue;
-    const QStringList added = runplugins::addedPermissions(hub->plugins(), p.pluginId, p.version, p.previousVersion);
+    const bool isAppended = p.previousVersion.isEmpty() && appended.contains(p.pluginId);
+    if ((p.previousVersion.isEmpty() && !isAppended) || plugins_->runPluginConsent(run.runId, p.pluginId, p.version)) continue;
+    bool known = false;
+    QStringList added = isAppended ? runplugins::newPermissions(offered, p.pluginId, p.version, &known)
+                                   : runplugins::addedPermissions(offered, p.pluginId, p.version, p.previousVersion);
+    if (!isAppended) {
+      bool inCatalog = false;
+      runplugins::newPermissions(offered, p.pluginId, p.version, &inCatalog);
+      known = inCatalog;
+    }
+    if (!known) {
+      // Stale catalog: the fetched copy's manifest tells; without a copy the permissions are unresolved and count as new.
+      for (const plugins::PluginInfo& c : plugins_->manager()->hubCopies())
+        if (c.manifest.id == p.pluginId && c.manifest.version.toString() == p.version) {
+          known = true;
+          added.clear();
+          for (const QString& perm : c.manifest.permissions)
+            if (perm != QLatin1String("run.state")) added << perm;
+          break;
+        }
+      if (!known) {
+        plugins_->refreshHubPlugins();
+        out.append(QVariantMap{{QStringLiteral("pluginId"), p.pluginId},
+                               {QStringLiteral("name"), pluginName(p.pluginId)},
+                               {QStringLiteral("version"), p.version},
+                               {QStringLiteral("text"), tr("%1 %2 may ask for new permissions that are not known yet").arg(pluginName(p.pluginId), p.version)}});
+        continue;
+      }
+      if (!isAppended) {  // known only from the copy: compare with the previous version's offer
+        const QStringList prev = [&] {
+          for (const HubPluginInfo& h : offered)
+            if (h.id == p.pluginId && h.version == p.previousVersion) return h.permissions;
+          return QStringList();
+        }();
+        QStringList diff;
+        for (const QString& perm : added)
+          if (!prev.contains(perm)) diff << perm;
+        added = diff;
+      }
+    }
     if (added.isEmpty()) continue;
     out.append(QVariantMap{{QStringLiteral("pluginId"), p.pluginId},
                            {QStringLiteral("name"), pluginName(p.pluginId)},

@@ -32,6 +32,10 @@ QList<Change> changes(const RunInfo& run, const QList<HubPluginInfo>& offered);
 // version counts as having none (so everything but run.state asks); an unknown version has none. Empty `previousVersion` = nothing added.
 QStringList addedPermissions(const QList<HubPluginInfo>& offered, const QString& pluginId, const QString& version, const QString& previousVersion);
 
+// Permissions of `pluginId` at `version` for a plugin the run did not pin before (appended by an update): everything but run.state.
+// `known` is false when the version is not in the offered list (stale catalog); the permissions are then unknown.
+QStringList newPermissions(const QList<HubPluginInfo>& offered, const QString& pluginId, const QString& version, bool* known = nullptr);
+
 // Pins whose version or sha256 differs from `before` (new ids count as changed). Used to decide a restart: unchanged pins restart nothing.
 bool pinsDiffer(const QList<RunPluginRef>& before, const QList<RunPluginRef>& after);
 

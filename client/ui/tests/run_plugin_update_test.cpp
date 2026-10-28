@@ -95,6 +95,15 @@ class RunPluginUpdateTest : public QObject {
     QCOMPARE(runplugins::changes(run, list).first().addedPermissions, (QStringList{"cheats", "memory.write"}));
   }
 
+  void newPermissionsOfAnAppendedPlugin() {
+    const QList<HubPluginInfo> list{offer("net.t.a", "1.0.0", "A", {"run.state", "cheats"})};
+    bool known = false;
+    QCOMPARE(runplugins::newPermissions(list, "net.t.a", "1.0.0", &known), QStringList{QStringLiteral("cheats")});
+    QVERIFY(known);
+    QVERIFY(runplugins::newPermissions(list, "net.t.a", "9.9.9", &known).isEmpty());
+    QVERIFY(!known);  // stale catalog: unknown, not "none"
+  }
+
   void restartOnlyWhenAPinChanged() {
     const QList<RunPluginRef> a{{"p", "1.0.0", "aa", {}}, {"q", "2.0.0", "bb", {}}};
     QVERIFY(!runplugins::pinsDiffer(a, a));

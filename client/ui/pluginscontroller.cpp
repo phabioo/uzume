@@ -830,6 +830,7 @@ void PluginsController::stopGameSet() {
 // plugins keep running when the set stays the same.
 void PluginsController::refreshRunExtras() {
   if (!inGame_ || !runLaunch_.bridge) return;
+  if (runPinsGate_ && !runPinsGate_(runLaunch_.bridge->current().value(QStringLiteral("id")).toString())) return;  // new permissions not agreed to yet
   const plugins::GameResolution res = resolveGameSet();
   QStringList ids;
   for (const plugins::PluginInfo& p : res.start) ids << p.manifest.id;
@@ -841,6 +842,7 @@ void PluginsController::refreshRunExtras() {
 
 void PluginsController::runPinsChanged(const QList<plugins::RunPluginPin>& pins) {
   if (!inGame_ || !runLaunch_.bridge || delivery_ == nullptr) return;
+  const quint64 gen = ++pinsGen_;  // every call supersedes downloads still running for older pins, also when these pins equal the running set
   const auto same = [&] {
     if (pins.size() != runLaunch_.pins.size()) return false;
     for (const plugins::RunPluginPin& p : pins) {
@@ -852,7 +854,6 @@ void PluginsController::runPinsChanged(const QList<plugins::RunPluginPin>& pins)
     return true;
   };
   if (same()) return;  // nothing changed: the running plugins keep running
-  const quint64 gen = ++pinsGen_;
   auto pending = std::make_shared<QList<plugins::RunPluginPin>>(pins);
   auto step = std::make_shared<std::function<void()>>();
   *step = [this, pending, step, pins, gen]() {

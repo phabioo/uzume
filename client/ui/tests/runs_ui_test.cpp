@@ -1288,6 +1288,24 @@ class RunsUiTest : public QObject {
     runs->playRun(runC);
     QTRY_COMPARE_WITH_TIMEOUT(launched.count(), 2, 8000);  // remembered per run + plugin + version: no second question
     QVERIFY(runs->pluginConsent().isEmpty());
+
+    // D: a pin the catalog does not list (stale) counts as unresolved and asks; E: a plugin an update appended (no previous_version, "from"
+    // empty in plugins.updated) asks for its permissions although the person joined without it.
+    QJsonObject d = hub.makeRun(QStringLiteral("Run D"), {hub.runsMe}, hub.runsMe, QJsonArray{QJsonObject{{"plugin_id", kPluginId}, {"version", "7.7.7"}, {"sha256", shas.value("1.0.0")}, {"previous_version", "1.0.0"}}});
+    const QString runD = d.value("run_id").toString();
+    hub.pushRun(runD);
+    QTRY_VERIFY_WITH_TIMEOUT(runs->client()->run(runD).has_value(), 8000);
+    QVERIFY2(runs->consentNeeded(*runs->client()->run(runD)).size() == 1, "unresolved permissions must ask");
+    QVERIFY(runs->consentNeeded(*runs->client()->run(runD)).first().toMap().value("text").toString().contains(QStringLiteral("not known yet")));
+    QJsonObject e = hub.makeRun(QStringLiteral("Run E"), {hub.runsMe}, hub.runsMe, pin(QStringLiteral("1.1.0")));  // 1.1.0 asks for memory.read
+    const QString runE = e.value("run_id").toString();
+    hub.pushRun(runE);
+    QTRY_VERIFY_WITH_TIMEOUT(runs->client()->run(runE).has_value(), 8000);
+    QVERIFY(runs->consentNeeded(*runs->client()->run(runE)).isEmpty());  // part of the run from the start
+    hub.addRunEvent(runE, QStringLiteral("plugins.updated"), QString(), QString(), {}, {}, false);
+    hub.runEvents[runE].last().insert("payload", QJsonObject{{"changes", QJsonArray{QJsonObject{{"plugin_id", kPluginId}, {"from", ""}, {"to", "1.1.0"}}}}});
+    hub.sendWs(QStringLiteral("run_event"), {{QStringLiteral("run_id"), runE}, {QStringLiteral("event"), hub.runEvents[runE].last()}});
+    QTRY_VERIFY_WITH_TIMEOUT(runs->consentNeeded(*runs->client()->run(runE)).size() == 1, 8000);
   }
 
   // A requirement the Hub cannot satisfy blocks the start with a clear error.
