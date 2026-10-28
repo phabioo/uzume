@@ -69,6 +69,7 @@
 #include "discordpresence.h"
 #include "notificationcenter.h"
 #include "chatcontroller.h"
+#include "controlcontroller.h"
 #include "togethercontroller.h"
 #include "voicecontroller.h"
 
@@ -180,6 +181,7 @@ class PlayerController : public QObject {
   // [{userId, name, state, gameTitle, system, sessionId, sub, color, inviteKind}]; inviteKind "session" | "run" | "" decides the
   // "Invite" button. Empty without a server.
   Q_PROPERTY(uzume::ui::NotificationCenter* notifications READ notifications CONSTANT)
+  Q_PROPERTY(uzume::ui::ControlController* control READ control CONSTANT)  // controller hand-over (ADR 0033 D8)
   Q_PROPERTY(uzume::ui::TogetherController* together READ together CONSTANT)  // ready check and shared pause (ADR 0033 D3)
   Q_PROPERTY(QVariantMap gameRun READ gameRun NOTIFY gameRunChanged)  // run of the running game {id, name, status}; empty = not a run game
   Q_PROPERTY(uzume::ui::VoiceController* voice READ voice CONSTANT)  // voice chat of the run or Session of the game (ADR 0033 D7)
@@ -276,6 +278,7 @@ class PlayerController : public QObject {
   RunsController* runs() { return runs_.get(); }
   NotificationCenter* notifications() { return notifications_.get(); }
   TogetherController* together() { return together_.get(); }
+  ControlController* control() { return control_.get(); }
   ChatController* chat() { return chat_.get(); }
   VoiceController* voice() { return voice_.get(); }
   QVariantMap gameRun() const;
@@ -630,6 +633,7 @@ class PlayerController : public QObject {
   std::unique_ptr<StatesController> states_;    // after session_, settings_, runClient_
   QString stateRunId_;                          // run the running game was started in ("" = none): its core rules apply to states
   std::unique_ptr<TogetherController> together_;       // after sessions_, runClient_ and session_
+  std::unique_ptr<ControlController> control_;         // after sessions_, session_ and controllers_
   std::unique_ptr<NotificationCenter> notifications_;  // after runs_ and updates_ (connected to both)
   std::unique_ptr<ChatApi> chatApi_;                   // after notifications_ (mentions)
   std::unique_ptr<ChatController> chat_;
@@ -640,6 +644,7 @@ class PlayerController : public QObject {
   QString notifiedUpdate_;
   void wireNotifications();
   void wireTogether();
+  void wireControl();
   void wireChat();
   void wireVoice();
   QVariantList withVoice(const QString& kind, const QString& id, QVariantList rows) const;  // voice marks and controls on the People rows

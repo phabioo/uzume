@@ -886,6 +886,7 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
   });
   wireNotifications();
   wireTogether();
+  wireControl();
   wireChat();
   wireVoice();
 }
@@ -978,7 +979,7 @@ void PlayerController::wireChat() {
   connect(runClient_.get(), &RunClient::eventAdded, chat_.get(), [this](const QString& runId, const RunEvent&) { chat_->noteRunEvent(runId); });
   connect(sessions_.get(), &SessionController::shareChanged, chat_.get(), &ChatController::rowsChanged);
   connect(sessions_->roster(), &OnlineRoster::changed, chat_.get(), &ChatController::rowsChanged);
-  for (const auto& sig : {&SessionController::shareChanged, &SessionController::surfacesChanged, &SessionController::surfaceLinksChanged})
+  for (const auto& sig : {&SessionController::shareChanged, &SessionController::surfacesChanged, &SessionController::surfaceLinksChanged, &SessionController::controlChanged})
     connect(sessions_.get(), sig, chat_.get(), &ChatController::peopleChanged);
   connect(runClient_.get(), &RunClient::runsChanged, chat_.get(), &ChatController::peopleChanged);
   connect(sessions_.get(), &SessionController::gameChanged, this, &PlayerController::gameRunChanged);
@@ -1156,6 +1157,23 @@ void PlayerController::wireTogether() {
     if (command == QLatin1String("togetherReady")) together_->answer(true);
     else if (command == QLatin1String("togetherNotYet")) together_->answer(false);
   });
+}
+
+// ---------------------------------------------------------------- Controller hand-over (0.23, ADR 0033 D8)
+
+void PlayerController::wireControl() {
+  control_ = std::make_unique<ControlController>(sessions_.get(), &session_);
+  control_->setPortsProvider([this]() {
+    const emu::SystemManifest* man = catalog_ ? catalog_->manifestFor(launchGame_) : nullptr;
+    return man != nullptr ? man->inputPorts : 1;
+  });
+  control_->setKeyboardMap(controllers_->keyboardMap());
+  connect(controllers_.get(), &ControllersController::keyboardMapChanged, control_.get(), [this]() { control_->setKeyboardMap(controllers_->keyboardMap()); });
+  control_->setPadMask(controllers_->gamepads()->libretroMask());
+  connect(controllers_.get(), &ControllersController::libretroMaskChanged, control_.get(), [this](quint32 mask) { control_->setPadMask(mask); });
+  const auto reserved = [this]() { control_->setReservedKeys(controllers_->hotkeyKeys() | QSet<int>{Qt::Key_F4}); };
+  reserved();
+  connect(controllers_.get(), &ControllersController::hotkeysChanged, control_.get(), reserved);
 }
 
 // ---------------------------------------------------------------- Together: notifications and the online list (0.23, ADR 0033)

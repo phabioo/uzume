@@ -9,6 +9,7 @@
 #include <QtTest>
 
 #include "fakehub.h"
+#include "test_core_layout.h"
 #include "testsupport.h"
 
 // Waits on real I/O, WebRTC, the encoder or the core must survive a loaded CI runner: every QTRY_* of this file
@@ -1263,6 +1264,88 @@ class SessionsUiTest : public QObject {
     QCOMPARE(ctl->selectedSurface(), QStringLiteral("local"));  // the selection fell back to your game
     QVERIFY(h.click("endGameButton"));
     QTRY_COMPARE(h.controller->screen(), QStringLiteral("library"));
+  }
+
+  // Controller hand-over (ADR 0033 D8) against the real core: a viewer takes over P1, presses buttons over fb-input and the core sees them;
+  // the host's own pad is off while it holds P1; after Take back the local pad drives P1 again; P2 is a second, independent port.
+  void controllerHandOverReachesTheCore() {
+    GameRig r;
+    if (!startGame(r, true)) UITEST_SKIP_NO_CORE("core or test ROM not available");
+    Harness& h = r.h;
+    SessionController* ctl = h.controller->sessions();
+    QTRY_COMPARE_WITH_TIMEOUT(h.controller->screen(), QStringLiteral("game"), 20000);
+    QTRY_VERIFY_WITH_TIMEOUT(ctl->shared(), 20000);
+    GameSession* gs = h.controller->gameSession();
+    QTRY_VERIFY_WITH_TIMEOUT(gs->state() == GameSession::Running, 20000);
+    ControlController* cc = h.controller->control();
+    cc->setPortsProvider([]() { return 2; });  // the test core reads both ports
+    SessionHost* host = ctl->host();
+    SessionViewer viewer;
+    QObject::connect(&viewer, &SessionViewer::signalOut, host, &SessionHost::handleSignal);
+    QObject::connect(host, &SessionHost::signalOut, &viewer, [&](const SessionSignal& sg) {
+      if (sg.viewerId == QLatin1String("vmax")) viewer.handleSignal(sg);
+    });
+    viewer.open(ctl->ownSessionId(), QStringLiteral("vmax"), {});
+    host->addViewer(QStringLiteral("vmax"));
+    QTRY_COMPARE_WITH_TIMEOUT(viewer.hostPorts(), 2, 20000);
+    const auto pressed = [&](int port, int id) {
+      const QImage img = gs->frame();
+      return !img.isNull() && (img.pixel(id * uzume::testcore::kCellWidth + 8, uzume::testcore::kStripY0 + port * uzume::testcore::kStripHeight + 8) & 0xFFFFFFu) == 0u;
+    };
+    const auto settle = [&]() {
+      const quint64 n = gs->frameNumber();
+      QTRY_VERIFY_WITH_TIMEOUT(gs->frameNumber() > n + 3, 10000);
+    };
+
+    // the host's own pad presses id 8 (A) on port 0
+    gs->setGamepadMask(1u << 8);
+    settle();
+    QTRY_VERIFY_WITH_TIMEOUT(pressed(0, 8), 10000);
+
+    QVERIFY(viewer.requestControl(0));
+    QTRY_VERIFY_WITH_TIMEOUT(cc->askOpen(), 10000);
+    cc->allow();
+    QTRY_COMPARE_WITH_TIMEOUT(viewer.controlState(), SessionViewer::ControlState::Granted, 10000);
+    // P1 is the viewer's now: the host's A is off, the viewer's B (id 0) and Start (id 3) are on
+    QTRY_VERIFY_WITH_TIMEOUT(!pressed(0, 8), 10000);
+    viewer.setControlButtons((1u << 0) | (1u << 3));
+    QTRY_VERIFY_WITH_TIMEOUT(pressed(0, 0) && pressed(0, 3), 10000);
+    QVERIFY(!pressed(0, 8));
+    QVERIFY(!pressed(1, 0));  // port 1 is untouched
+    QCOMPARE(cc->state().value("holders").toList().first().toMap().value("buttons").toInt(), 0x0009);
+    // released: nothing pressed
+    viewer.setControlButtons(0);
+    QTRY_VERIFY_WITH_TIMEOUT(!pressed(0, 0) && !pressed(0, 3), 10000);
+    // touch (P1): the pointer arrives in the core (data row of the test core)
+    {
+      const auto data = [&](int index) { return int(gs->frame().pixel(index, uzume::testcore::kDataRow) & 0xFFFFFFu); };
+      const qint16 axes[4] = {0, 0, 0, 0};
+      viewer.setControlInput(0, axes, true, 0.5, 0.75);
+      QTRY_COMPARE_WITH_TIMEOUT(data(uzume::testcore::DataPointerDown), 1, 10000);
+      QVERIFY(std::abs(data(uzume::testcore::DataPointerX) - 0x8000) < 8);
+      QVERIFY(std::abs(data(uzume::testcore::DataPointerY) - (0x8000 + 16383)) < 8);
+      viewer.setControlInput(0, axes, false, 0, 0);
+      QTRY_COMPARE_WITH_TIMEOUT(data(uzume::testcore::DataPointerDown), 0, 10000);
+    }
+    // Take back: the host's pad drives port 0 again
+    QVERIFY(host->takeBack(0));
+    QTRY_COMPARE_WITH_TIMEOUT(viewer.controlState(), SessionViewer::ControlState::Idle, 10000);
+    QTRY_VERIFY_WITH_TIMEOUT(pressed(0, 8), 10000);
+
+    // P2: independent of the host's port 0
+    QVERIFY(viewer.requestControl(1));
+    QTRY_VERIFY_WITH_TIMEOUT(cc->askOpen(), 10000);
+    cc->allow();
+    QTRY_COMPARE_WITH_TIMEOUT(viewer.controlState(), SessionViewer::ControlState::Granted, 10000);
+    viewer.setControlButtons(1u << 9);  // X
+    QTRY_VERIFY_WITH_TIMEOUT(pressed(1, 9), 10000);
+    QVERIFY(pressed(0, 8));  // the host keeps its own P1
+    QVERIFY(!pressed(0, 9));
+    // the viewer leaves: the port goes neutral at once
+    host->removeViewer(QStringLiteral("vmax"));
+    QTRY_VERIFY_WITH_TIMEOUT(!pressed(1, 9), 10000);
+    QVERIFY(!gs->remoteControlled(1));
+    gs->setGamepadMask(0);
   }
 };
 

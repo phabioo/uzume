@@ -20,6 +20,7 @@ Rectangle {
     readonly property GameSession session: player.gameSession
     readonly property SessionController ctl: player.sessions
     readonly property TogetherController together: player.together
+    readonly property ControlController control: player.control
     readonly property DiagnosticsModel diag: ctl.diagnostics
     readonly property string tab: ctl.tab
     property Item multiLocal: null
@@ -156,6 +157,7 @@ Rectangle {
         if (hudLayer.closeMenu()) return   // a HUD or notice menu takes the Esc first, the game keeps running
         if (root.hotkeySheetPinned) { root.hotkeySheetPinned = false; return }
         if (root.closePopover()) return
+        if (root.control.escapePressed()) return   // somebody plays: Esc twice takes the controller back
         if (root.together.holdActive) return   // paused for everyone: Resume (toast, menu) or Shift+Esc, not Esc
         if (root.session.active) root.session.togglePause()
     }
@@ -300,6 +302,11 @@ Rectangle {
         // Together (ADR 0033 D3): Shift+Esc pauses or resumes for everyone; 1 / 2 answer an open ready check
         if (e.key === Qt.Key_Escape && mods === Qt.ShiftModifier) {
             if (root.together.available) root.together.togglePause()
+            return true
+        }
+        if (root.control.askOpen && !root.together.awaitsAnswer && mods === Qt.NoModifier && (e.key === Qt.Key_1 || e.key === Qt.Key_2)) {
+            if (e.key === Qt.Key_1) root.control.allow()
+            else root.control.deny()
             return true
         }
         if (root.together.awaitsAnswer && mods === Qt.NoModifier && (e.key === Qt.Key_1 || e.key === Qt.Key_2)) {
@@ -564,11 +571,23 @@ Rectangle {
 
                 // Ready check (ADR 0033 D3): top centre of the stage, for every member
                 TogetherCard {
+                    id: readyCard
                     objectName: "stageReadyCheck"
                     together: root.together
                     anchors.top: parent.top
                     anchors.horizontalCenter: parent.horizontalCenter
                     anchors.topMargin: Theme.space3
+                    width: Math.min(implicitWidth, Math.max(0, playArea.width - 2 * Theme.space3))
+                    z: 14
+                }
+
+                // Controller hand-over (ADR 0033 D8): the request of a viewer, or who plays; below the ready check
+                ControlCard {
+                    objectName: "stageControlCard"
+                    control: root.control
+                    anchors.top: parent.top
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    anchors.topMargin: Theme.space3 + (readyCard.visible ? readyCard.height + Theme.space1 : 0)
                     width: Math.min(implicitWidth, Math.max(0, playArea.width - 2 * Theme.space3))
                     z: 14
                 }
@@ -629,6 +648,20 @@ Rectangle {
                         text: root.together.pausedText
                         action: qsTr("Resume")
                         onActionTriggered: root.together.setPaused(false)
+                    }
+                    UzToast {
+                        id: controlToast
+                        objectName: "controlToast"
+                        visible: text !== ""
+                        width: Math.min(implicitWidth, toasts.maxToastWidth)
+                        kind: "done"
+                        closable: false
+                        text: ""
+                        Timer { id: controlToastTimer; interval: 3000; onTriggered: controlToast.text = "" }
+                        Connections {
+                            target: root.control
+                            function onNotice(text) { controlToast.text = text; controlToastTimer.restart() }
+                        }
                     }
                     UzToast {
                         objectName: "readyCheckToast"

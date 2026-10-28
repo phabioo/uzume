@@ -132,6 +132,11 @@ std::optional<SystemManifest> ManifestRegistry::parse(const QByteArray& json, QS
   m.displayProfile = o.value(QLatin1String("display_profile")).toString();
   m.identity = o.value(QLatin1String("identity")).toString();
   const QJsonObject in = o.value(QLatin1String("input")).toObject();
+  if (in.contains(QLatin1String("ports"))) {
+    const int ports = in.value(QLatin1String("ports")).toInt(0);
+    if (ports < 1 || ports > 2) return fail(QStringLiteral("input.ports must be 1 or 2"));
+    m.inputPorts = ports;
+  }
   for (const bool labels : {false, true}) {
     const QJsonObject obj = in.value(QLatin1String(labels ? "labels" : "map")).toObject();
     for (auto it = obj.begin(); it != obj.end(); ++it) {

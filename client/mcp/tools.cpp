@@ -14,6 +14,7 @@ void installTools(McpToolRegistry& registry, ui::PlayerController& player) {
   installRunRecapTools(registry, player);
   installTogetherTools(registry, player);
   installVoiceTools(registry, player);
+  installControlTools(registry, player);
   installRunTools(registry, player);
 }
 

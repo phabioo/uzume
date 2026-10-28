@@ -126,7 +126,7 @@ class McpToolsTest : public QObject {
                           "cheats_clear", "store_get", "store_put", "consent_set", "server_sign_in", "states_list", "states_save", "states_load",
                           "states_delete", "rewind", "runs_list", "run_set_rules", "run_events", "plugin_link", "developer_mode", "file_dialog_pick", "settings_set", "saves_history", "toasts_list",
                           "run_recap", "together_state", "notifications_act", "session_share",
-                          "session_stop_sharing", "together_ready_check", "together_pause", "chat_send", "chat_history", "session_quality", "session_viewers", "voice_state", "voice_join", "voice_leave", "voice_mic", "voice_inject"})
+                          "session_stop_sharing", "together_ready_check", "together_pause", "chat_send", "chat_history", "session_quality", "session_viewers", "voice_state", "voice_join", "voice_leave", "voice_mic", "voice_inject", "control_request", "control_answer", "control_release", "control_state", "remote_input"})
       QVERIFY2(names.contains(QLatin1String(n)), n);
   }
 
