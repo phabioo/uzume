@@ -95,6 +95,7 @@ struct Manifest {
   UiDecl ui;                       // optional field "ui"
   QList<RunSetting> runSettings;   // optional field "run_settings": the run rules the creator sets in "Start a run"
   QList<RecapEntry> recap;         // optional field "recap": event type -> recap glyph (invalid entries are skipped)
+  QString issuesUrl;               // optional field "issues_url": https://github.com/<owner>/<repo> (ADR 0035 D4); empty = none or invalid
   QStringList warnings;            // non-fatal manifest problems (an ignored `recap` entry); the plugin still loads
 
   bool matchesGame(const QString& system, const QString& code) const;

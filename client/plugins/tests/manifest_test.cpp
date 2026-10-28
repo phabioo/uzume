@@ -203,6 +203,23 @@ class ManifestTest : public QObject {
     QCOMPARE(m.manifest.recap.size(), 32);
     QCOMPARE(m.manifest.warnings.size(), 1);
   }
+  void issuesUrlValidAndInvalid() {
+    // Optional https GitHub repository address (ADR 0035 D4); anything else is a warning and ignored, the plugin still loads.
+    const ManifestResult ok = parseManifest(base("{\"issues_url\":\"https://github.com/phabioo/uzume-plugin-soullink\"}"));
+    QVERIFY2(ok.ok, qPrintable(ok.error));
+    QCOMPARE(ok.manifest.issuesUrl, QString("https://github.com/phabioo/uzume-plugin-soullink"));
+    QVERIFY(ok.manifest.warnings.isEmpty());
+    QVERIFY(parseManifest(base()).manifest.issuesUrl.isEmpty());
+    for (const char* bad : {"http://github.com/a/b", "https://gitlab.com/a/b", "https://github.com/a", "https://github.com/a/b/issues",
+                            "https://github.com/a/b/", "https://github.com/a/b?x=1", "https://user@github.com/a/b", "7"}) {
+      const QString v = QString::fromLatin1(bad) == "7" ? QStringLiteral("7") : QStringLiteral("\"%1\"").arg(QString::fromLatin1(bad));
+      const ManifestResult r = parseManifest(base(QStringLiteral(R"({"issues_url":%1})").arg(v)));
+      QVERIFY2(r.ok, bad);
+      QVERIFY2(r.manifest.issuesUrl.isEmpty(), bad);
+      QCOMPARE(r.manifest.warnings.size(), 1);
+      QVERIFY(r.manifest.warnings.at(0).startsWith("issues_url"));
+    }
+  }
   void runSettingsBuildAndHubInfo() {
     QList<uzume::RunSetting> list;
     QVERIFY(uzume::parseRunSettings(QJsonDocument::fromJson(R"([

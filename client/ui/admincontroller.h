@@ -82,7 +82,7 @@ class AdminController : public QObject {
   QString statusProblem() const { return statusProblem_; }
   QString serverUpdateVersion() const { return serverUpdateVersion_; }
   int pendingDevices() const { return pendingDevices_; }
-  int newReports() const { return newReports_; }
+  int newReports() const { return newReports_ + newErrors_; }  // new problem reports plus unseen error groups
 
   AdminApi* api() { return &api_; }
 
@@ -167,6 +167,7 @@ class AdminController : public QObject {
   int statusGeneration_ = 0;
   int pendingDevices_ = 0;
   int newReports_ = 0;
+  int newErrors_ = 0;
   QString serverUpdateVersion_;
   bool countsInFlight_ = false;
 };
