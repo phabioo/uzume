@@ -324,7 +324,8 @@ jobs:
       # The Linux manifest has no dependencies (all vcpkg.json entries are Windows-only): no binary cache needed.
       VCPKG_BINARY_SOURCES: clear
       CCACHE_DIR: ${{ github.workspace }}/.ccache
-      CCACHE_MAXSIZE: 400M
+      # Large enough for one full build: a full cache evicted objects every run, so builds ran almost cold (Actions cache: 10 GB per repo, only main saves).
+      CCACHE_MAXSIZE: 1500M
     steps:
       - uses: actions/checkout@v7
       - name: Image key and week key
@@ -364,6 +365,9 @@ jobs:
         run: |
           mapfile -t pkgs < <(grep -vE '^[[:space:]]*(#|$)' scripts/qt-packages.txt)
           scripts/ci-apt-install.sh "${pkgs[@]}" ccache
+      - name: Reset ccache statistics
+        # The statistics live in the restored cache directory; zero them so the final step shows only this run.
+        run: ccache -z || true
       - name: Bootstrap vcpkg
         timeout-minutes: 10
         run: scripts/bootstrap-vcpkg.sh
@@ -450,7 +454,8 @@ jobs:
       VCPKG_ROOT: ${{ github.workspace }}/.vcpkg
       VCPKG_BINARY_SOURCES: clear
       CCACHE_DIR: ${{ github.workspace }}/.ccache
-      CCACHE_MAXSIZE: 400M
+      # Large enough for one full build: a full cache evicted objects every run, so builds ran almost cold (Actions cache: 10 GB per repo, only main saves).
+      CCACHE_MAXSIZE: 1000M
     steps:
       - uses: actions/checkout@v7
       - name: Image key and week key
@@ -523,6 +528,9 @@ jobs:
         with:
           path: ~/.cache/uzume/tools/appimage
           key: ${{ steps.cache-tools.outputs.cache-primary-key }}
+      - name: Reset ccache statistics
+        # The statistics live in the restored cache directory; zero them so the final step shows only this run.
+        run: ccache -z || true
       - name: Build the app (Release)
         timeout-minutes: 75
         working-directory: client
@@ -652,7 +660,8 @@ jobs:
       VCPKG_ROOT: ${{ github.workspace }}\.vcpkg
       VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}\.vcpkg-binary-cache
       CCACHE_DIR: ${{ github.workspace }}\.ccache
-      CCACHE_MAXSIZE: 600M
+      # Large enough for one full build: a full cache evicted objects every run, so builds ran almost cold (Actions cache: 10 GB per repo, only main saves).
+      CCACHE_MAXSIZE: 2000M
     steps:
       - uses: actions/checkout@v7
       - name: Cache vcpkg checkout
@@ -783,6 +792,13 @@ jobs:
         with:
           path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
           key: ${{ steps.vcpkg-binary-cache.outputs.cache-primary-key }}
+      - name: Reset ccache statistics
+        # The statistics live in the restored cache directory; zero them so the final step shows only this run.
+        if: steps.ccache.outcome == 'success'
+        shell: pwsh
+        env:
+          CCACHE_EXE: ${{ steps.ccache.outputs.path }}
+        run: '& $env:CCACHE_EXE -z; exit 0'
       - name: Build
         timeout-minutes: 60
         working-directory: client
