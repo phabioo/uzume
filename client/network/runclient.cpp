@@ -82,6 +82,8 @@ bool RunClient::supported() const {
 
 bool RunClient::supportsPluginless() const { return supported() && conn_->hubHasFeature(QStringLiteral("runs_v2")); }
 
+bool RunClient::supportsPluginUpdates() const { return supported() && conn_->hubHasFeature(QStringLiteral("run_plugin_updates_v1")); }
+
 bool RunClient::supportsRules() const { return supported() && conn_->hubHasFeature(QStringLiteral("run_rules_v1")); }
 
 QString RunClient::myUserId() const { return conn_ ? conn_->hubUserId() : QString(); }
@@ -373,6 +375,13 @@ void RunClient::createRun(const QString& name, const QList<RunPluginRef>& plugin
 
 void RunClient::setRules(const QString& runId, const RunRules& rules, RunCallback cb) {
   sendRun("PUT", QStringLiteral("/runs/%1/rules").arg(enc(runId)), runRulesToJson(rules), std::move(cb));
+}
+
+// run_plugin_updates_v1: switches the listed plugins of the run to the given versions (creator or admin); answers the Run.
+void RunClient::setPlugins(const QString& runId, const QList<RunPluginRef>& plugins, RunCallback cb) {
+  QJsonArray pl;
+  for (const RunPluginRef& p : plugins) pl.append(QJsonObject{{QStringLiteral("plugin_id"), p.pluginId}, {QStringLiteral("version"), p.version}});
+  sendRun("PUT", QStringLiteral("/runs/%1/plugins").arg(enc(runId)), QJsonObject{{QStringLiteral("plugins"), pl}}, std::move(cb));
 }
 
 void RunClient::createRunBody(const QString& name, const QList<RunPluginRef>& plugins, const QString& gameId, const QStringList& inviteUserIds,

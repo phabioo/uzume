@@ -51,6 +51,7 @@ class RunClient : public QObject {
 
   bool supported() const;  // connected and the Hub advertises runs_v1
   bool supportsPluginless() const;  // runs_v2: the Hub accepts runs with no plugin
+  bool supportsPluginUpdates() const;  // run_plugin_updates_v1: PUT /runs/{id}/plugins
   bool supportsRules() const;       // run_rules_v1: `rules` on create and PUT /runs/{id}/rules
   QString myUserId() const;
 
@@ -70,6 +71,7 @@ class RunClient : public QObject {
                  const QJsonObject& settings, const RunRules& rules, RunCallback cb, const QJsonObject& randomizer = QJsonObject());
   // PUT /runs/{id}/rules: replaces the whole rules object (creator or admin; 403 forbidden otherwise).
   void setRules(const QString& runId, const RunRules& rules, RunCallback cb);
+  void setPlugins(const QString& runId, const QList<RunPluginRef>& plugins, RunCallback cb);  // run_plugin_updates_v1
   // variant: {kind: run|own, variant_id?} of a randomized run (variants_v1); empty = the Hub's default (the run variant).
   void joinRun(const QString& runId, const QString& gameId, RunCallback cb, const QJsonObject& variant = QJsonObject());
   void declineRun(const QString& runId, RunCallback cb);

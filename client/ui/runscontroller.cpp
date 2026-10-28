@@ -2,6 +2,7 @@
 #include "timeformat.h"
 #include "librarymodel.h"
 #include "runrules.h"
+#include "runpluginupdate.h"
 
 #include <QCoreApplication>
 #include <QDateTime>
@@ -39,6 +40,11 @@ QString statusTone(const QString& s) {
 RunsController::RunsController(RunClient* client, PluginsController* plugins, HubLibrary* library, HubConnection* connection, QObject* parent)
     : QObject(parent), client_(client), plugins_(plugins), library_(library), conn_(connection) {
   recap_ = new RunRecapController(client, plugins, connection, this);
+  // A game that runs when its run's plugins change restarts them only when the person agreed to the new permissions.
+  plugins->setRunPinsGate([this](const QString& runId) {
+    const auto run = client_->run(runId.toLower());
+    return !run || consentNeeded(*run).isEmpty();
+  });
   connect(client, &RunClient::runsChanged, this, &RunsController::scheduleRebuild);
   connect(client, &RunClient::runChanged, this, &RunsController::scheduleRebuild);
   connect(client, &RunClient::eventAdded, this, [this](const QString& id, const RunEvent& e) {
@@ -203,6 +209,11 @@ QString RunsController::hubEventText(const RunEvent& e) const {
     if (by.isEmpty()) by = who;
     return runrules::changeEventText(by, e.payload);
   }
+  if (e.type == QLatin1String("plugins.updated")) {
+    QString by = e.payload.value(QStringLiteral("by_user_name")).toString();
+    if (by.isEmpty()) by = who;
+    return runplugins::eventText(by, e.payload, [this](const QString& id) { return pluginName(id); });
+  }
   if (e.type == QLatin1String("run.status")) {
     const QString to = e.payload.value(QStringLiteral("status")).toString();
     QString by = e.payload.value(QStringLiteral("by_user_name")).toString();
@@ -322,6 +333,20 @@ void RunsController::rebuildDetail() {
       line = tr("%1 by %2 · %3").arg(statusText(run->status), userName(*run, run->statusBy), timeText(run->updatedAt));
     QString note;
     if (!joined && mine != nullptr && mine->status == QLatin1String("invited")) note = tr("You are invited. Join from the Runs list.");
+    // run_plugin_updates_v1: creator or admin, run not over; what is offered comes from the server's plugin list.
+    const bool canUpdatePlugins = client_->supportsPluginUpdates() && !over && plugins_->hubClient() != nullptr && (creator || conn_->userRole() == QLatin1String("admin"));
+    QVariantList pluginChanges;
+    if (canUpdatePlugins) {
+      for (const runplugins::Change& ch : runplugins::changes(*run, plugins_->hubClient()->plugins())) {
+        QString text = ch.restore ? tr("Restore %1 %2").arg(ch.name, ch.to) : tr("Update available: %1 %2 → %3").arg(ch.name, ch.from, ch.to);
+        if (!ch.bundledNames.isEmpty()) text += QStringLiteral(" · ") + tr("with %1").arg(ch.bundledNames.join(QStringLiteral(", ")));
+        pluginChanges.append(QVariantMap{{QStringLiteral("pluginId"), ch.pluginId},
+                                         {QStringLiteral("restore"), ch.restore},
+                                         {QStringLiteral("text"), text},
+                                         {QStringLiteral("buttonText"), ch.restore ? tr("Restore %1").arg(ch.to) : tr("Update")},
+                                         {QStringLiteral("permissionsText"), ch.addedPermissions.isEmpty() ? QString() : tr("New permissions: %1").arg(PluginsController::permissionLabels(ch.addedPermissions))}});
+      }
+    }
     d = {{QStringLiteral("runId"), run->runId},
          {QStringLiteral("name"), run->name},
          {QStringLiteral("status"), run->status},
@@ -346,6 +371,8 @@ void RunsController::rebuildDetail() {
          {QStringLiteral("rulesSetBy"), rulesSetBy(*run)},
          {QStringLiteral("rulesAvailable"), client_->supportsRules()},
          {QStringLiteral("canEditRules"), client_->supportsRules() && !over && (creator || conn_->userRole() == QLatin1String("admin"))},
+         {QStringLiteral("canUpdatePlugins"), canUpdatePlugins},
+         {QStringLiteral("pluginChanges"), pluginChanges},
          {QStringLiteral("note"), note},
          {QStringLiteral("randomized"), run->randomizerMode() != QLatin1String("off")},
          {QStringLiteral("randomizer"), randomizerOf(run->runId)}};
@@ -402,6 +429,14 @@ void RunsController::syncRunView() {
     viewFetching_ = false;
     plugins_->stopRunView();
     setRunViewState({}, {});
+    return;
+  }
+  if (!consentNeeded(*run).isEmpty()) {  // updated plugins ask for new permissions: they start after "Play run" collected the agreement
+    ++viewGen_;
+    viewKey_.clear();
+    viewFetching_ = false;
+    plugins_->stopRunView();
+    setRunViewState(QStringLiteral("error"), tr("The plugins of this run were updated and ask for new permissions. Press Play run to review them."));
     return;
   }
   QStringList sig;
@@ -492,6 +527,10 @@ void RunsController::openRun(const QString& runId) {
   if (openRunId_ != runId.toLower()) {
     setRunTab(QStringLiteral("board"));
     recap_->clear();
+    if (!pluginUpdateError_.isEmpty()) {
+      pluginUpdateError_.clear();
+      emit pluginUpdateChanged();
+    }
   }
   openRunId_ = runId.toLower();
   client_->catchUp(openRunId_);
@@ -714,7 +753,11 @@ void RunsController::joinRun(const QString& runId, const QString& gameId, const 
     setMessage({}, false);
     if (variantKind == QLatin1String("own") && !variantId.isEmpty()) emit ownVariantJoined(runId.toLower(), variantId);
     openRun(runId);
-    if (r.run) ensureCopies(*r.run, [this](bool, const QString&) { setBusy(false); });  // get the plugins ready in the background
+    if (r.run) {
+      for (const RunPluginRef& p : r.run->plugins)  // the join dialog listed the permissions of the pinned versions: joining agrees to them
+        if (!p.previousVersion.isEmpty()) plugins_->setRunPluginConsent(r.run->runId, p.pluginId, p.version);
+      ensureCopies(*r.run, [this](bool, const QString&) { setBusy(false); });  // get the plugins ready in the background
+    }
   }, variant);
 }
 
@@ -772,6 +815,66 @@ void RunsController::ensureCopies(const RunInfo& run, std::function<void(bool, c
   (*step)();
 }
 
+QVariantList RunsController::consentNeeded(const RunInfo& run) const {
+  QVariantList out;
+  const PluginHubClient* hub = plugins_->hubClient();
+  if (hub == nullptr) return out;
+  for (const RunPluginRef& p : run.plugins) {
+    if (p.previousVersion.isEmpty() || plugins_->runPluginConsent(run.runId, p.pluginId, p.version)) continue;
+    const QStringList added = runplugins::addedPermissions(hub->plugins(), p.pluginId, p.version, p.previousVersion);
+    if (added.isEmpty()) continue;
+    out.append(QVariantMap{{QStringLiteral("pluginId"), p.pluginId},
+                           {QStringLiteral("name"), pluginName(p.pluginId)},
+                           {QStringLiteral("version"), p.version},
+                           {QStringLiteral("text"), tr("%1 %2 asks for: %3").arg(pluginName(p.pluginId), p.version, PluginsController::permissionLabels(added))}});
+  }
+  return out;
+}
+
+void RunsController::answerPluginConsent(bool agree) {
+  const QVariantMap ask = std::exchange(pluginConsent_, {});
+  emit pluginConsentChanged();
+  const QString runId = ask.value(QStringLiteral("runId")).toString();
+  if (runId.isEmpty()) return;
+  if (!agree) {
+    setMessage(tr("You did not agree to the new permissions, so the run does not start. Press Play run to review them again."), true);
+    return;
+  }
+  for (const QVariant& v : ask.value(QStringLiteral("items")).toList()) {
+    const QVariantMap it = v.toMap();
+    plugins_->setRunPluginConsent(runId, it.value(QStringLiteral("pluginId")).toString(), it.value(QStringLiteral("version")).toString());
+  }
+  syncRunView();
+  playRun(runId);
+}
+
+void RunsController::applyPluginChange(const QString& runId, const QString& pluginId, bool restore) {
+  if (pluginUpdateBusy_ || plugins_->hubClient() == nullptr) return;
+  const auto run = client_->run(runId.toLower());
+  if (!run) return;
+  QList<runplugins::Change> found;
+  for (const runplugins::Change& ch : runplugins::changes(*run, plugins_->hubClient()->plugins()))
+    if (ch.pluginId == pluginId && ch.restore == restore) found.append(ch);
+  if (found.isEmpty()) return;
+  const runplugins::Change ch = found.first();
+  pluginUpdateBusy_ = true;
+  pluginUpdateError_.clear();
+  emit pluginUpdateChanged();
+  const QString id = run->runId;
+  // The person who switches saw the permissions on the row: that is their agreement for these versions. Stored before the request, because
+  // run_updated can arrive before the answer.
+  for (const RunPluginRef& p : ch.request) plugins_->setRunPluginConsent(id, p.pluginId, p.version);
+  client_->setPlugins(id, ch.request, [this, id, ch](const RunResult& r) {
+    pluginUpdateBusy_ = false;
+    if (!r.ok) {
+      // plugin_update_incompatible, plugin_requires_missing and "only the creator ...": the server says why
+      pluginUpdateError_ = (r.status == 403 || r.status == 409) && !r.message.isEmpty() ? r.message : errorText(r, tr("Updating the plugins"));
+    }
+    emit pluginUpdateChanged();
+    if (r.ok) scheduleRebuild();
+  });
+}
+
 void RunsController::playRun(const QString& runId) {
   if (busy_) return;
   const auto run = client_->run(runId.toLower());
@@ -793,6 +896,11 @@ void RunsController::playRun(const QString& runId) {
   }
   if (!run->plugins.isEmpty() && (plugins_->delivery() == nullptr || !plugins_->hubSupported())) {
     setMessage(tr("The server does not offer the plugins of this run."), true);
+    return;
+  }
+  if (const QVariantList need = consentNeeded(*run); !need.isEmpty()) {
+    pluginConsent_ = {{QStringLiteral("runId"), run->runId}, {QStringLiteral("items"), need}};
+    emit pluginConsentChanged();
     return;
   }
   const quint64 gen = ++playGen_;

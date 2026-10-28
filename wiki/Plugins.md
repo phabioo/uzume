@@ -6,6 +6,16 @@ Plugins are small sandboxed programs (Lua) that add game-specific features to th
 - Plugins signed with the Uzume key show as Official; others show as Unverified or Local.
 - Every plugin lists the permissions it needs. You are asked for consent before a plugin gets them, and an invite to a run asks for consent to the run's plugins.
 
+## Plugins in a run
+
+A run plays with the exact plugin versions it was started with, so everyone has the same rules. The person who started the run, or an admin, can move it to a newer version while the run is not over:
+
+- Open the run: "Update available: <plugin> <old> → <new>" with "Update" appears when your server offers a newer version. Plugins it needs are updated with it.
+- Your run data, boards and log stay. If a plugin declares that the new version cannot take over a run that old, the update is refused with a message.
+- "Restore <old>" goes back to the version before the last update, once.
+- Everyone's plugins restart once after an update; the log shows who updated what. If the new version asks for permissions the old one did not, you are asked again before "Play run".
+- Older servers do not offer this.
+
 ## Official plugins
 
 Each lives in its own repository.

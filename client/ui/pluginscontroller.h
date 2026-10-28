@@ -177,6 +177,16 @@ class PluginsController : public QObject {
   QVariantList runSections() const { return runSections_; }
   QString runViewProblems() const { return runViewProblems_; }
   bool inGame() const { return inGame_; }
+  // run_plugin_updates_v1: the run behind the running game got other pinned versions (run_updated). Fetches the new Hub copies and restarts the
+  // game's plugins once; the same pins restart nothing. When the gate (setRunPinsGate: false = the person has not agreed to the new
+  // permissions yet) says no, the run's plugins stay stopped for this game and a notice says so.
+  void runPinsChanged(const QList<plugins::RunPluginPin>& pins);
+  void setRunPinsGate(std::function<bool(const QString& runId)> gate) { runPinsGate_ = std::move(gate); }
+  // Local consent to the permissions of one plugin version in one run ("" = never asked). Stored in <data>/plugins/run_consent.json.
+  bool runPluginConsent(const QString& runId, const QString& pluginId, const QString& version) const;
+  void setRunPluginConsent(const QString& runId, const QString& pluginId, const QString& version);
+  // Permission labels as the lists show them ("Share run progress · ..."), for a list of permission ids.
+  static QString permissionLabels(const QStringList& perms);
 
   plugins::PluginManager* manager() { return manager_.get(); }
   plugins::PluginHost* host() { return host_.get(); }
@@ -351,6 +361,7 @@ class PluginsController : public QObject {
   void startGameSet(const plugins::GameResolution& res);
   void stopGameSet();
   void refreshRunExtras();
+  void restartRunSet();
   void logToast(const QVariantMap& t);
   void postInitialEvents();
   void onUiChanged(const QString& id, const QString& what);
@@ -399,6 +410,8 @@ class PluginsController : public QObject {
   QList<QPair<QString, QString>> pendingPicks_;  // (plugin id, request id) asked and not answered yet, oldest first
   QHash<QString, qint64> pickLimits_;  // "<plugin>/<request id>" -> max_bytes
   QString dataDir_;
+  std::function<bool(const QString&)> runPinsGate_;
+  quint64 pinsGen_ = 0;
   HubConnection* conn_ = nullptr;
   PluginEmulationService::GameInfo gameInfo_;
   std::unique_ptr<plugins::PluginManager> manager_;

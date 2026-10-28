@@ -1161,6 +1161,135 @@ class RunsUiTest : public QObject {
     QVERIFY(!runs->rulesBusy());
   }
 
+  // Updating a run's plugins (run_plugin_updates_v1): the creator sees "Update available" and sends the switch (the server's 409 message shows
+  // when it refuses); previous_version offers "Restore"; the log row names who updated what; a version with new permissions asks before
+  // "Play run" and declining keeps the game from starting; someone who is not the creator gets no buttons; an older server gets none either.
+  void pluginUpdatesInARun() {
+    FakeHub hub(QStringLiteral("a"));
+    hub.hubId = QStringLiteral("hub-plugin-updates");
+    hub.decision = FakeHub::Decision::Approve;
+    hub.features = {QStringLiteral("saves_v1"), QStringLiteral("plugins_v1"), QStringLiteral("runs_v1"), QStringLiteral("runs_v2"),
+                    QStringLiteral("run_plugin_updates_v1"), QStringLiteral("sessions_v1")};
+    hub.games = QJsonObject{{"games", QJsonArray{QJsonObject{{"id", kGameId}, {"title", "Quest"}, {"system", "nds"}, {"code", "ABCD"},
+                                                             {"rom", QJsonObject{{"sha256", QString(64, QLatin1Char('b'))}, {"size", 4096}, {"filename", "q.nds"}}},
+                                                             {"added_at", "2026-01-01T12:00:00Z"}}}}};
+    hub.fakeUsers = QJsonArray{QJsonObject{{"id", "u_test_1"}, {"display_name", "Tester"}, {"online", true}}};
+    QMap<QString, QString> shas;
+    const auto publish = [&](const QString& ver, const QStringList& perms, const QString& runUpdateFrom = QString()) {
+      FbSpec fs;
+      fs.id = kPluginId;
+      fs.version = ver;
+      fs.name = "Run Notes";
+      fs.permissions = perms;
+      const QByteArray file = makeUzPlugin(fs);
+      hub.pluginFiles.insert(fs.id + "/" + ver, file);
+      QJsonArray jp;
+      for (const QString& pm : perms) jp.append(pm);
+      QJsonObject o{{"plugin_id", fs.id}, {"version", ver}, {"name", fs.name}, {"description", ""}, {"api", 1}, {"origin", "unverified"},
+                    {"sha256", sha256Hex(file)}, {"size", file.size()}, {"permissions", jp}, {"games", QJsonArray{QJsonObject{{"system", "nds"}}}},
+                    {"created_at", "2026-10-12T10:00:00Z"}};
+      if (!runUpdateFrom.isEmpty()) o.insert("run_update_from", runUpdateFrom);
+      hub.pluginList.append(o);
+      shas.insert(ver, sha256Hex(file));
+    };
+    publish(QStringLiteral("1.0.0"), {QStringLiteral("run.state")});
+    publish(QStringLiteral("1.1.0"), {QStringLiteral("run.state"), QStringLiteral("memory.read")});
+    publish(QStringLiteral("2.0.0"), {QStringLiteral("run.state")}, QStringLiteral("1.1.0"));  // takes over only from 1.1.0 on
+    const auto pin = [&](const QString& ver, const QString& prev = QString()) {
+      QJsonObject o{{"plugin_id", kPluginId}, {"version", ver}, {"sha256", shas.value(ver)}};
+      if (!prev.isEmpty()) o.insert("previous_version", prev);
+      return QJsonArray{o};
+    };
+    // A: mine, pinned 1.0.0. B: mine, pinned 1.1.0. C: Lena's, pinned 1.1.0 after 1.0.0 (new permission memory.read), I am in it.
+    const QString runA = hub.makeRun(QStringLiteral("Run A"), {hub.runsMe}, hub.runsMe, pin(QStringLiteral("1.0.0"))).value("run_id").toString();
+    const QString runB = hub.makeRun(QStringLiteral("Run B"), {hub.runsMe}, hub.runsMe, pin(QStringLiteral("1.1.0"))).value("run_id").toString();
+    QJsonObject c = hub.makeRun(QStringLiteral("Run C"), {hub.runsMe, QStringLiteral("u_lena")}, QStringLiteral("u_lena"), pin(QStringLiteral("1.1.0"), QStringLiteral("1.0.0")));
+    const QString runC = c.value("run_id").toString();
+    QJsonArray ps = c.value("participants").toArray();
+    for (qsizetype i = 0; i < ps.size(); ++i) {
+      QJsonObject pr = ps.at(i).toObject();
+      pr.insert("user_name", pr.value("user_id").toString() == hub.runsMe ? QStringLiteral("Tester") : QStringLiteral("Lena"));
+      if (pr.value("user_id").toString() == hub.runsMe) {
+        pr.insert("status", "joined");
+        pr.insert("game_id", kGameId);
+        pr.insert("color", 1);
+      }
+      ps.replace(i, pr);
+    }
+    c.insert("participants", ps);
+    hub.runs.insert(runC, c);
+    QVERIFY(hub.start());
+    Harness h;
+    QVERIFY(h.start());
+    h.window->resize(1440, 900);
+    pair(h, hub);
+    RunsController* runs = h.controller->runs();
+    QTRY_VERIFY_WITH_TIMEOUT(runs->loaded(), 8000);
+    QTRY_COMPARE_WITH_TIMEOUT(h.controller->plugins()->hubClient()->plugins().size(), 3, 8000);
+    const auto changes = [&]() { return runs->detail().value("pluginChanges").toList(); };
+
+    // A: the newest version is 2.0.0, which the server refuses from 1.0.0; the server's message shows.
+    QVERIFY(h.click("navRuns"));
+    QTRY_COMPARE_WITH_TIMEOUT(h.controller->screen(), QStringLiteral("runs"), 8000);
+    runs->openRun(runA);
+    QTRY_COMPARE_WITH_TIMEOUT(changes().size(), 1, 8000);
+    QVERIFY(runs->detail().value("canUpdatePlugins").toBool());
+    QCOMPARE(changes().first().toMap().value("text").toString(), QStringLiteral("Update available: Run Notes 1.0.0 \u2192 2.0.0"));
+    QTRY_VERIFY(h.item("runPluginChangeButton") != nullptr && h.item("runPluginChangeButton")->isVisible());
+    QVERIFY(h.click("runPluginChangeButton"));
+    QTRY_VERIFY_WITH_TIMEOUT(!runs->pluginUpdateError().isEmpty(), 8000);
+    QVERIFY2(runs->pluginUpdateError().contains(QStringLiteral("can only take over from 1.1.0")), qPrintable(runs->pluginUpdateError()));
+    QCOMPARE(hub.runPluginPuts.last(), (QJsonObject{{"plugins", QJsonArray{QJsonObject{{"plugin_id", kPluginId}, {"version", "2.0.0"}}}}}));
+
+    // B: pinned 1.1.0, so 2.0.0 is accepted; previous_version arrives and "Restore 1.1.0" is offered; the log row names who did it.
+    runs->openRun(runB);
+    QTRY_COMPARE_WITH_TIMEOUT(changes().size(), 1, 8000);
+    const int before = hub.runPluginPuts.size();
+    runs->applyPluginChange(runB, kPluginId, false);
+    QTRY_COMPARE_WITH_TIMEOUT(hub.runPluginPuts.size(), before + 1, 8000);
+    QTRY_COMPARE_WITH_TIMEOUT(runs->client()->run(runB)->plugins.first().version, QStringLiteral("2.0.0"), 8000);
+    QCOMPARE(runs->client()->run(runB)->plugins.first().previousVersion, QStringLiteral("1.1.0"));
+    QTRY_VERIFY_WITH_TIMEOUT(changes().size() == 1 && changes().first().toMap().value("restore").toBool(), 8000);
+    QCOMPARE(changes().first().toMap().value("text").toString(), QStringLiteral("Restore Run Notes 1.1.0"));
+    QVERIFY(runs->pluginUpdateError().isEmpty());
+    bool logged = false;
+    for (int i = 0; i < 40 && !logged; ++i) {
+      QTest::qWait(100);
+      for (const QVariantMap& r : static_cast<uzume::ui::KeyedRowsModel*>(runs->events())->rows())
+        logged = logged || r.value("text").toString() == QStringLiteral("Tester updated Run Notes 1.1.0 \u2192 2.0.0");
+    }
+    QVERIFY(logged);
+    // Restore goes back to the previous version (the server accepts only that downgrade).
+    runs->applyPluginChange(runB, kPluginId, true);
+    QTRY_COMPARE_WITH_TIMEOUT(runs->client()->run(runB)->plugins.first().version, QStringLiteral("1.1.0"), 8000);
+    QCOMPARE(runs->client()->run(runB)->plugins.first().previousVersion, QStringLiteral("2.0.0"));
+
+    // C: not mine, so no buttons. Its pinned 1.1.0 asks for memory.read the old 1.0.0 did not: "Play run" asks first.
+    runs->openRun(runC);
+    QTRY_COMPARE_WITH_TIMEOUT(runs->detail().value("name").toString(), QStringLiteral("Run C"), 8000);
+    QVERIFY(!runs->detail().value("canUpdatePlugins").toBool());
+    QVERIFY(changes().isEmpty());
+    QSignalSpy launched(runs, &RunsController::launchRequested);
+    runs->playRun(runC);
+    QTRY_VERIFY_WITH_TIMEOUT(!runs->pluginConsent().isEmpty(), 8000);
+    const QVariantList items = runs->pluginConsent().value("items").toList();
+    QCOMPARE(items.size(), 1);
+    QVERIFY2(items.first().toMap().value("text").toString().startsWith(QStringLiteral("Run Notes 1.1.0 asks for: ")), qPrintable(items.first().toMap().value("text").toString()));
+    QTRY_VERIFY(popupOpen(h, "runPluginConsentDialog"));
+    runs->answerPluginConsent(false);  // declining: the game does not start
+    QVERIFY(runs->pluginConsent().isEmpty());
+    QTest::qWait(300);
+    QCOMPARE(launched.count(), 0);
+    QVERIFY(runs->messageIsError());
+    runs->playRun(runC);  // asks again; agreeing remembers it and starts
+    QTRY_VERIFY_WITH_TIMEOUT(!runs->pluginConsent().isEmpty(), 8000);
+    runs->answerPluginConsent(true);
+    QTRY_COMPARE_WITH_TIMEOUT(launched.count(), 1, 8000);
+    runs->playRun(runC);
+    QTRY_COMPARE_WITH_TIMEOUT(launched.count(), 2, 8000);  // remembered per run + plugin + version: no second question
+    QVERIFY(runs->pluginConsent().isEmpty());
+  }
+
   // A requirement the Hub cannot satisfy blocks the start with a clear error.
   void startDialogRequiresMissing() {
     FakeHub hub(QStringLiteral("a"));

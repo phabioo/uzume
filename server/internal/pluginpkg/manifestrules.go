@@ -175,3 +175,66 @@ func validateUI(raw json.RawMessage) error {
 	}
 	return nil
 }
+
+// RangeMatches reports whether version satisfies a `requires` range (same grammar and bounds as the app's
+// VersionRange::matches). An invalid range or version never matches.
+func RangeMatches(rng, version string) bool {
+	v, err := updates.ParseSemVer(version)
+	if err != nil {
+		return false
+	}
+	t := strings.TrimSpace(rng)
+	if t == "" || t == "*" {
+		return true
+	}
+	loose := func(s string) (updates.SemVer, int, bool) {
+		s = strings.TrimSpace(s)
+		if !looseVersion(s) {
+			return updates.SemVer{}, 0, false
+		}
+		core, pre, _ := strings.Cut(s, "-")
+		parts := strings.Split(core, ".")
+		n := [3]string{"0", "0", "0"}
+		for i, p := range parts {
+			n[i] = strconv.FormatInt(mustInt(p), 10)
+		}
+		full := n[0] + "." + n[1] + "." + n[2]
+		if pre != "" {
+			full += "-" + pre
+		}
+		sv, err := updates.ParseSemVer(full)
+		return sv, len(parts), err == nil
+	}
+	switch {
+	case strings.HasPrefix(t, "^"), strings.HasPrefix(t, "~"):
+		lo, parts, ok := loose(t[1:])
+		if !ok {
+			return false
+		}
+		maj, min, pat := mustInt(lo.Major), mustInt(lo.Minor), mustInt(lo.Patch)
+		var hi [3]int64
+		if t[0] == '^' {
+			switch {
+			case maj > 0 || parts == 1:
+				hi = [3]int64{maj + 1, 0, 0}
+			case min > 0 || parts == 2:
+				hi = [3]int64{0, min + 1, 0}
+			default:
+				hi = [3]int64{0, 0, pat + 1}
+			}
+		} else if parts == 1 {
+			hi = [3]int64{maj + 1, 0, 0}
+		} else {
+			hi = [3]int64{maj, min + 1, 0}
+		}
+		hv := updates.SemVer{Major: strconv.FormatInt(hi[0], 10), Minor: strconv.FormatInt(hi[1], 10), Patch: strconv.FormatInt(hi[2], 10), Pre: []string{"0"}}
+		return v.Compare(lo) >= 0 && v.Compare(hv) < 0
+	case strings.HasPrefix(t, ">="):
+		lo, _, ok := loose(t[2:])
+		return ok && v.Compare(lo) >= 0
+	}
+	lo, _, ok := loose(t)
+	return ok && v.Compare(lo) == 0
+}
+
+func mustInt(s string) int64 { n, _ := strconv.ParseInt(s, 10, 64); return n }

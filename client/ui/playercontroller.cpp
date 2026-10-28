@@ -1451,6 +1451,15 @@ void PlayerController::setupStates() {
   connect(runClient_.get(), &RunClient::runChanged, this, [this](const QString& runId) {
     if (runId == stateRunId_) updateDiscord();
   });
+  // run_plugin_updates_v1: another pinned version in the run of the running game restarts its plugins once (the same pins restart nothing).
+  connect(runClient_.get(), &RunClient::runChanged, this, [this](const QString& runId) {
+    if (runId != stateRunId_ || !plugins_) return;
+    const auto run = runClient_->run(runId);
+    if (!run) return;
+    QList<plugins::RunPluginPin> pins;
+    for (const RunPluginRef& p : run->plugins) pins.append({p.pluginId, p.version, p.sha256});
+    plugins_->runPinsChanged(pins);
+  });
   connect(runClient_.get(), &RunClient::runChanged, states_.get(), [this](const QString& runId) {
     if (runId == stateRunId_) states_->rulesChanged();
   });

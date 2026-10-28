@@ -96,6 +96,12 @@ class RunsController : public QObject {
   // The Rules dialog of the open run (design 11f): saving, and why it failed.
   Q_PROPERTY(bool rulesBusy READ rulesBusy NOTIFY rulesStateChanged)
   Q_PROPERTY(QString rulesError READ rulesError NOTIFY rulesStateChanged)
+  // Updating the pinned plugins (run_plugin_updates_v1): the busy state and error of the Update / Restore action, and the consent sheet that
+  // "Play run" opens when a plugin version asks for permissions the person has not agreed to in this run:
+  // pluginConsent = {runId, items: [{pluginId, name, version, text}]} (empty = nothing to ask).
+  Q_PROPERTY(bool pluginUpdateBusy READ pluginUpdateBusy NOTIFY pluginUpdateChanged)
+  Q_PROPERTY(QString pluginUpdateError READ pluginUpdateError NOTIFY pluginUpdateChanged)
+  Q_PROPERTY(QVariantMap pluginConsent READ pluginConsent NOTIFY pluginConsentChanged)
   Q_PROPERTY(QString startError READ startError NOTIFY startStateChanged)
   Q_PROPERTY(bool startBusy READ startBusy NOTIFY startStateChanged)
   Q_PROPERTY(bool startUsersLoading READ startUsersLoading NOTIFY startStateChanged)
@@ -186,6 +192,15 @@ class RunsController : public QObject {
   // status: "active" (start / resume), "paused", "finished", "abandoned".
   Q_INVOKABLE void setRunStatus(const QString& runId, const QString& status);
   Q_INVOKABLE void playRun(const QString& runId);
+  // Update or restore one plugin of the open run (creator or admin; detail.pluginChanges lists what is offered). The server message is shown on failure.
+  Q_INVOKABLE void applyPluginChange(const QString& runId, const QString& pluginId, bool restore);
+  // Answer of the consent sheet: true remembers the agreement (run + plugin + version) and goes on with Play run, false drops it (the game does not start).
+  Q_INVOKABLE void answerPluginConsent(bool agree);
+  bool pluginUpdateBusy() const { return pluginUpdateBusy_; }
+  QString pluginUpdateError() const { return pluginUpdateError_; }
+  QVariantMap pluginConsent() const { return pluginConsent_; }
+  // Pins of the run that ask for permissions the person has not agreed to yet: [{pluginId, name, version, text}].
+  QVariantList consentNeeded(const RunInfo& run) const;
   Q_INVOKABLE void dismissMessage();
   // The app could not start the game of a run: the reason shows on the run screen (the same text as the game page).
   void showLaunchProblem(const QString& text) { setMessage(text, true); }
@@ -223,6 +238,8 @@ class RunsController : public QObject {
   void startStateChanged();
   void rulesStateChanged();
   void rulesSaved(const QString& runId);
+  void pluginUpdateChanged();
+  void pluginConsentChanged();
   void joinPluginsChanged();
   // Everything for the run is ready: start `gameId` with the run context (PlayerController).
   void launchRequested(const QString& runId, const QString& gameId);
@@ -300,6 +317,9 @@ class RunsController : public QObject {
   QString busyText_;
   QString startError_;
   RunRules startCore_;
+  bool pluginUpdateBusy_ = false;
+  QString pluginUpdateError_;
+  QVariantMap pluginConsent_;
   bool rulesBusy_ = false;
   QString rulesError_;
   bool startBusy_ = false;

@@ -71,6 +71,17 @@ Open: whether the buildbot build of Azahar contains this code, and whether the m
 - The group plays German/EU releases; plugins support all language versions of a game where feasible, at least German and English. Game names (species, moves, locations) are read from the game at runtime and follow its language; plugin UI strings use i18n files (English source, German first translation) (Fabio, 2026-10-11).
 - 3DS: EU cartridges hold several languages and the game language follows the emulated console's system language. Azahar offers the core option "3DS System Language"; FrameBeam must let the user set it (per-game override or 3DS default), and `pokemon-core` detects the active language rather than assuming it. Open: where the setting lives.
 
+### Amendment 2026-10-28: switching a run's plugin versions (issue #335)
+
+A run still pins exact plugin versions (id, version, SHA-256); what changes is that the creator of the run or an admin can now switch a pinned plugin to another version server offers while the run is not over (`PUT /api/v1/runs/{run_id}/plugins`, handshake feature `run_plugin_updates_v1`, see [protocol](../reference/protocol.md)). Fabio decided the defaults on 2026-10-28:
+
+1. **Who:** the creator or an admin; other participants see the change in the run log. The creator carries the run, and a switch restarts everyone's plugins.
+2. **Upgrade guard:** a new version may declare the manifest field `run_update_from` (SemVer, the lowest pinned version it can take over); an older pin is refused with `plugin_update_incompatible`. Only the plugin author knows whether the run data survives, and absent means any older version.
+3. **Downgrade:** only back to the previous version (`previous_version` of the run plugin), once. Free downgrades would run old code on data a newer version migrated.
+4. **Requirements:** the resulting set must satisfy every `requires`; the app adds or raises required plugins in the same call, the server refuses otherwise (`plugin_requires_missing`). A required plugin that the run lacks is appended, nothing is ever removed.
+5. **Data stays:** run state, boards, settings and events are keyed by plugin id and are not touched; plugins migrate on load (convention in the [plugin guide](../guides/plugin-api.md#run-state)). The recap uses the mapping of the version pinned now, for all events.
+6. **Consent and pruning:** a participant agrees again, per run, plugin and version, when the new version asks for permissions the pinned one did not. The server keeps both the pinned and the previous version of an unfinished run (not removable, not pruned) until the run ends.
+
 ## Consequences
 
 - Large, staged work (see roadmap 0.11): runtime, UI building blocks, Hub plugins and runs, plugin repositories, first game. Metadata moves to 0.12, Linux and macOS Player to 0.13 (superseded by the roadmap reorders of 2026-10-11 and 2026-10-12: metadata and the Linux Player come after 1.0, macOS is dropped; see `docs/roadmap.md`).

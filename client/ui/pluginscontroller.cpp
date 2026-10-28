@@ -7,7 +7,9 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonArray>
 #include <QJsonDocument>
+#include <QSaveFile>
 #include <QJsonObject>
 #include <QGuiApplication>
 #include <QKeyCombination>
@@ -836,6 +838,112 @@ void PluginsController::refreshRunExtras() {
   if (!res.start.isEmpty()) startGameSet(res);
   rebuildUiModels();
 }
+
+void PluginsController::runPinsChanged(const QList<plugins::RunPluginPin>& pins) {
+  if (!inGame_ || !runLaunch_.bridge || delivery_ == nullptr) return;
+  const auto same = [&] {
+    if (pins.size() != runLaunch_.pins.size()) return false;
+    for (const plugins::RunPluginPin& p : pins) {
+      bool found = false;
+      for (const plugins::RunPluginPin& q : std::as_const(runLaunch_.pins))
+        if (q.id == p.id && q.version == p.version && q.sha256 == p.sha256) found = true;
+      if (!found) return false;
+    }
+    return true;
+  };
+  if (same()) return;  // nothing changed: the running plugins keep running
+  const quint64 gen = ++pinsGen_;
+  auto pending = std::make_shared<QList<plugins::RunPluginPin>>(pins);
+  auto step = std::make_shared<std::function<void()>>();
+  *step = [this, pending, step, pins, gen]() {
+    if (gen != pinsGen_ || !inGame_) return;
+    if (pending->isEmpty()) {
+      runLaunch_.pins = pins;
+      restartRunSet();
+      return;
+    }
+    const plugins::RunPluginPin pin = pending->takeFirst();
+    if (!manager_->hubCopyDir(pin.id, pin.version, pin.sha256).isEmpty()) {
+      (*step)();
+      return;
+    }
+    delivery_->ensureHubCopy(pin.id, pin.version, pin.sha256, [this, step, gen, pin](const plugins::DeliveryResult& res) {
+      if (gen != pinsGen_ || !inGame_) return;
+      if (!res.ok) {
+        qCWarning(lcPlugins) << "run plugin" << pin.id << pin.version << "not fetched:" << res.error;
+        PluginEmulationService::Notice n;
+        n.pluginName = tr("Uzume");
+        n.tone = QStringLiteral("important");
+        n.title = tr("Run plugins");
+        n.text = tr("%1 %2 could not be fetched: %3").arg(pin.id, pin.version, res.error);
+        addAppNotice(n);
+        return;
+      }
+      (*step)();
+    });
+  };
+  (*step)();
+}
+
+// New pins are in place: stop the game's plugins and start the set again, unless the person still has to agree to new permissions.
+void PluginsController::restartRunSet() {
+  if (!inGame_ || !runLaunch_.bridge) return;
+  const QString runId = runLaunch_.bridge->current().value(QStringLiteral("id")).toString();
+  const bool allowed = !runPinsGate_ || runPinsGate_(runId);
+  if (running_) stopGameSet();
+  if (!allowed) {
+    PluginEmulationService::Notice n;
+    n.pluginName = tr("Uzume");
+    n.tone = QStringLiteral("important");
+    n.title = tr("Run plugins");
+    n.text = tr("The run's plugins were updated and ask for new permissions. They stay off until you agree: leave the game and press Play run.");
+    addAppNotice(n);
+    rebuildUiModels();
+    return;
+  }
+  const plugins::GameResolution res = resolveGameSet();
+  for (auto it = res.problems.begin(); it != res.problems.end(); ++it)
+    qCInfo(lcPlugins) << "plugin" << it.key() << "not started:" << it.value().join(QStringLiteral("; "));
+  if (!res.start.isEmpty()) startGameSet(res);
+  rebuildUiModels();
+}
+
+namespace {
+QString runConsentPath(const QString& dataDir) { return QDir(dataDir).filePath(QStringLiteral("plugins/run_consent.json")); }
+}  // namespace
+
+bool PluginsController::runPluginConsent(const QString& runId, const QString& pluginId, const QString& version) const {
+  QFile f(runConsentPath(dataDir_));
+  if (!f.open(QIODevice::ReadOnly)) return false;
+  const QJsonArray versions = QJsonDocument::fromJson(f.readAll()).object().value(runId.toLower()).toObject().value(pluginId).toArray();
+  for (const QJsonValue& v : versions)
+    if (v.toString() == version) return true;
+  return false;
+}
+
+void PluginsController::setRunPluginConsent(const QString& runId, const QString& pluginId, const QString& version) {
+  const QString path = runConsentPath(dataDir_);
+  QJsonObject all;
+  {
+    QFile f(path);
+    if (f.open(QIODevice::ReadOnly)) all = QJsonDocument::fromJson(f.readAll()).object();
+  }
+  QJsonObject run = all.value(runId.toLower()).toObject();
+  QJsonArray versions = run.value(pluginId).toArray();
+  for (const QJsonValue& v : versions)
+    if (v.toString() == version) return;
+  versions.append(version);
+  run.insert(pluginId, versions);
+  all.insert(runId.toLower(), run);
+  QDir().mkpath(QFileInfo(path).absolutePath());
+  QSaveFile out(path);
+  if (out.open(QIODevice::WriteOnly)) {
+    out.write(QJsonDocument(all).toJson(QJsonDocument::Compact));
+    out.commit();
+  }
+}
+
+QString PluginsController::permissionLabels(const QStringList& perms) { return permissionsText(perms); }
 
 void PluginsController::gameStopped() { stopGame(true); }
 
