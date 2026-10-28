@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"sort"
 	"strconv"
@@ -124,6 +125,7 @@ const (
 	CatalogInstall   = "install"   // no version of the plugin is offered
 	CatalogUpdate    = "update"    // an older version is offered
 	CatalogInstalled = "installed" // the newest indexed version is offered
+	CatalogReplace   = "replace"   // not offered, but it replaces an offered plugin id (manifest field replaces)
 )
 
 // PluginCatalogEntry is the newest indexed version of one plugin together with what this server offers of it.
@@ -131,6 +133,9 @@ type PluginCatalogEntry struct {
 	pluginpkg.IndexEntry
 	State            string
 	InstalledVersion string // the newest offered version, empty for CatalogInstall
+	// ReplacesID, ReplacesName and ReplacesVersion describe the offered plugin a CatalogReplace entry takes over
+	// (the first offered id of Replaces; newest offered version and its name). Empty for other states.
+	ReplacesID, ReplacesName, ReplacesVersion string
 }
 
 // PluginIndexStatus is shown on the Plugins page.
@@ -167,8 +172,10 @@ func (s *Service) PluginIndexStatus(ctx context.Context) (PluginIndexStatus, err
 		return st, err
 	}
 	newestOffered := map[string]string{}
+	offeredName := map[string]string{}
 	for _, p := range offered { // ListPlugins is oldest first
 		newestOffered[p.PluginID] = p.Version
+		offeredName[p.PluginID] = p.Name
 	}
 	newest := map[string]pluginpkg.IndexEntry{}
 	for _, e := range idx.Plugins {
@@ -183,6 +190,13 @@ func (s *Service) PluginIndexStatus(ctx context.Context) (PluginIndexStatus, err
 			c.State = CatalogInstalled
 			if semverLess(have, e.Version) {
 				c.State = CatalogUpdate
+			}
+		} else {
+			for _, old := range e.Replaces {
+				if v, ok := newestOffered[old]; ok {
+					c.State, c.ReplacesID, c.ReplacesName, c.ReplacesVersion = CatalogReplace, old, offeredName[old], v
+					break
+				}
 			}
 		}
 		st.Catalog = append(st.Catalog, c)
@@ -256,5 +270,66 @@ func (s *Service) InstallIndexPlugin(ctx context.Context, id, version string) (P
 		return Plugin{}, fmt.Errorf("download %s %s refused: %s", id, version, reason)
 	}
 	pl, _, err := s.storePlugin(ctx, p, PluginSourceIndex, "")
-	return pl, err
+	if err != nil {
+		return pl, err
+	}
+	s.replaceOldPlugins(ctx, e.ID, e.Replaces)
+	return pl, nil
+}
+
+// replaceOldPlugins takes over the plugins newID replaces (issue #384): for every replaced id that is offered, the
+// per-user store rows are copied to newID for users who have none for newID yet, then the old versions are removed.
+// The server keeps no per-user "on" flag or permission grant (those live in the app); the store is the only per-user
+// plugin data. Versions an unfinished run pins stay (RemovePlugin refuses them) and are pruned later. The new plugin is
+// already stored, so a failure here only leaves the old id offered; it is logged and never fails the install.
+func (s *Service) replaceOldPlugins(ctx context.Context, newID string, replaces []string) {
+	for _, old := range replaces {
+		offered, err := s.ListPlugins(ctx)
+		if err != nil {
+			slog.Warn("plugin replace: listing plugins failed", "plugin", newID, "replaces", old, "err", err)
+			return
+		}
+		var vers []string
+		for _, p := range offered {
+			if p.PluginID == old {
+				vers = append(vers, p.Version)
+			}
+		}
+		if len(vers) == 0 {
+			continue
+		}
+		moved, err := s.carryOverPluginStore(ctx, old, newID)
+		if err != nil {
+			slog.Warn("plugin replace: carrying over people's data failed, the old plugin stays", "plugin", newID, "replaces", old, "err", err)
+			continue
+		}
+		removed, kept := 0, 0
+		for _, v := range vers {
+			if err := s.RemovePlugin(ctx, old, v); err != nil {
+				kept++
+				continue
+			}
+			removed++
+		}
+		slog.Info("plugin replaced", "plugin", newID, "replaces", old, "removed_versions", removed, "kept_versions", kept, "store_rows_carried", moved)
+	}
+}
+
+// carryOverPluginStore copies the plugin_store rows of oldID to newID for every user who has no row for newID yet,
+// in one transaction, and returns how many rows were copied. The old rows stay (a pinned old version may still use them).
+func (s *Service) carryOverPluginStore(ctx context.Context, oldID, newID string) (int64, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+	res, err := tx.ExecContext(ctx, `INSERT INTO plugin_store(user_id, plugin_id, key, value, size_bytes, revision, updated_at)
+		SELECT user_id, ?, key, value, size_bytes, revision, updated_at FROM plugin_store o
+		WHERE o.plugin_id = ? AND NOT EXISTS (SELECT 1 FROM plugin_store n WHERE n.user_id = o.user_id AND n.plugin_id = ?)`,
+		newID, oldID, newID)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return n, tx.Commit()
 }

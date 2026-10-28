@@ -171,6 +171,7 @@ struct FbSpec {
   QJsonObject ui;  // manifest field "ui" (needs the permission "ui")
   QJsonObject requires_;  // manifest field "requires" (plugin id -> version range)
   QJsonArray recap;  // manifest field "recap" (event type -> recap glyph, 0.22)
+  QStringList replaces;  // manifest field "replaces" (ids of older plugins this one takes over)
 };
 
 inline QMap<QString, QByteArray> fbFiles(const FbSpec& s) {
@@ -179,6 +180,7 @@ inline QMap<QString, QByteArray> fbFiles(const FbSpec& s) {
   if (!s.ui.isEmpty()) m["ui"] = s.ui;
   if (!s.requires_.isEmpty()) m["requires"] = s.requires_;
   if (!s.recap.isEmpty()) m["recap"] = s.recap;
+  if (!s.replaces.isEmpty()) m["replaces"] = QJsonArray::fromStringList(s.replaces);
   QMap<QString, QByteArray> files = s.extra;
   files.insert(QStringLiteral("manifest.json"), QJsonDocument(m).toJson());
   files.insert(s.entry, s.lua.toUtf8());

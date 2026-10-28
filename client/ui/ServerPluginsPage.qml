@@ -35,8 +35,19 @@ AdminPage {
 
     readonly property var pluginRows: root.rowsOf(root.offered)
     readonly property var selected: root.pluginIndex >= 0 && root.pluginIndex < root.pluginRows.length ? root.pluginRows[root.pluginIndex] : null
-    readonly property var catalogRows: (root.index.catalog ?? []).map(e => ({ id: e.id, name: e.name, version: e.version, description: e.description,
-                                                                              state: e.state, installedVersion: e.installed_version ?? "" }))
+    readonly property var catalogRows: (root.index.catalog ?? []).map(e => ({ id: e.id, name: e.name, version: e.version,
+                                                                              description: e.state === "replace" && e.replaces
+                                                                                           ? (e.description ? e.description + " " : "") + qsTr("Replaces %1 %2").arg(e.replaces.name).arg(e.replaces.version)
+                                                                                           : e.description,
+                                                                              state: e.state, installedVersion: e.installed_version ?? "",
+                                                                              replacesId: e.replaces ? e.replaces.id : "" }))
+    // Old plugin id -> name of the index plugin that replaces it (catalog state "replace").
+    readonly property var replacedBy: {
+        const out = ({})
+        for (const e of (root.index.catalog ?? []))
+            if (e.state === "replace" && e.replaces && e.replaces.id) out[e.replaces.id] = e.name
+        return out
+    }
     readonly property bool allTicked: root.stage !== null && (root.stage.permissions ?? []).every(p => root.ticks[p] === true)
 
     title: qsTr("Plugins")
@@ -175,7 +186,8 @@ AdminPage {
         root.call("POST", "/admin/plugin-index/install", { id: entry.id, version: entry.version }, function (ok, data, code, message) {
             root.setBusy("add:" + entry.id, false)
             if (ok) {
-                root.say(qsTr("Added %1 %2.").arg(entry.name).arg(entry.version), "done")
+                root.say(entry.state === "replace" ? qsTr("Replaced the old plugin with %1 %2.").arg(entry.name).arg(entry.version)
+                                                   : qsTr("Added %1 %2.").arg(entry.name).arg(entry.version), "done")
                 root.load()
             } else {
                 root.say(root.failText(qsTr("Could not add %1").arg(entry.name), message), "error")
@@ -366,6 +378,13 @@ AdminPage {
                         icon: "warn"
                         text: qsTr("Changes the game")
                     }
+                    UzTag {
+                        objectName: row ? "pluginReplaced_" + row.plugin_id : ""
+                        visible: row !== null && root.replacedBy[row.plugin_id] !== undefined
+                        tone: "amber"
+                        icon: "warn"
+                        text: row !== null && root.replacedBy[row.plugin_id] !== undefined ? qsTr("Replaced by %1").arg(root.replacedBy[row.plugin_id]) : ""
+                    }
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         text: row === null ? "" : row.permissionCount === 0 ? qsTr("None")
@@ -517,7 +536,7 @@ AdminPage {
                     anchors.verticalCenter: parent.verticalCenter
                     size: "sm"
                     busy: row !== null && root.busy["add:" + row.id] === true
-                    text: row !== null && row.state === "update" ? qsTr("Update") : qsTr("Add")
+                    text: row !== null && row.state === "update" ? qsTr("Update") : row !== null && row.state === "replace" ? qsTr("Replace") : qsTr("Add")
                     onClicked: root.addFromIndex(row)
                 }
             }

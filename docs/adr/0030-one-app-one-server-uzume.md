@@ -57,8 +57,8 @@ Consequences:
 #### Amendment (2026-10-28, decided by Fabio): editor plugin `uzume.creature-editor`
 
 - The editor plugin id `uzume.monster-editor` becomes `uzume.creature-editor` to match its name "Creature Editor"; the repository is `phabioo/uzume-plugin-creature-editor` (old URLs redirect).
-- No migration: no runs depend on it.
-- The plugin index is republished without `uzume.monster-editor`; an installed copy under the old id stays until it is removed.
+- No run migration: no runs depend on it.
+- The plugin index lists only `uzume.creature-editor`, which declares `replaces: ["uzume.monster-editor"]`: a server that still offers the old id shows the new plugin as "Replace"; installing it carries over people's plugin store data to the new id and removes the old id, except versions an unfinished run pins (issue #384).
 
 ### D2 One app, no web admin
 

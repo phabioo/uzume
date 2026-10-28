@@ -446,6 +446,7 @@ func (e AdminPluginSource) Valid() bool {
 const (
 	Install   AdminPluginCatalogEntryState = "install"
 	Installed AdminPluginCatalogEntryState = "installed"
+	Replace   AdminPluginCatalogEntryState = "replace"
 	Update    AdminPluginCatalogEntryState = "update"
 )
 
@@ -455,6 +456,8 @@ func (e AdminPluginCatalogEntryState) Valid() bool {
 	case Install:
 		return true
 	case Installed:
+		return true
+	case Replace:
 		return true
 	case Update:
 		return true
@@ -2724,16 +2727,25 @@ type AdminPluginCatalogEntry struct {
 	Description string `json:"description"`
 	Id          string `json:"id"`
 
-	// InstalledVersion The newest offered version; absent for `install`
-	InstalledVersion *string                      `json:"installed_version,omitempty"`
-	Name             string                       `json:"name"`
-	Permissions      []string                     `json:"permissions"`
-	Size             int64                        `json:"size"`
-	State            AdminPluginCatalogEntryState `json:"state"`
-	Version          string                       `json:"version"`
+	// InstalledVersion The newest offered version; absent for `install` and `replace`
+	InstalledVersion *string  `json:"installed_version,omitempty"`
+	Name             string   `json:"name"`
+	Permissions      []string `json:"permissions"`
+
+	// Replaces The offered plugin a `replace` entry takes over (newest offered version); present only for state `replace`
+	Replaces *struct {
+		Id      string `json:"id"`
+		Name    string `json:"name"`
+		Version string `json:"version"`
+	} `json:"replaces,omitempty"`
+	Size int64 `json:"size"`
+
+	// State `replace`: not offered, but it takes over an offered plugin id (manifest field `replaces`); installing carries over people's plugin data and removes the old id
+	State   AdminPluginCatalogEntryState `json:"state"`
+	Version string                       `json:"version"`
 }
 
-// AdminPluginCatalogEntryState defines model for AdminPluginCatalogEntry.State.
+// AdminPluginCatalogEntryState `replace`: not offered, but it takes over an offered plugin id (manifest field `replaces`); installing carries over people's plugin data and removes the old id
 type AdminPluginCatalogEntryState string
 
 // AdminPluginIndex defines model for AdminPluginIndex.
