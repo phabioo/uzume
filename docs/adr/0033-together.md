@@ -1,6 +1,6 @@
 # ADR 0033: Together (0.23)
 
-- Status: Accepted for implementation; scope decided by Fabio on 2026-10-21 (roadmap 0.23), details proposed by Claude on 2026-10-27.
+- Status: Accepted (implemented); scope decided by Fabio on 2026-10-21 (roadmap 0.23), details proposed by Claude on 2026-10-27.
 - Date: 2026-10-27
 - Deciders: Fabio (scope, roadmap 2026-10-21/23)
 
