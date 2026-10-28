@@ -55,7 +55,7 @@ int inputIndex(const QString& id) {
 const QList<HotkeyDef>& hotkeyDefs() {
   static const QList<HotkeyDef> defs = {
       {QStringLiteral("fullscreen"), QStringLiteral("Toggle fullscreen"), Qt::Key_F11, QStringLiteral("pad:b")},
-      {QStringLiteral("diagnostics"), QStringLiteral("Diagnostics overlay"), Qt::Key_F3, QStringLiteral("pad:rightstick")},
+      {QStringLiteral("diagnostics"), QStringLiteral("Diagnostics overlay"), Qt::Key_F3, QStringLiteral("pad:dpleft")},  // R3 went to push-to-talk (0.23)
       {QStringLiteral("snapshot"), QStringLiteral("Save snapshot"), Qt::Key_F5},
       {QStringLiteral("saveState"), QStringLiteral("Save state"), Qt::Key_F6, QStringLiteral("pad:rightshoulder")},  // Shift+F6 = next slot
       {QStringLiteral("loadState"), QStringLiteral("Load state"), Qt::Key_F8, QStringLiteral("pad:leftshoulder")},
@@ -66,6 +66,7 @@ const QList<HotkeyDef>& hotkeyDefs() {
       {QStringLiteral("mute"), QStringLiteral("Mute"), Qt::Key_M, QStringLiteral("pad:x")},
       {QStringLiteral("screenshot"), QStringLiteral("Take screenshot"), Qt::Key_F12, QStringLiteral("pad:y")},
       {QStringLiteral("layout"), QStringLiteral("Screen layout"), Qt::Key_F7, QStringLiteral("pad:dpright")},  // Shift+F7 = swap screens
+      {QStringLiteral("talk"), QStringLiteral("Push-to-talk (hold)"), Qt::Key_V, QStringLiteral("pad:rightstick")},  // voice chat (0.23); Shift+M = mic on/off
   };
   return defs;
 }

@@ -78,6 +78,14 @@ constexpr const char* kAudioVoiceGainKey = "audio_voice_gain";
 constexpr const char* kAudioPluginGainKey = "audio_plugin_gain";
 constexpr const char* kAudioMixAllKey = "audio_mix_all_tiles";
 constexpr const char* kAudioTileGainsKey = "audio_tile_gains";
+constexpr const char* kVoiceMicKey = "voice_mic_device";
+constexpr const char* kVoiceTalkKey = "voice_talk_mode";
+constexpr const char* kVoiceThresholdKey = "voice_threshold_db";
+constexpr const char* kVoiceNoiseKey = "voice_noise_suppression";
+constexpr const char* kVoiceDuckingKey = "voice_ducking";
+constexpr const char* kVoiceAutoJoinKey = "voice_auto_join";
+constexpr const char* kVoiceMicOnKey = "voice_mic_on";
+constexpr const char* kVoicePersonGainsKey = "voice_person_gains";
 constexpr const char* kSaveSlotsKey = "save_slots";  // { hub_id: { game_id: slot } }
 }
 
@@ -139,6 +147,17 @@ PlayerSettings::PlayerSettings(const QString& baseDir)
   const QJsonObject tg = raw_.value(QLatin1String(kAudioTileGainsKey)).toObject();
   for (auto it = tg.begin(); it != tg.end(); ++it) {
     if (it.value().isDouble()) audioTileGains_.insert(it.key(), std::clamp(it.value().toInt(100), 0, 100));
+  }
+  voiceMicDevice_ = raw_.value(QLatin1String(kVoiceMicKey)).toString();
+  if (const QString talk = raw_.value(QLatin1String(kVoiceTalkKey)).toString(); talk == QLatin1String("ptt") || talk == QLatin1String("vad")) voiceTalkMode_ = talk;
+  voiceThresholdDb_ = std::clamp(raw_.value(QLatin1String(kVoiceThresholdKey)).toInt(-42), -70, -10);
+  voiceNoiseSuppression_ = raw_.value(QLatin1String(kVoiceNoiseKey)).toBool(true);
+  voiceDucking_ = raw_.value(QLatin1String(kVoiceDuckingKey)).toBool(true);
+  voiceAutoJoin_ = raw_.value(QLatin1String(kVoiceAutoJoinKey)).toBool(true);
+  voiceMicOn_ = raw_.value(QLatin1String(kVoiceMicOnKey)).toBool(true);
+  const QJsonObject vg = raw_.value(QLatin1String(kVoicePersonGainsKey)).toObject();
+  for (auto it = vg.begin(); it != vg.end(); ++it) {
+    if (it.value().isDouble()) voicePersonGains_.insert(it.key(), std::clamp(it.value().toInt(100), 0, 100));
   }
   diagEmulationOpen_ = raw_.value(QLatin1String(kDiagEmulationKey)).toBool(true);
   diagStreamingOpen_ = raw_.value(QLatin1String(kDiagStreamingKey)).toBool(true);
@@ -373,6 +392,65 @@ bool PlayerSettings::setAudioTileGain(const QString& userId, int percent) {
   QJsonObject o = raw_.value(QLatin1String(kAudioTileGainsKey)).toObject();
   o.insert(userId, percent);
   raw_.insert(QLatin1String(kAudioTileGainsKey), o);
+  return save();
+}
+
+bool PlayerSettings::setVoiceMicDevice(const QString& id) {
+  voiceMicDevice_ = id;
+  if (id.isEmpty()) {
+    raw_.remove(QLatin1String(kVoiceMicKey));
+  } else {
+    raw_.insert(QLatin1String(kVoiceMicKey), id);
+  }
+  return save();
+}
+
+bool PlayerSettings::setVoiceTalkMode(const QString& mode) {
+  if (mode != QLatin1String("ptt") && mode != QLatin1String("vad")) return false;
+  voiceTalkMode_ = mode;
+  raw_.insert(QLatin1String(kVoiceTalkKey), mode);
+  return save();
+}
+
+bool PlayerSettings::setVoiceThresholdDb(int db) {
+  voiceThresholdDb_ = std::clamp(db, -70, -10);
+  raw_.insert(QLatin1String(kVoiceThresholdKey), voiceThresholdDb_);
+  return save();
+}
+
+bool PlayerSettings::setVoiceNoiseSuppression(bool on) {
+  voiceNoiseSuppression_ = on;
+  raw_.insert(QLatin1String(kVoiceNoiseKey), on);
+  return save();
+}
+
+bool PlayerSettings::setVoiceDucking(bool on) {
+  voiceDucking_ = on;
+  raw_.insert(QLatin1String(kVoiceDuckingKey), on);
+  return save();
+}
+
+bool PlayerSettings::setVoiceAutoJoin(bool on) {
+  voiceAutoJoin_ = on;
+  raw_.insert(QLatin1String(kVoiceAutoJoinKey), on);
+  return save();
+}
+
+bool PlayerSettings::setVoiceMicOn(bool on) {
+  voiceMicOn_ = on;
+  raw_.insert(QLatin1String(kVoiceMicOnKey), on);
+  return save();
+}
+
+int PlayerSettings::voicePersonGain(const QString& userId) const { return voicePersonGains_.value(userId, 100); }
+
+bool PlayerSettings::setVoicePersonGain(const QString& userId, int percent) {
+  if (userId.isEmpty()) return false;
+  percent = std::clamp(percent, 0, 100);
+  voicePersonGains_.insert(userId, percent);
+  QJsonObject o = raw_.value(QLatin1String(kVoicePersonGainsKey)).toObject();
+  o.insert(userId, percent);
+  raw_.insert(QLatin1String(kVoicePersonGainsKey), o);
   return save();
 }
 

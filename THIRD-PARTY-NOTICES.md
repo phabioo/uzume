@@ -40,6 +40,7 @@ Windows build: dynamically linked DLLs from vcpkg and Qt. Full license texts are
 | usrsctp (via libdatachannel) | BSD-3-Clause | <https://github.com/sctplab/usrsctp> |
 | plog (via libdatachannel) | MIT | <https://github.com/SergiusTheBest/plog> |
 | Opus | BSD-3-Clause | <https://opus-codec.org> |
+| speexdsp (voice chat: noise suppression, echo cancellation) | BSD-3-Clause | <https://github.com/xiph/speexdsp> |
 | SDL3 | zlib | <https://github.com/libsdl-org/SDL> |
 | Lua 5.4.7 (plugin runtime, vendored in `client/plugins/third_party/`) | MIT | <https://www.lua.org> |
 | OpenSSL | Apache-2.0 | <https://www.openssl.org> |

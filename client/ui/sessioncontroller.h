@@ -231,6 +231,8 @@ class SessionController : public QObject {
   // Each entry also has roleKey ("host" | "viewer"), and on my own row of a watched Session qualityPick ("auto" | "high" | "medium" | "low")
   // and sessionId for the Quality segmented.
   Q_INVOKABLE QVariantList sessionPeople(const QString& sessionId) const;
+  // visibility token (private | hub_users | invite_only) of my shared Session or of a Session I watch; empty for others
+  QString sessionVisibility(const QString& sessionId) const;
   // My role in a Session: "host" for my shared Session, "viewer" for a watched one, "" otherwise.
   Q_INVOKABLE QString role(const QString& sessionId) const;
   // Quality of a watched Session: the pick token, "" if the Session is not watched. setQuality sends it to the host and keeps it as the

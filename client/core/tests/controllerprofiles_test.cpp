@@ -96,7 +96,7 @@ class ControllerProfilesTest : public QObject {
   void hotkeyDefaultsAndConflicts() {
     QTemporaryDir dir;
     ControllerProfiles p(dir.path());
-    QCOMPARE(hotkeyDefs().size(), 12);
+    QCOMPARE(hotkeyDefs().size(), 13);
     QCOMPARE(p.hotkey(QStringLiteral("saveState")), int(Qt::Key_F6));
     QCOMPARE(p.hotkey(QStringLiteral("loadState")), int(Qt::Key_F8));
     QCOMPARE(p.hotkey(QStringLiteral("rewind")), int(Qt::Key_Backspace));
@@ -166,11 +166,12 @@ class ControllerProfilesTest : public QObject {
       QCOMPARE(p.padHotkey(QStringLiteral("saveState")), QStringLiteral("pad:rightshoulder"));
       QCOMPARE(p.padHotkey(QStringLiteral("loadState")), QStringLiteral("pad:leftshoulder"));
       QCOMPARE(p.padHotkey(QStringLiteral("rewind")), QStringLiteral("pad:lefttrigger"));
-      QCOMPARE(p.padHotkey(QStringLiteral("diagnostics")), QStringLiteral("pad:rightstick"));
+      QCOMPARE(p.padHotkey(QStringLiteral("diagnostics")), QStringLiteral("pad:dpleft"));  // R3 went to push-to-talk (0.23), diagnostics moved to D-pad left
+      QCOMPARE(p.padHotkey(QStringLiteral("talk")), QStringLiteral("pad:rightstick"));
       QCOMPARE(p.padHotkey(QStringLiteral("fullscreen")), QStringLiteral("pad:b"));   // Uzume hotkeys have gamepad defaults (3f-4)
       QCOMPARE(p.hotkeysChangedCount(), 0);
       QCOMPARE(padHotkeyLabel(p.padHotkey(QStringLiteral("speedup")), p.padHotkeyModifier()), QStringLiteral("Select+RT"));
-      QCOMPARE(padHotkeyLabel(p.padHotkey(QStringLiteral("diagnostics")), p.padHotkeyModifier()), QStringLiteral("Select+R3"));
+      QCOMPARE(padHotkeyLabel(p.padHotkey(QStringLiteral("talk")), p.padHotkeyModifier()), QStringLiteral("Select+R3"));
       QCOMPARE(padHotkeyLabel(QStringLiteral("solo:pad:paddle1"), p.padHotkeyModifier()), tokenLabel(QStringLiteral("pad:paddle1")));
       QVERIFY(!QFile::exists(p.filePath()));
 
@@ -234,7 +235,7 @@ class ControllerProfilesTest : public QObject {
     QCOMPARE(p.padHotkeyModifier(), QStringLiteral("pad:back"));
     QCOMPARE(p.padHotkey(QStringLiteral("fullscreen")), QStringLiteral("pad:leftshoulder"));
     QCOMPARE(p.padHotkey(QStringLiteral("snapshot")), QString());                                 // default clashes with fullscreen
-    QCOMPARE(p.padHotkey(QStringLiteral("diagnostics")), QStringLiteral("pad:rightstick"));       // guide is invalid
+    QCOMPARE(p.padHotkey(QStringLiteral("diagnostics")), QStringLiteral("pad:dpleft"));  // guide is invalid
     QCOMPARE(p.padHotkey(QStringLiteral("speedup")), QStringLiteral("pad:righttrigger"));        // the modifier is not an action button
   }
 
