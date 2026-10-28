@@ -114,7 +114,17 @@ class TogetherUiTest : public QObject {
     QVERIFY(!h.item("menuItem_sharedPause")->property("itemEnabled").toBool());
     QTest::keyClick(h.window, Qt::Key_Escape);  // closes the menu
     QTRY_VERIFY(!shown(h.item("menuItem_readyCheck")));
-    // A scope (a shared Session) enables them
+    // A viewer of a Session (ADR 0033 D5): the scope exists, but only the host starts checks and pauses
+    tg->setScopeProvider([]() { return TogetherController::Scope{QStringLiteral("session"), QStringLiteral("s1"), false}; });
+    tg->refresh();
+    QVERIFY(tg->available() && !tg->canControl());
+    QVERIFY(h.click("moreButton"));
+    QTRY_VERIFY(shown(h.item("menuItem_readyCheck")));
+    QVERIFY(!h.item("menuItem_readyCheck")->property("itemEnabled").toBool());
+    QVERIFY(!h.item("menuItem_sharedPause")->property("itemEnabled").toBool());
+    QTest::keyClick(h.window, Qt::Key_Escape);
+    QTRY_VERIFY(!shown(h.item("menuItem_readyCheck")));
+    // A scope (the host of a shared Session) enables them
     tg->setScopeProvider([]() { return TogetherController::Scope{QStringLiteral("session"), QStringLiteral("s1"), true}; });
     tg->refresh();
     QVERIFY(tg->available());

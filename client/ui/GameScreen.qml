@@ -299,9 +299,9 @@ Rectangle {
         if (e.isAutoRepeat) return false
         if (root.player.plugins.triggerHotkeyKey(e.key, e.modifiers)) return true
         var mods = e.modifiers & (Qt.ControlModifier | Qt.ShiftModifier | Qt.AltModifier | Qt.MetaModifier)
-        // Together (ADR 0033 D3): Shift+Esc pauses or resumes for everyone; 1 / 2 answer an open ready check
+        // Together (ADR 0033 D3/D5; viewers of a Session cannot): Shift+Esc pauses or resumes for everyone; 1 / 2 answer an open ready check
         if (e.key === Qt.Key_Escape && mods === Qt.ShiftModifier) {
-            if (root.together.available) root.together.togglePause()
+            if (root.together.canControl) root.together.togglePause()
             return true
         }
         if (root.control.askOpen && !root.together.awaitsAnswer && mods === Qt.NoModifier && (e.key === Qt.Key_1 || e.key === Qt.Key_2)) {
@@ -799,7 +799,7 @@ Rectangle {
                     fullscreen: root.fullscreen
                     quitting: root.player.quitting
                     hotkeys: root.hotkeyLabels
-                    togetherAvailable: root.together.available
+                    togetherAvailable: root.together.canControl
                     sharedPaused: root.together.paused
                     // A pause for everyone has no menu: the stage stays visible with its toast (Resume there, in ⋯, or Shift+Esc)
                     Binding { target: quickMenu; property: "shown"; value: root.session.paused && !root.together.holdActive && (root.tab === "session" || root.fullscreen) }

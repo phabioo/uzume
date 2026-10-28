@@ -217,11 +217,22 @@ func (c *Client) scopeMemberLive(env envelope) (scopeMsg, scopeKey, []string, bo
 	return m, k, members, live, true
 }
 
+// mayControl reports whether the sender may start a ready check and pause or resume for the scope: in a run every
+// member, in a Session only the owner (the host; ADR 0033 D5: viewers watch, chat and talk). The owner is the first
+// of sessionMembers. Answering a check stays open to every member.
+func (c *Client) mayControl(k scopeKey, members []string) bool {
+	return k.scope != scopeSession || (len(members) > 0 && members[0] == c.userID)
+}
+
 // readyCheckStart opens a check. Only one check per scope can be open: starting another one while it is open
 // is not an error, the current check is sent to the requester again (idempotent for a double click).
 func (c *Client) readyCheckStart(env envelope) {
 	_, k, members, live, ok := c.scopeMemberLive(env)
 	if !ok {
+		return
+	}
+	if !c.mayControl(k, members) {
+		c.sendError(env.ID, CodeForbidden, "Only the host starts a ready check in a Session")
 		return
 	}
 	if !live {
@@ -376,6 +387,10 @@ func (c *Client) pauseRequest(env envelope) {
 	}
 	if m.Paused == nil {
 		c.sendError(env.ID, CodeBadRequest, "paused is required")
+		return
+	}
+	if !c.mayControl(k, members) {
+		c.sendError(env.ID, CodeForbidden, "Only the host pauses or resumes a Session")
 		return
 	}
 	if *m.Paused && !live { // resuming stays possible; a new pause needs an active run or a running session

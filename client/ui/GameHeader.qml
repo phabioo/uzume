@@ -247,9 +247,9 @@ Rectangle {
             it.push({ label: qsTr("Fullscreen"), shortcut: root.key(root.hotkeys.fullscreen), name: "fullscreen" })
         }
         if (it.length > 0) it.push({ separator: true })
-        // Together (ADR 0033 D3): one click each, enabled while a run or a Session is the scope of this game
-        it.push({ label: qsTr("Ready check…"), name: "readyCheck", disabled: !root.together.available })
-        it.push({ label: root.together.paused ? qsTr("Resume for everyone") : qsTr("Pause for everyone"), shortcut: "Shift+Esc", name: "sharedPause", disabled: !root.together.available })
+        // Together (ADR 0033 D3): one click each, enabled for run members and the Session host (viewers only watch, D5)
+        it.push({ label: qsTr("Ready check…"), name: "readyCheck", disabled: !root.together.canControl })
+        it.push({ label: root.together.paused ? qsTr("Resume for everyone") : qsTr("Pause for everyone"), shortcut: "Shift+Esc", name: "sharedPause", disabled: !root.together.canControl })
         it.push({ label: root.voice.wantJoined ? qsTr("Leave voice") : qsTr("Join voice"), name: "voiceToggle",
                   disabled: !root.voice.available && !root.voice.wantJoined })
         if (root.voice.wantJoined)

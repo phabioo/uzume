@@ -103,7 +103,7 @@ func newSessFx(t *testing.T) *sessFx {
 
 func TestEndSessionAnnouncesEndOfSharedPause(t *testing.T) {
 	f := newSessFx(t)
-	send(t, f.ca, "pause_request", fmt.Sprintf(`{"scope":"session","id":%q,"paused":true}`, f.sessionID))
+	send(t, f.co, "pause_request", fmt.Sprintf(`{"scope":"session","id":%q,"paused":true}`, f.sessionID))
 	got(f.co)
 	got(f.ca)
 	if err := f.svc.EndSession(ctx, f.po, f.sessionID); err != nil {

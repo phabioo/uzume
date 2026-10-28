@@ -38,7 +38,7 @@ Parallel milestones: DB migration numbers, the OpenAPI `info.version` and the AD
 
 - WSS client to server: `ready_check_start {scope: "run"|"session", id}`, `ready_check_answer {check_id, ready: bool}`, `ready_check_cancel {check_id}`, `pause_request {scope, id, paused: bool}`.
 - Server to clients: `ready_check {check_id, scope, id, by, status: open|all_ready|cancelled|expired, expires_at, members:[{user_id, state: pending|ready|not_ready}]}` and `pause_state {scope, id, paused, by}`.
-- Members are the joined run participants, or the session owner plus viewers. Any member may start a check or pause/resume. One open check per scope; 30 s expiry; in memory only.
+- Members are the joined run participants, or the session owner plus viewers. In a run any member may start a check or pause/resume; in a Session only the host (the Session owner) does, viewers watch, chat and talk (D5) and still answer a check and receive the state; the others get `forbidden`. One open check per scope; 30 s expiry; in memory only.
 - App: "Ready check…" and "Pause for everyone" (Shift+Esc) in the ⋯ menu and the quick menu (group Together). The ready-check card has Ready / Not yet (two buttons, keys 1/2) and the member list. `pause_state` pauses the local game of every member in a run; in a session the host's game pauses (viewers see it via the existing DC state). Toast "Lena paused for everyone" stays until resumed. The run status "paused" (run lifecycle) is unrelated and unchanged.
 - Feature flag `together_v1` in `hello_ack`.
 

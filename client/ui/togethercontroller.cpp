@@ -87,7 +87,7 @@ QString TogetherController::pausedText() const {
 }
 
 void TogetherController::startCheck() {
-  if (!available()) return;
+  if (!canControl()) return;
   socket_->sendReadyCheckStart(scope_.kind, scope_.id);
 }
 
@@ -105,7 +105,7 @@ void TogetherController::cancelCheck() {
 }
 
 void TogetherController::setPaused(bool paused) {
-  if (!available()) return;
+  if (!canControl()) return;
   socket_->sendPauseRequest(scope_.kind, scope_.id, paused);
 }
 

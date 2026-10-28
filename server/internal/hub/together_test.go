@@ -334,14 +334,34 @@ func TestSessionReadyCheckPauseAndEnd(t *testing.T) {
 	if _, _, errs := got(cb); len(errs) != 1 || errs[0] != "forbidden" {
 		t.Fatalf("non-member session start: %v", errs)
 	}
+	// a viewer neither starts a check nor pauses (ADR 0033 D5)
 	send(t, ca, "ready_check_start", fmt.Sprintf(`{"scope":"session","id":%q}`, s.SessionID))
+	send(t, ca, "pause_request", fmt.Sprintf(`{"scope":"session","id":%q,"paused":true}`, s.SessionID))
+	if cs, ps, errs := got(ca); len(errs) != 2 || errs[0] != "forbidden" || errs[1] != "forbidden" || len(cs) != 0 || len(ps) != 0 {
+		t.Fatalf("viewer control: %+v %+v %v", cs, ps, errs)
+	}
+	if cs, ps, _ := got(co); len(cs) != 0 || len(ps) != 0 {
+		t.Fatalf("host saw a refused viewer request: %+v %+v", cs, ps)
+	}
+	send(t, co, "ready_check_start", fmt.Sprintf(`{"scope":"session","id":%q}`, s.SessionID))
 	cs := got2(co)
-	if len(cs) != 1 || cs[0].Scope != "session" || len(cs[0].Members) != 2 || cs[0].By != anna.ID {
+	if len(cs) != 1 || cs[0].Scope != "session" || len(cs[0].Members) != 2 || cs[0].By != admin.ID {
 		t.Fatalf("session check: %+v", cs)
 	}
-	send(t, ca, "pause_request", fmt.Sprintf(`{"scope":"session","id":%q,"paused":true}`, s.SessionID))
+	// viewers still answer
+	send(t, ca, "ready_check_answer", fmt.Sprintf(`{"check_id":%q,"ready":false}`, cs[0].CheckID))
+	if cs := got2(co); len(cs) != 1 || cs[0].Status != "open" || cs[0].state(anna.ID) != "not_ready" {
+		t.Fatalf("viewer answer: %+v", cs)
+	}
+	send(t, co, "pause_request", fmt.Sprintf(`{"scope":"session","id":%q,"paused":true}`, s.SessionID))
 	if _, ps, _ := got(co); len(ps) != 1 || ps[0]["paused"] != true {
 		t.Fatalf("session pause: %+v", ps)
+	}
+	// a viewer cannot lift it, and still receives the state
+	got(ca)
+	send(t, ca, "pause_request", fmt.Sprintf(`{"scope":"session","id":%q,"paused":false}`, s.SessionID))
+	if _, ps, errs := got(ca); len(errs) != 1 || errs[0] != "forbidden" || len(ps) != 0 {
+		t.Fatalf("viewer resume: %+v %v", ps, errs)
 	}
 	got(ca)
 	if err := svc.EndSession(ctx, po, s.SessionID); err != nil {
