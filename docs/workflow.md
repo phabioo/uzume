@@ -84,7 +84,7 @@ Do not return full logs or file contents. Do not commit.
 ### Docs rules (decided by Fabio, 2026-10-23)
 
 - Every document starts with a short overview that fits on one screen: what it is, where we stand, where to go next. Detail follows further down or in a linked document; long lists, history and special cases never come first.
-- Each fact lives in exactly one place: status and plan in [roadmap.md](roadmap.md), finished work in [history.md](history.md) and `CHANGELOG.md`, reasons in the [ADRs](adr/README.md), what Uzume does today in [features.md](features.md), how to use it in `docs/guides/`, how to develop in [development.md](development.md).
+- Each fact lives in exactly one place: status and plan in [roadmap.md](roadmap.md), finished work in [history.md](history.md) and `CHANGELOG.md`, reasons in the [ADRs](adr/README.md), what Uzume does today in [features.md](features.md), how to use it in the wiki (source `wiki/`, mirrored to the GitHub wiki by `.github/workflows/wiki.yml`; developer guides stay in `docs/guides/`), how to develop in [development.md](development.md).
 - A finished milestone becomes one row in the roadmap's "Where we stand" table; its section moves to `docs/history.md`. The README status stays one sentence (version and a link to the roadmap). The check `scripts/check-doc-links.py` fails when a README paragraph exceeds 600 characters.
 - Update `docs/features.md` and the affected guides when behaviour changes.
 

@@ -45,7 +45,7 @@ A plugin is a folder with a `manifest.json`, a Lua entry file and optional `i18n
 | `api` | Must be `1`. Otherwise the plugin is rejected: "`<name>` needs plugin API `<n>`; this app supports API 1". |
 | `type` | `"script"` (default). `"tool"` is rejected: "tool plugins are not supported yet". |
 | `requires` | Map of plugin id to version range: `^1.2` (compatible, below the next major; `^0.2` stays below `0.3`), `~1.2` (below the next minor), `>=1.0`, `1.2.3` (exact), `*`. Required plugins start first. A required plugin must be installed and match the range. |
-| `min_player` | Optional SemVer (`"0.16.4"`): the oldest Uzume that runs the plugin. A plugin that needs a newer app has the problem "Needs Player X", is not started and cannot be turned on; an enabled one stays enabled and runs again after the app is updated (also after "Go back" to an older app, see [updates](updates.md#rollback)). The server does not check it. |
+| `min_player` | Optional SemVer (`"0.16.4"`): the oldest Uzume that runs the plugin. A plugin that needs a newer app has the problem "Needs Player X", is not started and cannot be turned on; an enabled one stays enabled and runs again after the app is updated (also after "Go back" to an older app, see [updates](https://github.com/phabioo/uzume/wiki/Updates#rollback)). The server does not check it. |
 | `issues_url` | Optional `https://github.com/<owner>/<repo>`: where "Report on GitHub" files errors of this plugin ([ADR 0035](../adr/0035-error-groups-and-github-issues.md)). Without it the plugin's error groups have no GitHub button. An invalid value is a manifest warning and is ignored; the plugin still loads. |
 | `provides` | Interface names this plugin offers to others with `uz.provide`. |
 | `games` | List of `{ "system", "codes" }`. `codes` are globs (`*` any run, `?` one character, case-insensitive); no `codes` = every game of that system. An empty or missing list = all games. |
@@ -309,7 +309,7 @@ Nothing is overwritten silently: when the server has a newer value for a key tha
 
 ### Debug tools (MCP)
 
-The debug MCP server (Settings › Diagnostics › Claude debugging, see the [app guide](app.md#claude-debugging-mcp)) has tools for the new APIs: `cheats_list` (active list, core formats, why cheats are blocked, consent state), `cheats_apply` (a JSON list as plugin `mcp`; `bypass_consent: true` skips only the per-game question, the run rule, the safety copy and the run log still apply), `cheats_clear`, `store_get` / `store_put` (any plugin id, local copy of the connected user) and `consent_set { kind: "cheats" | "memory_write", allow, forget?, game? }`. They change the running game or the person's plugin data, like `game_memory_write`.
+The debug MCP server (Settings › Diagnostics › Claude debugging, see the [app guide](https://github.com/phabioo/uzume/wiki/Using-the-app#claude-debugging-mcp)) has tools for the new APIs: `cheats_list` (active list, core formats, why cheats are blocked, consent state), `cheats_apply` (a JSON list as plugin `mcp`; `bypass_consent: true` skips only the per-game question, the run rule, the safety copy and the run log still apply), `cheats_clear`, `store_get` / `store_put` (any plugin id, local copy of the connected user) and `consent_set { kind: "cheats" | "memory_write", allow, forget?, game? }`. They change the running game or the person's plugin data, like `game_memory_write`.
 
 ### Variants (`variants.build`)
 

@@ -1,10 +1,10 @@
 # Install the server on Linux
 
-At a glance: Install the server on Linux as a systemd service: the Debian package (recommended) or the script `install-server.sh`; then first setup from the app, upgrade, certificate renewal, offline cores and uninstall. Flags: [server-configuration.md](server-configuration.md). Docker instead: [server-docker.md](server-docker.md).
+At a glance: Install the server on Linux as a systemd service: the Debian package (recommended) or the script `install-server.sh`; then first setup from the app, upgrade, certificate renewal, offline cores and uninstall. Flags: [server-configuration.md](Server-configuration). Docker instead: [server-docker.md](Server-in-Docker).
 
 Contents: [Install the Debian package (recommended)](#install-the-debian-package-recommended), [Install with install-server.sh](#install-with-install-serversh), [1. Get the binary](#1-get-the-binary), [2. Install](#2-install), [First setup](#first-setup), [Admin account](#admin-account), [TLS fingerprint](#tls-fingerprint), [Upgrade](#upgrade), [Renew the certificate](#renew-the-certificate), [Import cores offline](#import-cores-offline), [Uninstall](#uninstall), [Files](#files), [Coming from FrameBeam](#coming-from-framebeam), [Migrating an existing manual data dir](#migrating-an-existing-manual-data-dir).
 
-Two ways to run the Uzume server as a systemd service: the Debian package (recommended on Debian / Raspberry Pi OS, the only type that can update itself) or the script `packaging/linux/install-server.sh` (any systemd Linux). For flags and environment variables see [server-configuration.md](server-configuration.md); for apps outside your LAN see [sessions-over-the-internet.md](sessions-over-the-internet.md). Already running Docker? Use the official image instead: [server-docker.md](server-docker.md).
+Two ways to run the Uzume server as a systemd service: the Debian package (recommended on Debian / Raspberry Pi OS, the only type that can update itself) or the script `packaging/linux/install-server.sh` (any systemd Linux). For flags and environment variables see [server-configuration.md](Server-configuration); for apps outside your LAN see [sessions-over-the-internet.md](Sessions-over-the-internet). Already running Docker? Use the official image instead: [server-docker.md](Server-in-Docker).
 
 ## Install the Debian package (recommended)
 
@@ -78,7 +78,7 @@ sudo uzume-server setup-code    # a new setup code, valid 60 minutes, works once
 sudo uzume-server code          # the security code of the certificate
 ```
 
-The commands read `/etc/uzume/server.env` like the service does, so a custom data folder or port is found without extra options. A forgotten admin password: `sudo uzume-server reset-admin` prints a one-time password (nothing else changes). `sudo uzume-server reset` deletes all data and starts fresh (stop the service first: `sudo systemctl stop uzume-server`; it asks for the server name and writes a safety backup without ROMs first). `sudo uzume-server update` installs the newest version of the update channel. Details: [Server commands](server-configuration.md#server-commands). On Windows the same commands run in a terminal as administrator.
+The commands read `/etc/uzume/server.env` like the service does, so a custom data folder or port is found without extra options. A forgotten admin password: `sudo uzume-server reset-admin` prints a one-time password (nothing else changes). `sudo uzume-server reset` deletes all data and starts fresh (stop the service first: `sudo systemctl stop uzume-server`; it asks for the server name and writes a safety backup without ROMs first). `sudo uzume-server update` installs the newest version of the update channel. Details: [Server commands](Server-configuration#server-commands). On Windows the same commands run in a terminal as administrator.
 
 ## Admin account
 
@@ -115,7 +115,7 @@ Renews the self-generated TLS certificate as the `uzume` user in the service's d
 sudo ./install-server.sh import-cores /path/to/dir
 ```
 
-For a server that cannot reach the libretro buildbot. `dir` holds buildbot core zips as `<platform>/<core>_libretro.<suffix>.zip` (platform `linux-x64` or `windows-x64`, for example `linux-x64/desmume_libretro.so.zip`), optionally `info.zip` and `<platform>/.index-extended`. The script copies the directory to a temporary location the service user can read and runs `uzume-server import-cores` as the `uzume` user in the service's data dir (read from `/etc/uzume/server.env`, like `renew-cert`). Cores are not signed; the SHA-256 is pinned at import. The service keeps running. Details: [server-configuration.md](server-configuration.md).
+For a server that cannot reach the libretro buildbot. `dir` holds buildbot core zips as `<platform>/<core>_libretro.<suffix>.zip` (platform `linux-x64` or `windows-x64`, for example `linux-x64/desmume_libretro.so.zip`), optionally `info.zip` and `<platform>/.index-extended`. The script copies the directory to a temporary location the service user can read and runs `uzume-server import-cores` as the `uzume` user in the service's data dir (read from `/etc/uzume/server.env`, like `renew-cert`). Cores are not signed; the SHA-256 is pinned at import. The service keeps running. Details: [server-configuration.md](Server-configuration).
 
 ## Uninstall
 
@@ -138,7 +138,7 @@ The `uzume` system user is kept. `status` shows the service state and URL.
 
 ## Coming from FrameBeam
 
-The Uzume server does not take over a FrameBeam install ([ADR 0030](../adr/0030-one-app-one-server-uzume.md)). Names, paths and formats changed everywhere, and nothing is migrated:
+The Uzume server does not take over a FrameBeam install ([ADR 0030](https://github.com/phabioo/uzume/blob/main/docs/adr/0030-one-app-one-server-uzume.md)). Names, paths and formats changed everywhere, and nothing is migrated:
 
 - **Set up the server fresh.** Install the `uzume-server` package (or run `install-server.sh`) as described above and create the admin account. It uses its own user `uzume`, `/etc/uzume/server.env` and `/var/lib/uzume` and does not read the old `framebeam` user, `/etc/framebeam` or `/var/lib/framebeam`. The `uzume-server` package conflicts with `framebeam-hub`, so installing it removes the old package (both would use port 8443); the old data in `/var/lib/framebeam` stays until you delete it. Still remove the old install first (a script install is no package and keeps running), after a backup of `/var/lib/framebeam`:
 

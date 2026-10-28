@@ -276,7 +276,7 @@ func PlanSchema(targetSchema, currentSchema int, backups []DBBackup) SchemaPlan 
 	switch {
 	case targetSchema <= 0:
 		p.Action = SchemaRefuse
-		p.Reason = "The release index does not say which database schema this version uses, so going back to it could leave the server unable to start. Use the manual steps in docs/guides/updates.md."
+		p.Reason = "The release index does not say which database schema this version uses, so going back to it could leave the server unable to start. Use the manual steps in https://github.com/phabioo/uzume/wiki/Updates."
 	case currentSchema <= 0 || targetSchema >= currentSchema:
 		p.Action = SchemaKeep
 	default:

@@ -14,4 +14,4 @@ Uzume server on Linux (systemd): the installer script, the Debian package build 
 sudo ./install-server.sh install --binary ./uzume-server-linux-arm64 --admin <name>   # add --port 8444 if 8443 is taken
 ```
 
-Full guide (Debian package, options, admin account, TLS, upgrade, migration, uninstall, files): [docs/guides/server-install.md](../../docs/guides/server-install.md).
+Full guide (Debian package, options, admin account, TLS, upgrade, migration, uninstall, files): [Server installation (wiki)](https://github.com/phabioo/uzume/wiki/Server-installation).

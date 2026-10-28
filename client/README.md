@@ -19,7 +19,7 @@ Qt >= 6.4 comes from apt (Linux) or install-qt-action (Windows), not vcpkg. Prer
 
 ## Documentation
 
-- Using the app (pairing, data directory, CLI, environment): [docs/guides/app.md](../docs/guides/app.md)
-- Saves: [docs/guides/saves.md](../docs/guides/saves.md); Sessions: [docs/guides/sessions-over-the-internet.md](../docs/guides/sessions-over-the-internet.md); updates: [docs/guides/updates.md](../docs/guides/updates.md)
+- Using the app (pairing, data directory, CLI, environment): [Using the app (wiki)](https://github.com/phabioo/uzume/wiki/Using-the-app)
+- Saves: [Saves (wiki)](https://github.com/phabioo/uzume/wiki/Saves); Sessions: [Sessions over the internet (wiki)](https://github.com/phabioo/uzume/wiki/Sessions-over-the-internet); updates: [Updates (wiki)](https://github.com/phabioo/uzume/wiki/Updates)
 - Dependencies, features per area, firmware, controllers, updater internals: [docs/reference/app-internals.md](../docs/reference/app-internals.md)
 - Design: [docs/design/README.md](../docs/design/README.md); decisions: [ADR 0003](../docs/adr/0003-player-phase2.md), [0004](../docs/adr/0004-player-portable-data.md), [0006](../docs/adr/0006-sessions-phase4.md), [0007](../docs/adr/0007-phase5.md), [0013](../docs/adr/0013-opengl-hardware-rendering.md), [0014](../docs/adr/0014-player-ui-pass.md)

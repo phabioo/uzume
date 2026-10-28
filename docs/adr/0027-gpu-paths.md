@@ -133,7 +133,7 @@ Exact strings as the code writes them.
 - Windows only; the Linux Player is unchanged.
 - QSV and AMF open the encoder twice, like NVENC (CPU frames first, then GPU frames).
 - Verification happens on a beta. CI has no GPU; it covers the GL side, the protocol and the call sequence with fakes (D9). Real GPUs, drivers and the interop are verified only locally.
-- User-visible additions: `FRAMEBEAM_DISABLE_ZERO_COPY`, the `zero-copy` part of the Frame row and ` → shown W×H` ([player guide](../guides/app.md)).
+- User-visible additions: `FRAMEBEAM_DISABLE_ZERO_COPY`, the `zero-copy` part of the Frame row and ` → shown W×H` ([player guide](https://github.com/phabioo/uzume/wiki/Using-the-app)).
 
 ### Verification on hardware (for Fabio)
 

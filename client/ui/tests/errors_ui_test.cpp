@@ -379,7 +379,7 @@ class ErrorsUiTest : public QObject {
     QVERIFY(url.contains("&fingerprint=uz-aaaaaaaaaaaa"));
     QVERIFY(url.contains("&app-version=0.24.0"));
     QVERIFY(url.contains("&issue-desc=Seen%207%20times%20on%202%20devices"));
-    QVERIFY(url.endsWith("&labels=bug,auto-report"));
+    QVERIFY(url.endsWith("&labels=bug,triage"));
     QTRY_VERIFY(!shown(h.item("errorsPreviewDialog")));
   }
 

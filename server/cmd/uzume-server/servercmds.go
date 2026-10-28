@@ -62,7 +62,7 @@ var moreCommands = []commandHelp{
 	{"import-tools <zip>...", "add randomizer engine release zips to the tools catalog (offline)"},
 	{"diagnostics <out.zip>", "write the diagnostics bundle (logs, configuration; no database access)"},
 	{"import-data --from DIR", "copy the data folder of a stopped server (the app's \"On this PC\" server) into this server's data folder"},
-	{"sharing stop|start", "Windows: stop or start sharing of the server service (administrator); see docs/guides/server-configuration.md"},
+	{"sharing stop|start", "Windows: stop or start sharing of the server service (administrator); see https://github.com/phabioo/uzume/wiki/Server-configuration"},
 	{"grant-folder <path>", "Windows: let the server service read a folder (administrator)"},
 	{"version [--json]", "print the version"},
 	{"help", "this list"},
@@ -71,7 +71,7 @@ var moreCommands = []commandHelp{
 // printHelp is the text of `uzume-server help`.
 func printHelp(w io.Writer) {
 	fmt.Fprintln(w, "Uzume server", version.String())
-	fmt.Fprintln(w, "\nUsage: uzume-server [flags]            start the server (flags and UZUME_* variables: docs/guides/server-configuration.md)")
+	fmt.Fprintln(w, "\nUsage: uzume-server [flags]            start the server (flags and UZUME_* variables: https://github.com/phabioo/uzume/wiki/Server-configuration)")
 	fmt.Fprintln(w, "       uzume-server <command> [flags]")
 	fmt.Fprintln(w, "\nCommands for setup and emergencies:")
 	for _, c := range serverCommands {

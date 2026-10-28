@@ -1,12 +1,12 @@
 # Sessions: LAN and internet
 
-At a glance: How to share a running game as a Session: first on a LAN, then over the internet with the embedded TURN relay, Cloudflare TURN or your own coturn ([coturn-on-a-vps.md](coturn-on-a-vps.md)); what to do when a Session does not connect. Network settings are in the app (Server › Settings › Network & sharing).
+At a glance: How to share a running game as a Session: first on a LAN, then over the internet with the embedded TURN relay, Cloudflare TURN or your own coturn ([coturn-on-a-vps.md](coturn-on-a-VPS)); what to do when a Session does not connect. Network settings are in the app (Server › Settings › Network & sharing).
 
-A Session shares a running game from one app with other apps. Audio and video flow directly between the apps (WebRTC, H.264 + Opus); the server only handles presence, signaling and, optionally, a relay. Decisions: [ADR 0006](../adr/0006-sessions-phase4.md), [ADR 0012](../adr/0012-internet-sessions-and-save-comfort.md).
+A Session shares a running game from one app with other apps. Audio and video flow directly between the apps (WebRTC, H.264 + Opus); the server only handles presence, signaling and, optionally, a relay. Decisions: [ADR 0006](https://github.com/phabioo/uzume/blob/main/docs/adr/0006-sessions-phase4.md), [ADR 0012](https://github.com/phabioo/uzume/blob/main/docs/adr/0012-internet-sessions-and-save-comfort.md).
 
 ## Test Sessions on a LAN
 
-Two apps on the LAN, both paired to the same server. With only the admin, both devices belong to the admin: Private (own devices only), server users and Invite only can be tested. With a second server user (create an invite, see [walkthrough.md](walkthrough.md)) Private rejects the foreign user and server users lets them in. STUN (`-ice-servers`) is not needed on a LAN. `scripts/e2e-session.sh` runs the same flow headless with two CLI processes against a local server; it also runs a second round with forced relay against a server with TURN on loopback.
+Two apps on the LAN, both paired to the same server. With only the admin, both devices belong to the admin: Private (own devices only), server users and Invite only can be tested. With a second server user (create an invite, see [walkthrough.md](Getting-started)) Private rejects the foreign user and server users lets them in. STUN (`-ice-servers`) is not needed on a LAN. `scripts/e2e-session.sh` runs the same flow headless with two CLI processes against a local server; it also runs a second round with forced relay against a server with TURN on loopback.
 
 ## Sessions over the internet
 
@@ -32,7 +32,7 @@ UZUME_PUBLIC_HOST=hub.example.org
 Values saved in Server › Settings › Network & sharing override `server.env` and the flags (reset per field to return to the `server.env` value); `server.env` only gives the initial values. This also applies to the port and the save retention values. The web form refuses ports below 1024; set those with `install-server.sh --port` (note that a port saved in the web form then still wins until reset). The Network page shows the state (on/off, resolved IPv4, ports, active allocations) and the forwards needed. Apps pair with the DNS name; credentials are issued automatically and expire after 12 hours. Relay is IPv4 only; direct IPv6 paths still work when both apps allow them. The server does not configure the router.
 ## Supported setups
 
-LAN, internet with a router port forward (recommended, this page), or a VPN such as WireGuard or Tailscale. The relay behind it can be the server's embedded TURN (this page), Cloudflare TURN or an external TURN server such as your own coturn on a VPS ([coturn-on-a-vps.md](coturn-on-a-vps.md), [server-configuration.md](server-configuration.md)); several can be active at once. An external relay needs no router port forward on the server side (ADR 0012, amendment 2026-10-12).
+LAN, internet with a router port forward (recommended, this page), or a VPN such as WireGuard or Tailscale. The relay behind it can be the server's embedded TURN (this page), Cloudflare TURN or an external TURN server such as your own coturn on a VPS ([coturn-on-a-vps.md](coturn-on-a-VPS), [server-configuration.md](Server-configuration)); several can be active at once. An external relay needs no router port forward on the server side (ADR 0012, amendment 2026-10-12).
 
 ## Testing the relay
 
@@ -40,7 +40,7 @@ Set `UZUME_FORCE_RELAY=1` (CLI `--force-relay`) on an app to force the relay pat
 
 ## When a Session does not connect or is relayed
 
-Run the app's connection check first (Settings → Hubs → "Connection check…", [player.md](app.md#connection-check)). It tells in plain language whether the server is reachable, whether STUN answers, whether the relay works with the credentials the server hands out, which NAT type the network has and whether a test connection through the server's servers succeeds. "Add to problem report" attaches the result to the next "Collect logs" bundle. The reading below is for the details behind it.
+Run the app's connection check first (Settings → Hubs → "Connection check…", [player.md](Using-the-app#connection-check)). It tells in plain language whether the server is reachable, whether STUN answers, whether the relay works with the credentials the server hands out, which NAT type the network has and whether a test connection through the server's servers succeeds. "Add to problem report" attaches the result to the next "Collect logs" bundle. The reading below is for the details behind it.
 
 ## Reading the connection logs and reasons
 
@@ -61,4 +61,4 @@ The host overlay (Diagnostics) shows type, RTT and reason per viewer, and a view
 
 When the server changes its ICE/TURN servers it sends `ice_update` (feature `ice_update_v1`); the app logs `ICE servers updated: N stun, M turn` and uses the new servers for connections created afterwards. Running connections stay untouched.
 
-Server flags: `-turn`, `-public-host`, `-turn-port`, `-turn-relay-ports`, `-turn-relay-ip` (env `UZUME_TURN*`, `UZUME_PUBLIC_HOST`), see [server-configuration.md](server-configuration.md).
+Server flags: `-turn`, `-public-host`, `-turn-port`, `-turn-relay-ports`, `-turn-relay-ip` (env `UZUME_TURN*`, `UZUME_PUBLIC_HOST`), see [server-configuration.md](Server-configuration).
