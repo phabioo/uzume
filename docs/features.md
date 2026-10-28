@@ -1,6 +1,6 @@
 # Features as built
 
-What the Uzume server, the protocol and the app do today. Why: [ADRs](adr/). How to use: [guides](guides/). Status by version: [roadmap.md](roadmap.md).
+What the Uzume server, the protocol and the app do today. Why: [ADRs](adr/). How to use: [guides](guides/). Direction: [roadmap.md](roadmap.md).
 
 - [Library and ROMs](#library-and-roms)
 - [Saves](#saves)

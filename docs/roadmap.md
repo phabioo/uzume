@@ -1,15 +1,18 @@
 # Roadmap
 
-Status and plan of Uzume after the proof of concept: what is finished, what comes next up to 1.0 and what is deliberately left for later. Work is cut into one work package per thread and PR (see [workflow](workflow.md)). 0.20 to 0.24 are built in parallel and all ship as betas 0.20.N; when all features and fixes are in, one release PR raises `VERSION` to 0.21.0, the first stable release ([ADR 0016](adr/0016-release-numbering-and-promotion.md), amendment 2026-10-27). 0.20, 0.22, 0.23 and 0.24 are finished (their leftovers and Fabio's tests are below), 0.21 is built (real-engine test and 3DS updates open). Finished milestones and the decisions behind the old numbering are in [history](history.md); what the product does today is in [features](features.md).
+Direction of Uzume after the proof of concept: the internal goal, what is finished, what is deliberately left for later. **Open work and tests are not listed here:** they are GitHub issues in the milestones "Uzume 21" and "Uzume 22" ([ADR 0036](adr/0036-issues-milestones-wiki-and-numbering.md), [workflow](workflow.md#issues-and-milestones)). 0.20 to 0.24 were built in parallel and ship as betas 0.20.N; the first stable release is the line "Uzume 21" ([ADR 0016](adr/0016-release-numbering-and-promotion.md), amendment 2026-10-27, numbering in ADR 0036). Finished work and the decisions behind the old numbering are in [history](history.md); what the product does today is in [features](features.md).
 
-## Goal 1.0
+## Internal goal
 
-Decided by Fabio on 2026-10-11: 1.0 is reached when a group of friends completes a SoulLink run in Pokémon Omega Ruby/Alpha Sapphire (3DS) over Uzume. For that, NDS and 3DS run cleanly, and the foundations and templates for further systems are clean, so a new system costs minimal effort.
+Decided by Fabio on 2026-10-11, restated on 2026-10-28: a group of friends completes a SoulLink run in Pokémon Omega Ruby/Alpha Sapphire (3DS) over Uzume. This is an internal goal only: it is neither a milestone nor a version number ("1.0" is dropped as a version, ADR 0036). Its steps are issues (test evening, the run itself).
 
-- Platforms: Windows and Linux only; macOS is dropped. Metadata and artwork come after 1.0.
-- The plugins live in their own repositories and are independent of Uzume milestones; Uzume delivers the plugin runtime (0.11). Plugin IDs: `uzume.soullink-core` and `uzume.soullink`.
-- Decided on 2026-10-21: milestones 0.16 to 0.24 ship before 1.0. A test evening with friends stays possible at any time (date open).
-- Decided by Fabio on 2026-10-23: after 0.19 the plugin milestones come first (0.20 Emulation, 0.21 Randomizer, 0.22 Plugins), then 0.23 Together and 0.24 Platforms.
+- Platforms: Windows and Linux only; macOS is dropped. Metadata and artwork come after the goal.
+- The plugins live in their own repositories and are independent of Uzume releases; Uzume delivers the plugin runtime. Plugin IDs: `uzume.soullink-core` and `uzume.soullink`.
+
+## Open work
+
+- Milestones (= releases, same title in every repository): "Uzume 21" (Fabio's local tests and the release steps), "Uzume 22" (leftovers and new work packages); list: <https://github.com/phabioo/uzume/milestones>. Cross-repository view: [open issues in milestone "Uzume 21"](https://github.com/issues?q=is%3Aopen+user%3Aphabioo+milestone%3A%22Uzume+21%22).
+- Themes are labels: `emulation`, `randomizer`, `plugins`, `together`, `platforms`, `app`, `install-and-sharing`. Process labels: `work-package`, `leftover`, `local-test`, `triage`, `release`.
 
 ## Where we stand
 
@@ -44,92 +47,11 @@ Decided by Fabio on 2026-10-11: 1.0 is reached when a group of friends completes
 | 0.22 | Plugins: developer console, run recap, Discord Rich Presence, Splits and Tracker plugins, fb.ui `disabled` | [ADR 0023](adr/0023-plugins.md) |
 | 0.23 | Together: online status, notifications, ready check, chat, viewer role, mixer, voice chat, controller hand-over | [ADR 0033](adr/0033-together.md) |
 | 0.24 | Platforms: Linux AppImage, Secret Service, Vulkan | [ADR 0034](adr/0034-linux-app-and-vulkan.md) |
-| 0.21, 1.0 | Planned, see below | |
+| 0.21 | Randomizer: game variants, tools catalog, plugin, runs with their own randomized game. Built; open items in milestone Uzume 21/22 | [ADR 0031](adr/0031-game-variants-and-randomizer.md) |
 
-Not all items of the finished milestones are closed. Open leftovers are recorded in their [history](history.md) sections, among them: the 0.11 plugin open points (non-admin plugin upload, Azahar memory maps), the 0.16 "What's new" screen and plugin repository PR templates, the 0.10.x library speed with many games.
+Not all items of the finished milestones are closed; their leftovers are issues labelled `leftover`, and Fabio's tests are issues labelled `local-test`. Older open points are recorded in their [history](history.md) sections.
 
-## 0.18 leftovers
-
-- The plugin index republish (workflow "Publish plugin" with `remove_ids`) is pending; plugins are then signed again with the new IDs.
-
-Tests only Fabio can do at the end: "Play on this PC" on a fresh Windows user (no UAC), "Share with others" (one UAC, data and pairing kept, service port), "Stop sharing" (others cannot connect, accounts and saves stay), "Share again", fresh install of the server and the app on a new PC, sign-in on a second PC and user switching, the GHCR package `uzume-server` set to public, plugin index and plugins signed again with "Publish plugin".
-
-## 0.19 leftovers
-
-- The Continue tile meta shows only the system (no save slot or version).
-- The audio output device switch applies only on the next start.
-- The video rows of board 6g-1 (Audio & video) are missing.
-- Per-game layout, swap and bottom window apply on the next start.
-- Screenshot usage per user and game has no own endpoint beyond the storage overview.
-- The clean-up "states of deleted games" waits for save states (0.20).
-
-Tests only Fabio can do at the end: audio on Windows (volume, mute, mute in background); screenshots: real capture with GPU cores, Save as dialog on Windows, Select + Y on a gamepad; screen layouts: bottom window on a second monitor, Windows zero-copy with the window open, touch in that window, Select + Right on a pad; per-game overrides: hold-Select hotkey sheet on a pad, per-game pad and keyboard profiles in a real game, the dialog in dark and light; both Storage pages visually and clean-ups on real data; integer scaling and the Continue block visually.
-
-## 0.24 leftovers
-
-- The debug MCP `settings_get` does not list emulation settings.
-- The AppImage is unsigned and needs glibc 2.38 or newer.
-
-Tests only Fabio can do at the end: Azahar with Vulkan on a real GPU (and the Renderer row switching it); OpenGL unchanged on NVIDIA, AMD and Intel; the AppImage on a desktop (X11 and Wayland); audio through PipeWire and PulseAudio; gamepads; the Steam Deck in desktop mode and as a non-Steam game in game mode; GNOME Keyring and KWallet (sign-in survives a restart); the AppImage self-update and its restore of `.previous`; "Only on this PC" with the bundled server on Linux.
-
-## 0.20 leftovers
-
-- Real-core checks are open: save-state serialization (size, time, determinism) on melonDS DS, DeSmuME and Azahar, run-ahead on a real core, and `retro_cheat_set` per format, including the Azahar Gateway engine from the `phabioo/azahar` fork. CI covers all of it only with the test core.
-- The Pokémon editor's ORAS offsets and encodings (plugin `uzume-plugin-pokemon-editor` v0.1.0 with `uzume-plugin-soullink-core` v0.5.0) are unverified on real hardware.
-- Run-ahead is off for 3DS by design; rewind and states on Azahar depend on the real-core check above.
-
-Tests only Fabio can do at the end: save states, rewind and run-ahead in a real game on Windows (hotkeys, preview images, Undo after a load, frame pacing); cheats from the database in a DS, GBA and 3DS game, and switching `rules.cheats` to off in a running run; a plugin memory write with the consent, the "Before memory changes" copy and the run log; "Before gym N" from SoulLink; Windows hardware checks of the new Game rules and Cheat database screens.
-
-## 0.22 leftovers
-
-- Other array-model Repeaters inside plugin layouts (Plugin console, menu, detail sheet, toast, plugins section, map view) still recreate their items on every update; on Qt older than 6.7 (Linux 6.4) this can read a freed layout item, as the plugin blocks did before PR #267. The Windows build uses a newer Qt.
-- The ORAS badge path (`badges.changed`, `soullink.badge`, Splits badge autosplit) and `battle().foes` are untested against the real game; the cloud used the soullink-core demo adapter.
-- Discord Rich Presence is tested only against a fake IPC server.
-- Developer console board 4d-2C is not built.
-- The Tracker's catch detection is a census heuristic.
-
-Tests only Fabio can do at the end (list: project notes `notes/0.22/weekend-tests.md`): SoulLink with real Omega Ruby / Alpha Sapphire (team, route names, catch, faint, badge, "before Gym N" snapshot, region map), the Recap tab of that run, Splits with the badge autosplit, the Tracker on a randomized ORAS, Discord Rich Presence with the real Discord client on Windows (shows, clears on quit and switch-off, appears when Discord starts later), Tab order and Esc in a plugin screen.
-
-## 0.23 leftovers
-
-- The plugin sound bus (`fb.sound`) and the real audio sink are untested without an audio device.
-- Real microphone capture, echo cancellation and voice over real networks are untested in the cloud.
-- Analog sticks travel in hand-over frames but reach the core only as digital directions.
-- No built-in system declares 2 input ports yet, so "Play as P2" is only covered by tests.
-- A rare freeze or crash was seen once on "Join" of a run invite during live tests; not reproducible in 16 runs.
-- The "My game" slider stays the master volume; there is no separate game channel gain.
-- `ui_runs_widefont` is flaky locally.
-
-Tests only Fabio can do at the end: voice with real microphones and speakers or headphones on Windows (push-to-talk V and Select + R3, echo without headphones, noise suppression, ducking); quality tiers and GPU-direct encoding with a fixed tier on NVIDIA; controller hand-over with a real gamepad and NDS/3DS touch; the mixer with several watched tiles and plugin sounds; the notification toast sound; ready check and pause in a real run with friends.
-
-## Open milestones
-
-Planned, in this order. Each section is the work list; check an item off here and, when the milestone is finished, move the section to [history](history.md) and add a row above.
-
-| Version | Theme |
-|---|---|
-| [0.21](#021-randomizer) | Randomizer: game variants, tools catalog, plugin, runs with their own randomized game |
-| [1.0](#10-test-phase) | Test phase and the SoulLink run |
-
-## 0.21 Randomizer
-
-Decided by Fabio on 2026-10-23 (as 0.22; renumbered on 2026-10-23); [ADR 0031](adr/0031-game-variants-and-randomizer.md) accepted on 2026-10-27; design sheet 5, [randomizer.md](design/uzume/randomizer.md); behaviour in [features](features.md#game-variants-and-the-randomizer). Built (2026-10-27): server (OpenAPI 1.40.0, migration 0025), app core, app UI, plugin `uzume-plugin-randomizer` v0.1, with the test engine `uzume_test_engine` in CI. Open: 3DS updates and Fabio's test with the real engine on his PC (determinism per system, LayeredFS in a slot); the milestone moves to [history](history.md) when both are done. Friends want a SoulLink or Nuzlocke run where each person plays their own randomized game. The engine is the Universal Pokémon Randomizer FVX (GPL-3.0, Gen 1 to 7, never in a repository); each app builds its own variant from a recipe, so no ROM data travels. Gen 1 to 5 are built as a whole ROM, Gen 6 and 7 as a LayeredFS folder in the Azahar dir of the slot.
-
-- [ ] Fabio's test on his PC with the real engine: server › Tools gets FVX, ORAS is randomized twice with the same seed and `variant_files` gives the same hashes, the variant starts with the mod loaded and Main is original, a run "Each person gets their own" with two accounts, SoulLink sees randomized encounters; one game per system (GB, GBC, GBA, NDS) for determinism (S)
-- [x] Game variants: variant = base game + recipe + owner + own save slot `var-<8 hex>`; REST, OpenAPI and migration; start exactly the variant; variant cache with limit and Storage entry; LayeredFS into the slot's Azahar dir; `fb.rom.*` reads the started file and lays mod files over the RomFS; variant count and slot picker (M-L)
-- [ ] 3DS updates on the server and in the app, so a variant can be built for the update the app plays (10b-3d, 10d-4f/g); decided after Fabio's ORAS test, 0.21 builds and plays without an update (M)
-- [x] Tools catalog: the server downloads the engine per platform like cores (SHA-256 pin, `import-tools`, versions kept while in use, Server › Tools); the app starts it with a fixed argument list, no shell, progress, cancel, time and memory limits; permission `variants.build`, no `tool.exec` (M)
-- [x] Plugin `uzume-plugin-randomizer` v0.1 in its own repository: presets as settings strings, supported games and the overview card; Uzume draws the dialogs, the variant list and the run setting itself (ADR 0031 amendment) (M)
-- [x] Runs with variants: run seed and pinned engine version, per-person seed derived from the run seed and the user ID or "Same world for everyone", own variants if allowed, "Building your variant", run board column Game and Randomizer block (M)
-- [ ] SoulLink: show the variant in the run, read encounter data from the variant, test with ORAS (S, plugin repositories)
-
-## 1.0 Test phase
-
-- Open: test evening(s) with friends; date not set.
-- Open: checklist: installer (MSI), buildbot cores, Azahar, 3DS saves, 3DS system language (Azahar core option "3DS System Language"), internet Sessions.
-- Open: then the SoulLink run in Pokémon Omega Ruby/Alpha Sapphire (3DS) with the plugins from their repositories. Completing it is the 1.0 goal.
-
-## After 1.0
+## After the goal
 
 ### Metadata and artwork
 
@@ -154,6 +76,6 @@ Hosted emulation, friends list, public Session links, guest access, email/passwo
 
 ## Open decisions
 
-- **Test evening:** date open.
+- **Test evening:** date open (issue #315).
 
 Decided questions (second system, internet reachability, update channels, core sourcing, release notes language and others) are in [history](history.md#decisions-from-the-roadmap).

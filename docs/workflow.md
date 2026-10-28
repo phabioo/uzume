@@ -1,6 +1,6 @@
 # Working with Claude Code
 
-How Uzume is built with Claude Code: Opus orchestrates and delegates packages by brief to Sonnet agents, Haiku searches; one package per thread and PR. Below: [Roles](#roles) and the [brief template](#brief-template), [token-saving rules](#token-saving-rules), [packages, PRs and docs rules](#packages-and-prs), the [phase plan](#phase-plan), and what the cloud can verify. Build and test commands: [development.md](development.md).
+How Uzume is built with Claude Code: Opus orchestrates and delegates packages by brief to Sonnet agents, Haiku searches; one package per thread and PR. Below: [Roles](#roles) and the [brief template](#brief-template), [token-saving rules](#token-saving-rules), [issues and milestones](#issues-and-milestones), [packages, PRs and docs rules](#packages-and-prs), the [phase plan](#phase-plan), and what the cloud can verify. Build and test commands: [development.md](development.md).
 
 ## Hybrid mode
 
@@ -75,17 +75,33 @@ Do not return full logs or file contents. Do not commit.
 - One work package per thread; new threads instead of long histories.
 - Since phase 0: quiet check scripts (`make check` or similar, errors + summary only), dependency cache in the SessionStart hook, codegen from OpenAPI.
 
+## Issues and milestones
+
+Open work is tracked as GitHub issues in milestones in `phabioo/uzume` and all official plugin repositories ([ADR 0036](adr/0036-issues-milestones-wiki-and-numbering.md)). A milestone is a release with the same title everywhere: "Uzume 21" (Fabio's local tests and the release steps), "Uzume 22" (leftovers and new work packages). Overview: <https://github.com/phabioo/uzume/milestones>; across repositories: `is:open user:phabioo milestone:"Uzume 21"` in the GitHub issue search.
+
+| Label | Meaning |
+|---|---|
+| `emulation`, `randomizer`, `plugins`, `together`, `platforms`, `app`, `install-and-sharing` | Theme |
+| `work-package` | One thread, one PR (issue form "Work package") |
+| `leftover` | Left open when finished in code |
+| `local-test` | Needs Fabio's real hardware, games or networks |
+| `triage` | Not yet sorted into a milestone |
+| `release` | Release steps |
+
+- One thread works one issue; the PR body says "Closes #N".
+- Findings become issues in the right milestone, `triage` when unsure. Error reports from "Report on GitHub" ([ADR 0035](adr/0035-error-groups-and-github-issues.md)) arrive without milestone and get triaged.
+
 ## Packages and PRs
 
-- One PR per package with green CI, one topic per PR.
+- One PR per package with green CI, one topic per PR; the PR closes its issue ("Closes #N").
 - Every PR description has a `## Changelog` section (`### Added|Changed|Fixed|Removed|Security`, optional `Server:`/`App:` prefix (`Hub:`/`Player:` still accepted), or `none` for CI, docs, test and refactoring-only PRs); the check "Changelog section" requires it ([ADR 0028](adr/0028-release-notes-and-changelogs.md)).
 - At every milestone, the PR updates the docs by the rules below; READMEs stay short, detail goes to `docs/`.
 
 ### Docs rules (decided by Fabio, 2026-10-23)
 
 - Every document starts with a short overview that fits on one screen: what it is, where we stand, where to go next. Detail follows further down or in a linked document; long lists, history and special cases never come first.
-- Each fact lives in exactly one place: status and plan in [roadmap.md](roadmap.md), finished work in [history.md](history.md) and `CHANGELOG.md`, reasons in the [ADRs](adr/README.md), what Uzume does today in [features.md](features.md), how to use it in the wiki (source `wiki/`, mirrored to the GitHub wiki by `.github/workflows/wiki.yml`; developer guides stay in `docs/guides/`), how to develop in [development.md](development.md).
-- A finished milestone becomes one row in the roadmap's "Where we stand" table; its section moves to `docs/history.md`. The README status stays one sentence (version and a link to the roadmap). The check `scripts/check-doc-links.py` fails when a README paragraph exceeds 600 characters.
+- Each fact lives in exactly one place: open work in GitHub issues and milestones, direction in [roadmap.md](roadmap.md), finished work in [history.md](history.md) and `CHANGELOG.md`, reasons in the [ADRs](adr/README.md), what Uzume does today in [features.md](features.md), how to use it in the wiki (source `wiki/`, mirrored to the GitHub wiki by `.github/workflows/wiki.yml`; developer guides stay in `docs/guides/`), how to develop in [development.md](development.md).
+- A finished milestone becomes one row in the roadmap's "Where we stand" table; its record goes to `docs/history.md`. The README status stays one sentence (version and a link to the roadmap). The check `scripts/check-doc-links.py` fails when a README paragraph exceeds 600 characters.
 - Update `docs/features.md` and the affected guides when behaviour changes.
 
 ## Phase plan
@@ -96,8 +112,8 @@ Do not return full logs or file contents. Do not commit.
 - **Phase 3 – Saves:** start/auto/final sync, current checkpoint vs. history, `base_version`, conflict model, pending sync; server saves page, app conflict dialog.
 - **Phase 4 – Session sharing and multiview:** presence, signaling, visibility/ACL, WebRTC with software H.264/Opus, PiP/side-by-side, diagnostics; afterwards hardware encoders (testable locally only).
 - **Phase 5 – Remainder and polish:** firmware path, users/invites, systems & cores, emulation and controllers pages, SDL3 gamepads, dark/light, remaining server pages, packaging (Windows installer, systemd unit).
-- Status: phases 0-5 are done and merged; the PoC is complete. Per-version status: [roadmap.md](roadmap.md).
-- **After the PoC:** work follows [roadmap.md](roadmap.md).
+- Status: phases 0-5 are done and merged; the PoC is complete. Direction and finished milestones: [roadmap.md](roadmap.md).
+- **After the PoC:** work follows the issues in the milestones and the direction in [roadmap.md](roadmap.md).
 
 The mapping of screens to phases is in [design/README.md](design/README.md).
 

@@ -8,9 +8,9 @@ body:
   - type: checkboxes
     attributes:
       label: Is there an existing issue for this?
-      description: Search the open and closed issues and the [roadmap](https://github.com/phabioo/uzume/blob/main/docs/roadmap.md) first.
+      description: Search the open and closed issues (including the milestones) first.
       options:
-        - label: I have searched the existing issues and the roadmap
+        - label: I have searched the existing issues
           required: true
   - type: dropdown
     id: area

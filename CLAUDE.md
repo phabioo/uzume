@@ -24,7 +24,7 @@ Uzume (formerly FrameBeam) is a self-hosted retro gaming platform (monorepo): a 
 
 ## Docs rules
 
-Every document starts with a short overview that fits on one screen; each fact lives in exactly one place (status and plan in `docs/roadmap.md`, finished work in `docs/history.md` and `CHANGELOG.md`, reasons in ADRs, behaviour in `docs/features.md`, usage in the wiki (source `wiki/`, mirrored to the GitHub wiki), developer guides in `docs/guides/`, development in `docs/development.md`). The README status stays one sentence, `scripts/check-doc-links.py` enforces its paragraph length. Details: `docs/workflow.md`, section "Docs rules".
+Every document starts with a short overview that fits on one screen; each fact lives in exactly one place (open work in GitHub issues and milestones, direction in `docs/roadmap.md`, finished work in `docs/history.md` and `CHANGELOG.md`, reasons in ADRs, behaviour in `docs/features.md`, usage in the wiki (source `wiki/`, mirrored to the GitHub wiki), developer guides in `docs/guides/`, development in `docs/development.md`). The README status stays one sentence, `scripts/check-doc-links.py` enforces its paragraph length. Details: `docs/workflow.md`, section "Docs rules".
 
 ## Status and commands
 
@@ -43,4 +43,4 @@ The SessionStart hook `.claude/hooks/session-start.sh` only prepares cloud sessi
 
 - Architecture: `docs/architecture/README.md` (index, read only the file you need); deviations: `docs/adr/`. Area rules: `server/`, `client/`, `protocol/` each have a `CLAUDE.md`.
 - Design (screens, tokens): `docs/design/README.md`; `docs/design/uzume/` is the valid design from 0.18 on.
-- Plan and status: `docs/roadmap.md`; finished milestones are moved to `docs/history.md` (see Docs rules). Docs index: `docs/README.md`; READMEs stay short, detail belongs in `docs/`.
+- Open work: GitHub issues and milestones (`docs/workflow.md`, "Issues and milestones"); direction: `docs/roadmap.md`; finished milestones are moved to `docs/history.md` (see Docs rules). Docs index: `docs/README.md`; READMEs stay short, detail belongs in `docs/`.
