@@ -187,7 +187,7 @@ The server binds to `127.0.0.1` only, checks the token, the `Host` header and (i
 | `plugin_eval` | `id`, `code` | runs Lua in a plugin with origin `local` only (otherwise `eval_not_allowed`), same sandbox and budgets, output captured |
 | `plugin_cache_list` / `plugin_cache_read` | `id` / `id`, `path` | cache files (PNG as image, others base64, max 8 MiB) |
 | `plugin_image` | `id`, `src` | `cache:` or `asset:` image as PNG |
-| `game_state` | | state, paused, frame, screens, diagnostics fields |
+| `game_state` | | state, paused, frame, screens, diagnostics fields (incl. `fallback_reason` and `vulkan_fallback` `{requested, used, reason}`) |
 | `memory_regions` | | regions of the core's memory map |
 | `memory_read` | `addr`, `len` | live memory, max 1 MiB, base64 |
 | `memory_search` | `start`, `end`, `pattern` or `value`+`type`, `max?` | addresses of matches, max 64 MiB scanned |

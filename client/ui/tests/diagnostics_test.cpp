@@ -66,6 +66,17 @@ class DiagnosticsTest : public QObject {
     QVERIFY(m.value("frame").toString().contains(QStringLiteral("readback 1.4")));
   }
 
+  void vulkanFallbackShowsInRendererSub() {
+    EmulationDiagnostics d = sw();
+    d.hwRequested = d.hwActive = true;
+    d.api = QStringLiteral("OpenGL 4.5 Core");
+    d.gpu = QStringLiteral("Example GPU");
+    d.vulkanFallback = QStringLiteral("no Vulkan device");
+    const QString sub = DiagnosticsModel::emulationMap(d).value("rendererSub").toString();
+    QVERIFY2(sub.contains(QStringLiteral("Example GPU")), qPrintable(sub));
+    QVERIFY2(sub.contains(QStringLiteral("Vulkan requested, not used (no Vulkan device)")), qPrintable(sub));
+  }
+
   void fallbackRows() {
     EmulationDiagnostics d = sw();
     d.hwRequested = true;
