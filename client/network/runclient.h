@@ -46,6 +46,8 @@ using RunCallback = std::function<void(const RunResult&)>;
 class RunClient : public QObject {
   Q_OBJECT
  public:
+  // Per server and user data folder (<dataDir>/runs/<hub>/<user>); the run cache and the per-run plugin consent live in it. Empty without both ids.
+  static QString scopeDir(const QString& dataDir, const QString& hubId, const QString& hubUserId);
   RunClient(HubConnection* connection, HubSocket* socket, const QString& dataDir, QObject* parent = nullptr);
   ~RunClient() override;
 

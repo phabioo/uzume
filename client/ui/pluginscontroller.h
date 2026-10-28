@@ -189,12 +189,15 @@ class PluginsController : public QObject {
   void retryRunSet() { refreshRunExtras(); }
   // Counter that every game start, game end and pin change advances; pending pin downloads of an older value are dropped.
   quint64 pinsGeneration() const { return pinsGen_; }
-  // Local consent to the permissions of one plugin version in one run ("" = never asked). Stored in <data>/plugins/run_consent.json.
+  // Local consent to the permissions of one plugin version in one run ("" = never asked). Stored per server and user under <data>/runs/<hub>/<user>/plugin_consent/; without a server or user nothing is read or stored.
   // Accepted-permissions baseline per run and plugin id: what this person actually agreed to (recorded at join and on each consent).
   // nullopt = nothing recorded. Legacy files (versions only) are migrated on write; runLegacyVersions reads them.
   std::optional<QStringList> runAcceptedPermissions(const QString& runId, const QString& pluginId) const;
   QStringList runLegacyVersions(const QString& runId, const QString& pluginId) const;
   void acceptRunPermissions(const QString& runId, const QString& pluginId, const QStringList& perms);
+  // The same for an explicit server and user (the ones above use the connected account); consent never crosses servers or users.
+  std::optional<QStringList> runAcceptedPermissionsFor(const QString& hubId, const QString& userId, const QString& runId, const QString& pluginId) const;
+  void acceptRunPermissionsFor(const QString& hubId, const QString& userId, const QString& runId, const QString& pluginId, const QStringList& perms);
   // Permission labels as the lists show them ("Share run progress · ..."), for a list of permission ids.
   static QString permissionLabels(const QStringList& perms);
 

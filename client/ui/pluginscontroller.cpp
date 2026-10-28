@@ -22,6 +22,7 @@
 #include "gamesession.h"
 #include "hubconnection.h"
 #include "playersettings.h"
+#include "runclient.h"
 #include "runtypes.h"
 #include "system_manifest.h"
 #include "semver.h"
@@ -914,27 +915,29 @@ void PluginsController::restartRunSet() {
 }
 
 namespace {
-QString runConsentPath(const QString& dataDir) { return QDir(dataDir).filePath(QStringLiteral("plugins/run_consent.json")); }
-}  // namespace
+// Run ids are only unique per server and an installation can hold several accounts, so the consent lives in the run cache folder of the
+// server and user (RunClient::scopeDir); older consent in the shared plugins/run_consent.json is not read, the person is asked again.
+// Its subfolder keeps it apart from the run cache's *.json files. No server or user: no path, nothing is recorded.
+QString runConsentPath(const QString& dataDir, const QString& hubId, const QString& userId) {
+  const QString dir = RunClient::scopeDir(dataDir, hubId, userId);
+  return dir.isEmpty() ? QString() : dir + QStringLiteral("/plugin_consent/run_consent.json");
+}
 
-namespace {
-QJsonObject readRunConsent(const QString& dataDir) {
-  QFile f(runConsentPath(dataDir));
+QJsonObject readRunConsent(const QString& dataDir, const QString& hubId, const QString& userId) {
+  const QString path = runConsentPath(dataDir, hubId, userId);
+  if (path.isEmpty()) return {};
+  QFile f(path);
   if (!f.open(QIODevice::ReadOnly)) return {};
   return QJsonDocument::fromJson(f.readAll()).object();
 }
 }  // namespace
 
 std::optional<QStringList> PluginsController::runAcceptedPermissions(const QString& runId, const QString& pluginId) const {
-  const QJsonValue v = readRunConsent(dataDir_).value(runId.toLower()).toObject().value(pluginId);
-  if (!v.isObject() || !v.toObject().contains(QStringLiteral("permissions"))) return std::nullopt;
-  QStringList out;
-  for (const QJsonValue& p : v.toObject().value(QStringLiteral("permissions")).toArray()) out << p.toString();
-  return out;
+  return runAcceptedPermissionsFor(conn_ ? conn_->hubId() : QString(), conn_ ? conn_->hubUserId() : QString(), runId, pluginId);
 }
 
 QStringList PluginsController::runLegacyVersions(const QString& runId, const QString& pluginId) const {
-  const QJsonValue v = readRunConsent(dataDir_).value(runId.toLower()).toObject().value(pluginId);
+  const QJsonValue v = readRunConsent(dataDir_, conn_ ? conn_->hubId() : QString(), conn_ ? conn_->hubUserId() : QString()).value(runId.toLower()).toObject().value(pluginId);
   QJsonArray arr = v.isArray() ? v.toArray() : v.toObject().value(QStringLiteral("versions")).toArray();
   QStringList out;
   for (const QJsonValue& x : arr) out << x.toString();
@@ -942,8 +945,23 @@ QStringList PluginsController::runLegacyVersions(const QString& runId, const QSt
 }
 
 void PluginsController::acceptRunPermissions(const QString& runId, const QString& pluginId, const QStringList& perms) {
-  const QString path = runConsentPath(dataDir_);
-  QJsonObject all = readRunConsent(dataDir_);
+  acceptRunPermissionsFor(conn_ ? conn_->hubId() : QString(), conn_ ? conn_->hubUserId() : QString(), runId, pluginId, perms);
+}
+
+std::optional<QStringList> PluginsController::runAcceptedPermissionsFor(const QString& hubId, const QString& userId, const QString& runId,
+                                                                        const QString& pluginId) const {
+  const QJsonValue v = readRunConsent(dataDir_, hubId, userId).value(runId.toLower()).toObject().value(pluginId);
+  if (!v.isObject() || !v.toObject().contains(QStringLiteral("permissions"))) return std::nullopt;
+  QStringList out;
+  for (const QJsonValue& p : v.toObject().value(QStringLiteral("permissions")).toArray()) out << p.toString();
+  return out;
+}
+
+void PluginsController::acceptRunPermissionsFor(const QString& hubId, const QString& userId, const QString& runId, const QString& pluginId,
+                                                const QStringList& perms) {
+  const QString path = runConsentPath(dataDir_, hubId, userId);
+  if (path.isEmpty()) return;
+  QJsonObject all = readRunConsent(dataDir_, hubId, userId);
   QJsonObject run = all.value(runId.toLower()).toObject();
   const QJsonValue old = run.value(pluginId);
   QJsonObject entry = old.isObject() ? old.toObject() : QJsonObject();

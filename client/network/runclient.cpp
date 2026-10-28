@@ -201,9 +201,14 @@ std::optional<QJsonObject> RunClient::participantState(const QString& runId, con
 
 // ------------------------------------------------------------------ disk cache
 
+QString RunClient::scopeDir(const QString& dataDir, const QString& hubId, const QString& hubUserId) {
+  if (dataDir.isEmpty() || hubId.isEmpty() || hubUserId.isEmpty()) return {};
+  return dataDir + QStringLiteral("/runs/") + safeName(hubId) + QLatin1Char('/') + safeName(hubUserId);
+}
+
 QString RunClient::cacheDir() const {
-  if (!conn_ || dataDir_.isEmpty() || conn_->hubId().isEmpty() || conn_->hubUserId().isEmpty()) return {};
-  return dataDir_ + QStringLiteral("/runs/") + safeName(conn_->hubId()) + QLatin1Char('/') + safeName(conn_->hubUserId());
+  if (!conn_) return {};
+  return scopeDir(dataDir_, conn_->hubId(), conn_->hubUserId());
 }
 
 void RunClient::ensureCacheLoaded() {

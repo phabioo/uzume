@@ -1401,6 +1401,13 @@ class RunsUiTest : public QObject {
     QVERIFY(disclosed);
     h.controller->plugins()->acceptRunPermissions(QStringLiteral("legacy-run"), kPluginId, {});
     QVERIFY(h.controller->plugins()->runAcceptedPermissions(QStringLiteral("legacy-run"), kPluginId).has_value());
+
+    // Consent is scoped to the server and user: the same run id and plugin on another server or for another user is not accepted.
+    auto* pl = h.controller->plugins();
+    pl->acceptRunPermissionsFor(QStringLiteral("srv-A"), QStringLiteral("user-1"), QStringLiteral("shared-run"), kPluginId, {QStringLiteral("run.state")});
+    QCOMPARE(pl->runAcceptedPermissionsFor(QStringLiteral("srv-A"), QStringLiteral("user-1"), QStringLiteral("shared-run"), kPluginId).value(), QStringList{QStringLiteral("run.state")});
+    QVERIFY(!pl->runAcceptedPermissionsFor(QStringLiteral("srv-B"), QStringLiteral("user-1"), QStringLiteral("shared-run"), kPluginId).has_value());
+    QVERIFY(!pl->runAcceptedPermissionsFor(QStringLiteral("srv-A"), QStringLiteral("user-2"), QStringLiteral("shared-run"), kPluginId).has_value());
   }
 
   // A requirement the Hub cannot satisfy blocks the start with a clear error.
