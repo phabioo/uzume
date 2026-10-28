@@ -69,8 +69,11 @@ jobs:
             while read -r id sha; do
               t="$(gh api --paginate "repos/$GH_REPO/git/matching-refs/tags/v" --jq '.[] | select(.object.sha == "'"$sha"'") | .ref | sub("^refs/tags/"; "") | select(test("^v[0-9]+\\.[0-9]+\\.0$"))' | sort -V | tail -n 1)"
               [ -n "$t" ] || continue
-              if released "$t"; then
-                echo "::error::newest green main build $t is already published; nothing newer to release"
+              # A re-run of a failed publish (attempt > 1) publishes the newest build again: the release is created before
+              # the image push and the index update, so an existing release does not mean the publish completed.
+              # (If a newer build appeared meanwhile, pass the failed build number in a new run instead.)
+              if released "$t" && [ "${GITHUB_RUN_ATTEMPT:-1}" -le 1 ]; then
+                echo "::error::newest green main build $t is already published; nothing newer to release (to finish a failed publish, re-run that run or pass build ${t#v})"
                 exit 1
               fi
               run_id="$id"; head_sha="$sha"; tag="$t"; break
