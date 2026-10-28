@@ -444,3 +444,33 @@ func TestFeatureReportsV2AdvertisedAndBadge(t *testing.T) {
 		t.Fatalf("badge %d %v", n, err)
 	}
 }
+
+// More than 10 versions stop the version loop early; the following issues_base query must not wait for the
+// connection that loop still held (deadlock with a single DB connection).
+func TestErrorGroupWithManyVersionsDoesNotHang(t *testing.T) {
+	s := newSessEnv(t, func(o *hub.Options) { o.CoreTrustKeys = hubtest.PluginKeys() })
+	admin := s.login("00000000-0000-4000-8000-000000000001")
+	tok := s.device(s.anna.ID, "Annas Laptop").tok
+	var batch []evT
+	for i := 0; i < 12; i++ {
+		e := errEvent("plugin_error", "plugin:net.example.many", "boom", fmt.Sprintf("0.24.%d", i))
+		batch = append(batch, e)
+	}
+	if a, _, _ := s.sendEvents(tok, batch...); a != 12 {
+		t.Fatalf("accepted %d", a)
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		gs, _ := s.listGroups(admin)
+		if len(gs) != 1 || len(gs[0].Versions) != 10 {
+			t.Errorf("%+v", gs)
+		}
+		wantStatus(t, s.do("GET", "/api/v1/admin/reports/errors/"+batch[0]["fingerprint"].(string), nil, opt{token: admin}), 200, "")
+	}()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("deadlock: the version loop kept its rows open")
+	}
+}

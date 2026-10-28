@@ -367,7 +367,7 @@ void FakeHub::fillDirectory() {
                        {QStringLiteral("last_seen"), at(lastAgo)}, {QStringLiteral("versions"), QJsonArray{QStringLiteral("0.24.0"), QStringLiteral("0.23.2")}},
                        {QStringLiteral("issue_url"), *issueUrl ? QJsonValue(QString::fromLatin1(issueUrl)) : QJsonValue()},
                        {QStringLiteral("seen"), seen}, {QStringLiteral("issues_base"), *issuesBase ? QJsonValue(QString::fromLatin1(issuesBase)) : QJsonValue()},
-                       {QStringLiteral("events"), events}, {QStringLiteral("public_title"), QString::fromLatin1(title)},
+                       {QStringLiteral("events"), events}, {QStringLiteral("public_title"), QString::fromLatin1(title) + QStringLiteral(" (public)")},
                        {QStringLiteral("public_summary"), QStringLiteral("Seen %1 times on %2 devices, versions 0.24.0, 0.23.2.").arg(count).arg(devices)}};
   };
   if (dirErrorGroups.isEmpty()) {
@@ -573,7 +573,11 @@ bool FakeHub::handleDirectory(QSslSocket* sock, const FakeRequest& req, const QS
         edit(dirErrorGroups, gi, QStringLiteral("issue_url"), u);
       }
       if (body.value(QStringLiteral("seen")).toBool()) edit(dirErrorGroups, gi, QStringLiteral("seen"), true);
-      respond(sock, 200, json(dirErrorGroups.at(gi).toObject()));
+      QJsonObject o = dirErrorGroups.at(gi).toObject();  // like the server: the PATCH answer is the group without events and public text
+      o.remove(QStringLiteral("events"));
+      o.remove(QStringLiteral("public_title"));
+      o.remove(QStringLiteral("public_summary"));
+      respond(sock, 200, json(o));
     } else {
       err(404, QStringLiteral("not_found"), QStringLiteral("Unknown route"));
     }

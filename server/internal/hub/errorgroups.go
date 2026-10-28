@@ -269,11 +269,11 @@ func (s *Service) fillErrorGroup(ctx context.Context, g *ErrorGroup, bases map[s
 	if err != nil {
 		return internal(err)
 	}
-	defer rows.Close()
 	seen := map[string]bool{}
 	for rows.Next() && len(g.Versions) < errorVersionsShown {
 		var v string
 		if err := rows.Scan(&v); err != nil {
+			rows.Close()
 			return internal(err)
 		}
 		if v != "" && !seen[v] {
@@ -281,7 +281,9 @@ func (s *Service) fillErrorGroup(ctx context.Context, g *ErrorGroup, bases map[s
 			g.Versions = append(g.Versions, v)
 		}
 	}
-	if err := rows.Err(); err != nil {
+	err = rows.Err()
+	rows.Close() // the loop may stop early; the next query needs the connection
+	if err != nil {
 		return internal(err)
 	}
 	b, ok := bases[g.Component]
@@ -399,17 +401,19 @@ func (s *Service) GetErrorGroup(ctx context.Context, fp string) (ErrorGroupDetai
 	if err != nil {
 		return d, internal(err)
 	}
-	defer rows.Close()
 	for rows.Next() {
 		var e ErrorEventRow
 		var occ int64
 		if err := rows.Scan(&occ, &e.AppVersion, &e.OS, &e.DeviceName, &e.UserName, &e.Message); err != nil {
+			rows.Close()
 			return d, internal(err)
 		}
 		e.OccurredAt = time.Unix(occ, 0).UTC()
 		d.Events = append(d.Events, e)
 	}
-	if err := rows.Err(); err != nil {
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
 		return d, internal(err)
 	}
 	known, err := s.publicKnown(ctx, d.Events)

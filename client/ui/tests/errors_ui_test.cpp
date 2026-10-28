@@ -25,6 +25,7 @@ class OneShotHttp : public QObject {
         request += s->readAll();
         if (!request.contains("\r\n\r\n")) return;
         ++requests;
+        if (hang) return;
         s->write("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: " + QByteArray::number(body.size()) +
                  "\r\nConnection: close\r\n\r\n" + body);
         s->disconnectFromHost();
@@ -36,6 +37,7 @@ class OneShotHttp : public QObject {
   QTcpServer server;
   QByteArray body = R"({"total_count":0,"items":[]})", request;
   int requests = 0;
+  bool hang = false;  // read the request, never answer
 };
 }  // namespace
 
@@ -365,7 +367,7 @@ class ErrorsUiTest : public QObject {
     QTRY_VERIFY(shown(h.item("errorReportGithub")));
     QVERIFY(h.click("errorReportGithub"));
     QTRY_VERIFY(shown(h.item("errorsPreviewDialog")));
-    QCOMPARE(text(h.item("errorsPreviewTitle")), QString("Core failed"));
+    QCOMPARE(text(h.item("errorsPreviewTitle")), QString("Core failed (public)"));
     QCOMPARE(text(h.item("errorsPreviewSummary")), QString("Seen 7 times on 2 devices, versions 0.24.0, 0.23.2."));
     QVERIFY(opened.isEmpty());  // nothing opens before the person confirms the preview
     QCOMPARE(hub.adminCalls.value(QStringLiteral("PATCH /api/v1/admin/reports/errors/uz-aaaaaaaaaaaa")), 0);
@@ -373,7 +375,7 @@ class ErrorsUiTest : public QObject {
     QVERIFY(h.click("errorsPreviewOpen"));
     QCOMPARE(opened.size(), 1);
     const QString url = QString::fromLatin1(opened.first().toEncoded());
-    QVERIFY(url.startsWith("https://github.com/phabioo/azahar/issues/new?template=bug_report.yml&title=Core%20failed"));
+    QVERIFY(url.startsWith("https://github.com/phabioo/azahar/issues/new?template=bug_report.yml&title=Core%20failed%20%28public%29"));
     QVERIFY(url.contains("&fingerprint=uz-aaaaaaaaaaaa"));
     QVERIFY(url.contains("&app-version=0.24.0"));
     QVERIFY(url.contains("&issue-desc=Seen%207%20times%20on%202%20devices"));
@@ -395,6 +397,64 @@ class ErrorsUiTest : public QObject {
     QTRY_VERIFY(shown(h.item("errorReportGithub")));
     QVERIFY(h.click("errorReportGithub"));
     QTRY_VERIFY(shown(h.item("errorsPreviewDialog")));
+  }
+
+  // After a PATCH the detail is read again, so the GitHub text is still the server's public text, never the plain title.
+  void reportAfterMarkSeenUsesThePublicTitle() {
+    OneShotHttp http;
+    QVERIFY(http.listen());
+    FakeHub hub(QStringLiteral("a"));
+    adminHub(hub);
+    QVERIFY(hub.start());
+    Harness h;
+    QVERIFY(h.start());
+    pair(h, hub);
+    QTRY_VERIFY(h.controller->admin()->available());
+    QList<QUrl> opened;
+    h.controller->errors()->github()->setApiBase(http.base());
+    h.controller->errors()->setOpener([&](const QUrl& u) { opened << u; return true; });
+    openErrors(h);
+    QVERIFY(h.click("errorsTableRow_0"));
+    QTRY_VERIFY(shown(h.item("errorMarkSeen")));
+    QVERIFY(h.click("errorMarkSeen"));
+    QTRY_VERIFY(!shown(h.item("errorMarkSeen")));
+    QTRY_VERIFY(shown(h.item("errorEventHead_0")));  // the full detail came back
+    QTRY_VERIFY(h.item("errorReportGithub")->isEnabled());
+    QVERIFY(h.click("errorReportGithub"));
+    QTRY_VERIFY(shown(h.item("errorsPreviewDialog")));
+    QCOMPARE(text(h.item("errorsPreviewTitle")), QString("Core failed (public)"));
+    QVERIFY(h.click("errorsPreviewOpen"));
+    QCOMPARE(opened.size(), 1);
+    QVERIFY(QString::fromLatin1(opened.first().toEncoded()).contains("title=Core%20failed%20%28public%29"));
+  }
+
+  // Changing the selection during a lookup ends it: the button works again for the next group and for the same one.
+  void selectionChangeEndsARunningLookup() {
+    OneShotHttp http;
+    QVERIFY(http.listen());
+    http.hang = true;
+    FakeHub hub(QStringLiteral("a"));
+    adminHub(hub);
+    QVERIFY(hub.start());
+    Harness h;
+    QVERIFY(h.start());
+    pair(h, hub);
+    QTRY_VERIFY(h.controller->admin()->available());
+    h.controller->errors()->github()->setApiBase(http.base());
+    openErrors(h);
+    QVERIFY(h.click("errorsTableRow_0"));
+    QTRY_VERIFY(shown(h.item("errorReportGithub")));
+    QTRY_VERIFY(h.item("errorReportGithub")->isEnabled());
+    QVERIFY(h.click("errorReportGithub"));
+    QTRY_COMPARE(http.requests, 1);
+    QTRY_VERIFY(h.item("errorReportGithub")->property("busy").toBool());
+    QVERIFY(h.click("errorsTableRow_1"));
+    QVERIFY(h.click("errorsTableRow_0"));
+    QTRY_VERIFY(shown(h.item("errorReportGithub")));
+    QTRY_VERIFY(!h.item("errorReportGithub")->property("busy").toBool());
+    QTRY_VERIFY(h.item("errorReportGithub")->isEnabled());
+    QVERIFY(h.click("errorReportGithub"));
+    QTRY_COMPARE(http.requests, 2);  // a new lookup could start
   }
 
   void onlyHttpsGithubAddressesOpen() {

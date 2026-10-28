@@ -29,6 +29,9 @@ Item {
     property string detailError: ""
     property bool actionBusy: false
     property bool lookupBusy: false
+    property string lookupFp: ""       // the fingerprint a running GitHub lookup is for
+    // The public text comes only from the server's public_title / public_summary; there is no fallback to the plain title.
+    readonly property bool publicReady: root.detail !== null && root.detail.public_title !== undefined && root.detail.public_summary !== undefined
     property var handlers: ({})
     property var inFlight: null
 
@@ -103,6 +106,9 @@ Item {
         })
     }
     function select(fp: string) {
+        root.errors.cancelLookup()
+        root.lookupBusy = false
+        root.lookupFp = ""
         root.selectedFp = fp
         root.detail = null
         root.detailError = ""
@@ -123,7 +129,7 @@ Item {
         root.call("PATCH", "/admin/reports/errors/" + encodeURIComponent(fp), body, (ok, data, code, message) => {
             root.actionBusy = false
             if (ok && data && data.fingerprint !== undefined) {
-                if (root.selectedFp === fp) root.detail = data
+                if (root.selectedFp === fp) root.loadDetail(fp)   // the PATCH answer has no events or public text
                 if (okText !== "") root.say(okText, "done")
                 if (after) after()
                 root.reload()
@@ -141,14 +147,18 @@ Item {
     }
     function reportOnGithub() {
         if (root.detail === null || root.actionBusy || root.lookupBusy || root.issuesBase === "") return
+        if (!root.publicReady) { root.loadDetail(root.detail.fingerprint); return }
         root.lookupBusy = true
+        root.lookupFp = root.detail.fingerprint
         root.errors.lookupIssue(root.detail.fingerprint, root.issuesBase)
     }
     Connections {
         target: root.errors
         function onIssueLookupFinished(fingerprint, ok, found, number, url) {
-            if (!root.lookupBusy || root.detail === null || root.detail.fingerprint !== fingerprint) return
+            if (!root.lookupBusy || root.lookupFp !== fingerprint) return
             root.lookupBusy = false
+            root.lookupFp = ""
+            if (root.detail === null || root.detail.fingerprint !== fingerprint) return
             if (ok && found) {
                 root.storeIssue(fingerprint, url, qsTr("This problem already has issue #%1. It is linked to the group.").arg(number))
             } else {
@@ -158,8 +168,9 @@ Item {
     }
     function openPreviewed() {
         const d = root.detail
+        if (!root.publicReady) { previewDialog.error = qsTr("The public text is not loaded yet. Try again."); root.loadDetail(d.fingerprint); return }
         const versions = d.versions ?? []
-        const url = root.errors.newIssueUrl(root.issuesBase, d.public_title ?? d.title, d.fingerprint, versions.length > 0 ? versions[0] : "", d.public_summary ?? "")
+        const url = root.errors.newIssueUrl(root.issuesBase, d.public_title, d.fingerprint, versions.length > 0 ? versions[0] : "", d.public_summary ?? "")
         if (url !== "" && root.errors.openInBrowser(url)) {
             previewDialog.close()
             root.say(qsTr("GitHub opened in your browser. Submit the issue there, then paste its address under Link issue."), "done")
@@ -427,7 +438,7 @@ Item {
             Layout.fillWidth: true
             wrapMode: Text.Wrap
             textFormat: Text.PlainText
-            text: root.detail !== null ? (root.detail.public_title ?? root.detail.title) : ""
+            text: root.publicReady ? root.detail.public_title : ""
             font.family: Theme.sans; font.pixelSize: Theme.roles.body.size; color: Theme.ink
         }
         UzMono { text: qsTr("Description") }
@@ -436,7 +447,7 @@ Item {
             Layout.fillWidth: true
             wrapMode: Text.Wrap
             textFormat: Text.PlainText
-            text: root.detail !== null ? (root.detail.public_summary ?? "") : ""
+            text: root.publicReady ? root.detail.public_summary : ""
             font.family: Theme.mono; font.pixelSize: Theme.roles.small.size; color: Theme.ink2
         }
     }
@@ -470,7 +481,7 @@ Item {
                     root.call("PATCH", "/admin/reports/errors/" + encodeURIComponent(fp), { issue_url: url === "" ? null : url }, (ok, data, code, message) => {
                         linkDialog.busy = false
                         if (ok && data && data.fingerprint !== undefined) {
-                            if (root.selectedFp === fp) root.detail = data
+                            if (root.selectedFp === fp) root.loadDetail(fp)
                             linkDialog.close()
                             root.say(url === "" ? qsTr("The link was removed.") : qsTr("The issue is linked."), "done")
                             root.reload()
