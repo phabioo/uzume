@@ -64,6 +64,7 @@
 #include "updatescontroller.h"
 #include "admincontroller.h"
 #include "reportcontroller.h"
+#include "errorscontroller.h"
 #include <QSet>
 #include "mcpcontroller.h"
 #include "discordpresence.h"
@@ -156,6 +157,8 @@ class PlayerController : public QObject {
   Q_PROPERTY(uzume::ui::UpdatesController* updates READ updates CONSTANT)
   // "Report a problem" dialog (Settings > Diagnostics, game "⋯" menu)
   Q_PROPERTY(uzume::ui::ReportController* report READ report CONSTANT)
+  // Error events and the opt-in "Send errors to the server automatically", the GitHub lookup of Server > Reports > Errors (ADR 0035)
+  Q_PROPERTY(uzume::ui::ErrorsController* errors READ errors CONSTANT)
   // Admin area (0.18 package 8): generic admin requests, "Confirm it's you", server status
   Q_PROPERTY(uzume::ui::AdminController* admin READ admin CONSTANT)
   // Page (tab) of the "server" screen: overview | people | games | systems | plugins | reports | settings
@@ -268,6 +271,7 @@ class PlayerController : public QObject {
   SessionController* sessions() { return sessions_.get(); }
   UpdatesController* updates() { return updates_.get(); }
   ReportController* report() { return report_.get(); }
+  ErrorsController* errors() { return errors_.get(); }
   AdminController* admin() { return admin_.get(); }
   QString serverPage() const { return serverPage_; }
   QString serverSettingsPage() const { return serverSettingsPage_; }
@@ -619,6 +623,8 @@ class PlayerController : public QObject {
   std::unique_ptr<SessionController> sessions_;
   std::unique_ptr<UpdatesController> updates_;
   std::unique_ptr<ReportController> report_;  // "Report a problem"
+  std::unique_ptr<ErrorsController> errors_;  // error events (after updates_, plugins_, saves_)
+  void noteCoreFailure(const QString& message);
   std::unique_ptr<AdminController> admin_;    // admin area: requests, Confirm it's you, status
   std::unique_ptr<LocalHubController> localHub_;
   std::unique_ptr<OnboardingController> onboarding_;  // after localHub_ and conn_

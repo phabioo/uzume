@@ -576,6 +576,7 @@ func (s *Service) runBackup(ctx context.Context, j *backupJob, set BackupSetting
 		var ns *backup.NoSpaceError
 		run.NoSpace = errors.As(err, &ns)
 		s.writeRun(context.Background(), settingBackupLast, run)
+		s.RecordServerError(context.Background(), ErrKindServerError, "Backup failed", "Backup failed: "+err.Error())
 		return
 	}
 	run.OK, run.Name, run.Size, run.Skipped = true, res.Name, res.Size, res.Manifest.Skipped

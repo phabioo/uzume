@@ -1579,6 +1579,18 @@ Rectangle {
                             buttons: [{ name: "report", text: qsTr("Report a problem…") }]
                             onButtonClicked: name => { if (name === "report") root.player.report.show() }
                         }
+                        UzSettingsRow {
+                            objectName: "sendErrorsRow"
+                            Layout.fillWidth: true
+                            Layout.minimumWidth: 0
+                            resetMode: "none"
+                            label: qsTr("Send errors to the server automatically")
+                            description: qsTr("When the app, a core, a plugin, the save sync or an update fails, a short error message (no logs, no files) goes to the admins of your server, who can group it and report it. Off until you choose.")
+                            ctrl: "toggle"
+                            toggleName: "sendErrorsToggle"
+                            checked: root.player.errors.sendAutomatically
+                            onToggled: on => root.player.errors.sendAutomatically = on
+                        }
                         UzSectionLabel { Layout.fillWidth: true; Layout.topMargin: Theme.space3; text: qsTr("Claude debugging (MCP)") }
                         Rectangle { Layout.fillWidth: true; height: 1; color: Theme.rule; Layout.topMargin: -Theme.space05 }
                         UzSettingsRow {

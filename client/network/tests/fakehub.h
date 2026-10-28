@@ -200,6 +200,11 @@ class FakeHub : public QTcpServer {
   int reportUnauthorizedNext = 0;    // next N report POSTs answer 401
   int reportRequests() const { return count(QStringLiteral("/api/v1/reports"), "POST"); }
 
+  // Error events (reports_v2): POST /reports/errors; every accepted body's events array is kept in errorBatches.
+  QList<QJsonArray> errorBatches;
+  int errorBatchFailNext = 0;        // next N error POSTs answer errorBatchFailStatus and are not stored
+  int errorBatchFailStatus = 503;
+
   // Admin area (admin_v1, accounts_v1): `adminUser` makes the handshake report role "admin" and advertise both features.
   // GET /admin/status serves `adminStatus` (a sample when empty); /admin/status/log serves `adminLog`; every other
   // /admin/... route answers {"ok":true} and is counted in `adminCalls` (method + " " + path, without the query). Paths in
@@ -238,6 +243,8 @@ class FakeHub : public QTcpServer {
   // `adminCalls` like every other admin route; `lastAdminBody` holds the last body.
   bool adminDirectory = false;
   QJsonArray dirUsers, dirDevices, dirInvites, dirRequests, dirReports;
+  // Error groups (reports_v2, with adminDirectory): GET/PATCH/DELETE /admin/reports/errors[/{fingerprint}] over this array (full groups).
+  QJsonArray dirErrorGroups;
   QMap<QString, QByteArray> reportFiles;   // "<report id>/<file name>"
   void fillDirectory();
 

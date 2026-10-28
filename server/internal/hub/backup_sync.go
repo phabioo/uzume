@@ -65,6 +65,7 @@ func (s *Service) BackupNow(ctx context.Context, out string, roms *bool, by stri
 			var ns *backup.NoSpaceError
 			run.NoSpace = errors.As(err, &ns)
 			s.writeRun(context.Background(), settingBackupLast, run)
+			s.RecordServerError(context.Background(), ErrKindServerError, "Backup failed", "Backup failed: "+err.Error())
 		}
 		return res, err
 	}

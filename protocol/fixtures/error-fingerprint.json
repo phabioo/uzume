@@ -1,0 +1,100 @@
+[
+  {
+    "component": "app",
+    "fingerprint": "uz-d90e9a40f099",
+    "kind": "app_crash",
+    "message": "Unclean exit detected (previous run started 2026-10-27 at 21:04:55)",
+    "normalized": "unclean exit detected (previous run started \u003cn\u003e-\u003cn\u003e-\u003cn\u003e at \u003cip\u003e)"
+  },
+  {
+    "component": "app",
+    "fingerprint": "uz-349a2272b4c0",
+    "kind": "sync_failure",
+    "message": "Upload failed: GET https://Hub.EXAMPLE.org:8443/api/v1/games/42/saves?token=abc failed with HTTP 502",
+    "normalized": "upload failed: get \u003curl\u003e failed with http \u003cn\u003e"
+  },
+  {
+    "component": "core:azahar",
+    "fingerprint": "uz-e95e8ee1ea47",
+    "kind": "core_failure",
+    "message": "Cannot open \"C:\\Users\\Anna\\Games\\homebrew.3ds\" and D:/roms/test.bin",
+    "normalized": "cannot open \"\u003cpath\u003e\" and \u003cpath\u003e"
+  },
+  {
+    "component": "core:melondsds",
+    "fingerprint": "uz-46f586f61ffa",
+    "kind": "core_failure",
+    "message": "Failed to load /home/anna/.local/share/uzume/cores/libmelonds.so (error 13) and ~/saves/x.sav",
+    "normalized": "failed to load \u003cpath\u003e (error \u003cn\u003e) and \u003cpath\u003e"
+  },
+  {
+    "component": "app",
+    "fingerprint": "uz-d3ddff1ea1db",
+    "kind": "sync_failure",
+    "message": "connect to 192.0.2.17:9000 refused, retry 203.0.113.5 in 30 s",
+    "normalized": "connect to \u003cip\u003e refused, retry \u003cip\u003e in \u003cn\u003e s"
+  },
+  {
+    "component": "app",
+    "fingerprint": "uz-4785e85f5e0b",
+    "kind": "sync_failure",
+    "message": "peer 2001:db8::1 and fe80::1:2:3:4 unreachable at 12:30:45",
+    "normalized": "peer \u003cip\u003e and \u003cip\u003e unreachable at \u003cip\u003e"
+  },
+  {
+    "component": "plugin:uzume.soullink",
+    "fingerprint": "uz-e5457d413a4f",
+    "kind": "plugin_error",
+    "message": "main.lua:1204: attempt to index a nil value (id 3F2504E0-4F89-11D3-9A0C-0305E82C3301, addr 0xDEADBEEF, crc 123456)",
+    "normalized": "main.lua:\u003cn\u003e: attempt to index a nil value (id \u003chex\u003e-\u003cn\u003ef\u003cn\u003e-\u003cn\u003ed\u003cn\u003e-\u003cn\u003ea\u003cn\u003ec-\u003chex\u003e, addr \u003chex\u003e, crc \u003chex\u003e)"
+  },
+  {
+    "component": "plugin:org.example.tool",
+    "fingerprint": "uz-1234b089212d",
+    "kind": "plugin_error",
+    "message": "Quota exceeded: 4096 of 1024 bytes after 17 writes",
+    "normalized": "quota exceeded: \u003cn\u003e of \u003cn\u003e bytes after \u003cn\u003e writes"
+  },
+  {
+    "component": "server",
+    "fingerprint": "uz-b59968da35fa",
+    "kind": "update_failure",
+    "message": "  Update   to\t1.2.3\n\nfailed:\r\n  checksum mismatch  ",
+    "normalized": "update to \u003cn\u003e.\u003cn\u003e.\u003cn\u003e failed: checksum mismatch"
+  },
+  {
+    "component": "server",
+    "fingerprint": "uz-803d3a29be3c",
+    "kind": "server_error",
+    "message": "panic: runtime error: index out of range [7] with length 3 at /usr/local/go/src/net/http/server.go:2100 and /root only",
+    "normalized": "panic: runtime error: index out of range [\u003cn\u003e] with length \u003cn\u003e at \u003cpath\u003e:\u003cn\u003e and /root only"
+  },
+  {
+    "component": "server",
+    "fingerprint": "uz-93dd5de7f259",
+    "kind": "server_error",
+    "message": "bad URL ftp://203.0.113.9/path/file.bin?x=1 from 203.0.113.9",
+    "normalized": "bad url \u003curl\u003e from \u003cip\u003e"
+  },
+  {
+    "component": "app",
+    "fingerprint": "uz-e0b2ccc6e486",
+    "kind": "app_crash",
+    "message": "segmentation fault in frame segmentation fault in frame segmentation fault in frame segmentation fault in frame segmentation fault in frame segmentation fault in frame segmentation fault in frame segmentation fault in frame segmentation fault in frame segmentation fault in frame segmentation fault in frame segmentation fault in frame segmentation fault in frame segmentation fault in frame segmentation fault in frame ",
+    "normalized": "segmentation fault in frame segmentation fault in frame segmentation fault in frame segmentation fault in frame segmentation fault in frame segmentation fault in frame segmentation fault in frame segmentation fault in frame segmentation fault in frame segmentation fault in frame segmentation fault i"
+  },
+  {
+    "component": "plugin:uzume.splits",
+    "fingerprint": "uz-b8ae8a21cedb",
+    "kind": "plugin_error",
+    "message": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxéé tail",
+    "normalized": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxé"
+  },
+  {
+    "component": "core:azahar",
+    "fingerprint": "uz-2aa88357d56e",
+    "kind": "core_failure",
+    "message": "Fehler beim Laden: Spielstand überschrieben? 7 Versuche",
+    "normalized": "fehler beim laden: spielstand überschrieben? \u003cn\u003e versuche"
+  }
+]

@@ -15,6 +15,7 @@
 #include <atomic>
 #include <cstdio>
 #include <cstring>
+#include <optional>
 #include <string>
 
 #ifdef Q_OS_WIN
@@ -28,6 +29,7 @@
 #endif
 
 #include "diagbundle.h"
+#include "errorevents.h"
 #include "linkhandler.h"
 #include "mcp_tools.h"
 #include "filelog.h"
@@ -269,6 +271,13 @@ int main(int argc, char* argv[]) {
     return 0;
   }
 
+  // Unclean-exit marker (ADR 0035): <data>/running.marker exists while the app runs. Found at the start it means the previous run
+  // ended without a clean exit (crash, kill, power loss) and becomes one error event; any normal return from main removes it.
+  const QString runDataDir = controller.profileStore()->baseDir();
+  const bool previousRunUnclean = !smokeMode && uzume::errors::RunMarker::exists(runDataDir);
+  std::optional<uzume::errors::RunMarker> runMarker;
+  if (!smokeMode) runMarker.emplace(runDataDir);
+
   QQmlApplicationEngine engine;
   engine.addImportPath(QStringLiteral("qrc:/qt/qml"));
   engine.addImageProvider(QStringLiteral("uzplugin"), new uzume::ui::PluginImageProvider(controller.plugins()->imageSources()));
@@ -299,6 +308,7 @@ int main(int argc, char* argv[]) {
     }
     controller.mcp()->enableForThisStart();
   }
+  controller.errors()->noteStart(previousRunUnclean, QDir(runDataDir).filePath(QStringLiteral("logs/player.1.log")));  // rotated at start
   controller.startup();
   QObject::connect(&instance, &uzume::app::SingleInstance::activateRequested, &app, [] {
     for (QWindow* w : QGuiApplication::topLevelWindows()) {

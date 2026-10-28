@@ -303,6 +303,8 @@ class PluginsController : public QObject {
   void setPreviewUi(const QVariantMap& ui);
 
  signals:
+  // A plugin was paused by an error, the watchdog or a quota (first line of the Lua error / budget message); ADR 0035 error events.
+  void pluginFailed(const QString& id, const QString& error);
   void developerModeChanged();
   void pluginLanguageChanged();
   void pluginsChanged();
