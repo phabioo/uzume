@@ -101,7 +101,7 @@ QString GithubIssueLookup::newIssueUrl(const QString& issuesBase, const QString&
   if (!validRepoBase(issuesBase)) return {};
   const auto enc = [](const QString& s) { return QString::fromLatin1(QUrl::toPercentEncoding(s)); };
   const auto build = [&](const QString& desc) {
-    return QStringLiteral("%1/issues/new?template=bug_report.yml&title=%2&fingerprint=%3&app-version=%4&server-version=%5&issue-desc=%6&labels=bug,auto-report")
+    return QStringLiteral("%1/issues/new?template=bug_report.yml&title=%2&fingerprint=%3&app-version=%4&server-version=%5&issue-desc=%6&labels=bug,triage")
         .arg(issuesBase, enc(title), enc(fingerprint), enc(appVersion), enc(serverVersion), enc(desc));
   };
   QString url = build(summary);

@@ -246,7 +246,7 @@ class ErrorsNetworkTest : public QObject {
     QVERIFY(url.contains("&app-version=0.24.0"));
     QVERIFY(url.contains("&server-version=0.24.1"));
     QVERIFY(url.contains("&issue-desc=Seen%203%20times"));
-    QVERIFY(url.endsWith("&labels=bug,auto-report"));
+    QVERIFY(url.endsWith("&labels=bug,triage"));
     QVERIFY(GithubIssueLookup::openAllowed(url));
     QVERIFY(GithubIssueLookup::newIssueUrl("https://example.com/a/b", "t", "f", "a", "s", "d").isEmpty());
   }
@@ -259,7 +259,7 @@ class ErrorsNetworkTest : public QObject {
     QVERIFY(url.contains("title=Title%20stays"));
     QVERIFY(url.contains("&fingerprint=uz-0123456789ab"));
     QVERIFY(url.contains("&app-version=0.24.0"));
-    QVERIFY(url.endsWith("&labels=bug,auto-report"));
+    QVERIFY(url.endsWith("&labels=bug,triage"));
     // Multi-byte text is encoded per byte (three characters per 9 chars of address) and still fits.
     const QString wide(5000, QChar(0x65E5));
     QVERIFY(GithubIssueLookup::newIssueUrl("https://github.com/phabioo/uzume", "t", "uz-0123456789ab", "a", "s", wide).size() <= GithubIssueLookup::kMaxUrlChars);

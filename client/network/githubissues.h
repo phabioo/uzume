@@ -40,7 +40,7 @@ class GithubIssueLookup : public QObject {
   static bool validIssueUrl(const QString& url);    // ^https://github\.com/<o>/<r>/issues/\d+$
   static QUrl searchUrl(const QString& apiBase, const QString& fingerprint, const QString& issuesBase);
   static Result parseSearch(const QByteArray& body, const QString& issuesBase);
-  // <issues_base>/issues/new?template=bug_report.yml&title=..&fingerprint=..&app-version=..&server-version=..&issue-desc=..&labels=bug,auto-report
+  // <issues_base>/issues/new?template=bug_report.yml&title=..&fingerprint=..&app-version=..&server-version=..&issue-desc=..&labels=bug,triage
   // Query-encoded; the whole address is at most kMaxUrlChars characters, issue-desc is cut first. Empty for an invalid base.
   static QString newIssueUrl(const QString& issuesBase, const QString& title, const QString& fingerprint, const QString& appVersion,
                              const QString& serverVersion, const QString& summary);
