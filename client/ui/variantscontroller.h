@@ -1,7 +1,7 @@
 #pragma once
 // VariantsController (Uzume 0.21 Randomizer, ADR 0031, design sheet 5): the app side of game variants. It gets the engine from the
 // server (tools catalog), builds a variant from its recipe in the background (one build at a time), keeps the built files in the
-// variant cache, tells the game start what to launch, and serves the plugin API (fb.variants) and the debug MCP server.
+// variant cache, tells the game start what to launch, and serves the plugin API (uz.variants) and the debug MCP server.
 // The QML screens of the later UI package use the properties and methods below; this class draws nothing.
 //
 // Variant state strings: building (also queued), ready (built on this PC), needs_rebuild (files removed or built on another PC; the

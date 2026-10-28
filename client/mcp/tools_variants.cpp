@@ -148,7 +148,7 @@ void installVariantTools(McpToolRegistry& registry, ui::PlayerController& player
     ToolDef t;
     t.name = QStringLiteral("variant_presets");
     t.description = QStringLiteral(
-        "Whether a plugin registered the game for the randomizer (fb.variants.register) and its presets [{id, label, hint, custom}]; Uzume's "
+        "Whether a plugin registered the game for the randomizer (uz.variants.register) and its presets [{id, label, hint, custom}]; Uzume's "
         "own custom entry comes last.");
     t.inputSchema = schema({{QStringLiteral("game_id"), typeStr(QStringLiteral("Library game id."))}}, {QStringLiteral("game_id")});
     t.targetArg = QStringLiteral("game_id");

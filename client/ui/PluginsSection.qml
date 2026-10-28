@@ -231,7 +231,7 @@ ColumnLayout {
                                     tone: "neutral"
                                     text: qsTr("Linked folder")
                                 }
-                                // fb.ui.badge(n) of a running plugin that declares ui.screen (its run tab shows it too).
+                                // uz.ui.badge(n) of a running plugin that declares ui.screen (its run tab shows it too).
                                 UzTag {
                                     textFormat: Text.PlainText
                                     objectName: "pluginBadge"

@@ -1,5 +1,5 @@
 #pragma once
-// PluginEmulationService: the app side of fb.memory.write, fb.cheats and fb.save.snapshot (0.20 package 5, plugin API
+// PluginEmulationService: the app side of uz.memory.write, uz.cheats and uz.save.snapshot (0.20 package 5, plugin API
 // "emulation"). The plugin thread calls the plugins::EmulationBridge methods; they check the thread-safe state, queue the work
 // and return at once. Everything else happens here on the GUI thread, in a fixed order that no plugin can skip:
 //   run rule (rules.cheats / rules.memory_write)  ->  consent per game (11d)  ->  safety copy "Before cheats" / "Before memory

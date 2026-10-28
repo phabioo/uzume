@@ -633,7 +633,7 @@ class PluginBlocksUiTest : public QObject {
     shot(QStringLiteral("plugin-map-loading-dark"));
   }
   // Regression (live check 0.22): Start in the Splits screen replaced the whole tree (button flags, stat values, table rows
-  // or table -> empty) and the app died in QQuickGridLayoutBase::rearrange. The next state's tree is applied as fb.ui.set
+  // or table -> empty) and the app died in QQuickGridLayoutBase::rearrange. The next state's tree is applied as uz.ui.set
   // does, without waiting for the polish in between.
   // Regression (live check 0.22, SIGSEGV when pressing Start in the Splits screen). Qt 6.4's QQuickGridLayoutBase::rearrange does
   // not refresh its item list before it runs from QQuickLayout::geometryChange. A layout child that a Repeater destroyed after the

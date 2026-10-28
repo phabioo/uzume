@@ -1,6 +1,6 @@
 #pragma once
 
-// Seam between the plugin runtime and the app for fb.variants (permission variants.build, ADR 0031 D5). The plugin Randomizer only
+// Seam between the plugin runtime and the app for uz.variants (permission variants.build, ADR 0031 D5). The plugin Randomizer only
 // declares what it offers (engine, presets, supported games) and asks Uzume to build a variant from a recipe; Uzume runs the engine.
 // Plugin threads call the provider: every method is thread-safe and non-blocking.
 #include <QList>
@@ -36,7 +36,7 @@ struct VariantPreset {
 
 struct VariantGameSupport {
   QString system;      // "nds", "3ds", ...
-  QStringList codes;   // game codes as fb.game.code carries them (NDS/GBA 4 characters, 3DS 16 hex digits, GB title)
+  QStringList codes;   // game codes as uz.game.code carries them (NDS/GBA 4 characters, 3DS 16 hex digits, GB title)
 };
 
 struct VariantRegistration {
@@ -46,7 +46,7 @@ struct VariantRegistration {
   QList<VariantGameSupport> games;
 };
 
-// What the enabled plugins registered through fb.variants.register. Read from the GUI thread, written from the plugin thread.
+// What the enabled plugins registered through uz.variants.register. Read from the GUI thread, written from the plugin thread.
 class VariantRegistry {
  public:
   void set(const VariantRegistration& reg);

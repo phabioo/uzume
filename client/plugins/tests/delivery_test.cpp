@@ -290,7 +290,7 @@ class DeliveryTest : public QObject {
   void listPinIsEnforcedOnInstall() {
     FbSpec s;
     FbSpec evil = s;
-    evil.lua = "fb.log.info('HELLO')\n";  // same length: the size check passes, the hash does not
+    evil.lua = "uz.log.info('HELLO')\n";  // same length: the size check passes, the hash does not
     offer(s, makeUzPlugin(evil));
     client_->refresh();
     QTRY_VERIFY_WITH_TIMEOUT(client_->state() == PluginHubClient::State::Ready, 8000);

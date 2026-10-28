@@ -121,7 +121,7 @@ QString writePlugin(const QString& parent, const QString& id, const QString& nam
 const char* kRunsLua = R"LUA(
   local n = 0
   local function render()
-    fb.ui.set('screen', {type='column', gap=12, children={
+    uz.ui.set('screen', {type='column', gap=12, children={
       {type='text', style='title', text='Ember & Tide'},
       {type='card', title='Active run', eyebrow='Run', children={
         {type='row', gap=8, children={{type='badge', text='Running', tone='ok'}, {type='text', style='meta', text='3 players'}}},
@@ -135,13 +135,13 @@ const char* kRunsLua = R"LUA(
         {id='r3', title='Route 3', sub='Fainted', meta='dead', tone='neutral'}}}
     }})
   end
-  fb.ui.on_action(function(a, v, slot) if a == 'inc' then n = n + 1 render() end end)
-  fb.ui.badge(2)
+  uz.ui.on_action(function(a, v, slot) if a == 'inc' then n = n + 1 render() end end)
+  uz.ui.badge(2)
   render()
 )LUA";
 
 const char* kBoomLua = R"LUA(
-  fb.ui.set('screen', {type='text', text='about to fail'})
+  uz.ui.set('screen', {type='text', text='about to fail'})
   error('boom')
 )LUA";
 
@@ -270,7 +270,7 @@ class PluginSlotsUiTest : public QObject {
     QVERIFY(!writePlugin(src_.path(), "net.test.tools", "Tools Plugin",
                          QJsonObject{{"panel", QJsonObject{{"title", "Tools"}}}, {"hud", true}, {"tile", true}, {"detail", true},
                                      {"hotkeys", QJsonArray{QJsonObject{{"id", "toggle-hud"}, {"label", "Toggle"}}}}},
-                         "fb.ui.set('panel', {type='text', text='x'})").isEmpty());
+                         "uz.ui.set('panel', {type='text', text='x'})").isEmpty());
     for (const char* id : {"net.test.runs", "net.test.tools"}) {
       const auto r = pc()->manager()->installFromFolder(src_.filePath(QString::fromLatin1(id)));
       QVERIFY2(r.ok, qPrintable(r.error));
@@ -314,7 +314,7 @@ class PluginSlotsUiTest : public QObject {
     QTest::qWait(150);
     QVERIFY(h_.click("section_plugins"));
     QTRY_VERIFY(h_.item("pluginRow_net.test.runs") != nullptr && h_.item("pluginRow_net.test.runs")->isVisible());
-    // fb.ui.badge(2) shows in the plugin's row.
+    // uz.ui.badge(2) shows in the plugin's row.
     QTRY_VERIFY(visibleItem("pluginBadge") != nullptr);
     QCOMPARE(textOf(visibleItem("pluginBadge")), QStringLiteral("2"));
     QVERIFY(h_.click("pluginRow_net.test.runs"));
@@ -348,10 +348,10 @@ class PluginSlotsUiTest : public QObject {
   }
 
   void openRequestOutOfGame() {
-    // fb.ui.open("screen") from a shell plugin outside a game: the plugin screen sheet; "panel" is ignored.
+    // uz.ui.open("screen") from a shell plugin outside a game: the plugin screen sheet; "panel" is ignored.
     QVERIFY(!writePlugin(src_.path(), "net.test.opener", "Opener Plugin", QJsonObject{{"screen", QJsonObject{{"title", "Opener"}}}},
-                         "fb.ui.set('screen', {type='text', text='hello'})\n"
-                         "fb.ui.on_action(function(a) if a == 'screen' then fb.ui.open('screen') else pcall(fb.ui.open, 'panel') end end)").isEmpty());
+                         "uz.ui.set('screen', {type='text', text='hello'})\n"
+                         "uz.ui.on_action(function(a) if a == 'screen' then uz.ui.open('screen') else pcall(uz.ui.open, 'panel') end end)").isEmpty());
     const auto r = pc()->manager()->installFromFolder(src_.filePath(QStringLiteral("net.test.opener")));
     QVERIFY2(r.ok, qPrintable(r.error));
     pc()->setPluginEnabled(QStringLiteral("net.test.opener"), true);
@@ -845,7 +845,7 @@ class PluginSlotsUiTest : public QObject {
     QTRY_VERIFY(h_.items("tileStrip_s1").isEmpty() || !h_.item("tileStrip_s1")->isVisible());
   }
 
-  // ---------------------------------------------------------------- fb.ui.open: in-game screen sheet and panel tab
+  // ---------------------------------------------------------------- uz.ui.open: in-game screen sheet and panel tab
 
   void screenSheetOpensAndCloses() {
     h_.controller->sessions()->leaveWatch();
@@ -866,12 +866,12 @@ class PluginSlotsUiTest : public QObject {
     QVERIFY(h_.item("pluginScreenSheet") != nullptr);
     QVERIFY(!h_.item("pluginScreenSheet")->isVisible());
 
-    // fb.ui.open("panel") selects the plugin's tab.
+    // uz.ui.open("panel") selects the plugin's tab.
     emit pc()->openRequested(QStringLiteral("net.test.a"), QStringLiteral("panel"));
     QTRY_VERIFY(h_.item("panelTab_plugin:net.test.a")->property("open").toBool());
     QVERIFY(!h_.item("pluginScreenSheet")->isVisible());
 
-    // fb.ui.open("screen") shows the sheet with the screen tree, covering the play area and the panel.
+    // uz.ui.open("screen") shows the sheet with the screen tree, covering the play area and the panel.
     GameSession* gs = h_.controller->gameSession();
     const bool pausedBefore = gs->isPaused();
     emit pc()->openRequested(QStringLiteral("net.test.a"), QStringLiteral("screen"));

@@ -797,7 +797,7 @@ void PluginEmulationService::refreshCheatDb(const QString& gameId) {
   });
 }
 
-// ------------------------------------------------------------------ fb.save.snapshot
+// ------------------------------------------------------------------ uz.save.snapshot
 
 QString PluginEmulationService::snapshot(const QString& pluginId, const QString& pluginName, const QString& reason) {
   {

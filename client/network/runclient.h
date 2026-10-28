@@ -78,7 +78,7 @@ class RunClient : public QObject {
   void inviteUsers(const QString& runId, const QStringList& userIds, RunCallback cb);
   void loadUsers(std::function<void(bool ok, const QList<HubUser>& users, const QString& error)> cb);  // GET /users
 
-  // --- writes of the running game (fb.run); return an error text ("" = accepted) ---
+  // --- writes of the running game (uz.run); return an error text ("" = accepted) ---
   // Own state of one plugin: replaces that plugin's whole state object. Refused when I have not joined, the plugin is
   // not part of the run or the run does not accept writes.
   QString setOwnState(const QString& runId, const QString& pluginId, const QJsonObject& state);

@@ -44,7 +44,7 @@ Decided by Fabio on 2026-10-11, restated on 2026-10-28: a group of friends compl
 | 0.19.x | Readable UI pass (design system r6) | [decisions](design/uzume/decisions.md#sheet-6--readable-pass-2026-10-26) |
 | 0.19.x | In-game redesign (sheet 7): control bar, Quick menu, Game tab | [decisions](design/uzume/decisions.md#sheet-7--in-game-redesign-2026-10-26) |
 | 0.20 | Emulation: save states, rewind, run-ahead, `memory.write`, snapshots, cheats, plugin store | [ADR 0023](adr/0023-plugins.md), [cheats design](design/uzume/cheats.md) |
-| 0.22 | Plugins: developer console, run recap, Discord Rich Presence, Splits and Tracker plugins, fb.ui `disabled` | [ADR 0023](adr/0023-plugins.md) |
+| 0.22 | Plugins: developer console, run recap, Discord Rich Presence, Splits and Tracker plugins, uz.ui `disabled` | [ADR 0023](adr/0023-plugins.md) |
 | 0.23 | Together: online status, notifications, ready check, chat, viewer role, mixer, voice chat, controller hand-over | [ADR 0033](adr/0033-together.md) |
 | 0.24 | Platforms: Linux AppImage, Secret Service, Vulkan | [ADR 0034](adr/0034-linux-app-and-vulkan.md) |
 | 0.21 | Randomizer: game variants, tools catalog, plugin, runs with their own randomized game. Built; open items in milestone Uzume 21/22 | [ADR 0031](adr/0031-game-variants-and-randomizer.md) |

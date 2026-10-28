@@ -161,12 +161,12 @@ class RunsController : public QObject {
   // One line for a Hub run event ("Lena paused the run"), as the run board shows it.
   QString eventSummary(const RunEvent& e) const { return hubEventText(e); }
 
-  // The run context for a game start: the bridge of fb.run and the pins of the plugins (null bridge: unknown run).
+  // The run context for a game start: the bridge of uz.run and the pins of the plugins (null bridge: unknown run).
   RunLaunch launchFor(const QString& runId);
 
   Q_INVOKABLE void refresh();
   Q_INVOKABLE void openRun(const QString& runId);
-  // Selects the run tab of a plugin (fb.ui.open("screen")); false when no run is open or the plugin has no tab there.
+  // Selects the run tab of a plugin (uz.ui.open("screen")); false when no run is open or the plugin has no tab there.
   Q_INVOKABLE bool selectPluginTab(const QString& pluginId);
   // The plugins of the opened run could not be fetched: try again.
   Q_INVOKABLE void retryRunView();

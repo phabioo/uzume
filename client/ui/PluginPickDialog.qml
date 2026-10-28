@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Dialogs
 
-// File dialog of fb.ui.pick_file. The plugin only ever gets the content of the chosen file, never its path.
+// File dialog of uz.ui.pick_file. The plugin only ever gets the content of the chosen file, never its path.
 FileDialog {
     id: dialog
     property var plugins: null

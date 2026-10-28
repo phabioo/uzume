@@ -1,4 +1,4 @@
-// fb.sound (0.23, ADR 0033 D6) against a fake sound sink: permission, path rules, WAV validation (format, 10 s, 2 MiB), volume,
+// uz.sound (0.23, ADR 0033 D6) against a fake sound sink: permission, path rules, WAV validation (format, 10 s, 2 MiB), volume,
 // the 8 voices per plugin and stop_all. WAV files are generated here (a few samples), never real audio.
 #include <QTemporaryDir>
 #include <QtTest>
@@ -105,11 +105,11 @@ class SoundApiTest : public QObject {
 
   void permissionIsRequired() {
     startWith({}, R"LUA(
-      for _, f in ipairs({ function() return fb.sound.play("a.wav") end, function() return fb.sound.stop_all() end }) do
+      for _, f in ipairs({ function() return uz.sound.play("a.wav") end, function() return uz.sound.stop_all() end }) do
         local ok, e = pcall(f)
         assert(not ok and e:find("permission sound not granted", 1, true), tostring(e))
       end
-      fb.log.info("denied ok")
+      uz.log.info("denied ok")
     )LUA");
     QVERIFY2(hasLog(con(), "denied ok"), qPrintable(con().error));
     QVERIFY(m_sink->plays.isEmpty());
@@ -117,10 +117,10 @@ class SoundApiTest : public QObject {
 
   void playsAMonoClipIntoTheBus() {
     startWith({"sound"}, R"LUA(
-      local h = fb.sound.play("sounds/ding.wav", { volume = 0.5 })
+      local h = uz.sound.play("sounds/ding.wav", { volume = 0.5 })
       assert(math.type(h) == "integer" and h > 0, tostring(h))
-      assert(fb.sound.play("sounds/ding.wav") ~= nil)
-      fb.log.info("play ok")
+      assert(uz.sound.play("sounds/ding.wav") ~= nil)
+      uz.log.info("play ok")
     )LUA", {{"sounds/ding.wav", wav(22050, 1, 441)}});
     QVERIFY2(hasLog(con(), "play ok"), qPrintable(con().error));
     QCOMPARE(m_sink->plays.size(), 2);
@@ -134,7 +134,7 @@ class SoundApiTest : public QObject {
   void badPathsAndFilesAreRefusedWithoutAnError() {
     startWith({"sound"}, R"LUA(
       local function bad(code, ...)
-        local h, msg = fb.sound.play(...)
+        local h, msg = uz.sound.play(...)
         assert(h == nil and msg == code, tostring(code) .. " got " .. tostring(msg))
       end
       bad("invalid_path", "../outside.wav")
@@ -145,7 +145,7 @@ class SoundApiTest : public QObject {
       bad("unsupported_format", "eight.wav")
       bad("too_long", "long.wav")
       bad("too_large", "huge.wav")
-      fb.log.info("refusals ok")
+      uz.log.info("refusals ok")
     )LUA", {{"junk.wav", QByteArray("not a wave file at all")},
            {"eight.wav", wav(8000, 1, 100, 8)},
            {"long.wav", wav(8000, 1, 8000 * 10 + 1)},                       // 10.000125 s
@@ -157,8 +157,8 @@ class SoundApiTest : public QObject {
 
   void tenSecondsExactlyIsAccepted() {
     startWith({"sound"}, R"LUA(
-      assert(fb.sound.play("ten.wav"))
-      fb.log.info("ten ok")
+      assert(uz.sound.play("ten.wav"))
+      uz.log.info("ten ok")
     )LUA", {{"ten.wav", wav(8000, 1, 8000 * 10)}});
     QVERIFY2(hasLog(con(), "ten ok"), qPrintable(con().error));
     QCOMPARE(m_sink->plays.size(), 1);
@@ -166,11 +166,11 @@ class SoundApiTest : public QObject {
 
   void volumeMustBeBetweenZeroAndOne() {
     startWith({"sound"}, R"LUA(
-      assert(not pcall(fb.sound.play, "a.wav", { volume = 1.5 }))
-      assert(not pcall(fb.sound.play, "a.wav", { volume = -0.1 }))
-      assert(not pcall(fb.sound.play, "a.wav", { volume = "loud" }))
-      assert(fb.sound.play("a.wav", { volume = 0 }))
-      fb.log.info("volume ok")
+      assert(not pcall(uz.sound.play, "a.wav", { volume = 1.5 }))
+      assert(not pcall(uz.sound.play, "a.wav", { volume = -0.1 }))
+      assert(not pcall(uz.sound.play, "a.wav", { volume = "loud" }))
+      assert(uz.sound.play("a.wav", { volume = 0 }))
+      uz.log.info("volume ok")
     )LUA", {{"a.wav", wav(8000, 2, 10)}});
     QVERIFY2(hasLog(con(), "volume ok"), qPrintable(con().error));
     QCOMPARE(m_sink->plays.size(), 1);
@@ -179,12 +179,12 @@ class SoundApiTest : public QObject {
 
   void eightVoicesPerPluginAndStopAll() {
     startWith({"sound"}, R"LUA(
-      for i = 1, 8 do assert(fb.sound.play("a.wav")) end
-      local h, msg = fb.sound.play("a.wav")
+      for i = 1, 8 do assert(uz.sound.play("a.wav")) end
+      local h, msg = uz.sound.play("a.wav")
       assert(h == nil and msg == "too_many_voices", tostring(msg))
-      assert(fb.sound.stop_all() == true)
-      assert(fb.sound.play("a.wav"))
-      fb.log.info("voices ok")
+      assert(uz.sound.stop_all() == true)
+      assert(uz.sound.play("a.wav"))
+      uz.log.info("voices ok")
     )LUA", {{"a.wav", wav(8000, 1, 10)}});
     QVERIFY2(hasLog(con(), "voices ok"), qPrintable(con().error));
     QCOMPARE(m_sink->plays.size(), 9);
@@ -194,10 +194,10 @@ class SoundApiTest : public QObject {
   void withoutASinkPlayIsUnavailable() {
     m_ctx.sound.reset();
     startWith({"sound"}, R"LUA(
-      local h, msg = fb.sound.play("a.wav")
+      local h, msg = uz.sound.play("a.wav")
       assert(h == nil and msg == "unavailable", tostring(msg))
-      assert(fb.sound.stop_all() == true)
-      fb.log.info("none ok")
+      assert(uz.sound.stop_all() == true)
+      uz.log.info("none ok")
     )LUA", {{"a.wav", wav(8000, 1, 10)}});
     QVERIFY2(hasLog(con(), "none ok"), qPrintable(con().error));
   }

@@ -10,7 +10,7 @@ import QtQuick
 // size change of the layout (the plugin blocks are nested layouts sized by `anchors.fill` of a Loader, so their parent layout's
 // rearrange resizes them synchronously, before they are polished) reads the freed item in QGridLayoutItem::stretchFactor and
 // the app dies with SIGSEGV. Changing a Repeater `model` (an integer or a new JS array on every tree update) destroys all its
-// delegates, so every fb.ui.set of a table, list or container was exposed. Hidden items are skipped by the layout and stay valid.
+// delegates, so every uz.ui.set of a table, list or container was exposed. Hidden items are skipped by the layout and stay valid.
 Repeater {
     id: pool
     property int count: 0

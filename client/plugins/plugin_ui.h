@@ -28,7 +28,7 @@ inline constexpr int kUiMaxTextareaBytes = 64 * 1024;  // value of a textarea bl
 bool convertUiTree(const Value& tree, QVariantMap& out, QString& error);
 // Merges `props` into the node with `id` in `tree` (validated like set). The tree is unchanged on failure.
 bool patchUiTree(QVariantMap& tree, const QString& id, const Value& props, QString& error);
-// fb.ui.notify argument -> {tone, title, text, actions:[{label, action, value}]}.
+// uz.ui.notify argument -> {tone, title, text, actions:[{label, action, value}]}.
 bool convertToast(const Value& v, QVariantMap& out, QString& error);
 
 // Plain-data conversions (UI action values <-> Lua values).
@@ -45,7 +45,7 @@ struct UiPluginState {
   bool paused = false;                // the plugin was paused; trees are kept so the UI can show them dimmed
 };
 
-// fb.ui.pick_file: a file dialog the person has to confirm. The plugin never gets the path, only the content (delivered by
+// uz.ui.pick_file: a file dialog the person has to confirm. The plugin never gets the path, only the content (delivered by
 // PluginHost::deliverFile to the callback).
 struct PickRequest {
   QString pluginId;
@@ -68,12 +68,12 @@ class UiStore {
   void markPaused(const QString& id);
   void clearPlugin(const QString& id);  // reload / stop: trees, titles, badge, dot and paused flag are removed
   int addToast(const QString& id, QVariantMap toast);
-  // fb.ui.open: a request to show the plugin's slot ("screen" or "panel"); queued like toasts, dirty "@open".
+  // uz.ui.open: a request to show the plugin's slot ("screen" or "panel"); queued like toasts, dirty "@open".
   void addOpenRequest(const QString& id, const QString& slot);
-  // fb.ui.close: like addOpenRequest, dirty "@close".
+  // uz.ui.close: like addOpenRequest, dirty "@close".
   void addCloseRequest(const QString& id, const QString& slot);
   QList<QPair<QString, QString>> takeCloseRequests();
-  // fb.ui.pick_file: queued like toasts, dirty "@pick".
+  // uz.ui.pick_file: queued like toasts, dirty "@pick".
   void addPickRequest(const PickRequest& r);
   QList<PickRequest> takePickRequests();
 

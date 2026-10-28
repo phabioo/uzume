@@ -381,7 +381,7 @@ FocusScope {
                     wrapMode: Text.WordWrap
                     font.pixelSize: Theme.roles.small.size
                     color: Theme.dim
-                    text: qsTr("Nothing watched. Use fb.dev.watch(label, address, kind) in the plugin.")
+                    text: qsTr("Nothing watched. Use uz.dev.watch(label, address, kind) in the plugin.")
                 }
                 Repeater {
                     model: root.watched

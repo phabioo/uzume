@@ -1,5 +1,5 @@
 #pragma once
-// RunSessionBridge: fb.run of the plugins for one run, backed by the RunClient. Lives on the UI thread; the plugin
+// RunSessionBridge: uz.run of the plugins for one run, backed by the RunClient. Lives on the UI thread; the plugin
 // thread reads a mutex-protected snapshot and hands writes over with queued calls (it never blocks on the UI thread).
 // Writes are checked against the snapshot first, so a plugin gets a clear refusal when the run is not starting/active.
 #include <QHash>

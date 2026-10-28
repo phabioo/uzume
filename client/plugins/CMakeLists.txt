@@ -47,11 +47,11 @@ uzume_add_test(plugins_delivery tests/delivery_test.cpp ${FB_NETTEST_DIR}/fakehu
 target_include_directories(test_plugins_delivery PRIVATE ${FB_NETTEST_DIR})
 target_compile_definitions(test_plugins_delivery PRIVATE FB_TEST_DATA_DIR="${FB_NETTEST_DIR}/testdata")
 
-# fb.run against the real RunClient + RunSessionBridge + fake Hub.
+# uz.run against the real RunClient + RunSessionBridge + fake Hub.
 uzume_add_test(plugins_run tests/run_test.cpp ${FB_NETTEST_DIR}/fakehub.cpp ${FB_NETTEST_DIR}/fakehub.h LIBS uzume_plugins)
 target_include_directories(test_plugins_run PRIVATE ${FB_NETTEST_DIR})
 target_compile_definitions(test_plugins_run PRIVATE FB_TEST_DATA_DIR="${FB_NETTEST_DIR}/testdata")
 
-# fb.memory.write, fb.cheats, fb.save.snapshot, fb.store, textarea and fb.ui.pick_file (0.20 package 5), against fake bridges.
+# uz.memory.write, uz.cheats, uz.save.snapshot, uz.store, textarea and uz.ui.pick_file (0.20 package 5), against fake bridges.
 uzume_add_test(plugins_emulation tests/emulation_test.cpp LIBS uzume_plugins)
 uzume_add_test(plugins_sound tests/sound_test.cpp LIBS uzume_plugins)

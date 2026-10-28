@@ -59,7 +59,7 @@ class ConsoleTest : public QObject {
   }
 
   void singleErrorIsLoggedNotPaused() {
-    startLua("fb.ui.on_action(function() error('boom') end)");
+    startLua("uz.ui.on_action(function() error('boom') end)");
     m_host->sendAction(kId, "panel", "x");
     QTRY_COMPARE_WITH_TIMEOUT(con().errorCount, 1, 5000);
     QCOMPARE(con().status, PluginStatus::Running);
@@ -70,7 +70,7 @@ class ConsoleTest : public QObject {
   }
 
   void threeErrorsWithinTenSecondsPause() {
-    startLua("fb.ui.on_action(function() error('boom') end)");
+    startLua("uz.ui.on_action(function() error('boom') end)");
     for (int i = 0; i < 3; ++i) m_host->sendAction(kId, "panel", "x");
     QTRY_COMPARE_WITH_TIMEOUT(con().status, PluginStatus::Paused, 5000);
     QCOMPARE(con().errorCount, 3);
@@ -82,14 +82,14 @@ class ConsoleTest : public QObject {
   }
 
   void budgetOverrunPausesAtOnce() {
-    startLua("fb.ui.on_action(function() while true do end end)");
+    startLua("uz.ui.on_action(function() while true do end end)");
     m_host->sendAction(kId, "panel", "x");
     QTRY_COMPARE_WITH_TIMEOUT(con().status, PluginStatus::Paused, 10000);
     QVERIFY(con().error.contains(QStringLiteral("budget exceeded")));
   }
 
   void logLinesCarryIncreasingSeqAcrossReload() {
-    startLua("fb.log.info('one') fb.log.warn('two')");
+    startLua("uz.log.info('one') uz.log.warn('two')");
     const ConsoleSnapshot a = con();
     QVERIFY(a.log.size() >= 3);  // one, two, Loaded
     for (qsizetype i = 1; i < a.log.size(); ++i) QCOMPARE(a.log[i].seq, a.log[i - 1].seq + 1);
@@ -104,7 +104,7 @@ class ConsoleTest : public QObject {
   }
 
   void reloadResetsTheErrorWindowAndResumes() {
-    startLua("fb.ui.on_action(function() error('boom') end)");
+    startLua("uz.ui.on_action(function() error('boom') end)");
     m_host->sendAction(kId, "panel", "x");
     m_host->sendAction(kId, "panel", "x");
     QTRY_COMPARE_WITH_TIMEOUT(con().errorCount, 2, 5000);
@@ -116,7 +116,7 @@ class ConsoleTest : public QObject {
   }
 
   void pausedPluginResumesWithReload() {
-    startLua("fb.ui.on_action(function() while true do end end)");
+    startLua("uz.ui.on_action(function() while true do end end)");
     m_host->sendAction(kId, "panel", "x");
     QTRY_COMPARE_WITH_TIMEOUT(con().status, PluginStatus::Paused, 10000);
     m_host->reload(kId);
@@ -126,13 +126,13 @@ class ConsoleTest : public QObject {
   }
 
   void reloadedEventReachesThePlugin() {
-    startLua("fb.events.on('fb', 'reloaded', function(v) fb.log.info('RELOADED ' .. tostring(v.ms >= 0)) end)");
+    startLua("uz.events.on('fb', 'reloaded', function(v) uz.log.info('RELOADED ' .. tostring(v.ms >= 0)) end)");
     m_host->reload(kId);
     QTRY_VERIFY_WITH_TIMEOUT(hasLog(con(), "RELOADED true"), 5000);
   }
 
   void deniedPermissionIsListedOnce() {
-    startLua("fb.ui.on_action(function() pcall(function() return fb.memory.write(0, 'x') end) pcall(function() return fb.memory.write(0, 'x') end) end)", {"ui"});
+    startLua("uz.ui.on_action(function() pcall(function() return uz.memory.write(0, 'x') end) pcall(function() return uz.memory.write(0, 'x') end) end)", {"ui"});
     m_host->sendAction(kId, "panel", "x");
     QTRY_VERIFY_WITH_TIMEOUT(!con().notGranted.isEmpty(), 5000);
     QCOMPARE(con().notGranted, QStringList{"memory.write"});

@@ -1,5 +1,5 @@
 #pragma once
-// Seam between the plugin runtime and the app for fb.memory.write, fb.cheats and fb.save.snapshot (0.20, permissions
+// Seam between the plugin runtime and the app for uz.memory.write, uz.cheats and uz.save.snapshot (0.20, permissions
 // `memory.write` and `cheats`). The plugin thread only calls this interface; every method is thread-safe and never waits for
 // the GUI thread, the emulation thread or the network. The app (ui/pluginemulation.*) owns the consent per game, the
 // "Before ..." safety copies, the run rules and the run log, so no plugin can skip them.
@@ -11,7 +11,7 @@
 
 namespace uzume::plugins {
 
-// One entry of a cheat list handed to fb.cheats.apply.
+// One entry of a cheat list handed to uz.cheats.apply.
 struct CheatItem {
   QString id;
   QString name;
@@ -29,7 +29,7 @@ struct CheatApplyResult {
   QList<CheatReject> rejected;
 };
 struct CheatDatabaseResult {
-  // Becomes the second result of fb.cheats.database() after nil: "off" (the cheat database is off on the server), "unavailable" (it is on, but the server holds no lists yet: not loaded, or the update failed), "offline",
+  // Becomes the second result of uz.cheats.database() after nil: "off" (the cheat database is off on the server), "unavailable" (it is on, but the server holds no lists yet: not loaded, or the update failed), "offline",
   // "not_found" (no such game on the server) or "error: <text>". While the first fetch is under way: "error: loading" (the app
   // event cheats.database follows).
   QString error;
@@ -47,9 +47,9 @@ class EmulationBridge {
 
   // Cheat formats of the running core and system (empty without a game or a core with cheat support).
   virtual QStringList cheatFormats() const = 0;
-  // Display name of the running core ("mGBA"), second result of fb.cheats.formats(); empty = none.
+  // Display name of the running core ("mGBA"), second result of uz.cheats.formats(); empty = none.
   virtual QString coreName() const { return QString(); }
-  // Why cheats cannot be turned on right now: "" = they can, "run_rule" = the run's rule is Off (fb.cheats.allowed).
+  // Why cheats cannot be turned on right now: "" = they can, "run_rule" = the run's rule is Off (uz.cheats.allowed).
   virtual QString cheatsBlockedReason() const { return QString(); }
   // Replaces the whole active list. Entries the core cannot use come back in `rejected`.
   virtual CheatApplyResult applyCheats(const QString& pluginId, const QList<CheatItem>& list) = 0;

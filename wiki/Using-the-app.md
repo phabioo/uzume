@@ -181,7 +181,7 @@ The server binds to `127.0.0.1` only, checks the token, the `Host` header and (i
 | `plugins_list` | | id, version, origin, status, error, provides, permissions |
 | `plugin_console` | `id` | status, error, log, events, watched rows, budgets |
 | `plugin_ui` | `id`, `slot?` | UI trees of one or all slots |
-| `plugin_action` | `id`, `slot`, `action`, `value?` | sends a UI action to `fb.ui.on_action` |
+| `plugin_action` | `id`, `slot`, `action`, `value?` | sends a UI action to `uz.ui.on_action` |
 | `plugin_reload` | `id` | restarts the plugin, returns its status |
 | `plugin_call` | `id`, `interface`, `function`, `args` | calls a function of a `provides` table; images as PNG |
 | `plugin_eval` | `id`, `code` | runs Lua in a plugin with origin `local` only (otherwise `eval_not_allowed`), same sandbox and budgets, output captured |
@@ -208,7 +208,7 @@ The server binds to `127.0.0.1` only, checks the token, the `Host` header and (i
 | `cheats_list` | | active cheats, core formats, why cheats are blocked, consent state of the running game (also in a run game without the cheats plugin) |
 | `cheats_apply` | `cheats` (list of `{id?, name, format, code, enabled?}`), `bypass_consent?` | replaces the active list as plugin `mcp`; run rule, safety copy "Before cheats" and run log still apply; `bypass_consent` skips only the per-game question |
 | `cheats_clear` | | turns all cheats off |
-| `store_get` / `store_put` | `plugin_id`, `key` / `plugin_id`, `key`, `value`, `base_revision?` | a plugin's own data (`fb.store`) in the local copy of the connected user; `store_put` changes it; `store_get` of an unknown plugin answers `plugin_not_found` |
+| `store_get` / `store_put` | `plugin_id`, `key` / `plugin_id`, `key`, `value`, `base_revision?` | a plugin's own data (`uz.store`) in the local copy of the connected user; `store_put` changes it; `store_get` of an unknown plugin answers `plugin_not_found` |
 | `consent_set` | `kind` (`cheats`, `memory_write`), `allow`, `forget?`, `game?` | pre-answers the per-game consent question of plugins (`allow` true is remembered) |
 | `runs_list` | `status?` | runs of the connected server: id, name, status, creator, save slot, core rules, plugins, people |
 | `run_set_rules` | `run_id`, `states?`, `rewind?`, `cheats?` (`off`, `logged`), `memory_write?` (`off`, `logged`) | changes the run rules (the whole object is sent; creator or admin, else `forbidden`) |
@@ -218,7 +218,7 @@ The server binds to `127.0.0.1` only, checks the token, the `Host` header and (i
 | `settings_set` | `key`, `value`, `system?`, `game_id?` | sets a `uzume.*` option (rewind length 0 to 600 s, run-ahead, fullscreen, ...) like Settings › Emulation and applies it to the running game |
 | `saves_history` | | read only: the save history of the game in the saves view (slot, current checkpoint, versions with reason and cheat tags) |
 | `toasts_list` | | read only: the last toasts (save states, plugins, app notices) with text, tone and time |
-| `file_dialog_pick` | `path`, `plugin_id?` (or `id`) | answers an open `fb.ui.pick_file` request without a dialog; empty path cancels; `no_pick_request` when none is open |
+| `file_dialog_pick` | `path`, `plugin_id?` (or `id`) | answers an open `uz.ui.pick_file` request without a dialog; empty path cancels; `no_pick_request` when none is open |
 | `ui_tree` | `root?`, `depth?` (12), `visibleOnly?` (true), `window?` | the QML items of the visible windows, popups and dialogs included: type, objectName, text, label, placeholder, checked, enabled, visible, focus, accessible role and name, rect in window coordinates, a path id, `destructive`; capped at about 200 KB (`truncated`) |
 | `ui_click` | `target` (objectName, path id or text) or `x`,`y`; `button?`, `double?` | real mouse events (move, press, release) on the item, scrolled into view first |
 | `ui_type` | `target?`, `text`, `clear?`, `submit?` | real key events into the focused or the target field; the content of password fields is never returned |

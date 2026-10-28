@@ -49,12 +49,12 @@ QString writePlugin(const QString& parent, const QString& id, const QByteArray& 
 }
 
 const char* kPlugin = R"LUA(
-fb.provide("test.iface", {
+uz.provide("test.iface", {
   add = function(a, b) return a + b end,
   info = function() return {name = "x", list = {1, 2, 3}} end,
   img = function() return {width = 2, height = 2, rgba = string.rep("\255\0\0\255", 4)} end,
 })
-fb.log.info("plugin loaded")
+uz.log.info("plugin loaded")
 )LUA";
 
 QByteArray pngOfColor(QRgb c) {
@@ -491,7 +491,7 @@ class McpToolsTest : public QObject {
     QCOMPARE(console.value("reload").toObject().value("count").toInt(), 0);
     const int seq0 = console.value("last_seq").toInt();
     QVERIFY(seq0 >= 2);
-    QVERIFY2(!call("plugin_eval", {{"id", "net.test.local"}, {"code", "fb.log.warn('w1') fb.log.error('e1') fb.log.error('e2')"}}).isError, "eval");
+    QVERIFY2(!call("plugin_eval", {{"id", "net.test.local"}, {"code", "uz.log.warn('w1') uz.log.error('e1') uz.log.error('e2')"}}).isError, "eval");
     const QJsonObject errs = jsonOf(call("plugin_console", {{"id", "net.test.local"}, {"level", "error"}, {"since_seq", seq0}})).toObject();
     QCOMPARE(errs.value("log").toArray().size(), 2);
     QCOMPARE(errs.value("log").toArray().at(0).toObject().value("text").toString(), QStringLiteral("e1"));  // oldest first
@@ -530,7 +530,7 @@ class McpToolsTest : public QObject {
     QVERIFY(call("plugin_call", {{"id", "net.test.local"}, {"interface", "nope"}, {"function", "x"}}).isError);
 
     // plugin_eval: local only, output captured, errors reported, budget trip pauses.
-    ToolResult ev = call("plugin_eval", {{"id", "net.test.local"}, {"code", "print('hi'); fb.log.warn('w'); return 1 + 1, 'two'"}});
+    ToolResult ev = call("plugin_eval", {{"id", "net.test.local"}, {"code", "print('hi'); uz.log.warn('w'); return 1 + 1, 'two'"}});
     QVERIFY2(!ev.isError, qPrintable(ev.content.value(0).text));
     const QJsonObject evj = jsonOf(ev).toObject();
     QCOMPARE(evj.value("results").toArray()[0].toInt(), 2);

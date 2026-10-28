@@ -1,6 +1,6 @@
 #pragma once
 // PluginStoreSync: syncs the local PluginStore with the plugin user store of the connected server (plugin_store_v1,
-// GET/PUT /plugins/{plugin_id}/store/{key}). Plugins never wait for it: fb.store reads and writes the local copy; this class
+// GET/PUT /plugins/{plugin_id}/store/{key}). Plugins never wait for it: uz.store reads and writes the local copy; this class
 // pushes dirty keys (base revision = the server revision the copy is based on), pulls newer server values of the plugins it is
 // asked about, and turns a 409 store_conflict into a kept second version (PluginStore::markServerConflict). Offline or without
 // the feature it does nothing and tries again later. UI thread.
@@ -38,7 +38,7 @@ class PluginStoreSync : public QObject {
  signals:
   // The server's version of a key replaced the local one (the plugin gets the app event store.changed).
   void keyAdopted(const QString& pluginId, const QString& key);
-  // Both versions of a key are kept (the plugin gets the app event store.conflict; fb.store.conflicts(key)).
+  // Both versions of a key are kept (the plugin gets the app event store.conflict; uz.store.conflicts(key)).
   void keyConflicted(const QString& pluginId, const QString& key);
 
  private:

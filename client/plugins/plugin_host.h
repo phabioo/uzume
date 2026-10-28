@@ -31,7 +31,7 @@ struct ProbeResult {
   QString error;                // first line of the problem ("plugin_not_running", a Lua error, a budget trip ...)
   QString trace;                // the rest of the Lua error (traceback), may be empty
   std::vector<Value> values;    // results of the call or chunk
-  QList<LogLine> output;        // print() and fb.log lines written during the call
+  QList<LogLine> output;        // print() and uz.log lines written during the call
   bool paused = false;          // a tripped budget paused the plugin
 };
 using ProbeCallback = std::function<void(ProbeResult)>;
@@ -55,16 +55,16 @@ class PluginHost : public QObject {
   void setLimits(const HostLimits& limits);
   HostLimits limits() const { return m_limits; }
 
-  // --- plugin UI (fb.ui), see plugin_ui.h ---
-  // An action of the UI (button, toggle, list row, toast action, hotkey ...): calls the plugin's fb.ui.on_action handler
+  // --- plugin UI (uz.ui), see plugin_ui.h ---
+  // An action of the UI (button, toggle, list row, toast action, hotkey ...): calls the plugin's uz.ui.on_action handler
   // on the plugin thread with (action, value, slot). Ignored when the plugin has no handler or is not running.
   void sendAction(const QString& pluginId, const QString& slot, const QString& action, const QVariant& value = QVariant());
-  // Host event with source plugin id "fb" (fb.events.on("fb", name, fn)); `targetPlugin` empty = all subscribers.
+  // Host event with source plugin id "uz" (uz.events.on("uz", name, fn)); `targetPlugin` empty = all subscribers.
   void postHostEvent(const QString& name, const QVariant& value, const QString& targetPlugin = QString());
-  // Host event with source plugin id "app" (fb.events.on("app", name, fn)): events the app raises on behalf of the person or a run
+  // Host event with source plugin id "app" (uz.events.on("app", name, fn)): events the app raises on behalf of the person or a run
   // rule, e.g. cheats.blocked {reason}. `targetPlugin` empty = all subscribers.
   void postAppEvent(const QString& name, const QVariant& value, const QString& targetPlugin = QString());
-  // fb.ui.pick_file: requests waiting for a file dialog, and the answer. `error` empty = `content` (and the base name of the file)
+  // uz.ui.pick_file: requests waiting for a file dialog, and the answer. `error` empty = `content` (and the base name of the file)
   // is handed to the callback; otherwise the callback gets nil, error ("cancelled", "too_large", "read_failed").
   QList<PickRequest> takePickRequests();
   void deliverFile(const QString& pluginId, quint64 requestId, const QByteArray& content, const QString& name, const QString& error = QString());
@@ -73,12 +73,12 @@ class PluginHost : public QObject {
   UiPluginState uiState(const QString& pluginId) const;
   QVariantMap uiTree(const QString& pluginId, const QString& slot) const;
   QList<QVariantMap> takeToasts();
-  QList<QPair<QString, QString>> takeOpenRequests();  // fb.ui.open requests (plugin id, slot)
-  QList<QPair<QString, QString>> takeCloseRequests();  // fb.ui.close requests (plugin id, slot)
+  QList<QPair<QString, QString>> takeOpenRequests();  // uz.ui.open requests (plugin id, slot)
+  QList<QPair<QString, QString>> takeCloseRequests();  // uz.ui.close requests (plugin id, slot)
 
   // --- debug probes (MCP server, ADR 0032) ---
   // Both run on the plugin thread in the plugin's own Lua state under the normal budget and call `done` on the owner's
-  // (UI) thread: callProvided calls `fn` of the table the plugin registered with fb.provide(`iface`); evalChunk compiles
+  // (UI) thread: callProvided calls `fn` of the table the plugin registered with uz.provide(`iface`); evalChunk compiles
   // `code` as a text chunk (first as an expression, "return <code>") in the plugin's global environment. A tripped budget
   // pauses the plugin like any handler would. Results larger than 32 MiB fail.
   void callProvided(const QString& pluginId, const QString& iface, const QString& fn, const std::vector<Value>& args, ProbeCallback done);

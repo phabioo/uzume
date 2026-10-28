@@ -63,17 +63,57 @@ class HostTest : public QObject {
   void apiTables() {
     PluginSpec s;
     s.lua = R"LUA(
-      assert(fb.api == 1)
-      assert(fb.plugin.id == "net.test.plugin" and fb.plugin.version == "1.0.0")
-      assert(fb.game.system == "nds" and fb.game.code == "ABCD" and fb.game.sha256 == "abc123" and fb.game.title == "Test Game")
-      assert(fb.game.language == "en")
-      assert(math.type(fb.clock()) == "integer")
-      local a = fb.clock() local b = fb.clock() assert(b >= a)
-      fb.log.info("ok")
+      assert(uz.api == 1)
+      assert(uz.plugin.id == "net.test.plugin" and uz.plugin.version == "1.0.0")
+      assert(uz.game.system == "nds" and uz.game.code == "ABCD" and uz.game.sha256 == "abc123" and uz.game.title == "Test Game")
+      assert(uz.game.language == "en")
+      assert(math.type(uz.clock()) == "integer")
+      local a = uz.clock() local b = uz.clock() assert(b >= a)
+      uz.log.info("ok")
     )LUA";
     startOne(s);
     waitRunning("net.test.plugin");
     QVERIFY(hasLog(con(), "ok"));
+  }
+
+  void fbIsAliasOfUz() {
+    // Uzume 0.22 renamed the namespace to `uz`; `fb` stays as the same table for plugins written for older apps.
+    PluginSpec s;
+    s.lua = R"LUA(
+      assert(uz == fb)
+      assert(fb.api == 1 and fb.plugin.id == "net.test.plugin")
+      assert(fb.game.system == "nds" and fb.game.code == "ABCD")
+      fb.log.info("alias ok")
+    )LUA";
+    startOne(s);
+    waitRunning("net.test.plugin");
+    QVERIFY(hasLog(con(), "alias ok"));
+  }
+
+  void hostEventSourceUzAndFbAlias() {
+    // Host events come from source "uz"; subscribing with the old name "fb" still works and delivers exactly once.
+    PluginSpec a, b;
+    a.id = "net.test.a";
+    b.id = "net.test.b";
+    a.lua = R"LUA(
+      uz.events.on("fb", "ping", function(v, from, name) uz.log.info("A got " .. from .. "/" .. name) end)
+    )LUA";
+    b.lua = R"LUA(
+      uz.events.on("uz", "ping", function(v, from, name) uz.log.info("B got " .. from .. "/" .. name) end)
+    )LUA";
+    start({a, b});
+    waitRunning("net.test.a");
+    waitRunning("net.test.b");
+    m_host->postHostEvent("ping", QVariant());
+    QTRY_VERIFY(hasLog(con("net.test.a"), "A got uz/ping"));
+    QTRY_VERIFY(hasLog(con("net.test.b"), "B got uz/ping"));
+    QTest::qWait(150);
+    for (const QString& id : {QString("net.test.a"), QString("net.test.b")}) {
+      int n = 0;
+      for (const LogLine& l : con(id).log)
+        if (l.text.contains(" got uz/ping")) ++n;
+      QCOMPARE(n, 1);
+    }
   }
 
   void memoryApiAndPointerFollowing() {
@@ -84,23 +124,23 @@ class HostTest : public QObject {
     PluginSpec s;
     s.permissions = kMem;
     s.lua = R"LUA(
-      assert(fb.memory.u8(0x1000) == nil)               -- nothing in a snapshot yet
-      assert(fb.memory.frame() == nil)
-      fb.memory.watch("head", 0x1000, 16)
+      assert(uz.memory.u8(0x1000) == nil)               -- nothing in a snapshot yet
+      assert(uz.memory.frame() == nil)
+      uz.memory.watch("head", 0x1000, 16)
       local followed = false
-      fb.on_tick(function(frame)
-        local ptr = fb.memory.u32(0x1000)
+      uz.on_tick(function(frame)
+        local ptr = uz.memory.u32(0x1000)
         if ptr == nil then return end
-        fb.log.info(string.format("ptr=%x s16=%d s8=%d u16=%d u64=%d s32=%d frame=%s", ptr, fb.memory.s16(0x1004), fb.memory.s8(0x1005),
-          fb.memory.u16(0x1004), fb.memory.u64(0x1004), fb.memory.s32(0x1006), tostring(fb.memory.frame() == frame)))
-        local target = fb.memory.u32(ptr)
+        uz.log.info(string.format("ptr=%x s16=%d s8=%d u16=%d u64=%d s32=%d frame=%s", ptr, uz.memory.s16(0x1004), uz.memory.s8(0x1005),
+          uz.memory.u16(0x1004), uz.memory.u64(0x1004), uz.memory.s32(0x1006), tostring(uz.memory.frame() == frame)))
+        local target = uz.memory.u32(ptr)
         if not followed then
           followed = true
-          fb.log.info("target " .. tostring(target))   -- not yet in the snapshot
-          fb.memory.watch("target", ptr, 4)
+          uz.log.info("target " .. tostring(target))   -- not yet in the snapshot
+          uz.memory.watch("target", ptr, 4)
         else
-          fb.log.info(string.format("target %s bytes=%d", tostring(target), #fb.memory.bytes(ptr, 4)))
-          assert(fb.memory.u8(0x9999) == nil and fb.memory.bytes(0x9999, 4) == nil)
+          uz.log.info(string.format("target %s bytes=%d", tostring(target), #uz.memory.bytes(ptr, 4)))
+          assert(uz.memory.u8(0x9999) == nil and uz.memory.bytes(0x9999, 4) == nil)
         end
       end)
     )LUA";
@@ -125,14 +165,14 @@ class HostTest : public QObject {
     PluginSpec s;
     s.permissions = kMem;
     s.lua = R"LUA(
-      local ok, e = pcall(fb.memory.watch, "big", 0, 4 * 1024 * 1024 + 1)
+      local ok, e = pcall(uz.memory.watch, "big", 0, 4 * 1024 * 1024 + 1)
       assert(not ok and e:find("too large"), e)
-      for i = 1, 4 do fb.memory.watch("r" .. i, i * 0x1000000, 4 * 1024 * 1024) end
-      local ok2, e2 = pcall(fb.memory.watch, "over", 0x10000000, 1)
+      for i = 1, 4 do uz.memory.watch("r" .. i, i * 0x1000000, 4 * 1024 * 1024) end
+      local ok2, e2 = pcall(uz.memory.watch, "over", 0x10000000, 1)
       assert(not ok2 and e2:find("16 MiB"), e2)
-      fb.memory.unwatch("r4")
-      fb.memory.watch("fits", 0x10000000, 1024)
-      fb.log.info("limits ok")
+      uz.memory.unwatch("r4")
+      uz.memory.watch("fits", 0x10000000, 1024)
+      uz.log.info("limits ok")
     )LUA";
     startOne(s);
     waitRunning("net.test.plugin");
@@ -143,7 +183,7 @@ class HostTest : public QObject {
   void tickRateLimited() {
     m_host->setTickHz(10);
     PluginSpec s;
-    s.lua = "fb.on_tick(function() fb.log.info('tick') end)";
+    s.lua = "uz.on_tick(function() uz.log.info('tick') end)";
     startOne(s);
     waitRunning("net.test.plugin");
     QElapsedTimer t;
@@ -162,7 +202,7 @@ class HostTest : public QObject {
 
   void noTickWithoutSnapshot() {
     PluginSpec s;
-    s.lua = "fb.on_tick(function() fb.log.info('tick') end)";
+    s.lua = "uz.on_tick(function() uz.log.info('tick') end)";
     startOne(s);
     waitRunning("net.test.plugin");
     QTest::qWait(200);
@@ -174,34 +214,34 @@ class HostTest : public QObject {
     a.id = "net.test.a";
     a.lua = R"LUA(
       local payload = { n = 1, list = {1, 2, 3}, nested = { s = "x" }, flag = true, f = 1.5 }
-      fb.events.on("*", "pong", function(v, from) fb.log.info("a got pong from " .. from) end)
-      fb.on_tick(function()
+      uz.events.on("*", "pong", function(v, from) uz.log.info("a got pong from " .. from) end)
+      uz.on_tick(function()
         if sent then return end
         sent = true
-        fb.events.emit("hello", payload)
+        uz.events.emit("hello", payload)
         payload.list[1] = 99                               -- the receiver gets its own copy
-        local ok, e = pcall(fb.events.emit, "bad", { fn = print })
-        fb.log.info("fn rejected: " .. tostring(not ok and e:find("function") ~= nil))
+        local ok, e = pcall(uz.events.emit, "bad", { fn = print })
+        uz.log.info("fn rejected: " .. tostring(not ok and e:find("function") ~= nil))
         local deep = {} local t = deep for i = 1, 40 do t.x = {} t = t.x end
-        local ok2, e2 = pcall(fb.events.emit, "deep", deep)
-        fb.log.info("deep rejected: " .. tostring(not ok2 and e2:find("32") ~= nil))
-        local ok3, e3 = pcall(fb.events.emit, "huge", string.rep("x", 1024 * 1024 + 1))
-        fb.log.info("huge rejected: " .. tostring(not ok3))
+        local ok2, e2 = pcall(uz.events.emit, "deep", deep)
+        uz.log.info("deep rejected: " .. tostring(not ok2 and e2:find("32") ~= nil))
+        local ok3, e3 = pcall(uz.events.emit, "huge", string.rep("x", 1024 * 1024 + 1))
+        uz.log.info("huge rejected: " .. tostring(not ok3))
         local c = {} c.self = c
-        local ok4 = pcall(fb.events.emit, "cyclic", c)
-        fb.log.info("cyclic rejected: " .. tostring(not ok4))
+        local ok4 = pcall(uz.events.emit, "cyclic", c)
+        uz.log.info("cyclic rejected: " .. tostring(not ok4))
       end)
     )LUA";
     PluginSpec b;
     b.id = "net.test.b";
     b.lua = R"LUA(
-      fb.events.on("net.test.a", "hello", function(v, from, name)
+      uz.events.on("net.test.a", "hello", function(v, from, name)
         v.list[2] = 77                                      -- must not affect anything else
-        fb.log.info(string.format("b got %s from %s: n=%d list=%d,%d,%d s=%s flag=%s f=%s", name, from, v.n, v.list[1], v.list[2], v.list[3],
+        uz.log.info(string.format("b got %s from %s: n=%d list=%d,%d,%d s=%s flag=%s f=%s", name, from, v.n, v.list[1], v.list[2], v.list[3],
           v.nested.s, tostring(v.flag), tostring(v.f)))
-        fb.events.emit("pong", 1)
+        uz.events.emit("pong", 1)
       end)
-      fb.events.on("net.test.zzz", "hello", function() fb.log.info("b must not see this") end)
+      uz.events.on("net.test.zzz", "hello", function() uz.log.info("b must not see this") end)
     )LUA";
     start({a, b});
     waitRunning("net.test.a");
@@ -229,7 +269,7 @@ class HostTest : public QObject {
     core.provides = {"core.api"};
     core.lua = R"LUA(
       local state = { n = 0 }
-      fb.provide("core.api", {
+      uz.provide("core.api", {
         add = function(a, b) return a + b end,
         touch = function(t) t.touched = true t.list[1] = "changed" state.n = state.n + 1 return t, state.n end,
         boom = function() error("callee exploded") end,
@@ -237,46 +277,46 @@ class HostTest : public QObject {
         bad = function() return print end,
         multi = function() return 1, "two", { 3 } end,
       })
-      local ok, e = pcall(fb.provide, "not.listed", {})
+      local ok, e = pcall(uz.provide, "not.listed", {})
       assert(not ok and e:find("provides"), e)
     )LUA";
     PluginSpec user;
     user.id = "net.test.user";
     user.requires_ = QJsonObject{{"net.test.core", "^1.0"}};
     user.lua = R"LUA(
-      fb.on_tick(function()
+      uz.on_tick(function()
         if done then return end
         done = true
-        assert(fb.call("core.api", "add", 2, 3) == 5)
+        assert(uz.call("core.api", "add", 2, 3) == 5)
         local mine = { list = { "orig" } }
-        local t, n = fb.call("core.api", "touch", mine)
+        local t, n = uz.call("core.api", "touch", mine)
         assert(t.touched and t.list[1] == "changed" and n == 1)
         assert(mine.touched == nil and mine.list[1] == "orig", "argument was not copied")
-        local a, b, c = fb.call("core.api", "multi")
+        local a, b, c = uz.call("core.api", "multi")
         assert(a == 1 and b == "two" and c[1] == 3)
-        local ok, e = pcall(fb.call, "core.api", "boom")
-        fb.log.info("boom -> " .. tostring(ok) .. " " .. tostring(e))
-        local ok2, e2 = pcall(fb.call, "core.api", "add", print, 1)
-        fb.log.info("fn arg -> " .. tostring(ok2) .. " " .. tostring(e2))
-        local ok3, e3 = pcall(fb.call, "core.api", "bad")
-        fb.log.info("fn result -> " .. tostring(ok3))
-        local ok4, e4 = pcall(fb.call, "core.api", "missing")
-        fb.log.info("missing -> " .. tostring(e4))
-        local ok5, e5 = pcall(fb.call, "other.api", "x")
-        fb.log.info("unknown -> " .. tostring(e5))
-        local ok6, e6 = pcall(fb.call, "core.api", "spin")
-        fb.log.info("spin -> " .. tostring(ok6) .. " " .. tostring(e6))
-        fb.log.info("finished")
+        local ok, e = pcall(uz.call, "core.api", "boom")
+        uz.log.info("boom -> " .. tostring(ok) .. " " .. tostring(e))
+        local ok2, e2 = pcall(uz.call, "core.api", "add", print, 1)
+        uz.log.info("fn arg -> " .. tostring(ok2) .. " " .. tostring(e2))
+        local ok3, e3 = pcall(uz.call, "core.api", "bad")
+        uz.log.info("fn result -> " .. tostring(ok3))
+        local ok4, e4 = pcall(uz.call, "core.api", "missing")
+        uz.log.info("missing -> " .. tostring(e4))
+        local ok5, e5 = pcall(uz.call, "other.api", "x")
+        uz.log.info("unknown -> " .. tostring(e5))
+        local ok6, e6 = pcall(uz.call, "core.api", "spin")
+        uz.log.info("spin -> " .. tostring(ok6) .. " " .. tostring(e6))
+        uz.log.info("finished")
       end)
     )LUA";
     PluginSpec stranger;  // does not list the core in requires
     stranger.id = "net.test.stranger";
     stranger.lua = R"LUA(
-      fb.on_tick(function()
+      uz.on_tick(function()
         if done then return end
         done = true
-        local ok, e = pcall(fb.call, "core.api", "add", 1, 2)
-        fb.log.info("stranger -> " .. tostring(ok) .. " " .. tostring(e))
+        local ok, e = pcall(uz.call, "core.api", "add", 1, 2)
+        uz.log.info("stranger -> " .. tostring(ok) .. " " .. tostring(e))
       end)
     )LUA";
     HostLimits lim;
@@ -315,14 +355,14 @@ class HostTest : public QObject {
         local ok, e = pcall(f, ...)
         assert(not ok and e:find("permission " .. perm .. " not granted", 1, true), tostring(e))
       end
-      denied(fb.memory.watch, "memory.read", "k", 0, 4)
-      denied(fb.memory.u8, "memory.read", 0)
-      denied(fb.memory.bytes, "memory.read", 0, 1)
-      denied(fb.memory.frame, "memory.read")
-      denied(fb.dev.watch, "memory.read", "x", 0, "u8")
-      denied(fb.rom.size, "rom.read")
-      denied(fb.rom.read, "rom.read", 0, 1)
-      fb.log.info("denied ok")
+      denied(uz.memory.watch, "memory.read", "k", 0, 4)
+      denied(uz.memory.u8, "memory.read", 0)
+      denied(uz.memory.bytes, "memory.read", 0, 1)
+      denied(uz.memory.frame, "memory.read")
+      denied(uz.dev.watch, "memory.read", "x", 0, "u8")
+      denied(uz.rom.size, "rom.read")
+      denied(uz.rom.read, "rom.read", 0, 1)
+      uz.log.info("denied ok")
     )LUA";
     startOne(s);
     waitRunning("net.test.plugin");
@@ -339,13 +379,13 @@ class HostTest : public QObject {
     PluginSpec s;
     s.permissions = {"rom.read"};
     s.lua = R"LUA(
-      assert(fb.rom.size() == 16)
-      assert(fb.rom.read(4, 4) == "4567")
-      assert(fb.rom.read(14, 100) == "EF")
-      assert(fb.rom.read(16, 4) == nil)
-      assert(not pcall(fb.rom.read, 0, 16 * 1024 * 1024 + 1))
-      assert(not pcall(fb.rom.read, -1, 4))
-      fb.log.info("rom ok")
+      assert(uz.rom.size() == 16)
+      assert(uz.rom.read(4, 4) == "4567")
+      assert(uz.rom.read(14, 100) == "EF")
+      assert(uz.rom.read(16, 4) == nil)
+      assert(not pcall(uz.rom.read, 0, 16 * 1024 * 1024 + 1))
+      assert(not pcall(uz.rom.read, -1, 4))
+      uz.log.info("rom ok")
     )LUA";
     startOne(s);
     waitRunning("net.test.plugin");
@@ -355,22 +395,22 @@ class HostTest : public QObject {
   void cacheApi() {
     PluginSpec s;
     s.lua = R"LUA(
-      assert(fb.cache.exists("a.bin") == false and fb.cache.read("a.bin") == nil)
-      assert(fb.cache.write("a.bin", "\0\1\2data"))
-      assert(fb.cache.exists("a.bin") and fb.cache.read("a.bin") == "\0\1\2data")
-      assert(fb.cache.write("icons/x/y.png", "png"))
-      assert(fb.cache.read("icons/x/y.png") == "png")
-      assert(fb.cache.write("a.bin", "short") and fb.cache.read("a.bin") == "short")
+      assert(uz.cache.exists("a.bin") == false and uz.cache.read("a.bin") == nil)
+      assert(uz.cache.write("a.bin", "\0\1\2data"))
+      assert(uz.cache.exists("a.bin") and uz.cache.read("a.bin") == "\0\1\2data")
+      assert(uz.cache.write("icons/x/y.png", "png"))
+      assert(uz.cache.read("icons/x/y.png") == "png")
+      assert(uz.cache.write("a.bin", "short") and uz.cache.read("a.bin") == "short")
       for _, bad in ipairs{"../evil", "a/../../evil", "/abs/path", "..", "a/" .. "/b", "", "sp ace", "back\\slash", "dir/", "x/..", "C:/x", "nul", "CON.png", "icons/aux", "com1.txt", "Lpt9", "trail.", "a./b"} do
-        for _, fn in ipairs{fb.cache.read, fb.cache.exists} do
+        for _, fn in ipairs{uz.cache.read, uz.cache.exists} do
           local ok, e = pcall(fn, bad)
           assert(not ok and e:find("invalid cache name"), bad .. ": " .. tostring(e))
         end
-        local ok, e = pcall(fb.cache.write, bad, "x")
+        local ok, e = pcall(uz.cache.write, bad, "x")
         assert(not ok and e:find("invalid cache name"), bad .. ": " .. tostring(e))
       end
-      assert(fb.cache.write("console.txt", "ok") and fb.cache.write("com10", "ok") and fb.cache.write(".hidden", "ok"))  -- not device names
-      fb.log.info("cache ok")
+      assert(uz.cache.write("console.txt", "ok") and uz.cache.write("com10", "ok") and uz.cache.write(".hidden", "ok"))  -- not device names
+      uz.log.info("cache ok")
     )LUA";
     startOne(s);
     waitRunning("net.test.plugin");
@@ -387,11 +427,11 @@ class HostTest : public QObject {
     s.lua = R"LUA(
       local n, err = 0, nil
       for i = 1, 2100 do
-        local ok, e = pcall(fb.cache.write, "many/f" .. i, "x")
+        local ok, e = pcall(uz.cache.write, "many/f" .. i, "x")
         if not ok then err = tostring(e) break end
         n = n + 1
       end
-      fb.log.info("files " .. n .. " " .. tostring(err))
+      uz.log.info("files " .. n .. " " .. tostring(err))
     )LUA";
     HostLimits lim;
     lim.wallMs = 30000;  // 2000 small files without fsync take well under 2 s; generous for slow CI disks
@@ -411,15 +451,15 @@ class HostTest : public QObject {
       local chunk = string.rep("x", 16 * 1024 * 1024)
       local written = 0
       local done = false
-      fb.on_tick(function()
+      uz.on_tick(function()
         if done then return end
-        local ok, e = pcall(fb.cache.write, "big" .. (written + 1), chunk)
+        local ok, e = pcall(uz.cache.write, "big" .. (written + 1), chunk)
         if ok then
           written = written + 1
-          if written > 40 then done = true fb.log.info("written too many") end
+          if written > 40 then done = true uz.log.info("written too many") end
         else
           done = true
-          fb.log.info("written " .. written .. " " .. tostring(e))
+          uz.log.info("written " .. written .. " " .. tostring(e))
         end
       end)
     )LUA";
@@ -442,12 +482,12 @@ class HostTest : public QObject {
     s.files["i18n/en.json"] = R"LUA({"hello":"Hello {name}!","only_en":"English only","nested":{"key":"Nested {a} {b}"}})LUA";
     s.files["i18n/de.json"] = R"LUA({"hello":"Hallo {name}!"})LUA";
     s.lua = R"LUA(
-      fb.log.info("1:" .. fb.i18n.t("hello", { name = "Ash" }))
-      fb.log.info("2:" .. fb.i18n.t("only_en"))
-      fb.log.info("3:" .. fb.i18n.t("missing.key"))
-      fb.log.info("4:" .. fb.i18n.t("nested.key", { a = 1, b = true }))
-      fb.log.info("5:" .. fb.i18n.t("hello", { other = "x" }))
-      fb.log.info("6:" .. fb.i18n.t("hello"))
+      uz.log.info("1:" .. uz.i18n.t("hello", { name = "Ash" }))
+      uz.log.info("2:" .. uz.i18n.t("only_en"))
+      uz.log.info("3:" .. uz.i18n.t("missing.key"))
+      uz.log.info("4:" .. uz.i18n.t("nested.key", { a = 1, b = true }))
+      uz.log.info("5:" .. uz.i18n.t("hello", { other = "x" }))
+      uz.log.info("6:" .. uz.i18n.t("hello"))
     )LUA";
     m_ctx.language = "de-DE";
     startOne(s);
@@ -473,20 +513,20 @@ class HostTest : public QObject {
     PluginSpec s;
     s.permissions = kMem;
     s.lua = R"LUA(
-      fb.dev.watch("party count", 0x08001A10, "u8")
-      fb.dev.watch("magic", 0x08002000, "hex:4")
-      fb.dev.watch("signed", 0x08003000, "s32")
-      fb.dev.watch("nowhere", 0x0F000000, "u16")
-      assert(not pcall(fb.dev.watch, "x", 0, "float"))
-      assert(not pcall(fb.dev.watch, "x", 0, "hex:0"))
-      fb.dev.watch("temp", 0x08001A10, "u32")
-      fb.dev.unwatch("temp")
-      fb.log.debug("a debug line")
-      fb.log.info("an info line", 42)
-      fb.log.warn("a warn line")
-      fb.log.error("an error line")
+      uz.dev.watch("party count", 0x08001A10, "u8")
+      uz.dev.watch("magic", 0x08002000, "hex:4")
+      uz.dev.watch("signed", 0x08003000, "s32")
+      uz.dev.watch("nowhere", 0x0F000000, "u16")
+      assert(not pcall(uz.dev.watch, "x", 0, "float"))
+      assert(not pcall(uz.dev.watch, "x", 0, "hex:0"))
+      uz.dev.watch("temp", 0x08001A10, "u32")
+      uz.dev.unwatch("temp")
+      uz.log.debug("a debug line")
+      uz.log.info("an info line", 42)
+      uz.log.warn("a warn line")
+      uz.log.error("an error line")
       print("printed", "line")
-      fb.events.emit("team.changed", { slot = 1 })
+      uz.events.emit("team.changed", { slot = 1 })
     )LUA";
     startOne(s);
     waitRunning("net.test.plugin");
@@ -530,7 +570,7 @@ class HostTest : public QObject {
 
   void logRing() {
     PluginSpec s;
-    s.lua = "for i = 1, 700 do fb.log.info('line ' .. i) end for i = 1, 300 do fb.events.emit('e', i) end";
+    s.lua = "for i = 1, 700 do uz.log.info('line ' .. i) end for i = 1, 300 do uz.events.emit('e', i) end";
     startOne(s);
     waitRunning("net.test.plugin");
     const ConsoleSnapshot c = con();
@@ -552,7 +592,7 @@ class HostTest : public QObject {
     // fix the file, reload
     QSignalSpy status(m_host, &PluginHost::statusChanged);
     PluginSpec fixed = s;
-    fixed.lua = "fb.log.info('fixed')";
+    fixed.lua = "uz.log.info('fixed')";
     writePlugin(m_dir.path() + "/src", fixed);
     m_host->reload("net.test.plugin");
     waitRunning("net.test.plugin");
@@ -570,10 +610,10 @@ class HostTest : public QObject {
   void runtimeErrorInTickPausesOnlyThatPlugin() {
     PluginSpec bad;
     bad.id = "net.test.bad";
-    bad.lua = "fb.on_tick(function() local x = nil; return x.field end)";
+    bad.lua = "uz.on_tick(function() local x = nil; return x.field end)";
     PluginSpec good;
     good.id = "net.test.good";
-    good.lua = "fb.on_tick(function() fb.log.info('alive') end)";
+    good.lua = "uz.on_tick(function() uz.log.info('alive') end)";
     start({bad, good});
     waitRunning("net.test.good");
     snapshots(4);
@@ -586,10 +626,10 @@ class HostTest : public QObject {
   void restartReplacesSet() {
     PluginSpec a;
     a.id = "net.test.a";
-    a.lua = "fb.log.info('a')";
+    a.lua = "uz.log.info('a')";
     PluginSpec b;
     b.id = "net.test.b";
-    b.lua = "fb.log.info('b')";
+    b.lua = "uz.log.info('b')";
     start({a});
     waitRunning("net.test.a");
     start({b});

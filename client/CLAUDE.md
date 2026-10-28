@@ -34,5 +34,5 @@ Details only as needed from `docs/architecture/` (index: `docs/architecture/READ
 
 ## Build targets (ADR 0003, 0006, 0007)
 - Targets: `uzume_core` (core/ + network/ sources), `uzume_emulation`, `uzume_input` + `uzume_sdl3` (input/), `uzume_media` + `uzume_audioutil` + `uzume_media_deps` (media/), `uzume_ui` (static lib, QML module `Uzume.App`), executables `uzume` (app/) and `uzume-cli` (network/cli/). Qt >= 6.4, 6.4 API only, not via vcpkg.
-- Plugins (0.11, `docs/guides/plugin-api.md`): `uzume_lua` + `uzume_plugins` (`client/plugins/`, vendored Lua 5.4.7) and `uzume_formats` (`client/formats/`, fb.codec/fb.rom helpers); plugin data under `<data>/plugins` (`installed/`, `cache/`, `state.json`).
+- Plugins (0.11, `docs/guides/plugin-api.md`): `uzume_lua` + `uzume_plugins` (`client/plugins/`, vendored Lua 5.4.7) and `uzume_formats` (`client/formats/`, uz.codec/uz.rom helpers); plugin data under `<data>/plugins` (`installed/`, `cache/`, `state.json`).
 - Core path: CMake variable/environment `UZUME_MELONDS_DS_CORE` (`UZUME_DESMUME_CORE` for DeSmuME, test `emulation_core_desmume`); empty = tests with `NEEDS_CORE` are skipped. Never check in a core, ROM or BIOS.

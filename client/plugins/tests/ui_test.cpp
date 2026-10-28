@@ -1,4 +1,4 @@
-// Plugin UI v1 runtime: manifest field `ui`, tree validation/conversion, fb.ui.* through the plugin host, action round
+// Plugin UI v1 runtime: manifest field `ui`, tree validation/conversion, uz.ui.* through the plugin host, action round
 // trip, host events, shell context. Homebrew plugins written to a temporary directory only.
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -18,7 +18,7 @@ using namespace uzume::plugins::testutil;
 
 namespace {
 
-// Evaluates a Lua expression into a plain Value (same reader limits as fb.ui.set).
+// Evaluates a Lua expression into a plain Value (same reader limits as uz.ui.set).
 Value luaValue(const QString& expr) {
   LuaSandbox sb;
   Value v;
@@ -312,14 +312,14 @@ class UiTest : public QObject {
     QCOMPARE(c.tree, before);
   }
 
-  // ---------------------------------------------------------------- fb.ui through the host
+  // ---------------------------------------------------------------- uz.ui through the host
 
   void permissionAndSlotChecks() {
     PluginSpec s = spec(R"LUA(
-      local ok, err = pcall(fb.ui.set, 'panel', {type='text', text='x'})
-      fb.log.info('R1 ' .. tostring(ok) .. ' ' .. tostring(err))
-      ok, err = pcall(fb.ui.badge, 3)
-      fb.log.info('R2 ' .. tostring(ok) .. ' ' .. tostring(err))
+      local ok, err = pcall(uz.ui.set, 'panel', {type='text', text='x'})
+      uz.log.info('R1 ' .. tostring(ok) .. ' ' .. tostring(err))
+      ok, err = pcall(uz.ui.badge, 3)
+      uz.log.info('R2 ' .. tostring(ok) .. ' ' .. tostring(err))
     )LUA", {});
     s.ui = QJsonObject();  // no ui declaration and no permission
     startSpec(s);
@@ -329,14 +329,14 @@ class UiTest : public QObject {
     QVERIFY(m_host->uiTree(kId, "panel").isEmpty());
 
     PluginSpec d = spec(R"LUA(
-      local ok, err = pcall(fb.ui.set, 'hud', {type='text', text='x'})
-      fb.log.info('S1 ' .. tostring(ok) .. ' ' .. tostring(err))
-      ok, err = pcall(fb.ui.set, 'tile:abc', {type='text', text='x'})
-      fb.log.info('S2 ' .. tostring(ok))
-      ok, err = pcall(fb.ui.set, 'nope', {type='text', text='x'})
-      fb.log.info('S3 ' .. tostring(err))
-      ok, err = pcall(fb.ui.set, 'panel', {type='column', children={ {type='text', text='a'}, {type='foo'} }})
-      fb.log.info('S4 ' .. tostring(err))
+      local ok, err = pcall(uz.ui.set, 'hud', {type='text', text='x'})
+      uz.log.info('S1 ' .. tostring(ok) .. ' ' .. tostring(err))
+      ok, err = pcall(uz.ui.set, 'tile:abc', {type='text', text='x'})
+      uz.log.info('S2 ' .. tostring(ok))
+      ok, err = pcall(uz.ui.set, 'nope', {type='text', text='x'})
+      uz.log.info('S3 ' .. tostring(err))
+      ok, err = pcall(uz.ui.set, 'panel', {type='column', children={ {type='text', text='a'}, {type='foo'} }})
+      uz.log.info('S4 ' .. tostring(err))
     )LUA");
     d.ui = QJsonObject{{"panel", QJsonObject{{"title", "P"}}}, {"tile", true}};
     startSpec(d);
@@ -351,18 +351,18 @@ class UiTest : public QObject {
 
   void setPatchClearAndMeta() {
     startSpec(spec(R"LUA(
-      fb.ui.set('panel', {type='column', children={ {type='text', id='t', text='a'}, {type='bar', id='b', value=0.5} }})
-      fb.ui.patch('panel', 'b', {value=0.25})
-      fb.ui.set('hud', {type='text', text='h'})
-      fb.ui.clear('hud')
-      fb.ui.title('panel', 'My panel')
-      fb.ui.badge(5000)
-      fb.ui.dot('news')
-      local ok, err = pcall(fb.ui.patch, 'panel', 'zzz', {text='x'})
-      fb.log.info('P1 ' .. tostring(err))
-      ok, err = pcall(fb.ui.dot, 'red')
-      fb.log.info('P2 ' .. tostring(ok))
-      fb.log.info('DONE')
+      uz.ui.set('panel', {type='column', children={ {type='text', id='t', text='a'}, {type='bar', id='b', value=0.5} }})
+      uz.ui.patch('panel', 'b', {value=0.25})
+      uz.ui.set('hud', {type='text', text='h'})
+      uz.ui.clear('hud')
+      uz.ui.title('panel', 'My panel')
+      uz.ui.badge(5000)
+      uz.ui.dot('news')
+      local ok, err = pcall(uz.ui.patch, 'panel', 'zzz', {text='x'})
+      uz.log.info('P1 ' .. tostring(err))
+      ok, err = pcall(uz.ui.dot, 'red')
+      uz.log.info('P2 ' .. tostring(ok))
+      uz.log.info('DONE')
     )LUA"));
     QTRY_VERIFY(hasLog(con(), "DONE"));
     const QVariantMap panel = m_host->uiTree(kId, "panel");
@@ -379,10 +379,10 @@ class UiTest : public QObject {
   void notifyRateLimit() {
     startSpec(spec(R"LUA(
       local ids = {}
-      for i = 1, 10 do ids[#ids + 1] = tostring(fb.ui.notify{ tone='important', title='T', text='n' .. i, actions={ {label='Go', action='go', value=i} } }) end
-      fb.log.info('IDS ' .. table.concat(ids, ','))
-      local ok, err = pcall(fb.ui.notify, { text='x', tone='loud' })
-      fb.log.info('BAD ' .. tostring(ok))
+      for i = 1, 10 do ids[#ids + 1] = tostring(uz.ui.notify{ tone='important', title='T', text='n' .. i, actions={ {label='Go', action='go', value=i} } }) end
+      uz.log.info('IDS ' .. table.concat(ids, ','))
+      local ok, err = pcall(uz.ui.notify, { text='x', tone='loud' })
+      uz.log.info('BAD ' .. tostring(ok))
     )LUA"));
     QTRY_VERIFY(hasLog(con(), "BAD false"));
     QTRY_VERIFY(m_host->uiState(kId).trees.isEmpty());  // sanity: no tree
@@ -399,19 +399,19 @@ class UiTest : public QObject {
 
   void openRequests() {
     PluginSpec s = spec(R"LUA(
-      fb.ui.open('panel')
-      local ok, err = pcall(fb.ui.open, 'hud')
-      fb.log.info('O1 ' .. tostring(err))
-      ok, err = pcall(fb.ui.open, 'detail')
-      fb.log.info('O2 ' .. tostring(err))
-      ok, err = pcall(fb.ui.open, 'screen')
-      fb.log.info('O3 ' .. tostring(ok))
-      fb.ui.open('screen')
+      uz.ui.open('panel')
+      local ok, err = pcall(uz.ui.open, 'hud')
+      uz.log.info('O1 ' .. tostring(err))
+      ok, err = pcall(uz.ui.open, 'detail')
+      uz.log.info('O2 ' .. tostring(err))
+      ok, err = pcall(uz.ui.open, 'screen')
+      uz.log.info('O3 ' .. tostring(ok))
+      uz.ui.open('screen')
     )LUA");
     s.ui = QJsonObject{{"panel", QJsonObject{{"title", "P"}}}, {"screen", QJsonObject{{"title", "S"}}}, {"hud", true}, {"detail", true}};
     startSpec(s);
     QTRY_VERIFY(hasLog(con(), "O3 "));
-    QVERIFY2(hasLog(con(), "O1 ") && hasLog(con(), "fb.ui.open only supports the slots screen and panel"), qPrintable(logJoined(con())));
+    QVERIFY2(hasLog(con(), "O1 ") && hasLog(con(), "uz.ui.open only supports the slots screen and panel"), qPrintable(logJoined(con())));
     QVERIFY(hasLog(con(), "O3 true"));
     const auto reqs = m_host->takeOpenRequests();
     QVERIFY2(reqs.size() >= 2, qPrintable(QString::number(reqs.size())));
@@ -420,8 +420,8 @@ class UiTest : public QObject {
     QVERIFY(m_host->takeOpenRequests().isEmpty());
 
     PluginSpec u = spec(R"LUA(
-      local ok, err = pcall(fb.ui.open, 'screen')
-      fb.log.info('U1 ' .. tostring(err))
+      local ok, err = pcall(uz.ui.open, 'screen')
+      uz.log.info('U1 ' .. tostring(err))
     )LUA");
     u.ui = QJsonObject{{"panel", QJsonObject{{"title", "P"}}}};
     startSpec(u);
@@ -432,10 +432,10 @@ class UiTest : public QObject {
 
   void actionRoundTrip() {
     startSpec(spec(R"LUA(
-      fb.ui.on_action(function(action, value, slot)
+      uz.ui.on_action(function(action, value, slot)
         local v = value
         if type(value) == 'table' then v = 'table:' .. tostring(value.n) .. ':' .. tostring(value.name) end
-        fb.log.info('ACTION ' .. action .. ' ' .. tostring(v) .. ' ' .. slot)
+        uz.log.info('ACTION ' .. action .. ' ' .. tostring(v) .. ' ' .. slot)
       end)
     )LUA"));
     m_host->sendAction(kId, "panel", "go", QVariantMap{{"n", 7}, {"name", "x"}});
@@ -451,8 +451,8 @@ class UiTest : public QObject {
   void actionWithoutHandlerAndRemoval() {
     startSpec(spec(R"LUA(
       local n = 0
-      fb.ui.on_action(function(a) n = n + 1 fb.log.info('A' .. n) end)
-      fb.events.on('fb', 'ping', function() fb.ui.on_action(nil) end)
+      uz.ui.on_action(function(a) n = n + 1 uz.log.info('A' .. n) end)
+      uz.events.on('fb', 'ping', function() uz.ui.on_action(nil) end)
     )LUA"));
     m_host->sendAction(kId, "panel", "x");
     QTRY_VERIFY(hasLog(con(), "A1"));
@@ -466,11 +466,11 @@ class UiTest : public QObject {
 
   void hostEvents() {
     startSpec(spec(R"LUA(
-      fb.events.on('fb', 'detail.game', function(v, from, name)
-        fb.log.info('EV ' .. name .. ' ' .. from .. ' ' .. (v and (v.system .. '/' .. v.code .. '/' .. v.sha256 .. '/' .. v.title) or 'nil'))
+      uz.events.on('fb', 'detail.game', function(v, from, name)
+        uz.log.info('EV ' .. name .. ' ' .. from .. ' ' .. (v and (v.system .. '/' .. v.code .. '/' .. v.sha256 .. '/' .. v.title) or 'nil'))
       end)
-      fb.events.on('fb', 'tiles', function(v) fb.log.info('EV tiles ' .. #v .. ' ' .. v[1].id .. ' ' .. v[1].player .. ' ' .. v[2].game .. ' ' .. v[1].user_id .. '|' .. v[2].user_id) end)
-      fb.events.on('fb', 'hud.visible', function(v) fb.log.info('EV hud ' .. tostring(v)) end)
+      uz.events.on('fb', 'tiles', function(v) uz.log.info('EV tiles ' .. #v .. ' ' .. v[1].id .. ' ' .. v[1].player .. ' ' .. v[2].game .. ' ' .. v[1].user_id .. '|' .. v[2].user_id) end)
+      uz.events.on('fb', 'hud.visible', function(v) uz.log.info('EV hud ' .. tostring(v)) end)
     )LUA"));
     m_host->postHostEvent("detail.game", QVariantMap{{"system", "nds"}, {"code", "ABCD"}, {"sha256", "ff"}, {"title", "Game"}});
     m_host->postHostEvent("detail.game", QVariant());
@@ -478,8 +478,8 @@ class UiTest : public QObject {
     m_host->postHostEvent("hud.visible", false);
     m_host->postHostEvent("hud.visible", true, "net.other.plugin");  // addressed to another plugin: not delivered
     QTRY_VERIFY(hasLog(con(), "EV hud false"));
-    QVERIFY2(hasLog(con(), "EV detail.game fb nds/ABCD/ff/Game"), qPrintable(logJoined(con())));
-    QVERIFY(hasLog(con(), "EV detail.game fb nil"));
+    QVERIFY2(hasLog(con(), "EV detail.game uz nds/ABCD/ff/Game"), qPrintable(logJoined(con())));
+    QVERIFY(hasLog(con(), "EV detail.game uz nil"));
     QVERIFY(hasLog(con(), "EV tiles 2 t1 Ann G2 u_ann|"));
     QVERIFY(!hasLog(con(), "EV hud true"));
   }
@@ -487,12 +487,12 @@ class UiTest : public QObject {
   void coalescedDelivery() {
     startSpec(spec(R"LUA(
       local n = 0
-      fb.ui.on_action(function(action)
+      uz.ui.on_action(function(action)
         if action == 'burst' then
-          for i = 1, 500 do fb.ui.set('hud', {type='text', text='v' .. i}) end
+          for i = 1, 500 do uz.ui.set('hud', {type='text', text='v' .. i}) end
         else
           n = n + 1
-          fb.ui.set('panel', {type='text', text='n' .. n})
+          uz.ui.set('panel', {type='text', text='n' .. n})
         end
       end)
     )LUA"));
@@ -518,9 +518,9 @@ class UiTest : public QObject {
 
   void pausedAndReloaded() {
     startSpec(spec(R"LUA(
-      fb.ui.set('panel', {type='text', text='alive'})
-      fb.ui.badge(4)
-      fb.ui.on_action(function() error('boom') end)
+      uz.ui.set('panel', {type='text', text='alive'})
+      uz.ui.badge(4)
+      uz.ui.on_action(function() error('boom') end)
     )LUA"));
     QCOMPARE(m_host->uiTree(kId, "panel").value("text").toString(), QStringLiteral("alive"));
     QCOMPARE(m_host->uiState(kId).badge, 4);
@@ -547,7 +547,7 @@ class UiTest : public QObject {
   }
 
   void clearSlotFromHost() {
-    startSpec(spec("fb.ui.set('detail', {type='text', text='d'}) fb.ui.set('panel', {type='text', text='p'}) fb.ui.on_action(function() fb.ui.patch('detail', 'x', {text='y'}) end)"));
+    startSpec(spec("uz.ui.set('detail', {type='text', text='d'}) uz.ui.set('panel', {type='text', text='p'}) uz.ui.on_action(function() uz.ui.patch('detail', 'x', {text='y'}) end)"));
     QVERIFY(!m_host->uiTree(kId, "detail").isEmpty());
     m_host->clearSlot("detail");
     QTRY_VERIFY(m_host->uiTree(kId, "detail").isEmpty());
@@ -559,13 +559,13 @@ class UiTest : public QObject {
     shell.shell = true;
     shell.language = "en";
     PluginSpec s = spec(R"LUA(
-      assert(next(fb.game) == nil, 'fb.game must be empty')
-      assert(fb.memory.u8(0) == nil)
-      assert(fb.memory.frame() == nil)
-      assert(fb.rom.size() == nil)
-      assert(fb.rom.read(0, 4) == nil)
-      fb.ui.set('screen', {type='text', text='shell'})
-      fb.log.info('SHELL OK')
+      assert(next(uz.game) == nil, 'uz.game must be empty')
+      assert(uz.memory.u8(0) == nil)
+      assert(uz.memory.frame() == nil)
+      assert(uz.rom.size() == nil)
+      assert(uz.rom.read(0, 4) == nil)
+      uz.ui.set('screen', {type='text', text='shell'})
+      uz.log.info('SHELL OK')
     )LUA", {"ui", "memory.read", "rom.read"});
     startSpec(s, shell);
     QTRY_VERIFY(hasLog(con(), "SHELL OK"));

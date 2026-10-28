@@ -1,4 +1,4 @@
-// Plugin UI language resolution (plugin_language.h). The fb.i18n fallback chain de-DE -> de -> en is covered in host_test.
+// Plugin UI language resolution (plugin_language.h). The uz.i18n fallback chain de-DE -> de -> en is covered in host_test.
 #include <QtTest>
 
 #include "plugin_language.h"

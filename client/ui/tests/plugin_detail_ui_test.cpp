@@ -1,5 +1,5 @@
 // Plugin "game detail" slot in the Library detail column (0.11 package 2, design 4h-2): a real homebrew Lua plugin in the shell
-// context answers the host event fb/detail.game with fb.ui.set("detail", ...). Covers the section per selected game, the update on
+// context answers the host event fb/detail.game with uz.ui.set("detail", ...). Covers the section per selected game, the update on
 // another selection, an action round trip, the "Plugins" status row and the empty case. With UZUME_SCREENSHOT_DIR=<dir> the
 // library is also saved as PNG (dark and light; never checked in).
 #include <QDir>
@@ -21,14 +21,14 @@ const char* kDetailLua = R"LUA(
   local n = 0
   local cur = nil
     local function render()
-    if not cur then fb.ui.clear('detail') return end
-    fb.ui.set('detail', {type='column', gap=8, children={
+    if not cur then uz.ui.clear('detail') return end
+    uz.ui.set('detail', {type='column', gap=8, children={
       {type='text', style='title', id='gameTitle', text='Notes for ' .. cur.title},
       {type='row', gap=8, children={{type='badge', text='Tracked', tone='ok'}, {type='text', style='meta', text=cur.system}}},
       {type='button', id='btnPing', label='Ping ' .. n, variant='primary', action='ping', value=n}}})
   end
-  fb.events.on('fb', 'detail.game', function(g) cur = g render() end)
-  fb.ui.on_action(function(a, v, slot) if a == 'ping' then n = n + 1 render() end end)
+  uz.events.on('fb', 'detail.game', function(g) cur = g render() end)
+  uz.ui.on_action(function(a, v, slot) if a == 'ping' then n = n + 1 render() end end)
 )LUA";
 
 bool writePlugin(const QString& parent, const QString& id, const QString& name, const QJsonObject& ui, const QString& lua) {

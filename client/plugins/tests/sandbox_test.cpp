@@ -237,10 +237,10 @@ class SandboxTest : public QObject {
     QTemporaryDir t;
     PluginSpec bad;
     bad.id = "net.test.bad";
-    bad.lua = "fb.on_tick(function() while true do end end)";
+    bad.lua = "uz.on_tick(function() while true do end end)";
     PluginSpec good;
     good.id = "net.test.good";
-    good.lua = "local n = 0 fb.on_tick(function() n = n + 1 fb.log.info('tick ' .. n) end)";
+    good.lua = "local n = 0 uz.on_tick(function() n = n + 1 uz.log.info('tick ' .. n) end)";
     PluginSpec bomb;
     bomb.id = "net.test.bomb";
     bomb.lua = "local t = {} for i = 1, 1e9 do t[i] = string.rep('y', 1000) .. i end";

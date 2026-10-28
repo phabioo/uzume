@@ -41,7 +41,7 @@ class MemoryWatchAdapter : public plugins::MemoryProvider {
 
 class GameSession;
 
-// plugins::VideoProvider on top of the running GameSession (fb.video, permission video.capture). Lives on the GUI thread; the
+// plugins::VideoProvider on top of the running GameSession (uz.video, permission video.capture). Lives on the GUI thread; the
 // plugin thread reads the cached screen list and asks for a native-size frame, which the GUI thread converts to RGBA.
 // Nothing is written to disk or logged here.
 class VideoCaptureAdapter : public QObject, public plugins::VideoProvider {

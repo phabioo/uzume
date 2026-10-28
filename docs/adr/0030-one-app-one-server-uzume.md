@@ -19,7 +19,7 @@ This ADR supersedes parts of [ADR 0015](0015-hub-ui-pass.md) (Hub web UI), [ADR 
 - The product is **Uzume**. The app (formerly FrameBeam Player) is called "Uzume", the server (formerly FrameBeam Hub) "Uzume server", in running text "the server". The terms Hub and Player leave the UI and the docs; the code directories `client/` and `server/` keep their names.
 - "Session" stays the term for a shared running game.
 - Package 2 of 0.18 renames every identifier, with no compatibility to FrameBeam (see the amendment below): Go module path `github.com/phabioo/uzume`, programs `Uzume` and `uzume-server`, Windows services `UzumeServer` and `UzumeServerUpdater`, install and data folders, environment variables `UZUME_*` (`FRAMEBEAM_*` are not read), links `uzume://`, Docker image `ghcr.io/<owner>/uzume-server` only, invite codes `UZ-` only, wire names, database file `uzume.db`, signed-data contexts, update and plugin index URLs on the new repository.
-- What stays: the product keys `player` and `hub` in the signed update index (they are not FrameBeam strings), the plugin API namespace `fb.*`, the release signing key, the plugin package format (extension changed by the amendment of 2026-10-27).
+- What stays: the product keys `player` and `hub` in the signed update index (they are not FrameBeam strings), the plugin API namespace `fb.*` (renamed to `uz.*` by the amendment of 2026-10-28), the release signing key, the plugin package format (extension changed by the amendment of 2026-10-27).
 - Never create a repository with an old name again: that would break GitHub's redirect for old links.
 
 #### Amendment (package 2, 2026-10-22): no compatibility
@@ -150,3 +150,4 @@ Consequences:
 - Accounts change the identity model of architecture 10 (passwords for all, sign-in on new devices, user switching). The migration keeps existing users and devices working without a password.
 - There is no upgrade path from FrameBeam: the server is set up fresh, the app is installed again and paired again, Docker users switch to the `uzume-server` image (amendment of D1).
 - Docs use the new terms from this PR on; identifiers in docs follow the code and change with package 2. ADRs before 0030 keep the old terms as historical records.
+- Amendment (2026-10-28), plugin API namespace: the plugin API Lua namespace, which this ADR kept as `fb.*`, is now `uz.*` (Fabio's decision, 2026-10-28). `fb` stays as an alias of the same table so plugins written for older apps keep working; the host event source id is `uz` too, and subscribing with the old name `fb` still works. Nothing else about the API changes.

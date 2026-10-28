@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 
-// Seam between the plugin runtime and the emulation layer for fb.video (permission video.capture). The runtime never
+// Seam between the plugin runtime and the emulation layer for uz.video (permission video.capture). The runtime never
 // touches Qt Gui: the Player hands over raw RGBA pixels, the runtime crops and encodes the PNG itself.
 namespace uzume::plugins {
 

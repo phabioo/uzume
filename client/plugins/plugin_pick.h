@@ -1,5 +1,5 @@
 #pragma once
-// fb.ui.pick_file: reads the file the person chose in the file dialog. The plugin gets the content and the base name, never the
+// uz.ui.pick_file: reads the file the person chose in the file dialog. The plugin gets the content and the base name, never the
 // path. Files larger than the plugin's max_bytes are refused without reading them.
 #include <QByteArray>
 #include <QString>

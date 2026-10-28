@@ -228,7 +228,7 @@ void installPluginTools(McpToolRegistry& registry, ui::PlayerController& player)
   {
     ToolDef t;
     t.name = QStringLiteral("plugin_ui");
-    t.description = QStringLiteral("The UI trees (fb.ui blocks) of a plugin: one slot (panel, hud, screen, detail, run, tile:<id>) or, without slot, all slots, with titles, badge and dot.");
+    t.description = QStringLiteral("The UI trees (uz.ui blocks) of a plugin: one slot (panel, hud, screen, detail, run, tile:<id>) or, without slot, all slots, with titles, badge and dot.");
     t.targetArg = QStringLiteral("id");
     t.inputSchema = schema(idProps({{QStringLiteral("slot"), typeStr(QStringLiteral("Slot name; omit for all slots."))}}), {QStringLiteral("id")});
     t.handler = [pc](const QJsonObject& a, ToolReply reply) {
@@ -257,7 +257,7 @@ void installPluginTools(McpToolRegistry& registry, ui::PlayerController& player)
   {
     ToolDef t;
     t.name = QStringLiteral("plugin_action");
-    t.description = QStringLiteral("Sends a UI action (button, toggle, list row ...) to the plugin's fb.ui.on_action handler, like a click in the app would.");
+    t.description = QStringLiteral("Sends a UI action (button, toggle, list row ...) to the plugin's uz.ui.on_action handler, like a click in the app would.");
     t.targetArg = QStringLiteral("id");
     t.inputSchema = schema(idProps({{QStringLiteral("slot"), typeStr(QStringLiteral("Slot the action comes from, e.g. panel."))},
                                     {QStringLiteral("action"), typeStr(QStringLiteral("Action id of the block."))},
@@ -308,7 +308,7 @@ void installPluginTools(McpToolRegistry& registry, ui::PlayerController& player)
     ToolDef t;
     t.name = QStringLiteral("plugin_call");
     t.description = QStringLiteral(
-        "Calls a function of an interface the plugin registered with fb.provide (its manifest \"provides\") on the plugin thread under the normal budget. "
+        "Calls a function of an interface the plugin registered with uz.provide (its manifest \"provides\") on the plugin thread under the normal budget. "
         "Image results {width, height, rgba} come back as PNG images, referenced by index in the JSON.");
     t.targetArg = QStringLiteral("id");
     t.inputSchema = schema(idProps({{QStringLiteral("interface"), typeStr(QStringLiteral("Interface name, e.g. pokemon.core."))},
@@ -332,7 +332,7 @@ void installPluginTools(McpToolRegistry& registry, ui::PlayerController& player)
     t.name = QStringLiteral("plugin_eval");
     t.description = QStringLiteral(
         "Runs a Lua chunk in the state of a plugin with origin local (developer mode) with the plugin's own sandbox, API and budgets; other plugins are refused "
-        "(eval_not_allowed). The code is tried as an expression first (\"fb.game.title\"), then as statements. Returns the values, print/fb.log output of the call and images.");
+        "(eval_not_allowed). The code is tried as an expression first (\"uz.game.title\"), then as statements. Returns the values, print/uz.log output of the call and images.");
     t.targetArg = QStringLiteral("id");
     t.inputSchema = schema(idProps({{QStringLiteral("code"), typeStr(QStringLiteral("Lua code."))}}), {QStringLiteral("id"), QStringLiteral("code")});
     t.handler = [pc](const QJsonObject& a, ToolReply reply) {
@@ -349,7 +349,7 @@ void installPluginTools(McpToolRegistry& registry, ui::PlayerController& player)
   {
     ToolDef t;
     t.name = QStringLiteral("plugin_cache_list");
-    t.description = QStringLiteral("Files in the plugin's cache folder (fb.cache): path and size.");
+    t.description = QStringLiteral("Files in the plugin's cache folder (uz.cache): path and size.");
     t.targetArg = QStringLiteral("id");
     t.inputSchema = schema(idProps(), {QStringLiteral("id")});
     t.handler = [pc](const QJsonObject& a, ToolReply reply) {
@@ -379,7 +379,7 @@ void installPluginTools(McpToolRegistry& registry, ui::PlayerController& player)
   {
     ToolDef t;
     t.name = QStringLiteral("plugin_cache_read");
-    t.description = QStringLiteral("Reads a file from the plugin's cache folder (same path rules as fb.cache, up to 8 MiB). PNG files come back as an image, other files as base64 in JSON.");
+    t.description = QStringLiteral("Reads a file from the plugin's cache folder (same path rules as uz.cache, up to 8 MiB). PNG files come back as an image, other files as base64 in JSON.");
     t.targetArg = QStringLiteral("id");
     t.inputSchema = schema(idProps({{QStringLiteral("path"), typeStr(QStringLiteral("Cache file name, e.g. icons/25.png."))}}), {QStringLiteral("id"), QStringLiteral("path")});
     t.handler = [pc](const QJsonObject& a, ToolReply reply) {

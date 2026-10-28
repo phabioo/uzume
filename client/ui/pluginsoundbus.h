@@ -1,5 +1,5 @@
 #pragma once
-// Plugin sound bus (0.23, ADR 0033 D6): the SoundSink behind fb.sound. Voices (decoded WAV clips) are mixed by a generator
+// Plugin sound bus (0.23, ADR 0033 D6): the SoundSink behind uz.sound. Voices (decoded WAV clips) are mixed by a generator
 // that the AudioMixer pulls with its sink, so there is no timer on the playing path. The sink is held open (mixer reference) only
 // while sounds play. play() and stopAll() are called from the plugin thread.
 
