@@ -45,7 +45,7 @@ add_dependencies(test_ui_save uzume_test_rom)
 # game need the core (they QSKIP without it, the rest runs).
 uzume_add_test(ui_sessions sessions_ui_test.cpp ${FB_NETTEST_DIR}/fakehub.cpp ${FB_NETTEST_DIR}/fakehub.h
   LIBS ${FB_UI_TEST_LIBS} NEEDS_CORE)
-target_include_directories(test_ui_sessions PRIVATE ${FB_NETTEST_DIR})
+target_include_directories(test_ui_sessions PRIVATE ${FB_NETTEST_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/../../emulation/tests)
 target_compile_definitions(test_ui_sessions PRIVATE FB_TEST_DATA_DIR="${FB_NETTEST_DIR}/testdata"
   FB_TEST_ROM_PATH="${FB_ROM_DIR}/uzume_test.nds")
 add_dependencies(test_ui_sessions uzume_test_rom)
@@ -232,7 +232,7 @@ foreach(t IN ITEMS game save sessions emulation_controllers)
   endif()
   uzume_add_test(ui_${t}_testcore ${src} ${FB_NETTEST_DIR}/fakehub.cpp ${FB_NETTEST_DIR}/fakehub.h
     LIBS ${FB_UI_TEST_LIBS} ${extra_libs} TEST_CORE)
-  target_include_directories(test_ui_${t}_testcore PRIVATE ${FB_NETTEST_DIR})
+  target_include_directories(test_ui_${t}_testcore PRIVATE ${FB_NETTEST_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/../../emulation/tests)
   target_compile_definitions(test_ui_${t}_testcore PRIVATE FB_TEST_DATA_DIR="${FB_NETTEST_DIR}/testdata")
   if(NOT t STREQUAL "emulation_controllers")
     target_compile_definitions(test_ui_${t}_testcore PRIVATE FB_TEST_ROM_PATH="${FB_ROM_DIR}/uzume_test.nds")
@@ -384,6 +384,10 @@ uzume_add_test(ui_together together_test.cpp LIBS uzume_ui uzume_core uzume_emul
 # Together (0.23, D3): TogetherController (scope, ready check, shared pause) without QML.
 uzume_add_test(ui_together_controller togethercontroller_test.cpp LIBS uzume_ui uzume_core uzume_emulation)
 
+# Voice chat (0.23 package 7, D7): mic logic (states, voice activity) and the VoiceController without QML or a microphone.
+uzume_add_test(ui_voice_mic voicemic_test.cpp LIBS uzume_ui uzume_core)
+uzume_add_test(ui_voice_controller voicecontroller_test.cpp LIBS uzume_ui uzume_core uzume_emulation)
+
 # Together (0.23, D4): ChatController (dedupe, pending, history, unread, mentions, emotes, rows) without QML.
 uzume_add_test(ui_chat_controller chatcontroller_test.cpp LIBS uzume_ui uzume_core uzume_emulation)
 
@@ -393,8 +397,20 @@ uzume_add_test(ui_chat_ui chat_ui_test.cpp ${FB_NETTEST_DIR}/fakehub.cpp ${FB_NE
 target_include_directories(test_ui_chat_ui PRIVATE ${FB_NETTEST_DIR})
 target_compile_definitions(test_ui_chat_ui PRIVATE FB_TEST_DATA_DIR="${FB_NETTEST_DIR}/testdata")
 
+# Voice chat (0.23 package 7) in the UI against FakeHub: header mic control, People marks, Settings > Voice.
+uzume_add_test(ui_voice_ui voice_ui_test.cpp ${FB_NETTEST_DIR}/fakehub.cpp ${FB_NETTEST_DIR}/fakehub.h
+  LIBS ${FB_UI_TEST_LIBS})
+target_include_directories(test_ui_voice_ui PRIVATE ${FB_NETTEST_DIR})
+target_compile_definitions(test_ui_voice_ui PRIVATE FB_TEST_DATA_DIR="${FB_NETTEST_DIR}/testdata")
+
 # Together (0.23) in the UI: ONLINE list, bell, toasts, Settings > Notifications against FakeHub.
 uzume_add_test(ui_together_ui together_ui_test.cpp ${FB_NETTEST_DIR}/fakehub.cpp ${FB_NETTEST_DIR}/fakehub.h
   LIBS ${FB_UI_TEST_LIBS})
 target_include_directories(test_ui_together_ui PRIVATE ${FB_NETTEST_DIR})
 target_compile_definitions(test_ui_together_ui PRIVATE FB_TEST_DATA_DIR="${FB_NETTEST_DIR}/testdata")
+
+# Controller hand-over (0.23 package 8) in the UI against FakeHub: the confirm card, People rows and tags, take-over and Esc twice.
+uzume_add_test(ui_control_ui control_ui_test.cpp ${FB_NETTEST_DIR}/fakehub.cpp ${FB_NETTEST_DIR}/fakehub.h
+  LIBS ${FB_UI_TEST_LIBS})
+target_include_directories(test_ui_control_ui PRIVATE ${FB_NETTEST_DIR})
+target_compile_definitions(test_ui_control_ui PRIVATE FB_TEST_DATA_DIR="${FB_NETTEST_DIR}/testdata")

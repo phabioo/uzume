@@ -20,6 +20,7 @@ Rectangle {
     readonly property GameSession session: player.gameSession
     readonly property SessionController ctl: player.sessions
     readonly property TogetherController together: player.together
+    readonly property ControlController control: player.control
     readonly property DiagnosticsModel diag: ctl.diagnostics
     readonly property string tab: ctl.tab
     property Item multiLocal: null
@@ -156,6 +157,7 @@ Rectangle {
         if (hudLayer.closeMenu()) return   // a HUD or notice menu takes the Esc first, the game keeps running
         if (root.hotkeySheetPinned) { root.hotkeySheetPinned = false; return }
         if (root.closePopover()) return
+        if (root.control.escapePressed()) return   // somebody plays: Esc twice takes the controller back
         if (root.together.holdActive) return   // paused for everyone: Resume (toast, menu) or Shift+Esc, not Esc
         if (root.session.active) root.session.togglePause()
     }
@@ -266,6 +268,8 @@ Rectangle {
         else if (action === "nextState") { if (root.session.active) root.player.states.nextSlot() }
         else if (action === "loadState") { if (root.session.active) root.player.states.loadSlot() }
         else if (action === "rewind") { if (root.session.active) root.player.states.rewindKey(true) }
+        else if (action === "talk") root.player.voice.talkKey(true)
+        else if (action === "mic") root.player.voice.toggleMic()
         else return false
         return true
     }
@@ -279,7 +283,10 @@ Rectangle {
         target: root.player.controllers
         // Gamepad hotkeys (P1): the buttons are already kept away from the core by the GamepadService.
         function onPadHotkeyTriggered(action) { if (root.visible) root.runHotkey(action === "layout" ? "nextLayout" : action) }
-        function onPadHotkeyReleased(action) { if (action === "rewind") root.player.states.rewindKey(false) }
+        function onPadHotkeyReleased(action) {
+            if (action === "rewind") root.player.states.rewindKey(false)
+            else if (action === "talk") root.player.voice.talkKey(false)
+        }
     }
     // A text field of a plugin panel has the focus: plugin keys, Alt+n and F4 are typing, not hotkeys.
     function textFieldFocused() {
@@ -295,6 +302,11 @@ Rectangle {
         // Together (ADR 0033 D3): Shift+Esc pauses or resumes for everyone; 1 / 2 answer an open ready check
         if (e.key === Qt.Key_Escape && mods === Qt.ShiftModifier) {
             if (root.together.available) root.together.togglePause()
+            return true
+        }
+        if (root.control.askOpen && !root.together.awaitsAnswer && mods === Qt.NoModifier && (e.key === Qt.Key_1 || e.key === Qt.Key_2)) {
+            if (e.key === Qt.Key_1) root.control.allow()
+            else root.control.deny()
             return true
         }
         if (root.together.awaitsAnswer && mods === Qt.NoModifier && (e.key === Qt.Key_1 || e.key === Qt.Key_2)) {
@@ -317,6 +329,7 @@ Rectangle {
         var action = root.player.controllers.hotkeyAction(e.key)
         if (action === "layout" && (e.modifiers & Qt.ShiftModifier)) action = "swap"
         if (action === "saveState" && (e.modifiers & Qt.ShiftModifier)) action = "nextState"
+        if (action === "mute" && (e.modifiers & Qt.ShiftModifier)) action = "mic"
         if (action !== "" && action !== "fullscreen" && root.runHotkey(action)) e.accepted = true
         else if (e.key === Qt.Key_Escape && root.session.active) {
             if (!hudLayer.closeMenu()) root.session.togglePause()
@@ -332,6 +345,7 @@ Rectangle {
             // Shift + the layout key swaps the screens directly
             if (action === "layout" && (e.modifiers & Qt.ShiftModifier)) action = "swap"
             if (action === "saveState" && (e.modifiers & Qt.ShiftModifier)) action = "nextState"
+            if (action === "mute" && (e.modifiers & Qt.ShiftModifier)) action = "mic"
             if (!e.isAutoRepeat || action === "volumeUp" || action === "volumeDown") root.runHotkey(action)
             e.accepted = true   // the key never reaches the core (GameSession::isReservedKey)
         } else if (e.key === Qt.Key_Escape) {
@@ -346,7 +360,15 @@ Rectangle {
 
     // Rewind is a hold: letting go of its key stops it
     Keys.onReleased: (e) => {
-        if (!e.isAutoRepeat && root.player.controllers.hotkeyAction(e.key) === "rewind") root.player.states.rewindKey(false)
+        if (e.isAutoRepeat) return
+        const released = root.player.controllers.hotkeyAction(e.key)
+        if (released === "rewind") root.player.states.rewindKey(false)
+        else if (released === "talk") root.player.voice.talkKey(false)
+    }
+    // A key held while the window loses the focus never gets its release: push-to-talk lets go.
+    Connections {
+        target: root.Window
+        function onActiveChanged() { if (!root.Window.active) root.player.voice.talkKey(false) }
     }
 
     Timer { id: hintTimer; interval: 6000 }
@@ -549,11 +571,23 @@ Rectangle {
 
                 // Ready check (ADR 0033 D3): top centre of the stage, for every member
                 TogetherCard {
+                    id: readyCard
                     objectName: "stageReadyCheck"
                     together: root.together
                     anchors.top: parent.top
                     anchors.horizontalCenter: parent.horizontalCenter
                     anchors.topMargin: Theme.space3
+                    width: Math.min(implicitWidth, Math.max(0, playArea.width - 2 * Theme.space3))
+                    z: 14
+                }
+
+                // Controller hand-over (ADR 0033 D8): the request of a viewer, or who plays; below the ready check
+                ControlCard {
+                    objectName: "stageControlCard"
+                    control: root.control
+                    anchors.top: parent.top
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    anchors.topMargin: Theme.space3 + (readyCard.visible ? readyCard.height + Theme.space1 : 0)
                     width: Math.min(implicitWidth, Math.max(0, playArea.width - 2 * Theme.space3))
                     z: 14
                 }
@@ -614,6 +648,20 @@ Rectangle {
                         text: root.together.pausedText
                         action: qsTr("Resume")
                         onActionTriggered: root.together.setPaused(false)
+                    }
+                    UzToast {
+                        id: controlToast
+                        objectName: "controlToast"
+                        visible: text !== ""
+                        width: Math.min(implicitWidth, toasts.maxToastWidth)
+                        kind: "done"
+                        closable: false
+                        text: ""
+                        Timer { id: controlToastTimer; interval: 3000; onTriggered: controlToast.text = "" }
+                        Connections {
+                            target: root.control
+                            function onNotice(text) { controlToast.text = text; controlToastTimer.restart() }
+                        }
                     }
                     UzToast {
                         objectName: "readyCheckToast"

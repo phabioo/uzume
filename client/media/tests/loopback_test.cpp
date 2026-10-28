@@ -441,6 +441,73 @@ class LoopbackTest : public QObject {
     QCOMPARE(s1.last().at(0).toBool(), false);
   }
 
+  // ADR 0033 D8: controller hand-over over the real fb-diag / fb-input channels: ask, host allows, frames arrive and are applied,
+  // a second viewer is refused, the host takes back, a viewer that leaves releases the port.
+  void controllerHandOver() {
+    Rig rig;
+    rig.host.setControlPorts(2);
+    SessionViewer* v1 = rig.addViewer();
+    SessionViewer* v2 = rig.addViewer();
+    rig.source.start();
+    QVERIFY(QTest::qWaitFor([&]() { return v1->isConnected() && v2->isConnected(); }, 15000));
+    QVERIFY(QTest::qWaitFor([&]() { return v1->hostPorts() == 2 && v2->hostPorts() == 2; }, 15000));  // control_caps
+    QVERIFY(!v1->requestControl(2));
+    // the host sees the request, a deny comes back with a reason
+    QSignalSpy asked(&rig.host, &SessionHost::controlRequested);
+    QVERIFY(v1->requestControl(0));
+    QCOMPARE(v1->controlState(), SessionViewer::ControlState::Asking);
+    QVERIFY(QTest::qWaitFor([&]() { return asked.count() == 1; }, 10000));
+    QCOMPARE(asked.last().at(0).toString(), rig.ids.at(0));
+    QCOMPARE(asked.last().at(1).toInt(), 0);
+    QVERIFY(rig.host.answerControl(rig.ids.at(0), false));
+    QVERIFY(QTest::qWaitFor([&]() { return v1->controlState() == SessionViewer::ControlState::Idle; }, 10000));
+    QCOMPARE(v1->controlReason(), QStringLiteral("denied"));
+
+    QVERIFY(v1->requestControl(0));
+    QVERIFY(QTest::qWaitFor([&]() { return asked.count() == 2; }, 10000));
+    QVERIFY(rig.host.answerControl(rig.ids.at(0), true));
+    QVERIFY(QTest::qWaitFor([&]() { return v1->controlState() == SessionViewer::ControlState::Granted; }, 10000));
+    QCOMPARE(rig.host.controlHolder(0), rig.ids.at(0));
+    // input frames reach the host and are applied
+    QVERIFY(QTest::qWaitFor([&]() { return rig.host.controlInputFrame(0).buttons == 0 && rig.host.controlPortOf(rig.ids.at(0)) == 0; }, 1000));
+    v1->setControlButtons(0x0081);
+    QVERIFY(QTest::qWaitFor([&]() { return rig.host.controlInputFrame(0).buttons == 0x0081; }, 10000));
+    // no frame for half a second (the clock jumps ahead): the port is neutral, the grant stays
+    {
+      QSignalSpy inputs(&rig.host, &SessionHost::controlInput);
+      rig.host.advanceControlClockForTest(kInputNeutralMs + 100);
+      QVERIFY(inputs.count() >= 1);
+      QCOMPARE(inputs.first().at(0).toInt(), 0);
+      QCOMPARE(inputs.first().at(2).toBool(), true);
+      QCOMPARE(rig.host.controlInputFrame(0).buttons, quint16(0));
+      QCOMPARE(rig.host.controlHolder(0), rig.ids.at(0));
+    }
+    // a second viewer cannot take the held port
+    QVERIFY(v2->requestControl(0));
+    QVERIFY(QTest::qWaitFor([&]() { return v2->controlState() == SessionViewer::ControlState::Idle; }, 10000));
+    QCOMPARE(v2->controlReason(), QStringLiteral("busy"));
+    // P2 for the second viewer
+    QVERIFY(v2->requestControl(1));
+    QVERIFY(QTest::qWaitFor([&]() { return asked.count() == 3; }, 10000));
+    QVERIFY(rig.host.answerControl(rig.ids.at(1), true));
+    QVERIFY(QTest::qWaitFor([&]() { return v2->controlState() == SessionViewer::ControlState::Granted; }, 10000));
+    // the host takes P1 back
+    QVERIFY(rig.host.takeBack(0));
+    QVERIFY(QTest::qWaitFor([&]() { return v1->controlState() == SessionViewer::ControlState::Idle; }, 10000));
+    QCOMPARE(v1->controlReason(), QStringLiteral("host"));
+    QVERIFY(rig.host.controlHolder(0).isEmpty());
+    // the P2 viewer stops playing
+    v2->releaseControl();
+    QVERIFY(QTest::qWaitFor([&]() { return rig.host.controlHolder(1).isEmpty(); }, 10000));
+    // a viewer that disappears releases its port
+    QVERIFY(v1->requestControl(1));
+    QVERIFY(QTest::qWaitFor([&]() { return asked.count() == 4; }, 10000));
+    QVERIFY(rig.host.answerControl(rig.ids.at(0), true));
+    QVERIFY(QTest::qWaitFor([&]() { return v1->controlState() == SessionViewer::ControlState::Granted; }, 10000));
+    rig.host.removeViewer(rig.ids.at(0));
+    QVERIFY(rig.host.controlHolder(1).isEmpty());
+  }
+
   // ADR 0019: a CUDA frame that h264_nvenc cannot take (here: a frames context that is no CUDA context) sends the Session
   // back to readback frames without an error, without stopping the encoder and without a second keyframe storm.
   void gpuFrameThatCannotOpenFallsBackToReadback() {

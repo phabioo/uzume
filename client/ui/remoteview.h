@@ -6,6 +6,9 @@
 #include <QtQml/qqmlregistration.h>
 #include <QtQuick/QQuickPaintedItem>
 
+#include <optional>
+
+#include "controlcontroller.h"
 #include "sessioncontroller.h"
 
 namespace uzume::ui {
@@ -15,6 +18,9 @@ class RemoteView : public QQuickPaintedItem {
   QML_ELEMENT
   Q_PROPERTY(uzume::ui::SessionController* controller READ controller WRITE setController NOTIFY controllerChanged)
   Q_PROPERTY(QString surfaceId READ surfaceId WRITE setSurfaceId NOTIFY surfaceIdChanged)  // Session id
+  // Controller hand-over (ADR 0033 D8): while the host has granted a port for this Session, keys, the pad and (P1) the mouse on the
+  // touch screen go to the host while this tile has the focus.
+  Q_PROPERTY(uzume::ui::ControlController* control READ control WRITE setControl NOTIFY controlChanged)
   // Screen layout (0.6 D12, 0.19) "stacked" | "side" | "large" | "top" | "bottom" and swap; applies to frames with two
   // stacked screens, others stay as they are.
   Q_PROPERTY(QString layout READ layout WRITE setLayout NOTIFY layoutChanged)
@@ -30,13 +36,30 @@ class RemoteView : public QQuickPaintedItem {
   bool swap() const { return swap_; }
   void setSwap(bool on);
   void paint(QPainter* painter) override;
+  ControlController* control() const { return control_; }
+  void setControl(ControlController* c);
+  // Item position -> normalized position in the whole remote frame for the touch (bottom) screen of a two-screen picture.
+  std::optional<QPointF> touchTarget(const QPointF& itemPos, bool clamp) const;
 
  signals:
   void controllerChanged();
   void surfaceIdChanged();
   void layoutChanged();
+  void controlChanged();
+
+ protected:
+  void keyPressEvent(QKeyEvent* e) override;
+  void keyReleaseEvent(QKeyEvent* e) override;
+  void focusInEvent(QFocusEvent* e) override;
+  void focusOutEvent(QFocusEvent* e) override;
+  void mousePressEvent(QMouseEvent* e) override;
+  void mouseMoveEvent(QMouseEvent* e) override;
+  void mouseReleaseEvent(QMouseEvent* e) override;
+  void mouseUngrabEvent() override;
 
  private:
+  QPointer<ControlController> control_;
+  bool touching_ = false;
   QPointer<SessionController> controller_;
   QString surfaceId_;
   QString layout_ = QStringLiteral("stacked");

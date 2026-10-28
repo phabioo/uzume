@@ -41,6 +41,11 @@ QString validateRunRecapArgs(const QJsonObject& args);  // "" = fine, else the m
 // server_sign_in (tools_together.cpp): add a server and sign in with a password; self-signed certificates only with a matching
 // trust_fingerprint. The two helpers are the pure parts (tests).
 void installTogetherTools(McpToolRegistry& registry, ui::PlayerController& player);
+// voice_state / voice_join / voice_leave / voice_mic / voice_inject (tools_voice.cpp, 0.23 package 7). validateVoiceInjectArgs is the pure part (tests).
+void installVoiceTools(McpToolRegistry& registry, ui::PlayerController& player);
+// control_request / control_answer / control_release / control_state / remote_input (tools_control.cpp, 0.23 package 8, ADR 0033 D8).
+void installControlTools(McpToolRegistry& registry, ui::PlayerController& player);
+QString validateVoiceInjectArgs(const QJsonObject& args);  // "" = fine, else the message
 QString validateServerSignInArgs(const QJsonObject& args);  // "" = fine, else the message
 bool serverFingerprintTrusted(const QString& observed, const QString& trusted);
 

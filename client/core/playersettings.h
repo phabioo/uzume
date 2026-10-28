@@ -218,6 +218,27 @@ class PlayerSettings {
   int audioTileGain(const QString& userId) const;
   bool setAudioTileGain(const QString& userId, int percent);
 
+  // Voice chat (0.23 package 7, ADR 0033 D7), per PC. Microphone device id (base64 of QAudioDevice::id(); empty = system default),
+  // talk mode "ptt" (default) | "vad" (voice activation), activation threshold in dBFS (-70..-10, default -42), noise suppression
+  // and echo cancellation (default on), ducking of game and tiles while someone speaks (default on), automatic join for runs and
+  // invite-only Sessions (default on), "mic on" (default on; Shift+M) and the volume of each person by user id (0..100 %, default 100).
+  QString voiceMicDevice() const { return voiceMicDevice_; }
+  bool setVoiceMicDevice(const QString& id);
+  QString voiceTalkMode() const { return voiceTalkMode_; }
+  bool setVoiceTalkMode(const QString& mode);  // "ptt" | "vad"; anything else is rejected
+  int voiceThresholdDb() const { return voiceThresholdDb_; }
+  bool setVoiceThresholdDb(int db);
+  bool voiceNoiseSuppression() const { return voiceNoiseSuppression_; }
+  bool setVoiceNoiseSuppression(bool on);
+  bool voiceDucking() const { return voiceDucking_; }
+  bool setVoiceDucking(bool on);
+  bool voiceAutoJoin() const { return voiceAutoJoin_; }
+  bool setVoiceAutoJoin(bool on);
+  bool voiceMicOn() const { return voiceMicOn_; }
+  bool setVoiceMicOn(bool on);
+  int voicePersonGain(const QString& userId) const;
+  bool setVoicePersonGain(const QString& userId, int percent);
+
   // Claude debugging (ADR 0032, Settings > Diagnostics): the local MCP server of the app. Off by default; the port is
   // 1024..65535 (default 47615). The token is not a setting: it lives in the credential store.
   static constexpr int kDefaultMcpPort = 47615;
@@ -280,6 +301,14 @@ class PlayerSettings {
   int audioPluginGain_ = 100;
   bool audioMixAll_ = false;
   QHash<QString, int> audioTileGains_;
+  QString voiceMicDevice_;
+  QString voiceTalkMode_ = QStringLiteral("ptt");
+  int voiceThresholdDb_ = -42;
+  bool voiceNoiseSuppression_ = true;
+  bool voiceDucking_ = true;
+  bool voiceAutoJoin_ = true;
+  bool voiceMicOn_ = true;
+  QHash<QString, int> voicePersonGains_;
   bool mcpEnabled_ = false;
   int mcpPort_ = kDefaultMcpPort;
 };

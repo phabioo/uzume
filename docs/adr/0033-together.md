@@ -1,6 +1,6 @@
 # ADR 0033: Together (0.23)
 
-- Status: Accepted for implementation; scope decided by Fabio on 2026-10-21 (roadmap 0.23), details proposed by Claude on 2026-10-27.
+- Status: Accepted (implemented); scope decided by Fabio on 2026-10-21 (roadmap 0.23), details proposed by Claude on 2026-10-27.
 - Date: 2026-10-27
 - Deciders: Fabio (scope, roadmap 2026-10-21/23)
 
@@ -63,7 +63,7 @@ Parallel milestones: DB migration numbers, the OpenAPI `info.version` and the AD
 
 ### D7 Voice chat
 
-- Spike result: no libwebrtc. The speexdsp preprocessor (noise suppression, AGC, VAD) and its echo canceller with the mixer output as far-end reference. Push-to-talk is the default; headphones recommended.
+- Spike result: no libwebrtc. The speexdsp preprocessor (noise suppression) and its echo canceller with the mixer output as far-end reference, held back by the sink buffer. Differs from the plan: speexdsp 1.2.1 has no real VAD (a placeholder hack), so voice activation is a level threshold with hangover on the processed signal, and AGC stays off so that the threshold holds. Measured on synthetic signals: noise −22 dB, echo −57 dB (100 ms filter); per 20 ms frame 0.4 ms suppression plus echo cancellation, 0.6 ms Opus VOIP encode (24 kbit/s, FEC), 0.04 ms decode per talker (debug build). Push-to-talk is the default; headphones recommended.
 - Transport: P2P mesh over WebRTC (libdatachannel), one Opus mono audio track (24 kbit/s, 20 ms) per peer pair. A room is a run or a session, at most 8 members. TURN fallback as for sessions.
 - WSS: `voice_join {scope,id}`, `voice_leave`, `voice_state {mic: on|off|ptt, muted_by_host?}`, `voice_mute {scope,id,user_id,muted}` (host only), `voice_signal` (relay between room members, like `signal`). Server to clients: `voice_room {scope,id,members:[{user_id,device_id,mic,muted_by_host}]}`. Room membership in memory only.
 - App: mic capture (QAudioSource); push-to-talk (V, Select+R3 hold) or voice activation (threshold); mic toggle Shift+M; per-person volume; ducking ("Lower game volume while someone speaks" halves game and tiles); speaking marks; Settings › This PC › Voice (6w-1) and the six header mic states (6w-2). Voice joins automatically for runs and invite-only sessions (setting).

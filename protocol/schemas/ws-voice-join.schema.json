@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://uzume.invalid/schemas/ws-voice-join.schema.json",
+  "title": "ws-voice-join (app to server)",
+  "type": "object",
+  "required": [
+    "type",
+    "payload"
+  ],
+  "properties": {
+    "type": {
+      "const": "voice_join"
+    },
+    "id": {
+      "type": "string"
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "scope",
+        "id"
+      ],
+      "properties": {
+        "scope": {
+          "enum": [
+            "run",
+            "session"
+          ],
+          "description": "run: the joined participants of the run; session: the owner and the viewers of the Session."
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "mic": {
+          "enum": [
+            "on",
+            "off",
+            "ptt"
+          ],
+          "description": "on: open microphone; off: muted by the person; ptt: push-to-talk (sends only while the key is held)."
+        }
+      }
+    }
+  },
+  "description": "A member joins the voice room of a run or Session (rooms are in memory only, at most 8 devices). A device is in one room at a time: joining another room leaves the old one. mic is optional and defaults to ptt. Non-members get error forbidden, a full room gets conflict, bad fields get bad_request. The server answers with voice_room to every device in the room. Needs together_v1."
+}

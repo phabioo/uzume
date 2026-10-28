@@ -6,13 +6,17 @@ import Uzume.App
 // The people of the scope of the running game (boards 3g-12 and 3g-7): "3 IN THIS SESSION" / "4 IN THIS RUN" over one row per person
 // (person colour avatar, name, connection line, e.g. "Direct · 18 ms · gets High" or "Relayed · 60 ms · picked Medium") with the role tag
 // HOST / VIEWER in a Session. On my own row of a watched Session a "Quality" Segmented (Auto / High / Medium / Low, one click) sits below
-// (qualityPick is set only there). Voice marks come with the voice package. `people` is ChatController.people:
+// (qualityPick is set only there). Controller hand-over (ADR 0033 D8): a row can carry controlButtons [{key, label}] (my row: Take over P1 / Play as P2 /
+// Stop playing; a player's row on the host: Take back) and a controlNote ("Asked lena…"), one line under the name; the role tag then reads PLAYER P2. Voice marks, the Volume slider and the host's Mute come from the VoiceController. `people` is ChatController.people:
 // [{userId, name, role, roleKey, me, color, connection, tone, qualityPick?, sessionId?}].
 Column {
     id: root
     property var people: []
     property string scopeKind: "session"
     signal qualityPicked(string sessionId, string value)
+    signal controlPicked(string sessionId, string viewerId, string key)
+    signal volumePicked(string userId, int percent)
+    signal muteToggled(string userId, bool muted)
     spacing: 0
 
     UzSectionLabel {
@@ -39,8 +43,12 @@ Column {
             required property var modelData
             objectName: "person_" + (modelData.userId || modelData.name)
             readonly property bool hasQuality: modelData.qualityPick !== undefined
+            readonly property bool hasControl: (modelData.controlButtons !== undefined && modelData.controlButtons.length > 0) || !!modelData.controlNote
+            // Voice (board 3g-12): a person in the voice room has a mark next to the name and, if it is somebody else, a Volume slider
+            // (and for the Session owner a mute button) on a line of their own.
+            readonly property bool hasVoiceLine: modelData.inVoice === true && modelData.me !== true
             width: root.width
-            height: Theme.row44 + 8 + (hasQuality ? qualityRow.height : 0)
+            height: Theme.row44 + 8 + (hasQuality ? qualityRow.height : 0) + (hasControl ? controlRow.height : 0) + (hasVoiceLine ? voiceRow.height : 0)
             Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.rule2 }
             UzAvatar {
                 id: av
@@ -58,7 +66,7 @@ Column {
                 visible: (prow.modelData.role || "") !== ""
                 small: true
                 text: prow.modelData.role || ""
-                tone: prow.modelData.role === "HOST" ? "accent" : "neutral"
+                tone: prow.modelData.role === "HOST" || prow.modelData.roleKey === "player" ? "accent" : "neutral"
             }
             ColumnLayout {
                 anchors.left: av.right
@@ -67,15 +75,26 @@ Column {
                 anchors.rightMargin: Theme.space1
                 y: (Theme.row44 + 8 - height) / 2
                 spacing: 0
-                UzLabel {
-                    objectName: "personName"
+                RowLayout {
                     Layout.fillWidth: true
                     Layout.minimumWidth: 0
-                    elide: Text.ElideRight
-                    text: prow.modelData.me ? qsTr("%1 · you").arg(prow.modelData.name) : prow.modelData.name
-                    font.pixelSize: Theme.roles.itemTitleSm.size
-                    font.weight: Theme.roles.itemTitleSm.weight
-                    color: Theme.ink
+                    spacing: Theme.space1
+                    UzLabel {
+                        objectName: "personName"
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
+                        elide: Text.ElideRight
+                        text: prow.modelData.me ? qsTr("%1 · you").arg(prow.modelData.name) : prow.modelData.name
+                        font.pixelSize: Theme.roles.itemTitleSm.size
+                        font.weight: Theme.roles.itemTitleSm.weight
+                        color: Theme.ink
+                    }
+                    UzVoiceMark {
+                        objectName: "personVoice"
+                        voice: prow.modelData.voice || ""
+                        word: false
+                        Layout.alignment: Qt.AlignVCenter
+                    }
                 }
                 UzLabel {
                     objectName: "personConnection"
@@ -86,6 +105,66 @@ Column {
                     text: prow.modelData.connection || ""
                     font.pixelSize: Theme.roles.small.size
                     color: Theme.muted
+                }
+            }
+            RowLayout {
+                id: voiceRow
+                objectName: "personVoiceRow"
+                visible: prow.hasVoiceLine
+                y: Theme.row44 + 8 - 6 + (prow.hasQuality ? qualityRow.height : 0) + (prow.hasControl ? controlRow.height : 0)
+                x: av.width + Theme.space15
+                width: parent.width - x
+                height: visible ? Theme.row28 + 8 : 0
+                spacing: Theme.space1
+                UzSlider {
+                    id: volSlider
+                    objectName: "personVolume"
+                    Layout.fillWidth: true
+                    Layout.minimumWidth: 0
+                    Accessible.name: qsTr("Volume of %1").arg(prow.modelData.name)   // no visible label: the narrow panel needs the room for the track
+                    from: 0
+                    to: 100
+                    stepSize: 5
+                    onMoved: root.volumePicked(prow.modelData.userId || "", Math.round(value))
+                    Binding { target: volSlider; property: "value"; value: prow.modelData.voiceGain === undefined ? 100 : prow.modelData.voiceGain }
+                }
+                UzButton {
+                    objectName: "personMute"
+                    visible: prow.modelData.canMute === true
+                    size: "sm"
+                    focusPolicy: Qt.TabFocus
+                    text: prow.modelData.mutedByHost === true ? qsTr("Unmute") : qsTr("Mute")
+                    onClicked: root.muteToggled(prow.modelData.userId || "", prow.modelData.mutedByHost !== true)
+                }
+            }
+            Flow {
+                id: controlRow
+                objectName: "personControlRow"
+                visible: prow.hasControl
+                y: Theme.row44 + 8 - 6 + (prow.hasQuality ? qualityRow.height : 0)
+                x: av.width + Theme.space15
+                width: parent.width - x
+                height: visible ? Math.max(Theme.row28, implicitHeight) + 8 : 0
+                spacing: Theme.space1
+                UzLabel {
+                    objectName: "personControlNote"
+                    visible: !!prow.modelData.controlNote
+                    height: Theme.row32
+                    verticalAlignment: Text.AlignVCenter
+                    text: prow.modelData.controlNote || ""
+                    font.pixelSize: Theme.roles.small.size
+                    color: Theme.muted
+                }
+                Repeater {
+                    model: prow.modelData.controlButtons || []
+                    delegate: UzButton {
+                        required property var modelData
+                        objectName: "control_" + modelData.key
+                        size: "sm"
+                        focusPolicy: Qt.TabFocus
+                        text: modelData.label
+                        onClicked: root.controlPicked(prow.modelData.sessionId || "", prow.modelData.viewerId || "", modelData.key)
+                    }
                 }
             }
             RowLayout {

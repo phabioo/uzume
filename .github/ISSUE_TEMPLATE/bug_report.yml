@@ -1,0 +1,102 @@
+name: Bug report
+description: Something in the Uzume app, server or a session does not work as it should
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Only file a bug here if you think Uzume itself does something wrong. A plugin bug belongs in the plugin's own repository (`phabioo/uzume-plugin-<name>`).
+        **Public issue:** never post host names, IP addresses, invite codes, user names or paths with your name. Never attach ROMs, BIOS, firmware, keys or save files of commercial games.
+  - type: checkboxes
+    attributes:
+      label: Is there an existing issue for this?
+      description: Search the open and closed issues first. When the app showed a fingerprint, search for it.
+      options:
+        - label: I have searched the existing issues
+          required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - App (library, settings, playing)
+        - Server
+        - Sessions and sharing (video, audio, connection)
+        - Saves and save states
+        - Runs and randomizer
+        - Plugins (runtime, not a single plugin)
+        - Install and updates
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: app-version
+    attributes:
+      label: App version
+      description: Settings › Updates, or the window title.
+      placeholder: "0.20.42"
+    validations:
+      required: true
+  - type: input
+    id: server-version
+    attributes:
+      label: Server version
+      description: Server › Overview. Leave empty if no server is involved.
+      placeholder: "0.20.42"
+  - type: input
+    id: fingerprint
+    attributes:
+      label: Fingerprint
+      description: Filled in by "Report on GitHub". Leave empty when you file the issue by hand.
+  - type: textarea
+    id: issue-desc
+    attributes:
+      label: What happened
+      description: A short description, with screenshots or a video if they help.
+    validations:
+      required: true
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction-steps
+    attributes:
+      label: Steps to reproduce
+      description: Which system and core, and what you did. Name the game only if it matters.
+      placeholder: |
+        1. Start a game on Nintendo 3DS (Azahar)
+        2. Share the session
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: system-config
+    attributes:
+      label: System
+      description: The PC that runs the app, and where the server runs.
+      value: |
+        OS (app):
+        CPU:
+        GPU / driver:
+        RAM:
+        Server runs on (same PC / Raspberry Pi / Docker / Linux / Windows):
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Logs
+      description: |
+        App: Settings › Help & diagnostics › "Collect logs…". Server: Server › Settings › Diagnostics.
+        The bundle removes secrets but keeps host names and IP addresses on purpose. Open it and remove them before you attach it here.
+      placeholder: Drag the zip file here.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy
+      options:
+        - label: The issue and its attachments contain no host names, IP addresses, invite codes or personal paths
+          required: true

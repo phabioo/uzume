@@ -193,7 +193,9 @@ void GameSession::launch(const LaunchConfig& config, bool restart) {
 }
 
 void GameSession::teardown() {
-  debugPad_ = 0;  // a debug button press never outlives the game
+  debugPad_ = 0;
+  remoteControlled_[0] = remoteControlled_[1] = false;
+  remoteMask_[0] = remoteMask_[1] = 0;  // a debug button press never outlives the game
   ++runnerGen_;  // queued events of the runner that is stopped now must not reach the session any more
   if (!captureWaiters_.isEmpty()) {  // plugin captures waiting for a frame fail with the game
     auto waiters = std::move(captureWaiters_);
@@ -378,8 +380,25 @@ void GameSession::stop() {
 
 void GameSession::applyJoypad() {
   if (runner_) {
-    runner_->setJoypadState(0, joypadMask());
+    runner_->setJoypadState(0, remoteControlled_[0] ? remoteMask_[0] : joypadMask());
+    runner_->setJoypadState(1, remoteControlled_[1] ? remoteMask_[1] : 0);
   }
+}
+
+void GameSession::setRemoteControlled(int port, bool controlled) {
+  if (port < 0 || port > 1 || remoteControlled_[port] == controlled) return;
+  remoteControlled_[port] = controlled;
+  remoteMask_[port] = 0;
+  if (port == 0 && runner_) runner_->setPointer(0.0, 0.0, false);  // a local touch never continues as a remote one, or the other way
+  applyJoypad();
+}
+
+void GameSession::setRemoteInput(int port, quint32 mask, bool touching, const QPointF& touch) {
+  if (port < 0 || port > 1 || !remoteControlled_[port]) return;
+  if (port == 0 && runner_) runner_->setPointer(touch.x(), touch.y(), touching);
+  if (mask == remoteMask_[port]) return;
+  remoteMask_[port] = mask;
+  applyJoypad();
 }
 
 bool GameSession::isReservedKey(int qtKey) const {
@@ -685,7 +704,7 @@ void GameSession::setInputBlocked(bool blocked) {
 }
 
 void GameSession::setPointer(const QPointF& p, bool pressed) {
-  if (inputBlocked_) return;
+  if (inputBlocked_ || remoteControlled_[0]) return;
   if (runner_) {
     runner_->setPointer(p.x(), p.y(), pressed);
   }

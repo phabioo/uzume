@@ -40,3 +40,4 @@ New ADR: `docs/adr/NNNN-title.md` with status, date, deciders, context, decision
 | [0032](0032-debug-mcp-server.md) | Debug MCP server in the app: localhost, opt-in, token, tools to read and control | Accepted |
 | [0033](0033-together.md) | Together (0.23): presence, notifications, ready check, chat, viewer quality, mixer, voice chat, controller hand-over | Accepted for implementation |
 | [0034](0034-linux-app-and-vulkan.md) | Platforms (0.24): Linux AppImage with self-update, Secret Service, Vulkan path | Accepted |
+| [0035](0035-error-groups-and-github-issues.md) | Error groups and GitHub issues: grouped errors on the own server, one-click prefilled issue, issue templates | Proposed |

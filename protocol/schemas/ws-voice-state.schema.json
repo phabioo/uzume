@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://uzume.invalid/schemas/ws-voice-state.schema.json",
+  "title": "ws-voice-state (app to server)",
+  "type": "object",
+  "required": [
+    "type",
+    "payload"
+  ],
+  "properties": {
+    "type": {
+      "const": "voice_state"
+    },
+    "id": {
+      "type": "string"
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "scope",
+        "id",
+        "mic"
+      ],
+      "properties": {
+        "scope": {
+          "enum": [
+            "run",
+            "session"
+          ],
+          "description": "run: the joined participants of the run; session: the owner and the viewers of the Session."
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "mic": {
+          "enum": [
+            "on",
+            "off",
+            "ptt"
+          ],
+          "description": "on: open microphone; off: muted by the person; ptt: push-to-talk (sends only while the key is held)."
+        }
+      }
+    }
+  },
+  "description": "The device changes its microphone state in the room it is in (else error forbidden). Every device in the room gets voice_room. Needs together_v1."
+}

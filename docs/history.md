@@ -59,6 +59,7 @@ Milestone sections in order. Names of the products in old text (FrameBeam Hub, P
 - [0.19 Player comfort and library](#019-player-comfort-and-library)
 - [0.19.x Readable UI pass](#019x-readable-ui-pass)
 - [0.20 Emulation](#020-emulation)
+- [0.23 Together](#023-together)
 - [0.24 Platforms](#024-platforms)
 
 ### 0.1.1 Finish the PoC
@@ -470,6 +471,19 @@ Decided by Fabio on 2026-10-21 (as 0.19; renumbered on 2026-10-22). Cheats added
 - [x] Done (own repositories): `uzume-plugin-cheats` v0.1.2 (per-game lists in `fb.store`, database, import), `uzume-plugin-pokemon-editor` v0.1.0 (Creature Editor on `memory.write`), `uzume-plugin-soullink-core` v0.5.0 (write helpers), `uzume-plugin-soullink` v0.8.2 (snapshot "Before gym N")
 
 The Azahar Gateway connection (fork `phabioo/azahar`) and the per-format behaviour of `retro_cheat_set` can only be verified with the real cores; see the leftovers.
+
+### 0.23 Together
+
+Decided by Fabio on 2026-10-21 (as 0.20; renumbered on 2026-10-22 and 2026-10-23). Decisions: [ADR 0033](adr/0033-together.md); leftovers and Fabio's tests are in the [roadmap](roadmap.md#023-leftovers). The UI is drawn in the Uzume design (speaking mark, mixer popover, People and Chat tabs, notifications); no own design round. Dependency chains: online status -> notifications -> ready check (same presence over WSS); chat -> audio mixer stage 2 -> voice chat; viewer role -> controller hand-over. Behaviour: [features](features.md), [app guide](guides/app.md), [plugin API](guides/plugin-api.md).
+
+- [x] Done (PR #250, package 1): online status, who is online and what they play, "Watch" and "Invite" from the list (S)
+- [x] Done (PR #256, package 2, app): notifications as app toasts and bell for Session started, invite and run event, switchable per kind (S-M)
+- [x] Done (PR #273, package 3): ready check and shared pause for runs and Sessions over WSS (`together_v1`) (S-M)
+- [x] Done (PR #276, package 4): Session and run chat with emotes, pings and mentions, run history stored on the server (migration `run_chat_messages`), panel tabs in the app (M)
+- [x] Done (PR #277, package 5): viewer role cleanly separated, quality per viewer with selection and latency display (M)
+- [x] Done (PR #278, package 6): audio mixer stage 2 with channels game, tiles and plugin sounds (`fb.sound`) (M)
+- [x] Done (PR #279, package 7): voice chat with signaling over WSS (OpenAPI 1.46.0), speexdsp noise suppression and echo cancellation, push-to-talk or voice activation, volume per person, host mute and ducking (L)
+- [x] Done (PR #283, package 8, app): controller hand-over, a viewer controls P2 or takes over P1 over the data channel `fb-input`, the host confirms (M-L)
 
 ### 0.24 Platforms
 

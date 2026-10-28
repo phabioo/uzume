@@ -1,0 +1,1 @@
+{"type":"voice_room","payload":{"scope":"run","id":"3f2b8c1e-5d4a-4b7e-9a10-0c1d2e3f4a5b","members":[{"user_id":"11111111-aaaa-4aaa-8aaa-111111111111","device_id":"8d1f0a52-77c3-4c0e-9c1a-2b6f5e4d3c21","mic":"ptt","muted_by_host":false},{"user_id":"22222222-bbbb-4bbb-8bbb-222222222222","device_id":"b7e9c4a0-1f3d-4e58-8a6b-9d0c2e1f7a43","mic":"on","muted_by_host":false}]}}

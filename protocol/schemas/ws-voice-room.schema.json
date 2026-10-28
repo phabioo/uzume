@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://uzume.invalid/schemas/ws-voice-room.schema.json",
+  "title": "ws-voice-room (server to app)",
+  "type": "object",
+  "required": [
+    "type",
+    "payload"
+  ],
+  "properties": {
+    "type": {
+      "const": "voice_room"
+    },
+    "id": {
+      "type": "string"
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "scope",
+        "id",
+        "members"
+      ],
+      "properties": {
+        "scope": {
+          "enum": [
+            "run",
+            "session"
+          ],
+          "description": "run: the joined participants of the run; session: the owner and the viewers of the Session."
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "members": {
+          "type": "array",
+          "description": "In join order; empty when the room is closed or the receiver was removed.",
+          "items": {
+            "type": "object",
+            "required": [
+              "user_id",
+              "device_id",
+              "mic",
+              "muted_by_host"
+            ],
+            "properties": {
+              "user_id": {
+                "type": "string"
+              },
+              "device_id": {
+                "type": "string"
+              },
+              "mic": {
+                "enum": [
+                  "on",
+                  "off",
+                  "ptt"
+                ],
+                "description": "on: open microphone; off: muted by the person; ptt: push-to-talk (sends only while the key is held)."
+              },
+              "muted_by_host": {
+                "type": "boolean",
+                "description": "Set by the Session owner with voice_mute; always false in a run."
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "description": "The full voice room, sent to every device in it on every change (join, leave, mic change, host mute, a member leaving the run or Session) and to the device that just left or was removed. When the run or Session ends the room is closed: devices get one last voice_room with no members. Needs together_v1."
+}

@@ -245,7 +245,7 @@ jobs:
       HUB_COMMIT: ${{ needs.version.outputs.commit }}
     steps:
       - uses: actions/checkout@v7
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
       - name: Build linux/amd64 + linux/arm64 (no push)
         run: |
           docker buildx build --platform linux/amd64,linux/arm64 -f packaging/docker/Dockerfile \
@@ -677,7 +677,7 @@ jobs:
           }
       - name: Install Qt 6.8
         timeout-minutes: 30
-        uses: jurplel/install-qt-action@a9c63c7c123f3069cff414e7e482d95dfa9d8125 # v4.4.1
+        uses: jurplel/install-qt-action@b344308e4483fc892e0d27b3cd1b173ebdd95f06 # v4.5.0
         with:
           version: 6.8.*
           host: windows
@@ -920,7 +920,7 @@ jobs:
           # The server next to the real app: "Only on this PC" starts it as a child process (ADR 0030 D6). The MSI installs the
           # same exe a second time as the service program when the server option is chosen.
           Copy-Item "$env:GITHUB_WORKSPACE\dist\hub\uzume-server.exe" "$bin\uzume-server.exe"
-          # vcpkg runtime DLLs (libdatachannel, FFmpeg, OpenH264, Opus, SDL3 and their transitive DLLs): windeployqt only
+          # vcpkg runtime DLLs (libdatachannel, FFmpeg, OpenH264, Opus, speexdsp, SDL3 and their transitive DLLs): windeployqt only
           # deploys Qt. vcpkg's applocal step puts them next to the exe; fall back to the release bin directory of
           # the manifest install (never debug\bin). Qt DLLs are left to windeployqt.
           $sources = @($real.DirectoryName)
@@ -934,7 +934,7 @@ jobs:
             }
           }
           Write-Host "Bundled non-Qt DLLs: $((Get-ChildItem $bin -Filter *.dll | ForEach-Object Name) -join ', ')"
-          foreach ($need in 'datachannel', 'avutil', 'avcodec', 'swscale', 'opus', 'SDL3') {
+          foreach ($need in 'datachannel', 'avutil', 'avcodec', 'swscale', 'opus', 'speexdsp', 'SDL3') {
             if (-not (Get-ChildItem $bin -Filter "*$need*.dll")) { throw "Runtime DLL matching *$need*.dll is missing from the package" }
           }
           windeployqt --release --no-translations --qmldir client\ui "$bin\Uzume.exe"

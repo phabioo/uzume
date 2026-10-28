@@ -29,6 +29,7 @@ Rectangle {
             { id: "hubs", name: qsTr("Servers") },
             { id: "plugins", name: qsTr("Plugins") },
             { id: "notifications", name: qsTr("Notifications") },
+            { id: "voice", name: qsTr("Voice") },
             { id: "updates", name: qsTr("Updates") },
             { id: "diagnostics", name: qsTr("Help & diagnostics") } ] }
     ]
@@ -58,6 +59,8 @@ Rectangle {
                                 { title: qsTr("Nothing on the server"), text: qsTr("Clean-up only removes copies on this PC: games that download again, unused cores. Saves are always on %1 and never part of a clean-up.").arg(root.player.hubName !== "" ? root.player.hubName : qsTr("your server")) }]
         case "notifications": return [{ text: qsTr("The bell in the side menu keeps the last 50 news of this server. A toast is the same news for six seconds.") },
                                       { title: qsTr("Quiet in fullscreen"), text: qsTr("Only mentions show over your game; everything else waits in the bell.") }]
+        case "voice": return [{ text: qsTr("Voice goes straight between the apps of the people in a run or Session. The server only introduces them.") },
+                              { title: qsTr("Push-to-talk"), text: qsTr("Nothing is sent until you hold the key. Shift+M switches the microphone off for everyone.") }]
         case "emulation": return [{ title: qsTr("Here and per game"), text: qsTr("Emulation is how games look and feel on this PC. A game can keep its own values under Game overrides.") },
                                   { text: qsTr("Only options the core reports are listed. Uzume itself controls render mode, screen layout and firmware.") }]
         default: return [{ text: qsTr("These settings only affect this PC and your account.") }]
@@ -164,6 +167,7 @@ Rectangle {
             const toasts = kinds.filter(function (k) { return root.player.notifications.modes[k] === "toast" }).length
             return toasts === 0 ? qsTr("Bell only") : qsTr("%1 of %2 as toast").arg(toasts).arg(kinds.length)
         }
+        case "voice": return root.player.voice.talkMode === "vad" ? qsTr("Voice activation") : qsTr("Push-to-talk")
         case "updates": return root.updatesLine()
         default: return qsTr("Logs and support")
         }
@@ -1263,6 +1267,20 @@ Rectangle {
                             checked: root.player.notifications.sound
                             onToggled: on => root.player.notifications.sound = on
                         }
+                    }
+
+                    // ------------------------------------------------------------------ VOICE (6w-1)
+                    // Created only while shown: the microphone is open while the page is.
+                    Loader {
+                        id: secVoice
+                        width: content.width   // laid out at the page width from the first pass
+                        objectName: "voiceSection"
+                        active: root.currentSection === "voice"
+                        visible: active
+                        Layout.fillWidth: true
+                        Layout.preferredWidth: 1
+                        Layout.minimumWidth: 0
+                        sourceComponent: VoiceContent { player: root.player }
                     }
 
                     // ------------------------------------------------------------------ AUDIO & VIDEO (6g-1)

@@ -70,6 +70,7 @@ SessionController::SessionController(HubConnection* conn, ProfileStore* profiles
 
   connect(&host_, &SessionHost::signalOut, &socket_, &HubSocket::sendSignal);
   connect(&host_, &SessionHost::errorOccurred, this, [this](const QString& m) { say(m, true); });
+  connect(&host_, &SessionHost::controlChanged, this, &SessionController::controlChanged);
   connect(&host_, &SessionHost::viewerConnected, this, [this]() {
     emit shareChanged();
     // A paused game delivers no frameChanged, so the encoder would never start for the new viewer: push the current frame once.
@@ -349,7 +350,7 @@ QVariantList SessionController::participants() const {
   for (const SessionViewerEntry& v : own_.viewers) {
     watchingNames << v.displayName;
     out.append(QVariantMap{{QStringLiteral("kind"), QStringLiteral("viewer")},
-                           {QStringLiteral("role"), sessionRoleToken(SessionRole::Viewer)},
+                           {QStringLiteral("role"), sessionRoleToken(host_.controlPortOf(v.viewerId) >= 0 ? SessionRole::Player : SessionRole::Viewer)},
                            {QStringLiteral("id"), v.viewerId},
                            {QStringLiteral("name"), v.displayName},
                            {QStringLiteral("online"), true},
@@ -383,7 +384,7 @@ QVariantList SessionController::sessionPeople(const QString& sessionId) const {
   QVariantList out;
   const auto person = [](const QString& userId, const QString& name, const QString& role, bool me, const QString& conn, const QString& tone, int color) {
     return QVariantMap{{QStringLiteral("userId"), userId}, {QStringLiteral("name"), name}, {QStringLiteral("role"), role}, {QStringLiteral("me"), me},
-                       {QStringLiteral("roleKey"), role == QLatin1String("HOST") ? sessionRoleToken(SessionRole::Host) : (role == QLatin1String("VIEWER") ? sessionRoleToken(SessionRole::Viewer) : QString())},
+                       {QStringLiteral("roleKey"), role == QLatin1String("HOST") ? sessionRoleToken(SessionRole::Host) : (role == QLatin1String("VIEWER") ? sessionRoleToken(SessionRole::Viewer) : (role.startsWith(QLatin1String("PLAYER")) ? sessionRoleToken(SessionRole::Player) : QString()))},
                        {QStringLiteral("color"), color}, {QStringLiteral("connection"), conn}, {QStringLiteral("tone"), tone}};
   };
   if (shared_ && own_.sessionId == sessionId) {
@@ -392,8 +393,20 @@ QVariantList SessionController::sessionPeople(const QString& sessionId) const {
     for (const SessionViewerEntry& v : own_.viewers) {
       const QVariantMap link = linkByViewer_.value(v.viewerId).toMap();
       const QString line = link.value(QStringLiteral("line")).toString();
-      out.append(person({}, v.displayName, QStringLiteral("VIEWER"), false, line.isEmpty() ? link.value(QStringLiteral("text")).toString() : line,
-                        link.value(QStringLiteral("tone"), QStringLiteral("neutral")).toString(), 2 + (n++ % 7)));
+      const int port = host_.controlPortOf(v.viewerId);
+      QVariantMap row = person({}, v.displayName, port >= 0 ? tr("PLAYER P%1").arg(port + 1) : QStringLiteral("VIEWER"), false,
+                               line.isEmpty() ? link.value(QStringLiteral("text")).toString() : line,
+                               link.value(QStringLiteral("tone"), QStringLiteral("neutral")).toString(), 2 + (n++ % 7));
+      row.insert(QStringLiteral("viewerId"), v.viewerId);
+      if (port >= 0) {
+        row.insert(QStringLiteral("controlPort"), port);
+        row.insert(QStringLiteral("controlButtons"), QVariantList{QVariantMap{{QStringLiteral("key"), QStringLiteral("takeback")}, {QStringLiteral("label"), tr("Take back")}}});
+      } else if (host_.controlPending().size() > 0) {
+        for (const auto& p : host_.controlPending()) {
+          if (p.viewerId == v.viewerId) row.insert(QStringLiteral("controlNote"), p.port == 0 ? tr("Wants to take over P1") : tr("Wants to play as P2"));
+        }
+      }
+      out.append(row);
     }
     return out;
   }
@@ -402,19 +415,77 @@ QVariantList SessionController::sessionPeople(const QString& sessionId) const {
     QString conn = shortPath(link.value(QStringLiteral("text")).toString());
     if (!link.value(QStringLiteral("rtt")).toString().isEmpty()) conn += QStringLiteral(" · ") + link.value(QStringLiteral("rtt")).toString();
     out.append(person(r->info.owner.userId, r->info.owner.displayName, QStringLiteral("HOST"), false, conn, link.value(QStringLiteral("tone"), QStringLiteral("neutral")).toString(), 1));
-    QVariantMap me = person(conn_->hubUserId(), conn_->userDisplayName(), QStringLiteral("VIEWER"), true, link.value(QStringLiteral("quality")).toString(), {}, 2);
+    const SessionViewer::ControlState cs = r->viewer->controlState();
+    const bool playing = cs == SessionViewer::ControlState::Granted;
+    QVariantMap me = person(conn_->hubUserId(), conn_->userDisplayName(), playing ? tr("PLAYER P%1").arg(r->viewer->controlPort() + 1) : QStringLiteral("VIEWER"), true,
+                            link.value(QStringLiteral("quality")).toString(), {}, 2);
     me.insert(QStringLiteral("qualityPick"), qualityToken(r->viewer->quality()));
     me.insert(QStringLiteral("sessionId"), sessionId);
+    const QString hostName = r->info.owner.displayName;
+    QVariantList buttons;
+    const auto button = [](const QString& key, const QString& label) { return QVariantMap{{QStringLiteral("key"), key}, {QStringLiteral("label"), label}}; };
+    if (cs == SessionViewer::ControlState::Idle) {
+      if (r->viewer->hostPorts() >= 1) buttons.append(button(QStringLiteral("p1"), tr("Take over P1")));
+      if (r->viewer->hostPorts() >= 2) buttons.append(button(QStringLiteral("p2"), tr("Play as P2")));
+      const QString why = r->viewer->controlReason();
+      const int asked = r->viewer->controlPort() >= 0 ? r->viewer->controlPort() : lastAskedPort_.value(sessionId, 0);
+      if (why == QLatin1String("denied")) me.insert(QStringLiteral("controlNote"), tr("%1 said no").arg(hostName));
+      else if (why == QLatin1String("busy")) me.insert(QStringLiteral("controlNote"), tr("P%1 is taken").arg(asked + 1));
+      else if (why == QLatin1String("timeout")) me.insert(QStringLiteral("controlNote"), tr("%1 did not answer").arg(hostName));
+      else if (why == QLatin1String("host")) me.insert(QStringLiteral("controlNote"), tr("%1 took the controller back").arg(hostName));
+      else if (why == QLatin1String("unsupported") || why == QLatin1String("holding")) me.insert(QStringLiteral("controlNote"), tr("Not available right now"));
+    } else if (cs == SessionViewer::ControlState::Asking) {
+      me.insert(QStringLiteral("controlNote"), tr("Asked %1…").arg(hostName));
+      buttons.append(button(QStringLiteral("cancel"), tr("Cancel")));
+    } else {
+      buttons.append(button(QStringLiteral("stop"), tr("Stop playing")));
+    }
+    me.insert(QStringLiteral("controlButtons"), buttons);
     out.append(me);
     // Other viewers are not known to a viewer: only their number (the Hub counts them in viewerCount)
-    for (int i = 1; i < r->info.viewerCount; ++i) out.append(person({}, tr("Another viewer"), QStringLiteral("VIEWER"), false, {}, {}, 3 + (i % 6)));
+    for (int i = 1; i < r->info.viewerCount; ++i) {
+      QVariantMap other = person({}, tr("Another viewer"), QStringLiteral("VIEWER"), false, {}, {}, 3 + (i % 6));
+      other.insert(QStringLiteral("placeholder"), true);  // the voice chat may know who it is
+      out.append(other);
+    }
   }
   return out;
 }
 
+QString SessionController::sessionVisibility(const QString& sessionId) const {
+  if (shared_ && own_.sessionId == sessionId) return visibility_;
+  const Remote* r = remote(sessionId);
+  return r ? r->info.visibility : QString();
+}
+
 QString SessionController::role(const QString& sessionId) const {
   if (shared_ && own_.sessionId == sessionId) return sessionRoleToken(SessionRole::Host);
-  return remote(sessionId) ? sessionRoleToken(SessionRole::Viewer) : QString();
+  const Remote* r = remote(sessionId);
+  if (!r) return {};
+  return sessionRoleToken(r->viewer->controlState() == SessionViewer::ControlState::Granted ? SessionRole::Player : SessionRole::Viewer);
+}
+
+QString SessionController::viewerName(const QString& viewerId) const {
+  for (const SessionViewerEntry& v : own_.viewers) {
+    if (v.viewerId == viewerId) return v.displayName;
+  }
+  return {};
+}
+
+void SessionController::controlAction(const QString& sessionId, const QString& viewerId, const QString& key) {
+  if (key == QLatin1String("takeback")) {
+    if (shared_) host_.takeBackViewer(viewerId);
+    return;
+  }
+  Remote* r = remote(sessionId);
+  if (!r) return;
+  if (key == QLatin1String("p1") || key == QLatin1String("p2")) {
+    const int port = key == QLatin1String("p2") ? 1 : 0;
+    lastAskedPort_.insert(sessionId, port);
+    r->viewer->requestControl(port);
+  } else if (key == QLatin1String("cancel") || key == QLatin1String("stop")) {
+    r->viewer->releaseControl();
+  }
 }
 
 QString SessionController::quality(const QString& sessionId) const {
@@ -445,7 +516,8 @@ QVariantList SessionController::viewerStates() const {
     const std::optional<double> rtt = l.latencyMs ? l.latencyMs : l.rttMs;
     out.append(QVariantMap{{QStringLiteral("viewer_id"), v.viewerId},
                            {QStringLiteral("name"), v.displayName},
-                           {QStringLiteral("role"), sessionRoleToken(SessionRole::Viewer)},
+                           {QStringLiteral("role"), sessionRoleToken(host_.controlPortOf(v.viewerId) >= 0 ? SessionRole::Player : SessionRole::Viewer)},
+                           {QStringLiteral("control_port"), host_.controlPortOf(v.viewerId)},
                            {QStringLiteral("rtt_ms"), rtt ? QVariant(qRound(*rtt)) : QVariant()},
                            {QStringLiteral("pick"), qualityToken(l.pick)},
                            {QStringLiteral("tier"), qualityToken(l.tier)},
@@ -874,6 +946,7 @@ void SessionController::watch(const QString& sessionId) {
       closeRemote(sessionId, tr("The connection to the Session was lost."), true);
     });
     connect(v, &SessionViewer::errorOccurred, this, [this](const QString& m) { say(m, true); });
+    connect(v, &SessionViewer::controlChanged, this, &SessionController::controlChanged);
     const bool first = remotes_.empty();
     rem->audio.setMixer(mixer_, AudioMixer::Tiles, rem->info.owner.userId);
     if (settings_ && !rem->info.owner.userId.isEmpty())

@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://uzume.invalid/schemas/ws-voice-mute.schema.json",
+  "title": "ws-voice-mute (app to server)",
+  "type": "object",
+  "required": [
+    "type",
+    "payload"
+  ],
+  "properties": {
+    "type": {
+      "const": "voice_mute"
+    },
+    "id": {
+      "type": "string"
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "scope",
+        "id",
+        "user_id",
+        "muted"
+      ],
+      "properties": {
+        "scope": {
+          "const": "session",
+          "description": "Only Sessions have a host."
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "user_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "A member of the Session (owner or viewer)."
+        },
+        "muted": {
+          "type": "boolean"
+        }
+      }
+    }
+  },
+  "description": "The owner of a Session mutes or unmutes a member for everyone (muted_by_host in voice_room). The flag belongs to the person and stays for the lifetime of the Session, also while the person is out of the room or rejoins. Others get forbidden, a user who is no member gets not_found. Needs together_v1."
+}

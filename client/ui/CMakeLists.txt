@@ -52,7 +52,11 @@ qt_add_qml_module(uzume_ui
     runrecapcontroller.h runrecapcontroller.cpp
     onlineroster.h onlineroster.cpp
     notificationcenter.h notificationcenter.cpp
+    controlcontroller.h controlcontroller.cpp
     togethercontroller.h togethercontroller.cpp
+    voicecontroller.h voicecontroller.cpp
+    voicecapture.h voicecapture.cpp
+    voicemiclogic.h
     chatcontroller.h chatcontroller.cpp
     personalcontroller.h personalcontroller.cpp
     screenshotcontroller.h screenshotcontroller.cpp
@@ -160,6 +164,7 @@ qt_add_qml_module(uzume_ui
     EmulationContent.qml
     ControllersContent.qml
     HotkeysContent.qml
+    VoiceContent.qml
     TableHeadCell.qml
     BindingText.qml
     PadGlyph.qml
@@ -260,6 +265,7 @@ qt_add_qml_module(uzume_ui
     UzPopover.qml
     UzToast.qml
     ToastHost.qml
+    ControlCard.qml
     TogetherCard.qml
     ChatMessage.qml
     ChatTab.qml
