@@ -479,7 +479,7 @@ class AdminLibraryUiTest : public QObject {
       up->applyWhatsNew(notes);
       QVERIFY(up->whatsNewPending());
       QTRY_VERIFY(shown(h, "whatsNewDialog"));
-      QCOMPARE(text(h.item("dialogTitle")), QStringLiteral("Uzume %1").arg(up->currentVersion()));
+      QCOMPARE(text(h.item("dialogTitle")), QStringLiteral("Uzume %1").arg(up->shown(up->currentVersion())));
       QVERIFY(shown(h, "whatsNewItem_0_0"));
       QVERIFY(shown(h, "whatsNewItem_0_2"));
       QCOMPARE(shown(h, "whatsNewItem_0_3"), admin);   // the Server item is for admins only

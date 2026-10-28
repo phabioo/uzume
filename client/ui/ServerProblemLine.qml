@@ -4,8 +4,8 @@ import Uzume.App
 
 // Server problems (runs-and-server.md 8k-2), the version states: "server older than the app" and "app older than the server",
 // from what the app already has (the server's version in the handshake, this app's version; `player.versionRelation`). A line with
-// the right action sits under the Library header. Only a difference in the major or minor number counts: the patch number moves
-// with every beta and is no problem. Admins get the action (Update server opens Settings › Updates; Update Uzume installs or opens
+// the right action sits under the Library header. Only a difference in the release line (the first number, "Uzume 21") counts: the build number
+// moves with every beta and is no problem (ADR 0036). Admins get the action (Update server opens Settings › Updates; Update Uzume installs or opens
 // Updates), members are told whom to ask; games on this PC keep running either way. The other states of 8k-2 (service stopped,
 // security code changed, starting) belong to the connection and pairing screens (app start and accounts).
 // objectNames: serverProblemLine, serverProblemAction, serverProblemDevice.
@@ -13,13 +13,13 @@ ColumnLayout {
     id: root
     objectName: "serverProblemLine"
     required property PlayerController player
-    function minorOf(v: string): string {
-        const m = /^v?(\d+)\.(\d+)/.exec(v)
-        return m ? m[1] + "." + m[2] : ""
+    function lineOf(v: string): string {
+        const m = /^v?(\d+)\.\d+/.exec(v)
+        return m ? m[1] : ""
     }
-    readonly property string hubMinor: root.minorOf(root.player.hubVersion)
-    readonly property string appMinor: root.minorOf(root.player.updates.currentVersion)
-    readonly property string kind: root.hubMinor === "" || root.appMinor === "" || root.hubMinor === root.appMinor ? ""
+    readonly property string hubLine: root.lineOf(root.player.hubVersion)
+    readonly property string appLine: root.lineOf(root.player.updates.currentVersion)
+    readonly property string kind: root.hubLine === "" || root.appLine === "" || root.hubLine === root.appLine ? ""
                                    : root.player.versionRelation === "server_older" ? "server_older"
                                    : root.player.versionRelation === "app_older" ? "app_older" : ""
     readonly property string serverName: root.player.hubName !== "" ? root.player.hubName : qsTr("The server")
@@ -37,10 +37,10 @@ ColumnLayout {
             maxWidth: 720
             text: root.kind === "server_older"
                   ? qsTr("This app needs a newer server. %1 runs %2; this app is %3. %4")
-                      .arg(root.serverName).arg(root.player.hubVersion).arg(root.player.updates.currentVersion)
+                      .arg(root.serverName).arg(root.player.updates.shown(root.player.hubVersion)).arg(root.player.updates.shown(root.player.updates.currentVersion))
                       .arg(root.player.isAdmin ? "" : qsTr("Ask an admin to update %1.").arg(root.serverName))
                   : qsTr("%1 needs a newer app. %1 runs %2; this app is %3. Games on this PC still run in the meantime.")
-                      .arg(root.serverName).arg(root.player.hubVersion).arg(root.player.updates.currentVersion)
+                      .arg(root.serverName).arg(root.player.updates.shown(root.player.hubVersion)).arg(root.player.updates.shown(root.player.updates.currentVersion))
         }
         UzButton {
             objectName: "serverProblemAction"

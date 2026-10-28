@@ -88,7 +88,7 @@ Rectangle {
                     wrapMode: Text.WordWrap
                     color: Theme.ink2
                     text: qsTr("%1 · Uzume server %2 · Protocol v%3 · compatible")
-                              .arg(root.info.hubName).arg(root.info.hubVersion).arg(root.info.protocol)
+                              .arg(root.info.hubName).arg(root.player.updates.shown(root.info.hubVersion)).arg(root.info.protocol)
                 }
             }
 
@@ -279,7 +279,7 @@ Rectangle {
                     Eyebrow { text: qsTr("Platform"); Layout.preferredWidth: 130 }
                     UzMono { text: root.info.platform; color: Theme.ink; Layout.fillWidth: true }
                     Eyebrow { text: qsTr("Uzume version"); Layout.preferredWidth: 130 }
-                    UzMono { text: root.info.playerVersion; color: Theme.ink; Layout.fillWidth: true }
+                    UzMono { text: root.player.updates.shown(root.info.playerVersion); color: Theme.ink; Layout.fillWidth: true }
                 }
 
                 RowLayout {

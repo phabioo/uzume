@@ -14,6 +14,17 @@ class CoreVersionTest : public QObject {
     QVERIFY(c == "stable" || c == "beta" || c == "dev");
   }
 
+  void displayVersionDropsTheReservedThirdField() {
+    QCOMPARE(QString::fromStdString(uzume::displayVersion("21.1.0")), QString("21.1"));
+    QCOMPARE(QString::fromStdString(uzume::displayVersion("21.37.0")), QString("21.37"));
+    QCOMPARE(QString::fromStdString(uzume::displayVersion("21.0.0-dev.5")), QString("21.0-dev.5"));
+    QCOMPARE(QString::fromStdString(uzume::displayVersion("0.20.15")), QString("0.20.15"));
+    QCOMPARE(QString::fromStdString(uzume::displayVersion("21.1.10")), QString("21.1.10"));
+    QCOMPARE(QString::fromStdString(uzume::displayVersion("21.1")), QString("21.1"));
+    QCOMPARE(QString::fromStdString(uzume::displayVersion("dev")), QString("dev"));
+    QCOMPARE(QString::fromStdString(uzume::displayVersion("")), QString(""));
+  }
+
   void versionJsonHasContractKeys() {
     const std::string s = uzume::playerVersionJson();
     QVERIFY(s.find('\n') == std::string::npos);

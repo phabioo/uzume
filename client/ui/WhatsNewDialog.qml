@@ -65,7 +65,7 @@ UzDialog {
 
     size: "lg"
     label: qsTr("What's new")
-    title: qsTr("Uzume %1").arg(root.version)
+    title: qsTr("Uzume %1").arg(root.player.updates.shown(root.version))
     onWantChanged: if (root.want) root.open()
     Component.onCompleted: if (root.want) root.open()
     onClosed: root.player.updates.dismissWhatsNew()
@@ -125,7 +125,7 @@ UzDialog {
         kind: "warning"
         small: true
         maxWidth: 480
-        text: qsTr("%1 runs %2. Update it to get the server items.").arg(root.player.hubName !== "" ? root.player.hubName : qsTr("The server")).arg(root.player.hubVersion)
+        text: qsTr("%1 runs %2. Update it to get the server items.").arg(root.player.hubName !== "" ? root.player.hubName : qsTr("The server")).arg(root.player.updates.shown(root.player.hubVersion))
     }
 
     actions: [

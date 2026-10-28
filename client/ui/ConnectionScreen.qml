@@ -25,7 +25,7 @@ Rectangle {
             { title: qsTr("Next time it is one click less"), text: qsTr("With automatic connect on, Uzume opens straight into your library. Turn it off in Settings › Servers.") },
             { title: qsTr("An invite works here too"), text: qsTr("Paste an invite link into the field below, or with Ctrl+V anywhere in the window. It opens the invite for that server.") }
         ]
-        helpLines: [qsTr("Uzume %1").arg(root.player.playerVersion)]
+        helpLines: [qsTr("Uzume %1").arg(root.player.updates.shown(root.player.playerVersion))]
 
         StartHead {
             step: root.childBlock ? qsTr("Your server on this PC") : qsTr("Step 1 of 2 · Server")

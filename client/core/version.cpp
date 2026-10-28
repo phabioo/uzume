@@ -35,6 +35,25 @@ std::string_view playerVersion() noexcept { return UZUME_VERSION_STR; }
 std::string_view playerChannel() noexcept { return UZUME_CHANNEL_STR; }
 std::string_view playerCommit() noexcept { return UZUME_COMMIT_STR; }
 
+std::string displayVersion(std::string_view version) {
+  const auto isNumber = [](std::string_view f) {
+    if (f.empty()) return false;
+    for (const char c : f)
+      if (c < '0' || c > '9') return false;
+    return true;
+  };
+  const auto d1 = version.find('.');
+  if (d1 == std::string_view::npos) return std::string(version);
+  const auto d2 = version.find('.', d1 + 1);
+  if (d2 == std::string_view::npos) return std::string(version);
+  const auto end = version.find_first_of("-+", d2 + 1);
+  const std::string_view third = version.substr(d2 + 1, end == std::string_view::npos ? end : end - d2 - 1);
+  if (!isNumber(version.substr(0, d1)) || !isNumber(version.substr(d1 + 1, d2 - d1 - 1)) || third != "0") {
+    return std::string(version);
+  }
+  return std::string(version.substr(0, d2)) + (end == std::string_view::npos ? std::string() : std::string(version.substr(end)));
+}
+
 std::string playerVersionJson() {
   return "{\"product\":\"player\",\"version\":\"" + jsonEscape(playerVersion()) + "\",\"channel\":\"" +
          jsonEscape(playerChannel()) + "\",\"commit\":\"" + jsonEscape(playerCommit()) +

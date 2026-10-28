@@ -894,7 +894,7 @@ func announceSetup(ctx context.Context, svc *hub.Service, eff config.Config, sec
 		return
 	}
 	addrs := serverAddresses(eff, inContainer(), net.InterfaceAddrs)
-	fmt.Fprintln(out, setupBanner(version.String(), addrs, securityCode, code))
+	fmt.Fprintln(out, setupBanner(version.Display(version.String()), addrs, securityCode, code))
 	log.Warn("waiting for setup", "addresses", addrs, "security_code", securityCode, "setup_code", code.Code,
 		"setup_code_valid_until", code.Expires.Format(time.RFC3339), "hint", "enter the setup code in Uzume: Set up a server > On another device; new code: uzume-server setup-code")
 }

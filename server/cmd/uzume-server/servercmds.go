@@ -70,7 +70,7 @@ var moreCommands = []commandHelp{
 
 // printHelp is the text of `uzume-server help`.
 func printHelp(w io.Writer) {
-	fmt.Fprintln(w, "Uzume server", version.String())
+	fmt.Fprintln(w, "Uzume server", version.Display(version.String()))
 	fmt.Fprintln(w, "\nUsage: uzume-server [flags]            start the server (flags and UZUME_* variables: https://github.com/phabioo/uzume/wiki/Server-configuration)")
 	fmt.Fprintln(w, "       uzume-server <command> [flags]")
 	fmt.Fprintln(w, "\nCommands for setup and emergencies:")

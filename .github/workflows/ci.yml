@@ -20,10 +20,10 @@ permissions:
   contents: read
 
 jobs:
-  # Build version and channel, computed once (ADR 0011). A push to main gets a plain, auto-incremented beta version X.Y.Z
-  # (VERSION is the floor, scripts/next-beta-version.sh) and reserves it by creating the lightweight tag vX.Y.Z on the
+  # Build version and channel, computed once (ADR 0011, ADR 0036). A push to main gets a plain, auto-incremented beta version
+  # R.B.0 (release line R from VERSION, running build number B, scripts/next-beta-version.sh) and reserves it by creating the lightweight tag vR.B.0 on the
   # commit; release.yml publishes the prerelease for that tag and promote.yml turns it into the stable release without
-  # a rebuild. Everything else (PRs, branches, manual runs) is VERSION-dev.<run>, channel dev, and publishes nothing.
+  # a rebuild. Everything else (PRs, branches, manual runs) is R.0.0-dev.<run>, channel dev, and publishes nothing.
   version:
     name: Version and channel
     runs-on: ubuntu-24.04
@@ -51,7 +51,9 @@ jobs:
         run: |
           set -euo pipefail
           floor="$(tr -d '[:space:]' < VERSION)"
-          [[ "$floor" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::VERSION must be X.Y.Z, found '$floor'"; exit 1; }
+          [[ "$floor" =~ ^([0-9]+)\.[0-9]+\.0$ ]] || { echo "::error::VERSION must be R.0.0 (release line, for example 21.0.0), found '$floor'"; exit 1; }
+          # The MSI ProductVersion is R.B.0.<run>: R and B must be <= 255 (B is checked by next-beta-version.sh).
+          [ "${BASH_REMATCH[1]}" -le 255 ] || { echo "::error::release line ${BASH_REMATCH[1]} exceeds 255 (MSI ProductVersion limit)"; exit 1; }
           if [ "$EVENT" = push ] && [ "$REF" = refs/heads/main ]; then
             channel="beta"
             # No persisted credentials: authenticate git (ls-remote) for this step through env-based config.

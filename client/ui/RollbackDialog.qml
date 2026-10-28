@@ -27,8 +27,8 @@ Item {
     UzDialog {
         id: dialog
         size: "lg"
-        title: qsTr("Go back to %1?").arg(root.version)
-        text: qsTr("Uzume closes, installs %1 and starts again. About 30 s.").arg(root.version)
+        title: qsTr("Go back to %1?").arg(root.updates.shown(root.version))
+        text: qsTr("Uzume closes, installs %1 and starts again. About 30 s.").arg(root.updates.shown(root.version))
 
         Binding { target: dialog; property: "shown"; value: root.shown }
         onClosed: root.close()
@@ -70,7 +70,7 @@ Item {
                             ? root.info.pluginLines.join("\n") : qsTr("All keep working."),
                       warn: root.info.pluginLines && root.info.pluginLines.length > 0 },
                     { name: "Updates", title: qsTr("Updates"),
-                      text: qsTr("Paused until you resume them. %1 stays available.").arg(root.updates.currentVersion) }
+                      text: qsTr("Paused until you resume them. %1 stays available.").arg(root.updates.shown(root.updates.currentVersion)) }
                 ]
                 delegate: ColumnLayout {
                     id: infoRow
@@ -123,7 +123,7 @@ Item {
                 enabled: !root.blocked
                 // Shrinks (and elides) a long version label by itself.
                 width: Math.max(0, Math.min(implicitWidth, 360, dialog.frame.width - 2 * 28 - cancelButton.width - Theme.space1))
-                text: qsTr("Go back to %1").arg(root.version)
+                text: qsTr("Go back to %1").arg(root.updates.shown(root.version))
                 KeyNavigation.tab: cancelButton
                 KeyNavigation.backtab: cancelButton
                 Keys.onReturnPressed: if (!root.blocked) clicked()

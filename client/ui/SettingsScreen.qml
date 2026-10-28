@@ -175,7 +175,7 @@ Rectangle {
     function updatesLine(): string {
         const u = root.updates
         if (u.updateAvailable) {
-            return qsTr("▲ Update available · %1").arg(u.availableVersion)
+            return qsTr("▲ Update available · %1").arg(u.shown(u.availableVersion))
         }
         switch (u.state) {
         case "checking": return qsTr("Checking…")
@@ -363,7 +363,7 @@ Rectangle {
                                 objectName: "updatesPill"
                                 visible: root.updates.state === "up_to_date" && !root.updates.updateAvailable
                                 tone: "ok"
-                                text: qsTr("Up to date · %1").arg(root.updates.currentVersion)
+                                text: qsTr("Up to date · %1").arg(root.updates.shown(root.updates.currentVersion))
                             }
                         }
 
@@ -446,7 +446,7 @@ Rectangle {
                                         text: root.updates.updateAvailable ? qsTr("▲ Update available")
                                               : (root.updates.state === "checking" ? qsTr("Checking for updates…")
                                                  : root.updates.effectiveChannel === "off" ? qsTr("Updates are off")
-                                                 : qsTr("Uzume %1 is up to date").arg(root.updates.currentVersion))
+                                                 : qsTr("Uzume %1 is up to date").arg(root.updates.shown(root.updates.currentVersion)))
                                         font.pixelSize: Theme.roles.itemTitle.size
                                         font.weight: Font.DemiBold
                                         color: root.updates.updateAvailable ? Theme.accentText : Theme.ink
@@ -454,7 +454,7 @@ Rectangle {
                                     UzMono {
                                         objectName: "updatesAvailableVersion"
                                         visible: root.updates.updateAvailable
-                                        text: root.updates.availableVersion
+                                        text: root.updates.shown(root.updates.availableVersion)
                                         color: Theme.ink
                                         font.pixelSize: Theme.roles.input.size
                                     }
@@ -465,7 +465,7 @@ Rectangle {
                                     objectName: "updatesStatus"
                                     Layout.fillWidth: true
                                     text: root.updates.updateAvailable
-                                          ? qsTr("You have %1. Installs on the next start, never during a game.").arg(root.updates.currentVersion)
+                                          ? qsTr("You have %1. Installs on the next start, never during a game.").arg(root.updates.shown(root.updates.currentVersion))
                                           : (root.updates.state === "up_to_date" || root.updates.state === "idle") && root.updates.effectiveChannel !== "off"
                                             ? qsTr("%1 channel · checked %2").arg(root.updates.effectiveChannel === "beta" ? qsTr("Beta") : qsTr("Stable")).arg(root.updates.lastCheckText)
                                           : root.updates.state === "idle" && root.updates.effectiveChannel === "off"
@@ -582,7 +582,7 @@ Rectangle {
                                 description: root.player.platformText
                                 ctrl: "value"
                                 controlName: "updatesVersion"
-                                valueText: root.updates.currentVersion
+                                valueText: root.updates.shown(root.updates.currentVersion)
                             }
                         }
 
@@ -641,7 +641,7 @@ Rectangle {
                                         anchors.rightMargin: 12
                                         spacing: Theme.space15
                                         UzMono {
-                                            text: earlierRow.modelData.version
+                                            text: root.updates.shown(earlierRow.modelData.version)
                                             color: Theme.ink
                                             font.pixelSize: Theme.roles.body.size
                                         }
