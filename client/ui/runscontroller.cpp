@@ -60,6 +60,20 @@ RunsController::RunsController(RunClient* client, PluginsController* plugins, Hu
     }
     return false;
   });
+  // The open consent sheet follows the catalog: permissions that were unknown when it opened show up in it before anyone agrees.
+  connect(plugins, &PluginsController::hubPluginsChanged, this, [this] {
+    const QString runId = pluginConsent_.value(QStringLiteral("runId")).toString();
+    const auto run = runId.isEmpty() ? std::nullopt : client_->run(runId.toLower());
+    if (!run) return;
+    QList<RunPluginRef> refs;
+    for (const QVariant& v : pluginConsent_.value(QStringLiteral("items")).toList())
+      for (const RunPluginRef& p : run->plugins)
+        if (p.pluginId == v.toMap().value(QStringLiteral("pluginId")).toString() && p.version == v.toMap().value(QStringLiteral("version")).toString()) refs.append(p);
+    const QVariantList items = consentNeededFor(run->runId, refs);
+    if (items == pluginConsent_.value(QStringLiteral("items")).toList()) return;
+    pluginConsent_ = items.isEmpty() ? QVariantMap() : QVariantMap{{QStringLiteral("runId"), run->runId}, {QStringLiteral("items"), items}};
+    emit pluginConsentChanged();
+  });
   connect(client, &RunClient::runsChanged, this, &RunsController::scheduleRebuild);
   connect(client, &RunClient::runChanged, this, &RunsController::scheduleRebuild);
   connect(client, &RunClient::eventAdded, this, [this](const QString& id, const RunEvent& e) {
@@ -964,8 +978,9 @@ void RunsController::answerPluginConsent(bool agree) {
   }
   for (const QVariant& v : ask.value(QStringLiteral("items")).toList()) {
     const QVariantMap it = v.toMap();
-    QStringList perms = it.value(QStringLiteral("permissions")).toStringList();
-    if (perms.isEmpty()) permissionsOf(it.value(QStringLiteral("pluginId")).toString(), it.value(QStringLiteral("version")).toString(), &perms);  // was unresolved
+    // Exactly what the sheet displayed. An unresolved item showed no permissions, so nothing is recorded for it: once they are known the gate asks again.
+    const QStringList perms = it.value(QStringLiteral("permissions")).toStringList();
+    if (perms.isEmpty()) continue;
     plugins_->acceptRunPermissions(runId, it.value(QStringLiteral("pluginId")).toString(), perms);
   }
   syncRunView();

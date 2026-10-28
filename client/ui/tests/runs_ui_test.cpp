@@ -1340,6 +1340,38 @@ class RunsUiTest : public QObject {
     QTest::qWait(500);
     QCOMPARE(hub.pluginListRequests, requests2);  // finished runs never refresh
 
+    // The sheet opened for an unresolved pin: when the catalog resolves it shows the real permissions, and agreeing records only what was shown;
+    // an unresolved item records nothing, so the gate asks again with the permissions once they are known.
+    {
+      QJsonObject u = hub.makeRun(QStringLiteral("Run U"), {hub.runsMe}, hub.runsMe, QJsonArray{QJsonObject{{"plugin_id", kPluginId}, {"version", "1.2.0"}, {"sha256", shas.value("1.2.0")}, {"previous_version", "1.1.0"}}});
+      const QString runU = u.value("run_id").toString();
+      QJsonArray up = u.value("participants").toArray();
+      QJsonObject me = up.at(0).toObject();
+      me.insert("game_id", kGameId);  // a game of the library, so Play run gets as far as the consent
+      up.replace(0, me);
+      u.insert("participants", up);
+      hub.runs.insert(runU, u);
+      QJsonObject saved = hub.pluginList.at(3).toObject();  // hide 1.2.0 (its copy was never fetched) from the catalog (stale)
+      hub.pluginList.removeAt(3);
+      h.controller->plugins()->refreshHubPlugins();
+      QTRY_COMPARE_WITH_TIMEOUT(h.controller->plugins()->hubClient()->plugins().size(), 3, 8000);
+      hub.pushRun(runU);
+      QTRY_VERIFY_WITH_TIMEOUT(runs->client()->run(runU).has_value(), 8000);
+      h.controller->plugins()->acceptRunPermissions(runU, kPluginId, {QStringLiteral("run.state")});
+      runs->openRun(runU);
+      runs->playRun(runU);
+      QTRY_VERIFY_WITH_TIMEOUT(!runs->pluginConsent().isEmpty(), 8000);
+      QVERIFY(runs->pluginConsent().value("items").toList().first().toMap().value("permissions").toStringList().isEmpty());  // unresolved
+      runs->answerPluginConsent(true);  // agreeing to nothing shown records nothing; Play run asks again
+      QCOMPARE(h.controller->plugins()->runAcceptedPermissions(runU, kPluginId).value(), QStringList{QStringLiteral("run.state")});
+      QTRY_VERIFY_WITH_TIMEOUT(!runs->pluginConsent().isEmpty(), 8000);
+      hub.pluginList.append(saved);  // the catalog resolves while the sheet is open
+      h.controller->plugins()->refreshHubPlugins();
+      QTRY_VERIFY_WITH_TIMEOUT(runs->pluginConsent().value("items").toList().first().toMap().value("permissions").toStringList() == QStringList{QStringLiteral("memory.read")}, 8000);
+      runs->answerPluginConsent(true);  // agreed to what the sheet showed now
+      QCOMPARE(h.controller->plugins()->runAcceptedPermissions(runU, kPluginId).value(), (QStringList{QStringLiteral("run.state"), QStringLiteral("memory.read")}));
+    }
+
     // (b) Joining accepts only what the dialog showed. The run moved to 1.1.0 between the dialog (1.0.0) and the answer: 1.1.0 stays unaccepted.
     QJsonObject g = hub.makeRun(QStringLiteral("Run G"), {hub.runsMe, QStringLiteral("u_lena")}, QStringLiteral("u_lena"), pin(QStringLiteral("1.0.0")));
     const QString runG = g.value("run_id").toString();
