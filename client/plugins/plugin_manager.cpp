@@ -421,12 +421,16 @@ InstallResult PluginManager::installPackage(const UzPluginPackage& pkg, const QS
   if (!pkg.manifest.replaces.isEmpty()) {
     const bool firstTime = !m_enabled.contains(r.id);
     bool takeOver = false;
+    // The active copy of the new id (an installed or linked copy outranks a Hub copy) is what gets turned on, so its
+    // permissions decide, not those of the package just installed.
+    const auto activeIt = m_entries.constFind(r.id);
+    const QStringList newPerms = activeIt != m_entries.constEnd() ? activeIt->info.manifest.permissions : pkg.manifest.permissions;
     for (const QString& oldId : pkg.manifest.replaces) {
       if (oldId == r.id || !m_enabled.value(oldId, false)) continue;
       if (firstTime && m_entries.contains(oldId)) {
         const QStringList oldPerms = m_entries.value(oldId).info.manifest.permissions;
         bool covered = true;
-        for (const QString& p : pkg.manifest.permissions)
+        for (const QString& p : newPerms)
           if (!oldPerms.contains(p)) covered = false;
         if (covered) takeOver = true;
       }

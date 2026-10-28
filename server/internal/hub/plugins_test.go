@@ -484,6 +484,9 @@ func TestPluginIndexReplace(t *testing.T) {
 	// The pinned version goes once the run is over; the catalog now shows a normal state for the new id.
 	svc.SetPluginInUseCheck(func(context.Context, string, string) (bool, error) { return false, nil })
 	svc.PruneOldPlugins(ctx)
+	if ps, _ := svc.ListPlugins(ctx); len(ps) != 1 || ps[0].PluginID != "net.example.new" {
+		t.Fatalf("replaced id still offered after its run ended: %+v", ps)
+	}
 	st, _ = svc.PluginIndexStatus(ctx)
 	if st.Catalog[0].State != hub.CatalogInstalled || st.Catalog[0].ReplacesID != "" {
 		t.Fatalf("%+v", st.Catalog[0])

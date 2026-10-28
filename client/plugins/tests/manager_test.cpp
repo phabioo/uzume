@@ -418,6 +418,20 @@ class ManagerTest : public QObject {
     QVERIFY(hub(more).ok);
     QVERIFY(!m.info("net.test.more")->enabled);
     QVERIFY(!m.info("net.test.old")->enabled);   // turned off even though the new one stays off
+    // An installed copy of the new id outranks the Hub copy; it asks for more than the old plugin had: stays off.
+    QVERIFY(m.setEnabled("net.test.old", true));
+    QTemporaryDir src;
+    FbSpec local;
+    local.id = "net.test.shadow";
+    local.permissions = {"ui", "memory.write"};
+    QVERIFY(m.installFromFile(writeFile(src.filePath("s.uzplugin"), makeUzPlugin(local))).ok);
+    FbSpec shadow;
+    shadow.id = "net.test.shadow";
+    shadow.permissions = {"ui"};
+    shadow.replaces = {"net.test.old"};
+    QVERIFY(hub(shadow).ok);
+    QVERIFY(!m.info("net.test.shadow")->enabled);
+    QVERIFY(!m.info("net.test.old")->enabled);
     // Old plugin was off: nothing carried over.
     QVERIFY(m.setEnabled("net.test.old", false));
     FbSpec off;
