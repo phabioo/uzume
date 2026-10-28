@@ -1376,8 +1376,10 @@ struct VkRenderContext::Impl {
     std::vector<VkSemaphore> waits;
     if (!coreCmdMode) waits = imageSemaphores;
     std::vector<VkPipelineStageFlags> stages(waits.size(), VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
-    // Two batches: the core's work (waits, its command buffers, the signal semaphore) and ours (acquire, copy, blits, release,
-    // keyed mutex). A failing keyed mutex acquire then only drops our batch, never the core's work.
+    // Two batches: the core's work (waits, its command buffers) and ours (acquire, copy, blits, release, keyed mutex). A failing
+    // keyed mutex acquire then only drops our batch, never the core's work. The core's signal semaphore means it may reuse the
+    // image (libretro_vulkan.h), so with own work it is signalled by our batch, after our last read of the image. If our batch is
+    // rejected, an empty batch signals it so the core is never left waiting.
     VkSubmitInfo si{};
     si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     si.waitSemaphoreCount = static_cast<uint32_t>(waits.size());
@@ -1386,10 +1388,15 @@ struct VkRenderContext::Impl {
     si.commandBufferCount = static_cast<uint32_t>(cmds.size());
     si.pCommandBuffers = cmds.empty() ? nullptr : cmds.data();
     VkSemaphore sig = signalSemaphore;
-    si.signalSemaphoreCount = sig != VK_NULL_HANDLE ? 1 : 0;
-    si.pSignalSemaphores = sig != VK_NULL_HANDLE ? &sig : nullptr;
+    const bool ownSig = !mine.empty() && sig != VK_NULL_HANDLE;
+    if (!ownSig) {
+      si.signalSemaphoreCount = sig != VK_NULL_HANDLE ? 1 : 0;
+      si.pSignalSemaphores = sig != VK_NULL_HANDLE ? &sig : nullptr;
+    }
     VkSubmitInfo si2{};
     si2.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    si2.signalSemaphoreCount = ownSig ? 1 : 0;
+    si2.pSignalSemaphores = ownSig ? &sig : nullptr;
     si2.commandBufferCount = static_cast<uint32_t>(mine.size());
     si2.pCommandBuffers = mine.empty() ? nullptr : mine.data();
 #ifdef _WIN32
@@ -1429,10 +1436,24 @@ struct VkRenderContext::Impl {
     signalSemaphore = VK_NULL_HANDLE;
     if (!coreWork && !ownWork) return true;
     VkResult r;
+    bool secondFailed = false;
     {
       std::lock_guard<std::mutex> lock(queueMutex);
       r = vkQueueSubmit(queue, 1, &si, ownWork ? VK_NULL_HANDLE : fence);  // an empty batch is valid and keeps the order
-      if (r == VK_SUCCESS && ownWork) r = vkQueueSubmit(queue, 1, &si2, fence);
+      if (r == VK_SUCCESS && ownWork) {
+        r = vkQueueSubmit(queue, 1, &si2, fence);
+        secondFailed = r != VK_SUCCESS;
+        if (secondFailed && ownSig) {
+          // Our batch was rejected: signal the core's semaphore (and carry the fence) with an empty batch.
+          VkSubmitInfo sf{};
+          sf.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+          sf.signalSemaphoreCount = 1;
+          sf.pSignalSemaphores = &sig;
+          if (vkQueueSubmit(queue, 1, &sf, fence) == VK_SUCCESS) {
+            if (vkWaitForFences(device, 1, &fence, VK_TRUE, 5000000000ull) == VK_SUCCESS) vkResetFences(device, 1, &fence);
+          }
+        }
+      }
     }
     if (r != VK_SUCCESS) {
       lost = r == VK_ERROR_DEVICE_LOST;

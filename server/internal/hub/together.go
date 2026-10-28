@@ -195,13 +195,8 @@ type scopeMsg struct {
 	Paused *bool  `json:"paused"`
 }
 
-// scopeMember parses a scope message and verifies that the sender is a member; it answers the error itself.
-func (c *Client) scopeMember(env envelope) (scopeMsg, scopeKey, []string, bool) {
-	m, k, members, _, ok := c.scopeMemberLive(env)
-	return m, k, members, ok
-}
-
-// scopeMemberLive is scopeMember plus whether the scope is live (see membersOfState).
+// scopeMemberLive parses a scope message and verifies that the sender is a member (it answers the error itself); it also
+// reports whether the scope is live (see membersOfState).
 func (c *Client) scopeMemberLive(env envelope) (scopeMsg, scopeKey, []string, bool, bool) {
 	var m scopeMsg
 	if json.Unmarshal(env.Payload, &m) != nil || (m.Scope != scopeRun && m.Scope != scopeSession) || m.ID == "" {
