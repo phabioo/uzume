@@ -77,7 +77,7 @@ Do not return full logs or file contents. Do not commit.
 
 ## Issues and milestones
 
-Open work is tracked as GitHub issues in milestones in `phabioo/uzume` and all official plugin repositories ([ADR 0036](adr/0036-issues-milestones-wiki-and-numbering.md)). A milestone is a release with the same title everywhere: "Uzume 21" (Fabio's local tests and the release steps), "Uzume 22" (leftovers and new work packages). Overview: <https://github.com/phabioo/uzume/milestones>; across repositories: `is:open user:phabioo milestone:"Uzume 21"` in the GitHub issue search.
+Open work is tracked as GitHub issues in milestones in `phabioo/uzume` and all official plugin repositories ([ADR 0036](adr/0036-issues-milestones-wiki-and-numbering.md)). A milestone is a release with the same title everywhere: "Uzume 21" (Fabio's local tests and the release steps), "Uzume 22" (leftovers and new work packages), and "Later" for issues deliberately deferred (kept, but outside the release milestones until Fabio pulls them back). Overview: <https://github.com/phabioo/uzume/milestones>; across repositories: `is:open user:phabioo milestone:"Uzume 21"` in the GitHub issue search.
 
 | Label | Meaning |
 |---|---|
@@ -87,8 +87,11 @@ Open work is tracked as GitHub issues in milestones in `phabioo/uzume` and all o
 | `local-test` | Needs Fabio's real hardware, games or networks |
 | `triage` | Not yet sorted into a milestone |
 | `release` | Release steps |
+| `priority:high`, `priority:medium`, `priority:low` | Order within a milestone (exactly one per issue in Uzume 21/22) |
 
 - One thread works one issue; the PR body says "Closes #N".
+- Every new issue in a release milestone gets one priority label; work goes high before medium before low (`milestone:"Uzume 21" label:priority:high`). Issues in "Later" need none until they move back.
+- To defer an issue, move it to "Later" and say why in a comment; issues without a milestone are untriaged (only #317 and #192 stay without one on purpose).
 - Findings become issues in the right milestone, `triage` when unsure. Error reports from "Report on GitHub" ([ADR 0035](adr/0035-error-groups-and-github-issues.md)) arrive without milestone and get triaged.
 
 ## Packages and PRs
