@@ -59,6 +59,7 @@ Milestone sections in order. Names of the products in old text (FrameBeam Hub, P
 - [0.19 Player comfort and library](#019-player-comfort-and-library)
 - [0.19.x Readable UI pass](#019x-readable-ui-pass)
 - [0.20 Emulation](#020-emulation)
+- [0.22 Plugins](#022-plugins)
 - [0.23 Together](#023-together)
 - [0.24 Platforms](#024-platforms)
 
@@ -471,6 +472,16 @@ Decided by Fabio on 2026-10-21 (as 0.19; renumbered on 2026-10-22). Cheats added
 - [x] Done (own repositories): `uzume-plugin-cheats` v0.1.2 (per-game lists in `fb.store`, database, import), `uzume-plugin-pokemon-editor` v0.1.0 (Creature Editor on `memory.write`), `uzume-plugin-soullink-core` v0.5.0 (write helpers), `uzume-plugin-soullink` v0.8.2 (snapshot "Before gym N")
 
 The Azahar Gateway connection (fork `phabioo/azahar`) and the per-format behaviour of `retro_cheat_set` can only be verified with the real cores; see the leftovers.
+
+### 0.22 Plugins
+
+Decided by Fabio on 2026-10-21 (as 0.21; renumbered on 2026-10-22 and 2026-10-23). The UI is drawn in the Uzume design (developer console 4d-1/4d-2, run recap 4jh-app-2); no own design round. Every new screen was checked live through the debug MCP in the cloud. Shipped in the 0.20.N betas (ADR 0016 amendment 2026-10-27); leftovers and Fabio's tests are in the [roadmap](roadmap.md#022-leftovers). Behaviour: [features](features.md#plugins-and-runs), [plugin API](guides/plugin-api.md).
+
+- [x] Done (PR #253, package 1, app): developer console with log filters and counts, permissions, reload with kept state, reload on file change, read-only memory viewer, "Load unpacked..."; debug MCP game identity override for plugin tests; the variants list keeps variants that are still building (M)
+- [x] Done (PR #262, package 2, app): run recap tab with tiles, lanes and glyphs from the manifest field `recap`, export as PNG or self-contained HTML, share link, MCP tool `run_recap` (M)
+- [x] Done (PR #264, package 3, app): Discord Rich Presence over the local Discord IPC, off by default, MCP `status.discord` (S)
+- [x] Done (PR #267, app): fb.ui `disabled` for buttons, selects and text fields; plugin blocks keep their items (fixes a crash on Qt 6.4 when a plugin screen updates); runs listed once for admins with the admin actions in the run's own detail; linked plugins listed once; focus moves into plugin screens (S-M)
+- [x] Done (own repositories): `uzume-plugin-soullink-core` v0.6.1 (demo adapter behind the developer setting "Demo data", global event `badges.changed`), `uzume-plugin-soullink` v0.9.0 (manifest `recap` block, run event `soullink.badge`), `uzume-plugin-splits` v0.1.2 (split timer, HUD, personal best, badge autosplit, `disabled` actions), `uzume-plugin-tracker` v0.1.0 (spoiler-free randomizer tracker for ORAS)
 
 ### 0.23 Together
 
