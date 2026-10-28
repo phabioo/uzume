@@ -30,7 +30,7 @@ bool VoiceDsp::open(const Options& o) {
   float level = 20000.f;  // target level for the AGC
   speex_preprocess_ctl(pp, SPEEX_PREPROCESS_SET_AGC_LEVEL, &level);
   if (o.echoCancel) {
-    const int taps = std::max(kVoiceFrame, kVoiceRate / 1000 * o.echoFilterMs);
+    const int taps = (std::max)(kVoiceFrame, kVoiceRate / 1000 * o.echoFilterMs);
     echo_ = speex_echo_state_init(kVoiceFrame, taps);
     if (echo_) {
       int rate = kVoiceRate;
