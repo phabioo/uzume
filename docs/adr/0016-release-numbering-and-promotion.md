@@ -1,6 +1,6 @@
 # ADR 0016: Release numbering and promotion
 
-> Amendment 2026-10-28: the numbering of D1/D2 (plain `X.Y.Z` per beta, `VERSION` as floor) is replaced by `R.B` builds in [ADR 0036](0036-issues-milestones-wiki-and-numbering.md) D4. Promotion without rebuild stays.
+> Amendment 2026-10-28: the numbering of D1/D2 (plain `X.Y.Z` per beta, `VERSION` as floor) is replaced by `R.B` builds in [ADR 0036](0036-issues-milestones-wiki-and-numbering.md) D4. Promotion without rebuild stays. Amendment 2026-10-28 (bottom): a beta is published only on demand, not for every build.
 
 
 - Status: Accepted (Fabio, 2026-10-08)
@@ -89,3 +89,7 @@ On 2026-10-27 the milestones 0.20 Emulation, 0.21 Randomizer, 0.22 Plugins, 0.23
 - **The milestone labels 0.20 to 0.24 stay as they are** in the roadmap, history and ADRs; they name the themes of this batch, not the release that carries them. History records for each milestone the range of betas its packages shipped in.
 - **After the release** D2 applies unchanged: a new milestone gets the next free minor line (0.22 and up) when it starts and raises `VERSION` with its first PR.
 - **Rejected:** a bump per finished milestone (more `VERSION` conflicts between parallel sessions, and 0.24 was finished before 0.22 and 0.23), and 0.24.0 as the release number (Fabio prefers the next line after the betas).
+
+## Amendment 2026-10-28: beta on demand
+
+D1 said every push to `main` is published as a beta. That changes: every push to `main` still gets its build number `R.B.0` (tag reserved by the CI version job) and its CI artifacts, but a beta prerelease and update index entry are only made when the owner runs the workflow "Release" (`release.yml`, manual, optional input `build`, default the newest green main build that is not published yet). It publishes the CI artifacts without a rebuild; the release notes cover all PRs since the previous released tag, so skipped builds are not lost. Why: fewer betas and less release noise for installs that update automatically. Consequences: gaps in the published numbers are normal; CI artifacts are kept 7 days, so only builds of the last 7 days can be published; tags of builds that are never published are pruned after 8 days. Promotion (D3) is unchanged. Decided by the owner on 2026-10-28.
