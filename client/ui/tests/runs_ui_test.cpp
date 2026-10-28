@@ -1319,6 +1319,54 @@ class RunsUiTest : public QObject {
     h.controller->plugins()->acceptRunPermissions(runF, kPluginId, {QStringLiteral("memory.read")});
     QVERIFY(runs->consentNeeded(*runs->client()->run(runF)).isEmpty());  // accepted once: not asked again
     // A legacy file (accepted versions only) migrates: 1.1.0 accepted covers memory.read.
+
+    // (a) A stale catalog refreshes once per run and version, not on every evaluation, and never for a run that is over.
+    const int requests0 = hub.pluginListRequests;
+    for (int i = 0; i < 30; ++i) runs->consentNeeded(*runs->client()->run(runD));
+    QTest::qWait(800);
+    QVERIFY2(hub.pluginListRequests - requests0 <= 1, "the catalog refresh must not loop");
+    const int requests1 = hub.pluginListRequests;
+    for (int i = 0; i < 30; ++i) runs->consentNeeded(*runs->client()->run(runD));
+    QTest::qWait(500);
+    QCOMPARE(hub.pluginListRequests, requests1);  // already tried for this run and version
+    QJsonObject done = hub.makeRun(QStringLiteral("Run Done"), {hub.runsMe}, hub.runsMe, QJsonArray{QJsonObject{{"plugin_id", kPluginId}, {"version", "6.6.6"}, {"sha256", shas.value("1.0.0")}, {"previous_version", "1.0.0"}}});
+    const QString runDone = done.value("run_id").toString();
+    done.insert("status", "finished");
+    hub.runs.insert(runDone, done);
+    hub.pushRun(runDone);
+    QTRY_VERIFY_WITH_TIMEOUT(runs->client()->run(runDone).has_value(), 8000);
+    const int requests2 = hub.pluginListRequests;
+    for (int i = 0; i < 10; ++i) runs->consentNeeded(*runs->client()->run(runDone));
+    QTest::qWait(500);
+    QCOMPARE(hub.pluginListRequests, requests2);  // finished runs never refresh
+
+    // (b) Joining accepts only what the dialog showed. The run moved to 1.1.0 between the dialog (1.0.0) and the answer: 1.1.0 stays unaccepted.
+    QJsonObject g = hub.makeRun(QStringLiteral("Run G"), {hub.runsMe, QStringLiteral("u_lena")}, QStringLiteral("u_lena"), pin(QStringLiteral("1.0.0")));
+    const QString runG = g.value("run_id").toString();
+    hub.pushRun(runG);
+    QTRY_VERIFY_WITH_TIMEOUT(runs->client()->run(runG).has_value(), 8000);
+    runs->prepareGames(runG);
+    QJsonObject moved = hub.runs.value(runG);
+    moved.insert("plugins", pin(QStringLiteral("1.1.0"), QStringLiteral("1.0.0")));
+    hub.runs.insert(runG, moved);
+    runs->joinRun(runG, kGameId);
+    QTRY_VERIFY_WITH_TIMEOUT(runs->client()->run(runG)->plugins.first().version == "1.1.0", 8000);
+    QTRY_VERIFY_WITH_TIMEOUT(!runs->busy(), 8000);
+    QVERIFY(!h.controller->plugins()->runAcceptedPermissions(runG, kPluginId).has_value());  // nothing recorded for the unseen pin
+    QCOMPARE(runs->consentNeeded(*runs->client()->run(runG)).size(), 1);                      // the gate asks for memory.read
+
+    // (c) A restore that brings back a permission discloses it in its row (against the accepted baseline), bundle included.
+    QJsonObject rr = hub.makeRun(QStringLiteral("Run H"), {hub.runsMe}, hub.runsMe, pin(QStringLiteral("1.0.0"), QStringLiteral("1.1.0")));
+    const QString runH = rr.value("run_id").toString();
+    h.controller->plugins()->acceptRunPermissions(runH, kPluginId, {QStringLiteral("run.state")});
+    hub.pushRun(runH);
+    QTRY_VERIFY_WITH_TIMEOUT(runs->client()->run(runH).has_value(), 8000);
+    runs->openRun(runH);
+    QTRY_VERIFY_WITH_TIMEOUT(!runs->detail().value("pluginChanges").toList().isEmpty(), 8000);
+    bool disclosed = false;
+    for (const QVariant& v : runs->detail().value("pluginChanges").toList())
+      if (v.toMap().value("restore").toBool()) disclosed = v.toMap().value("permissionsText").toString().startsWith(QStringLiteral("New permissions: "));
+    QVERIFY(disclosed);
     h.controller->plugins()->acceptRunPermissions(QStringLiteral("legacy-run"), kPluginId, {});
     QVERIFY(h.controller->plugins()->runAcceptedPermissions(QStringLiteral("legacy-run"), kPluginId).has_value());
   }

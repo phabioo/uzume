@@ -6,6 +6,8 @@
 #include <QAbstractItemModel>
 #include <QMap>
 #include <QObject>
+#include <QPair>
+#include <QSet>
 #include <QStringList>
 #include <QTimer>
 #include <QVariantMap>
@@ -203,6 +205,10 @@ class RunsController : public QObject {
   QVariantList consentNeeded(const RunInfo& run) const;
   QVariantList consentNeededFor(const QString& runId, const QList<RunPluginRef>& pins) const;
   bool permissionsOf(const QString& pluginId, const QString& version, QStringList* out) const;
+  QSet<QString> appendedPlugins(const QString& runId) const;
+  QStringList acceptedBaseline(const QString& runId, const QString& pluginId, const QString& previousVersion, bool appended, const QStringList& now) const;
+  QStringList additionsFor(const RunInfo& run, const QList<RunPluginRef>& request) const;
+  void requestCatalogRefresh(const QString& runId, const RunPluginRef& p) const;
   Q_INVOKABLE void dismissMessage();
   // The app could not start the game of a run: the reason shows on the run screen (the same text as the game page).
   void showLaunchProblem(const QString& text) { setMessage(text, true); }
@@ -319,6 +325,8 @@ class RunsController : public QObject {
   QString busyText_;
   QString startError_;
   RunRules startCore_;
+  mutable QSet<QString> catalogTried_;  // run|plugin@version a catalog refresh was already tried for
+  QMap<QString, QMap<QString, QPair<QString, QStringList>>> joinReviewed_;  // run -> plugin -> {version, permissions} the join dialog showed
   bool pluginUpdateBusy_ = false;
   QString pluginUpdateError_;
   QVariantMap pluginConsent_;
