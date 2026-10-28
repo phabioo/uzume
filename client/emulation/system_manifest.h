@@ -91,6 +91,9 @@ struct SystemManifest {
   // refuses a conflict); the input library tables are registered from these by the UI layer.
   QMap<QString, QString> inputMap;
   QMap<QString, QString> inputLabels;
+  // "input": {"ports": n}: controller ports the system offers a second player (1 or 2, default 1; ADR 0033 D8). Systems with one port
+  // only get "Take over P1" in a hand-over.
+  int inputPorts = 1;
   // Registering a manifest (ManifestRegistry::add) also registers its input profile in the input library (input/inputmap.h).
   // "identity": reader of the game file header for plugins (game_identity.h): "nds_header", "3ds_ncsd", "gb_header",
   // "gba_header"; empty = none.

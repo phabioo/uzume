@@ -31,6 +31,7 @@ Flickable {
             people: root.chat.people
             scopeKind: root.chat.scopeKind
             onQualityPicked: (sessionId, value) => root.player.sessions.setQuality(sessionId, value)
+            onControlPicked: (sessionId, viewerId, key) => root.player.sessions.controlAction(sessionId, viewerId, key)
             onVolumePicked: (userId, percent) => root.voice.setPersonGain(userId, percent)
             onMuteToggled: (userId, muted) => root.voice.mute(userId, muted)
         }

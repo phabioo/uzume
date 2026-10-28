@@ -12,6 +12,7 @@
 #include <thread>
 
 #include "bitratecontroller.h"
+#include "controlproto.h"
 #include "mediastats.h"
 #include "opuscodec.h"
 #include "qualitytier.h"
@@ -90,6 +91,25 @@ class SessionViewer : public QObject {
   // Latency measured with the fb-diag ping/pong (nullopt until the first pong).
   std::optional<double> latencyMs() const { return latencyMs_; }
 
+  // Controller hand-over (ADR 0033 D8). hostPorts(): what the host's system offers (control_caps; 0 until the host says, so older
+  // hosts never get a button). requestControl asks for port 0 or 1 (only with hostPorts() > port and no ask or hold running);
+  // the host answers with granted or a denial reason. releaseControl hands the port back. While Granted, setControlInput feeds the
+  // fb-input channel: a frame on every change (at most one per 16 ms) and a keep-alive every 100 ms.
+  enum class ControlState { Idle, Asking, Granted };
+  int hostPorts() const { return hostPorts_; }
+  ControlState controlState() const { return controlState_; }
+  int controlPort() const { return controlPort_; }
+  QString controlReason() const { return controlReason_; }  // why the last ask or hold ended: denied | busy | timeout | host | viewer | left ...
+  bool requestControl(int port);
+  void releaseControl();
+  // Buttons (libretro joypad bits 0..15), sticks, and the touch point (0..1 over the whole frame, `touching` = pressed).
+  void setControlInput(quint16 buttons, const qint16 axes[4], bool touching, double touchX, double touchY);
+  void setControlButtons(quint16 buttons) {
+    const qint16 axes[4] = {0, 0, 0, 0};
+    setControlInput(buttons, axes, false, 0, 0);
+  }
+  int inputFramesSent() const { return inputFramesSent_; }  // tests
+
  public slots:
   void handleSignal(const uzume::SessionSignal& signal);  // offer / candidate from the owner
 
@@ -101,6 +121,7 @@ class SessionViewer : public QObject {
   void errorOccurred(const QString& message);
   void hostStateChanged(bool paused, const QString& by);  // UI thread
   void qualityChanged();  // served tier, pick or latency changed (UI thread)
+  void controlChanged();  // host ports, ask or hold changed (UI thread)
 
  private:
   void onPcState(int state);
@@ -109,6 +130,10 @@ class SessionViewer : public QObject {
   void onPingPong(const PingMessage& m);
   void sendDiag(const QByteArray& msg);
   void sendPing();
+  void onControlAnswer(const ControlAnswer& a);
+  void onControlEnd(const ControlEnd& e);
+  void sendInputFrame();
+  void resetControl(const QString& reason);
   void onGatheringComplete();
   struct MediaPipe;
   // Receive side (PN-6): the libdatachannel threads only fill a bounded mailbox; a worker thread decodes (H.264, Opus) and hands
@@ -140,6 +165,7 @@ class SessionViewer : public QObject {
   std::shared_ptr<rtc::Track> video_;
   std::shared_ptr<rtc::Track> audio_;
   std::shared_ptr<rtc::DataChannel> diag_;  // negotiated "fb-diag": SCTP for RTT
+  std::shared_ptr<rtc::DataChannel> input_;  // negotiated "fb-input": controller input frames
   std::shared_ptr<LossReceivingSession> videoSession_;
 
   VideoDecoder decoder_;  // open/closed on the UI thread only while the worker is stopped
@@ -159,6 +185,17 @@ class SessionViewer : public QObject {
   int pingN_ = 0;
   QElapsedTimer pingClock_;
   QTimer pingTimer_;
+  int hostPorts_ = 0;
+  ControlState controlState_ = ControlState::Idle;
+  int controlPort_ = -1;
+  QString controlReason_;
+  InputFrame inputState_;       // the state the viewer holds right now (seq/ts are set when it is sent)
+  quint16 inputSeq_ = 0;
+  int inputFramesSent_ = 0;
+  QTimer inputKeepAlive_;
+  QTimer inputCoalesce_;        // single shot: a change that came less than 16 ms after the last frame
+  QElapsedTimer inputClock_;
+  qint64 lastInputSendMs_ = -1000;
 
   mutable QMutex audioMutex_;
   QByteArray audioBuf_;

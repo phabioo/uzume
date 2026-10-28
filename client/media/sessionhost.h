@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "bitratecontroller.h"
+#include "controlarbiter.h"
 #include "rtcutil.h"
 #include "mediastats.h"
 #include "qualitytier.h"
@@ -117,6 +118,27 @@ class SessionHost : public QObject {
   bool hostPaused() const { return hostPaused_; }
   QString hostPausedBy() const { return hostPausedBy_; }
 
+  // Controller hand-over (ADR 0033 D8). `ports` is what the running game's system offers (0 = nothing, 1, 2); viewers are told
+  // (control_caps) and holders of a port that no longer exists lose it. A request needs the host's answer (answerControl); it is
+  // denied after 20 s. Input arrives on the negotiated DataChannel fb-input and is judged by the ControlArbiter; applied frames
+  // (and the neutral state after 500 ms without a frame or at the end of a hold) are reported by controlInput().
+  void setControlPorts(int ports);
+  int controlPorts() const { return control_.portCount(); }
+  QList<ControlArbiter::Pending> controlPending() const { return control_.pending(); }
+  QString controlHolder(int port) const { return control_.holder(port); }
+  int controlPortOf(const QString& viewerId) const { return control_.portOf(viewerId); }
+  InputFrame controlInputFrame(int port) const { return control_.input(port); }
+  bool answerControl(const QString& viewerId, bool allow);  // false: no such pending request
+  bool takeBack(int port);                                  // ends the hold of that port (reason "host")
+  bool takeBackViewer(const QString& viewerId);
+  // Tests: the clock of the arbitration (ms added to the real clock) and a frame as if it had arrived on fb-input.
+  void advanceControlClockForTest(qint64 ms) {
+    controlSkewMs_ += ms;
+    tickControl();
+  }
+  qint64 controlNowMs() const { return controlClock_.elapsed() + controlSkewMs_; }
+  ControlArbiter::Verdict injectInputFrameForTest(const QString& viewerId, const InputFrame& f) { return applyInputFrame(viewerId, f); }
+
   // Audio: interleaved int16 stereo at the core rate (any rate), e.g. straight from the emulation callback.
   void pushAudio(const QByteArray& pcm, int sampleRate);
 
@@ -174,6 +196,12 @@ class SessionHost : public QObject {
   void errorOccurred(const QString& message);  // e.g. no encoder can be opened
   // GPU input became active or was switched off (UI thread). Read gpuInputActive()/gpuInputFailed().
   void gpuInputChanged();
+  // Controller hand-over: a viewer asks for a port (the host decides), the pending/holder state changed, a hold ended, and the
+  // input of a port changed (an applied frame, or neutral: all zero, `neutral` true).
+  void controlRequested(const QString& viewerId, int port);
+  void controlChanged();
+  void controlEnded(const QString& viewerId, int port, const QString& reason);
+  void controlInput(int port, const uzume::InputFrame& frame, bool neutral);
 
  private:
   struct Viewer {
@@ -181,6 +209,7 @@ class SessionHost : public QObject {
     std::shared_ptr<rtc::Track> video;
     std::shared_ptr<rtc::Track> audio;
     std::shared_ptr<rtc::DataChannel> diag;  // negotiated "fb-diag": brings up SCTP so that rtt() is available
+    std::shared_ptr<rtc::DataChannel> input;  // negotiated "fb-input" (id 1, unordered, maxRetransmits 0): controller input frames
     QList<SessionSignal> pendingCandidates;
     bool remoteSet = false;
     bool connected = false;
@@ -195,6 +224,12 @@ class SessionHost : public QObject {
 
   void dropViewer(const QString& viewerId, const QString& reason);
   void sendHostState(const QString& viewerId);
+  void sendDiagTo(const QString& viewerId, const QByteArray& msg);
+  void onControlRequest(const QString& viewerId, int port);
+  void onControlRelease(const QString& viewerId);
+  ControlArbiter::Verdict applyInputFrame(const QString& viewerId, const InputFrame& f);
+  void tickControl();
+  void reportEnd(const ControlArbiter::End& e, bool notifyViewer);
   void onPcState(const QString& viewerId, int state);
   void onLocalCandidateType(const QString& viewerId, int type);
   void onGatheringComplete(const QString& viewerId);
@@ -224,6 +259,10 @@ class SessionHost : public QObject {
   BitrateController bitrate_;
   TierManager tiers_;
   QTimer pingTimer_;
+  ControlArbiter control_;
+  QTimer controlTimer_;
+  QElapsedTimer controlClock_;
+  qint64 controlSkewMs_ = 0;
   qint64 clockSkewMs_ = 0;
   QElapsedTimer adaptClock_;  // monotonic clock of the controller, never restarted
   std::atomic<int> targetKbps_{0};

@@ -22,6 +22,7 @@ extern "C" {
 #include "hoststate.h"
 #include "mediacaps.h"
 #include "opuscodec.h"
+#include "controlproto.h"
 #include "qualitytier.h"
 #include "rtcutil.h"
 
@@ -668,6 +669,9 @@ SessionHost::SessionHost(QObject* parent) : QObject(parent), forceRelay_(forceRe
   adaptClock_.start();
   pingTimer_.setInterval(kPingIntervalMs);
   connect(&pingTimer_, &QTimer::timeout, this, &SessionHost::sendPings);
+  controlClock_.start();
+  controlTimer_.setInterval(50);
+  connect(&controlTimer_, &QTimer::timeout, this, &SessionHost::tickControl);
 }
 
 SessionHost::~SessionHost() {
@@ -685,6 +689,7 @@ void SessionHost::open(const QString& sessionId, const QStringList& iceServers, 
   targetKbps_ = bitrate_.targetKbps();
   tiers_.clear();
   pingTimer_.start();
+  controlTimer_.start();
   encoderFailed_ = false;
   gpuInputOff_ = false;
   gpuInputFailed_ = false;
@@ -709,6 +714,7 @@ void SessionHost::close() {
   }
   stopEncoder();
   pingTimer_.stop();
+  controlTimer_.stop();
   tiers_.clear();
   hostStateSent_.clear();
   open_ = false;
@@ -792,7 +798,25 @@ void SessionHost::addViewer(const QString& viewerId, const QList<TurnServer>& tu
         bridge->post([this, id, q = *pick]() { onQualityPick(id, q); });
       } else if (const auto ping = parsePingPong(raw)) {
         bridge->post([this, id, m = *ping]() { onPingPong(id, m); });
+      } else if (const auto port = parseControlRequest(raw)) {
+        bridge->post([this, id, p = *port]() { onControlRequest(id, p); });
+      } else if (parseControlRelease(raw)) {
+        bridge->post([this, id]() { onControlRelease(id); });
       }  // anything else (unknown type, garbage) is ignored
+    }));
+    // Controller input (ADR 0033 D8): binary frames on a second negotiated channel, unordered and without retransmits.
+    rtc::DataChannelInit inputInit;
+    inputInit.negotiated = true;
+    inputInit.id = kInputChannelId;
+    inputInit.reliability.unordered = true;
+    inputInit.reliability.maxRetransmits = 0;
+    v.input = v.pc->createDataChannel("fb-input", inputInit);
+    v.input->onMessage(guarded("input onMessage", [this, bridge, id](rtc::message_variant m) {
+      const auto* bin = std::get_if<rtc::binary>(&m);
+      if (bin == nullptr) return;
+      const auto frame = decodeInputFrame(QByteArray(reinterpret_cast<const char*>(bin->data()), static_cast<qsizetype>(bin->size())));
+      if (!frame) return;
+      bridge->post([this, id, f = *frame]() { applyInputFrame(id, f); });
     }));
 
     // The state signal (paused / running) goes out as soon as the channel is open, for a viewer that joins while paused.
@@ -800,6 +824,7 @@ void SessionHost::addViewer(const QString& viewerId, const QList<TurnServer>& tu
       bridge->post([this, id]() {
         sendHostState(id);
         sendTier(id, /*force*/ true);
+        if (control_.portCount() > 0) sendDiagTo(id, makeControlCaps(control_.portCount()));
       });
     }));
 
@@ -880,6 +905,96 @@ void SessionHost::sendHostState(const QString& viewerId) {
   }
 }
 
+// ---------------------------------------------------------------- controller hand-over (ADR 0033 D8)
+
+void SessionHost::sendDiagTo(const QString& viewerId, const QByteArray& msg) {
+  const auto it = viewers_.constFind(viewerId);
+  if (it == viewers_.constEnd() || !it->diag) return;
+  try {
+    if (it->diag->isOpen()) it->diag->send(std::string(msg.constData(), static_cast<size_t>(msg.size())));
+  } catch (const std::exception& e) {
+    qCWarning(lcHost) << "diag send:" << e.what();
+  }
+}
+
+void SessionHost::setControlPorts(int ports) {
+  const int before = control_.portCount();
+  const QList<ControlArbiter::End> ended = control_.setPortCount(ports);
+  for (const auto& e : ended) reportEnd(e, true);
+  if (control_.portCount() == before && ended.isEmpty()) return;
+  const QByteArray caps = makeControlCaps(control_.portCount());
+  for (const QString& id : viewers_.keys()) sendDiagTo(id, caps);
+  emit controlChanged();
+}
+
+void SessionHost::onControlRequest(const QString& viewerId, int port) {
+  const auto it = viewers_.constFind(viewerId);
+  if (!open_ || it == viewers_.constEnd()) return;
+  ControlArbiter::Request r;
+  if (!it->input || !it->input->isOpen()) {
+    r.reason = QStringLiteral("unsupported");  // the input channel is not up (an older app, or not connected yet)
+  } else {
+    r = control_.request(viewerId, port, controlNowMs());
+  }
+  if (r.kind == ControlArbiter::Request::Denied) {
+    sendDiagTo(viewerId, makeControlAnswer(port, false, r.reason));
+    return;
+  }
+  emit controlChanged();
+  emit controlRequested(viewerId, port);
+}
+
+void SessionHost::onControlRelease(const QString& viewerId) {
+  const bool had = control_.portOf(viewerId) >= 0 || control_.hasPending(viewerId);
+  if (const auto e = control_.release(viewerId, QStringLiteral("viewer"))) reportEnd(*e, false);
+  if (had) emit controlChanged();
+}
+
+bool SessionHost::answerControl(const QString& viewerId, bool allow) {
+  const ControlArbiter::Answer a = control_.answer(viewerId, allow, controlNowMs());
+  if (!a.known) return false;
+  sendDiagTo(viewerId, makeControlAnswer(a.port, a.granted, a.granted ? QString() : QStringLiteral("denied")));
+  if (a.granted) emit controlInput(a.port, control_.input(a.port), true);
+  emit controlChanged();
+  return true;
+}
+
+bool SessionHost::takeBack(int port) {
+  const auto e = control_.releasePort(port, QStringLiteral("host"));
+  if (!e) return false;
+  reportEnd(*e, true);
+  emit controlChanged();
+  return true;
+}
+
+bool SessionHost::takeBackViewer(const QString& viewerId) {
+  const int p = control_.portOf(viewerId);
+  return p >= 0 && takeBack(p);
+}
+
+void SessionHost::reportEnd(const ControlArbiter::End& e, bool notifyViewer) {
+  if (notifyViewer) sendDiagTo(e.viewerId, makeControlEnd(e.port, e.reason));
+  emit controlInput(e.port, InputFrame(), true);  // the port is neutral again
+  emit controlEnded(e.viewerId, e.port, e.reason);
+}
+
+ControlArbiter::Verdict SessionHost::applyInputFrame(const QString& viewerId, const InputFrame& f) {
+  const ControlArbiter::Verdict v = control_.accept(viewerId, f, controlNowMs());
+  if (v == ControlArbiter::Verdict::Applied) emit controlInput(f.port, f, false);
+  return v;
+}
+
+void SessionHost::tickControl() {
+  const qint64 now = controlNowMs();
+  bool changed = false;
+  for (const auto& x : control_.expire(now)) {
+    sendDiagTo(x.viewerId, makeControlAnswer(x.port, false, QStringLiteral("timeout")));
+    changed = true;
+  }
+  for (const int p : control_.expireNeutral(now)) emit controlInput(p, InputFrame(), true);
+  if (changed) emit controlChanged();
+}
+
 void SessionHost::dropViewer(const QString& viewerId, const QString& reason) {
   auto it = viewers_.find(viewerId);
   if (it == viewers_.end()) {
@@ -887,6 +1002,9 @@ void SessionHost::dropViewer(const QString& viewerId, const QString& reason) {
   }
   Viewer v = std::move(it.value());
   viewers_.erase(it);
+  const bool hadControl = control_.portOf(viewerId) >= 0 || control_.hasPending(viewerId);
+  if (const auto e = control_.release(viewerId, QStringLiteral("left"))) reportEnd(*e, false);
+  if (hadControl) emit controlChanged();
   viewerCountAtomic_ = static_cast<int>(viewers_.size());
   bitrate_.removeViewer(viewerId);
   reports_.remove(viewerId);
@@ -906,6 +1024,9 @@ void SessionHost::dropViewer(const QString& viewerId, const QString& reason) {
     if (v.diag) {
       v.diag->resetCallbacks();
     }
+    if (v.input) {
+      v.input->resetCallbacks();
+    }
     v.pc->close();  // immediate: transports are shut down, the media path is cut
     // With SCTP up, libdatachannel finishes the state change to Closed asynchronously; the connection is cut now.
     finalState = v.pc->state() == rtc::PeerConnection::State::Failed ? QStringLiteral("failed") : QStringLiteral("closed");
@@ -915,6 +1036,7 @@ void SessionHost::dropViewer(const QString& viewerId, const QString& reason) {
   v.video.reset();
   v.audio.reset();
   v.diag.reset();
+  v.input.reset();
   v.pc.reset();
   qCInfo(lcHost) << "Viewer" << viewerId << "closed (" << reason << ")," << viewers_.size() << "left";
   if (viewers_.isEmpty()) {

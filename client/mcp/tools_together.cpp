@@ -466,7 +466,7 @@ void installTogetherTools(McpToolRegistry& registry, ui::PlayerController& playe
     ui::SessionController* sc = pc->sessions();
     QString sid = a.value(QStringLiteral("session_id")).toString();
     if (sid.isEmpty() && !sc->shownSessionIds().isEmpty()) sid = sc->shownSessionIds().first();
-    if (sid.isEmpty() || sc->role(sid) != QLatin1String("viewer")) return reply(ToolResult::error(QStringLiteral("not_watching")));
+    if (sid.isEmpty() || sc->role(sid).isEmpty() || sc->role(sid) == QLatin1String("host")) return reply(ToolResult::error(QStringLiteral("not_watching")));
     sc->setQuality(sid, pick);
     SessionViewer* v = sc->viewer(sid);
     QJsonObject o{{QStringLiteral("session_id"), sid}, {QStringLiteral("role"), sc->role(sid)}, {QStringLiteral("pick"), sc->quality(sid)},
@@ -498,7 +498,7 @@ void installTogetherTools(McpToolRegistry& registry, ui::PlayerController& playe
     }
     QJsonArray watching;
     for (const QString& sid : sc->shownSessionIds()) {
-      if (sc->role(sid) != QLatin1String("viewer")) continue;
+      if (sc->role(sid) == QLatin1String("host")) continue;
       QJsonObject o{{QStringLiteral("session_id"), sid}, {QStringLiteral("role"), sc->role(sid)}, {QStringLiteral("pick"), sc->quality(sid)}};
       if (SessionViewer* v = sc->viewer(sid)) {
         if (v->hasServedTier()) {
