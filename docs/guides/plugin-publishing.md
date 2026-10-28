@@ -2,7 +2,7 @@
 
 At a glance: How maintainers build, sign and publish an official `.uzplugin` and add it to the signed plugin index. Needs the Uzume release signing key. Installing plugins: [plugin-api.md](plugin-api.md#installing-plugins-and-origins).
 
-For plugin maintainers with access to the Uzume release signing key. Background: [12-plugins.md](../architecture/12-plugins.md#1610-distribution), [ADR 0023](../adr/0023-plugins.md). Server side: [server-configuration.md](server-configuration.md#plugins).
+For plugin maintainers with access to the Uzume release signing key. Background: [12-plugins.md](../architecture/12-plugins.md#1610-distribution), [ADR 0023](../adr/0023-plugins.md). Server side: [server-configuration.md](https://github.com/phabioo/uzume/wiki/Server-configuration#plugins).
 
 An official plugin is a `.uzplugin` file (zip with `manifest.json` at the root) that carries a `SIGNATURE.json` signed with the Uzume release key. A plugin index lists signed files so that a server admin can install or update them with one click. The tool is `server/cmd/uzume-sign`. The signing key is read from the environment variable `UZUME_SIGNING_KEY` (base64 seed); never write it to a file in a repository or to logs. Plugin repositories keep it as a CI secret. The signature prefix is `uzume-plugin-v1`: plugins and the plugin index signed before the rename (FrameBeam) do not verify and must be signed again with "Publish plugin".
 

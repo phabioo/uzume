@@ -15,7 +15,7 @@ Current version: 0.20 — status and plan: [roadmap](docs/roadmap.md). Platforms
 ## Highlights
 
 - **One library, many devices:** ROMs with a hash-verified cache; pairing by admin approval or invite code.
-- **Saves that never get lost:** versioned, conflicts are never overwritten silently ([saves](docs/guides/saves.md)).
+- **Saves that never get lost:** versioned, conflicts are never overwritten silently ([saves](https://github.com/phabioo/uzume/wiki/Saves)).
 - **Share a running game:** Sessions and Multiview over direct WebRTC, with an optional relay for apps outside your LAN.
 - **Cores from the server:** no cores in the installers; the server fetches them from the libretro buildbot.
 - **Systems:** DS, 3DS, Game Boy, Game Boy Color, Game Boy Advance. Firmware is yours; Uzume never ships it.
@@ -44,13 +44,13 @@ Sandboxed Lua plugins add game-specific features ([Plugin API](docs/guides/plugi
 sudo apt install ./uzume-server_<version>_arm64.deb
 ```
 
-The server prints a setup code (also `uzume-server setup-code`); you enter it in the app to create the admin account. More: [Server installation](docs/guides/server-install.md), [configuration](docs/guides/server-configuration.md).
+The server prints a setup code (also `uzume-server setup-code`); you enter it in the app to create the admin account. More: [Server installation](https://github.com/phabioo/uzume/wiki/Server-installation), [configuration](https://github.com/phabioo/uzume/wiki/Server-configuration).
 
-**2. Install the app** (Windows): run the MSI from the releases and choose how you will use Uzume (only on this PC, share with others, or server only). See [Using the app](docs/guides/app.md).
+**2. Install the app** (Windows): run the MSI from the releases and choose how you will use Uzume (only on this PC, share with others, or server only). See [Using the app](https://github.com/phabioo/uzume/wiki/Using-the-app).
 
 **3. Pair:** enter the server address (or open an invite link), compare the security code and sign in; admins create users and invites under SERVER › Users.
 
-Add homebrew ROMs to the library, pick one and play. Friends outside your LAN: [Sessions over the internet](docs/guides/sessions-over-the-internet.md).
+Add homebrew ROMs to the library, pick one and play. Friends outside your LAN: [Sessions over the internet](https://github.com/phabioo/uzume/wiki/Sessions-over-the-internet).
 
 ## Quick start for developers
 

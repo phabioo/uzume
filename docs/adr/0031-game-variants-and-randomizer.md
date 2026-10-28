@@ -37,7 +37,7 @@ Randomizing itself is not rewritten. The Universal Pokémon Randomizer FVX (succ
 - The randomizer engine is a **tool** that the server offers to apps the way it offers cores ([ADR 0020](0020-cores-from-the-libretro-buildbot.md)): the server downloads a release per platform from its official source, pins it by SHA-256 at the first download, keeps versions while a variant or run uses them, and imports offline. Apps download tools only from their server. The admin page is Server › Tools (10h).
 - FVX is never checked into an Uzume repository. Its license and source link appear in the tool entry and in the notices of whatever ships it.
 - The app starts a tool with a fixed argument list and no shell, with progress, cancel, a time and a memory limit, in the background (10c). 3DS needs up to 4 GB of Java heap and a few minutes; a Raspberry Pi server never runs the tool.
-- Built (0.21): the catalog lists release zips per platform (`windows-x64`, `linux-x64`, `linux-arm64`) with their SHA-256, apps verify it; tools are not signed like the plugin index, the pin at the first download is the trust anchor. Details: [server configuration](../guides/server-configuration.md#tools).
+- Built (0.21): the catalog lists release zips per platform (`windows-x64`, `linux-x64`, `linux-arm64`) with their SHA-256, apps verify it; tools are not signed like the plugin index, the pin at the first download is the trust anchor. Details: [server configuration](https://github.com/phabioo/uzume/wiki/Server-configuration#tools).
 
 ### D4 Each app builds its own variant
 

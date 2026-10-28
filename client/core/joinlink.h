@@ -4,7 +4,7 @@
 
 namespace uzume {
 
-// Port a server address without a port gets (docs/guides/server-configuration.md; HubConnection uses it too).
+// Port a server address without a port gets (wiki/Server-configuration.md; HubConnection uses it too).
 inline constexpr int kDefaultHubPort = 8443;
 
 // What a person typed or pasted into "Address or invite code" (docs/design/uzume/frame.md 8b-1, 8c-3) or what came in as

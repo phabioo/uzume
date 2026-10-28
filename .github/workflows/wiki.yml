@@ -1,0 +1,44 @@
+name: Publish wiki
+
+# Mirrors the wiki/ folder into the GitHub wiki of this repository (docs/development.md, "Documentation checks").
+# The wiki is generated: edit wiki/ through a pull request, never the wiki itself.
+
+on:
+  push:
+    branches: [main]
+    paths: ['wiki/**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wiki
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish wiki
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Mirror wiki/ into the GitHub wiki
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          git clone --quiet "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git" "$tmp"
+          rsync -a --delete --exclude .git wiki/ "$tmp"/
+          cd "$tmp"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Wiki is up to date."
+            exit 0
+          fi
+          git -c user.name='github-actions[bot]' -c user.email='41898341+github-actions[bot]@users.noreply.github.com' \
+            commit --quiet -m "Publish wiki from ${GITHUB_SHA::7}"
+          git push --quiet origin HEAD

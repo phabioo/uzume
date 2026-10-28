@@ -1,6 +1,6 @@
 # Update index (schema 1)
 
-At a glance: Schema 1 of the signed release feed (`updates-index.json`) that the server and app updaters read. Use of it: [updates.md](../guides/updates.md).
+At a glance: Schema 1 of the signed release feed (`updates-index.json`) that the server and app updaters read. Use of it: [updates.md](https://github.com/phabioo/uzume/wiki/Updates).
 
 Release feed of the updater ([ADR 0011](../adr/0011-automatic-updates.md)). No change to `protocol_version` (stays 1) or OpenAPI. Release `updates-index` (titled "Uzume update index") holds `updates-index.json` and `updates-index.json.sig` (default URL `https://github.com/phabioo/uzume/releases/download/updates-index/updates-index.json`; signature URL = index URL + `.sig`). Signature as for the core index: Ed25519 over the exact bytes, one line `ed25519 <key_id> <base64 sig>`, same release key.
 
@@ -30,7 +30,7 @@ Schema 1:
 ```
 
 - `product`: `hub` or `player`. `channel`: `stable` or `beta`. `notes_url` is optional. `notes` is optional too: a short plain-text "What's new" (groups like `### Added`, bullets `- line`), at most 4000 bytes UTF-8, valid UTF-8, no control characters except newline and tab; signed with the index. `release-add` and the server reject an invalid value, the app drops the field and keeps the release.
-- Platforms and kinds: hub `linux-amd64`, `linux-arm64` with `deb` and `binary`; hub `windows-amd64` with `msi` and `binary`; player `windows-x64` with `msi` and `zip`. Server `msi` is applied by `msiexec` through the Windows updater service with `ALLUSERS=1`. App `msi` is what the app installs (launcher `--apply-msi-update`); the former `installer` kind (Inno shell) is no longer produced, and an app ignores artifacts of unknown kinds ([ADR 0021](../adr/0021-one-windows-installer.md), [updates.md](../guides/updates.md)).
+- Platforms and kinds: hub `linux-amd64`, `linux-arm64` with `deb` and `binary`; hub `windows-amd64` with `msi` and `binary`; player `windows-x64` with `msi` and `zip`. Server `msi` is applied by `msiexec` through the Windows updater service with `ALLUSERS=1`. App `msi` is what the app installs (launcher `--apply-msi-update`); the former `installer` kind (Inno shell) is no longer produced, and an app ignores artifacts of unknown kinds ([ADR 0021](../adr/0021-one-windows-installer.md), [updates.md](https://github.com/phabioo/uzume/wiki/Updates)).
 - Artifact URLs must be https (`file://` only when the index itself was loaded from `file://`, for tests). Integrity comes from size and SHA-256 in the signed index.
 - `schema_version` (server releases, optional): the database schema the server of this release uses, from `uzume-server version --json`. Update rollback needs it to tell whether the data can be kept; an entry without it is "unknown" and not rolled back to.
 - `msi_downgrade` (optional, `true` only): the MSI of this release was built with `AllowDowngrades` and can be installed over a newer version. Update rollback offers an MSI only then. Both fields are copied from the `version --json` / `--version-json` output of the build by `release.yml`.

@@ -27,7 +27,7 @@ The [Model Context Protocol](https://modelcontextprotocol.io) (MCP) lets a Claud
 
 ### D3 Tools
 
-Read and control, grouped; the full list with arguments is in [guides/app.md](../guides/app.md#claude-debugging-mcp).
+Read and control, grouped; the full list with arguments is in [guides/app.md](https://github.com/phabioo/uzume/wiki/Using-the-app#claude-debugging-mcp).
 
 - **App:** status (versions, data directory, servers, screen, running game), log tail and search, redacted settings, connection check, diagnostics bundle, reports (read-only, admins).
 - **Plugins:** list, console (log, events, watched rows, status, budgets), UI trees per slot, send a UI action, reload, call a `provides` function, run a Lua chunk in a plugin's state (`plugin_eval`), list and read the plugin cache, return a cached or decoded image as PNG.

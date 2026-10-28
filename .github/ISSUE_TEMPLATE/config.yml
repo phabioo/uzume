@@ -4,5 +4,5 @@ contact_links:
     url: https://github.com/phabioo/uzume/tree/main/docs/guides
     about: Setup, server configuration, sessions over the internet and troubleshooting guides.
   - name: Report a problem to your own server
-    url: https://github.com/phabioo/uzume/blob/main/docs/guides/app.md#report-a-problem
+    url: https://github.com/phabioo/uzume/wiki/Using-the-app#report-a-problem
     about: For a problem only on your instance, "Report a problem" in the app sends it to your own server's admin, not to the public.
