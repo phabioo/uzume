@@ -15,6 +15,13 @@ import (
 // voiceRoomMax is the number of devices in one voice room.
 const voiceRoomMax = 8
 
+// Signaling budget per device: a full mesh of 8 sends a burst of candidates on connect, a flood beyond that would
+// only fill the slow-consumer queue of the peer.
+const (
+	voiceSignalBurst = 200.0
+	voiceSignalRate  = 50.0 // messages per second per device
+)
+
 const (
 	micOn  = "on"
 	micOff = "off"
@@ -36,12 +43,34 @@ type voiceState struct {
 	rooms     map[scopeKey]*voiceRoom
 	byDevice  map[string]scopeKey          // device ID -> its room (at most one)
 	hostMuted map[scopeKey]map[string]bool // session -> user ID -> muted by the host; lives as long as the session
+	buckets   map[string]*tokenBucket      // device ID -> signaling budget
+	epoch     uint64                       // bumped by every reconcileVoice; voiceJoin re-checks it under the lock
 }
 
 func (v *voiceState) init() {
 	v.rooms = map[scopeKey]*voiceRoom{}
 	v.byDevice = map[string]scopeKey{}
 	v.hostMuted = map[scopeKey]map[string]bool{}
+	v.buckets = map[string]*tokenBucket{}
+}
+
+// signalAllowLocked spends one signaling token of the device. Callers hold v.mu.
+func (s *Service) signalAllowLocked(deviceID string) bool {
+	v := &s.voice
+	now := s.now()
+	b := v.buckets[deviceID]
+	if b == nil {
+		b = &tokenBucket{tokens: voiceSignalBurst, at: now}
+		v.buckets[deviceID] = b
+	} else if d := now.Sub(b.at).Seconds(); d > 0 {
+		b.tokens = min(voiceSignalBurst, b.tokens+d*voiceSignalRate)
+		b.at = now
+	}
+	if b.tokens < 1 {
+		return false
+	}
+	b.tokens--
+	return true
 }
 
 func (r *voiceRoom) find(deviceID string) *voiceMember {
@@ -111,6 +140,7 @@ func (s *Service) sendVoice(ps ...voicePending) {
 func (s *Service) voiceDeviceGone(deviceID string) {
 	v := &s.voice
 	v.mu.Lock()
+	delete(v.buckets, deviceID)
 	k, ok := v.removeLocked(deviceID)
 	var p voicePending
 	if ok {
@@ -128,6 +158,7 @@ func (s *Service) reconcileVoice(scope, id string, members []string) {
 	v := &s.voice
 	k := scopeKey{scope, id}
 	v.mu.Lock()
+	v.epoch++
 	if len(members) == 0 {
 		delete(v.hostMuted, k)
 	}
@@ -165,29 +196,57 @@ type voiceMsg struct {
 func validMic(m string) bool { return m == micOn || m == micOff || m == micPTT }
 
 // voiceJoin puts the device into the voice room of a run or session it is a member of. A device is in one room
-// at a time: joining another one leaves the old one. The optional mic defaults to push-to-talk.
+// at a time: joining another one leaves the old one. The optional mic defaults to push-to-talk. Only an active run
+// (or a running session) has a voice room, like Together. Membership is read from the DB without the lock; a
+// reconcileVoice in between (epoch changed) makes the check run again, so no ghost room outlives its scope.
 func (c *Client) voiceJoin(env envelope) {
 	var m voiceMsg
 	_ = json.Unmarshal(env.Payload, &m)
-	_, k, _, ok := c.scopeMember(env)
-	if !ok {
-		return
-	}
 	if m.Mic == "" {
 		m.Mic = micPTT
 	}
-	if !validMic(m.Mic) {
-		c.sendError(env.ID, CodeBadRequest, "mic must be on, off or ptt")
-		return
+	s := c.svc
+	v := &s.voice
+	for try := 0; ; try++ {
+		if try == 3 {
+			c.sendError(env.ID, CodeConflict, "The voice room is changing, try again")
+			return
+		}
+		v.mu.Lock()
+		epoch := v.epoch
+		v.mu.Unlock()
+		_, k, _, live, ok := c.scopeMemberLive(env)
+		if !ok {
+			return
+		}
+		if !live {
+			c.sendError(env.ID, CodeConflict, "The "+k.scope+" is not active")
+			return
+		}
+		if !validMic(m.Mic) {
+			c.sendError(env.ID, CodeBadRequest, "mic must be on, off or ptt")
+			return
+		}
+		if c.voiceJoinLocked(env, k, m.Mic, epoch) {
+			return
+		}
 	}
+}
+
+// voiceJoinLocked does the join under v.mu; false means the epoch moved and the caller re-checks membership.
+func (c *Client) voiceJoinLocked(env envelope, k scopeKey, mic string, epoch uint64) bool {
 	s := c.svc
 	v := &s.voice
 	v.mu.Lock()
+	if v.epoch != epoch {
+		v.mu.Unlock()
+		return false
+	}
 	var ps []voicePending
 	if r := v.rooms[k]; (r == nil || r.find(c.deviceID) == nil) && r != nil && len(r.members) >= voiceRoomMax {
 		v.mu.Unlock()
 		c.sendError(env.ID, CodeConflict, "The voice room is full")
-		return
+		return true
 	}
 	if old, in := v.byDevice[c.deviceID]; in && old != k {
 		v.removeLocked(c.deviceID)
@@ -199,14 +258,15 @@ func (c *Client) voiceJoin(env envelope) {
 		v.rooms[k] = r
 	}
 	if me := r.find(c.deviceID); me != nil {
-		me.mic = m.Mic
+		me.mic = mic
 	} else {
-		r.members = append(r.members, &voiceMember{userID: c.userID, deviceID: c.deviceID, mic: m.Mic})
+		r.members = append(r.members, &voiceMember{userID: c.userID, deviceID: c.deviceID, mic: mic})
 		v.byDevice[c.deviceID] = k
 	}
 	ps = append(ps, v.broadcastLocked(k))
 	v.mu.Unlock()
 	s.sendVoice(ps...)
+	return true
 }
 
 func (c *Client) voiceLeave(env envelope) {
@@ -305,9 +365,14 @@ func (c *Client) voiceSignal(env envelope) {
 	v := &s.voice
 	v.mu.Lock()
 	ok := v.inRoomLocked(c.deviceID, k) && m.To != c.deviceID && v.rooms[k].find(m.To) != nil
+	allowed := ok && s.signalAllowLocked(c.deviceID)
 	v.mu.Unlock()
 	if !ok {
 		c.sendError(env.ID, CodeForbidden, "Voice signaling is only allowed between devices of the same room")
+		return
+	}
+	if !allowed {
+		c.sendError(env.ID, CodeRateLimited, "Too many voice signals")
 		return
 	}
 	peer := s.clientOf(m.To)

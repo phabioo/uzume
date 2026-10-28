@@ -2,6 +2,7 @@ package hub
 
 import (
 	"context"
+	"time"
 
 	"github.com/phabioo/uzume/server/internal/turnsrv"
 )
@@ -92,4 +93,50 @@ func SetFreeBytesForTest(fn func(dir string) uint64) (restore func()) {
 	old := freeBytesFn
 	freeBytesFn = fn
 	return func() { freeBytesFn = old }
+}
+
+// Test seams for the Together races (a scope that ends between a check and a registration).
+
+// SetPauseForTest enters a shared pause the way pauseRequest does (with the look-up afterwards).
+func (s *Service) SetPauseForTest(scope, id, by string) bool {
+	_, ok := s.setPause(context.Background(), scopeKey{scope, id}, by)
+	return ok
+}
+
+// AppendSessionChatForTest appends to a Session ring the way chat_send does and reports whether it was kept.
+func (s *Service) AppendSessionChatForTest(id, userID, text string) bool {
+	_, ok := s.appendSessionChatChecked(context.Background(), id, ChatMessage{UserID: userID, Text: text, ClientID: "t"})
+	return ok
+}
+
+// SessionChatRingForTest reports whether an in-memory chat ring exists for the Session.
+func (s *Service) SessionChatRingForTest(id string) bool {
+	s.chat.mu.Lock()
+	defer s.chat.mu.Unlock()
+	return s.chat.rings[id] != nil
+}
+
+// PauseForTest reports whether a shared pause is registered for the scope.
+func (s *Service) PauseForTest(scope, id string) bool {
+	s.tg.mu.Lock()
+	defer s.tg.mu.Unlock()
+	_, ok := s.tg.pauses[scopeKey{scope, id}]
+	return ok
+}
+
+// RegisterStaleCheckForTest registers an open ready check with the given (possibly outdated) member list and then
+// runs the re-read that readyCheckStart does after registering.
+func (s *Service) RegisterStaleCheckForTest(scope, id, by string, stale []string) {
+	t := &s.tg
+	k := scopeKey{scope, id}
+	chk := &readyCheck{id: "stale-check", key: k, by: by, expiresAt: s.now().Add(t.ttl), order: stale, state: map[string]string{}}
+	for _, u := range stale {
+		chk.state[u] = readyPending
+	}
+	chk.state[by] = readyReady
+	chk.timer = time.AfterFunc(time.Hour, func() {})
+	t.mu.Lock()
+	t.checks[chk.id], t.scope[k] = chk, chk.id
+	t.mu.Unlock()
+	s.resyncMembers(k)
 }

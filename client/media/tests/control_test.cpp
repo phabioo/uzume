@@ -164,6 +164,40 @@ class ControlTest : public QObject {
     QCOMPARE(a.accept(QStringLiteral("v"), frame(0, 0, 710, 2), 715), ControlArbiter::Verdict::Applied);
     QCOMPARE(a.accept(QStringLiteral("v"), frame(0, 65535, 720, 3), 725), ControlArbiter::Verdict::OutOfOrder);
   }
+  // A delay that grew for good (longer route, clock drift) must not make every later frame stale: after 3 s the floor moves.
+  void sustainedDelayGrowthRebases() {
+    ControlArbiter a;
+    a.setPortCount(1);
+    a.request(QStringLiteral("v"), 0, 0);
+    a.answer(QStringLiteral("v"), true, 0);
+    QCOMPARE(a.accept(QStringLiteral("v"), frame(0, 1, 100), 105), ControlArbiter::Verdict::Applied);  // path floor: 5 ms
+    quint16 seq = 2;
+    qint64 t = 200;
+    QCOMPARE(a.accept(QStringLiteral("v"), frame(0, seq++, static_cast<quint16>(t)), t + 400), ControlArbiter::Verdict::Stale);
+    for (; t < 3200; t += 100) {  // the run of stale frames started at arrival 600 and lasts 3 s
+      QCOMPARE(a.accept(QStringLiteral("v"), frame(0, seq++, static_cast<quint16>(t)), t + 400), ControlArbiter::Verdict::Stale);
+    }
+    QCOMPARE(a.accept(QStringLiteral("v"), frame(0, seq++, static_cast<quint16>(t)), t + 400), ControlArbiter::Verdict::Applied);
+    t += 100;
+    QCOMPARE(a.accept(QStringLiteral("v"), frame(0, seq++, static_cast<quint16>(t)), t + 410), ControlArbiter::Verdict::Applied);
+    // a real spike after that is still judged against the new floor
+    t += 100;
+    QCOMPARE(a.accept(QStringLiteral("v"), frame(0, seq++, static_cast<quint16>(t)), t + 900), ControlArbiter::Verdict::Stale);
+  }
+  void loweringPortsReportsDroppedRequests() {
+    ControlArbiter a;
+    a.setPortCount(2);
+    a.request(QStringLiteral("v1"), 1, 0);
+    a.request(QStringLiteral("v2"), 0, 0);
+    QList<ControlArbiter::Pending> dropped;
+    a.setPortCount(1, &dropped);
+    QCOMPARE(dropped.size(), 1);
+    QCOMPARE(dropped.first().viewerId, QStringLiteral("v1"));
+    QVERIFY(a.hasPending(QStringLiteral("v2")));
+    a.setPortCount(0, &dropped);
+    QCOMPARE(dropped.size(), 2);
+    QVERIFY(a.pending().isEmpty());
+  }
   void timestampWrapIsNotStale() {
     ControlArbiter a;
     a.setPortCount(1);

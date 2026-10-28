@@ -71,6 +71,7 @@ void PluginSoundBus::idleCheck() {
 int PluginSoundBus::generate(float* acc, int frames, int outRate) {
   QMutexLocker lock(&mutex_);
   if (voices_.empty() || outRate <= 0) return 0;
+  int written = 0;  // frames actually mixed: the longest voice that still had samples
   for (Voice& v : voices_) {
     const auto* s = reinterpret_cast<const qint16*>(v.clip->pcm16.constData());
     const qint64 n = v.clip->frames();
@@ -83,10 +84,11 @@ int PluginSoundBus::generate(float* acc, int frames, int outRate) {
         const float a = s[2 * i0 + c], b = s[2 * i1 + c];
         acc[2 * i + c] += (a + (b - a) * f) / 32768.0f * v.volume;
       }
+      written = std::max(written, i + 1);
     }
   }
   voices_.erase(std::remove_if(voices_.begin(), voices_.end(), [](const Voice& v) { return v.pos >= static_cast<double>(v.clip->frames()); }), voices_.end());
-  return frames;
+  return written;
 }
 
 }  // namespace uzume::ui

@@ -82,26 +82,34 @@ func (s *Service) stopTogether() {
 // membersOf returns the member user IDs of a run or session; ok is false when it does not exist, is over (an
 // ended session) or the scope is unknown.
 func (s *Service) membersOf(ctx context.Context, k scopeKey) (members []string, ok bool) {
+	members, _, ok = s.membersOfState(ctx, k)
+	return members, ok
+}
+
+// membersOfState is membersOf plus whether the scope is live for Together: a run is live only while it is active
+// (not starting, paused, finished, abandoned or archived), a session while it has not ended. Ready checks and
+// pauses may only be started on a live scope; chat is allowed on any existing one.
+func (s *Service) membersOfState(ctx context.Context, k scopeKey) (members []string, live, ok bool) {
 	switch k.scope {
 	case scopeRun:
 		run, err := loadRun(ctx, s.db, k.id, false)
 		if err != nil {
-			return nil, false
+			return nil, false, false
 		}
 		for _, p := range run.Participants {
 			if p.Status == ParticipantJoined {
 				members = append(members, p.UserID)
 			}
 		}
-		return members, true
+		return members, run.Status == RunActive && !run.Archived, true
 	case scopeSession:
 		d, err := s.loadSession(ctx, k.id)
 		if err != nil || d.ended {
-			return nil, false
+			return nil, false, false
 		}
-		return sessionMembers(d), true
+		return sessionMembers(d), true, true
 	}
-	return nil, false
+	return nil, false, false
 }
 
 func sessionMembers(d *sessionData) []string {
@@ -187,27 +195,43 @@ type scopeMsg struct {
 	Paused *bool  `json:"paused"`
 }
 
-// scopeMember parses a scope message and verifies that the sender is a member; it answers the error itself.
-func (c *Client) scopeMember(env envelope) (scopeMsg, scopeKey, []string, bool) {
+// scopeMemberLive parses a scope message and verifies that the sender is a member (it answers the error itself); it also
+// reports whether the scope is live (see membersOfState).
+func (c *Client) scopeMemberLive(env envelope) (scopeMsg, scopeKey, []string, bool, bool) {
 	var m scopeMsg
 	if json.Unmarshal(env.Payload, &m) != nil || (m.Scope != scopeRun && m.Scope != scopeSession) || m.ID == "" {
 		c.sendError(env.ID, CodeBadRequest, "scope must be run or session and id is required")
-		return m, scopeKey{}, nil, false
+		return m, scopeKey{}, nil, false, false
 	}
 	k := scopeKey{m.Scope, m.ID}
-	members, ok := c.svc.membersOf(context.Background(), k)
+	members, live, ok := c.svc.membersOfState(context.Background(), k)
 	if !ok || !slices.Contains(members, c.userID) { // unknown, over and foreign look the same
 		c.sendError(env.ID, CodeForbidden, "Not a member of this "+m.Scope)
-		return m, k, nil, false
+		return m, k, nil, false, false
 	}
-	return m, k, members, true
+	return m, k, members, live, true
+}
+
+// mayControl reports whether the sender may start a ready check and pause or resume for the scope: in a run every
+// member, in a Session only the owner (the host; ADR 0033 D5: viewers watch, chat and talk). The owner is the first
+// of sessionMembers. Answering a check stays open to every member.
+func (c *Client) mayControl(k scopeKey, members []string) bool {
+	return k.scope != scopeSession || (len(members) > 0 && members[0] == c.userID)
 }
 
 // readyCheckStart opens a check. Only one check per scope can be open: starting another one while it is open
 // is not an error, the current check is sent to the requester again (idempotent for a double click).
 func (c *Client) readyCheckStart(env envelope) {
-	_, k, members, ok := c.scopeMember(env)
+	_, k, members, live, ok := c.scopeMemberLive(env)
 	if !ok {
+		return
+	}
+	if !c.mayControl(k, members) {
+		c.sendError(env.ID, CodeForbidden, "Only the host starts a ready check in a Session")
+		return
+	}
+	if !live {
+		c.sendError(env.ID, CodeConflict, "The "+k.scope+" is not active")
 		return
 	}
 	s := c.svc
@@ -245,6 +269,21 @@ func (c *Client) readyCheckStart(env envelope) {
 		s.sendToUsers(expiredTo, "ready_check", "", expired)
 	}
 	s.sendToUsers(members, "ready_check", "", snap)
+	if status == checkOpen {
+		s.resyncMembers(k)
+	}
+}
+
+// resyncMembers re-reads the members of a scope after a check was registered with a list read before tg.mu was
+// taken: a membership change in between would otherwise leave the check with stale members (the change's own
+// reconcile found no check yet). A scope that is gone meanwhile drops the check and the pause. No database call
+// under tg.mu.
+func (s *Service) resyncMembers(k scopeKey) {
+	members, ok := s.membersOf(context.Background(), k)
+	if !ok {
+		members = nil
+	}
+	s.reconcileTogether(k.scope, k.id, members)
 }
 
 func (c *Client) readyCheckAnswer(env envelope) {
@@ -302,6 +341,12 @@ func (c *Client) readyCheckCancel(env envelope) {
 		c.sendError(env.ID, CodeNotFound, "Ready check is not open")
 		return
 	}
+	if snap, to := s.expireIfDueLocked(chk); snap != nil {
+		t.mu.Unlock()
+		s.sendToUsers(to, "ready_check", "", snap)
+		c.sendError(env.ID, CodeNotFound, "Ready check is not open")
+		return
+	}
 	if chk.by != c.userID {
 		t.mu.Unlock()
 		c.sendError(env.ID, CodeForbidden, "Only the starter can cancel a ready check")
@@ -313,10 +358,25 @@ func (c *Client) readyCheckCancel(env envelope) {
 	s.sendToUsers(to, "ready_check", "", snap)
 }
 
+// setPause enters the shared pause of a scope and then looks the scope up again: when it ended between the caller's
+// check and the entry (its cleanup found no pause yet), the entry is removed again, so an ended scope never keeps a
+// pause. It returns the current members; ok is false when the scope is gone. The database is read outside tg.mu.
+func (s *Service) setPause(ctx context.Context, k scopeKey, by string) (members []string, ok bool) {
+	t := &s.tg
+	t.mu.Lock()
+	t.pauses[k] = pauseInfo{by: by}
+	t.mu.Unlock()
+	if members, ok = s.membersOf(ctx, k); !ok {
+		s.reconcileTogether(k.scope, k.id, nil)
+		return nil, false
+	}
+	return members, true
+}
+
 // pauseRequest sets the shared pause of a run or session; every member may pause and resume. The request is
 // idempotent and always answered with pause_state to all members.
 func (c *Client) pauseRequest(env envelope) {
-	m, k, members, ok := c.scopeMember(env)
+	m, k, members, live, ok := c.scopeMemberLive(env)
 	if !ok {
 		return
 	}
@@ -324,14 +384,27 @@ func (c *Client) pauseRequest(env envelope) {
 		c.sendError(env.ID, CodeBadRequest, "paused is required")
 		return
 	}
-	t := &c.svc.tg
-	t.mu.Lock()
-	if *m.Paused {
-		t.pauses[k] = pauseInfo{by: c.userID}
-	} else {
-		delete(t.pauses, k)
+	if !c.mayControl(k, members) {
+		c.sendError(env.ID, CodeForbidden, "Only the host pauses or resumes a Session")
+		return
 	}
-	t.mu.Unlock()
+	if *m.Paused && !live { // resuming stays possible; a new pause needs an active run or a running session
+		c.sendError(env.ID, CodeConflict, "The "+k.scope+" is not active")
+		return
+	}
+	if *m.Paused {
+		cur, ok := c.svc.setPause(context.Background(), k, c.userID)
+		if !ok {
+			c.sendError(env.ID, CodeForbidden, "Not a member of this "+k.scope)
+			return
+		}
+		members = cur
+	} else {
+		t := &c.svc.tg
+		t.mu.Lock()
+		delete(t.pauses, k)
+		t.mu.Unlock()
+	}
 	c.svc.sendToUsers(members, "pause_state", "", map[string]any{"scope": k.scope, "id": k.id, "paused": *m.Paused, "by": c.userID})
 }
 
@@ -403,15 +476,27 @@ func (s *Service) togetherCatchUp(c *Client) {
 		key     scopeKey
 	}
 	var items []item
+	type expiredItem struct {
+		snap map[string]any
+		to   []string
+	}
+	var expired []expiredItem
 	for k, p := range t.pauses {
 		items = append(items, item{"pause_state", map[string]any{"scope": k.scope, "id": k.id, "paused": true, "by": p.by}, k})
 	}
 	for _, chk := range t.checks {
 		if _, member := chk.state[c.userID]; member {
+			if snap, to := s.expireIfDueLocked(chk); snap != nil { // deleting while ranging over a map is allowed
+				expired = append(expired, expiredItem{snap, to})
+				continue
+			}
 			items = append(items, item{"ready_check", chk.snapshot(checkOpen), chk.key})
 		}
 	}
 	t.mu.Unlock()
+	for _, e := range expired {
+		s.sendToUsers(e.to, "ready_check", "", e.snap)
+	}
 	for _, it := range items {
 		if it.typ == "pause_state" { // pauses do not list members: check the membership now
 			if members, ok := s.membersOf(context.Background(), it.key); !ok || !slices.Contains(members, c.userID) {

@@ -11,7 +11,7 @@
 //     with the same quadrants as the OpenGL mode plus a moving cyan marker (vkMarkerX in test_core_layout.h), set_image +
 //     video_refresh(VALID). Own queue submit by default, FB_TEST_CORE_VK_CMDBUFS=1 uses set_command_buffers,
 //     FB_TEST_CORE_VK_VERSION=<major>.<minor> asks for that Vulkan version (1.99: impossible), FB_TEST_CORE_VK_RETRY_GL=1 retries
-//     a refused SET_HW_RENDER with OpenGL Core itself,
+//     a refused SET_HW_RENDER with OpenGL Core itself, FB_TEST_CORE_FAIL_LOAD_AFTER_HW=1 refuses the game after that negotiation,
 //     FB_TEST_CORE_VK_LAYOUT=general hands the image over in VK_IMAGE_LAYOUT_GENERAL. Also falls back to software when
 //     the frontend rejects SET_HW_RENDER. uzume_test_core_vk_state() reports what the frontend exercised;
 //   - 800 (or rate/fps) stereo audio frames per retro_run;
@@ -393,7 +393,7 @@ void drawHardware() {
 
 // ---------------------------------------------------------------- Vulkan render mode
 bool g_vk = false;  // the hardware frames of this game come from Vulkan
-int g_vkState[5] = {0, 0, 0, 0, 0};  // create_device (v1) calls, create_device2 calls, create_instance calls, frames presented, GET_PREFERRED_HW_RENDER answer (0 none, 1 + context type)
+int g_vkState[7] = {0, 0, 0, 0, 0, -1, -1};  // create_device (v1) calls, create_device2 calls, create_instance calls, frames presented, GET_PREFERRED_HW_RENDER answer (0 none, 1 + context type), negotiation support version for Vulkan / for an unknown type (-1: call refused)
 
 #if UZUME_HAVE_VULKAN
 namespace vkc {
@@ -506,6 +506,15 @@ void RETRO_CALLCONV destroyDevice() {}
 
 retro_hw_render_context_negotiation_interface_vulkan g_neg{};
 bool negotiate() {
+  for (int i = 0; i < 2; ++i) {  // GET_..._NEGOTIATION_INTERFACE_SUPPORT: Vulkan, then a type nobody knows
+    retro_hw_render_context_negotiation_interface q{};
+    q.interface_type = i == 0 ? RETRO_HW_RENDER_CONTEXT_NEGOTIATION_INTERFACE_VULKAN
+                              : static_cast<retro_hw_render_context_negotiation_interface_type>(99);
+    q.interface_version = 7;
+    g_vkState[5 + i] = g_env && g_env(RETRO_ENVIRONMENT_GET_HW_RENDER_CONTEXT_NEGOTIATION_INTERFACE_SUPPORT, &q)
+                           ? static_cast<int>(q.interface_version)
+                           : -1;
+  }
   const char* mode = std::getenv("FB_TEST_CORE_VK_NEG");
   const std::string m = mode ? mode : "v1";
   if (m == "none") return true;
@@ -977,6 +986,11 @@ FB_EXPORT bool retro_load_game(const retro_game_info* info) {
     g_hw = g_env && g_env(RETRO_ENVIRONMENT_SET_HW_RENDER, &g_hwCb);
     if (!g_hw) g_scale = 1;
   }
+  if (envSet("FB_TEST_CORE_FAIL_LOAD_AFTER_HW")) {  // the game is refused after the hardware render negotiation (not a renderer problem)
+    g_hw = false;
+    g_vk = false;
+    return false;
+  }
   registerMemoryMap();
   ++g_loads;
   g_gameLoaded = true;
@@ -985,7 +999,7 @@ FB_EXPORT bool retro_load_game(const retro_game_info* info) {
 FB_EXPORT void retro_unload_game() { g_gameLoaded = false; g_hw = false; g_vk = false; }
 
 // Test hook: what the frontend exercised in Vulkan mode (0 create_device calls, 1 create_device2, 2 create_instance, 3 frames, 4 preferred answer).
-FB_EXPORT int uzume_test_core_vk_state(int what) { return what >= 0 && what < 5 ? g_vkState[what] : -1; }
+FB_EXPORT int uzume_test_core_vk_state(int what) { return what >= 0 && what < 7 ? g_vkState[what] : -1; }
 
 FB_EXPORT void retro_run() {
   if (!g_gameLoaded) return;

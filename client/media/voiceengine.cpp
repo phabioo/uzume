@@ -53,6 +53,7 @@ struct VoiceEngine::Peer {
   bool offerer = false;
   unsigned gen = 0;
   int retries = 0;
+  bool rebuildPending = false;
   std::shared_ptr<rtc::PeerConnection> pc;
   std::shared_ptr<rtc::Track> track;
   std::shared_ptr<Pipe> pipe;
@@ -120,6 +121,7 @@ void VoiceEngine::teardown(Peer& p) {
   p.pc.reset();
   p.pipe.reset();
   p.remoteSet = false;
+  p.rebuildPending = false;
   p.pendingCandidates.clear();
   p.playing = false;
   p.haveTs = false;
@@ -234,14 +236,29 @@ void VoiceEngine::onPcState(const QString& deviceId, unsigned gen, int state) {
     if (p.pc) p.connection = connectionTypeOf(*p.pc, false, forceRelay_);
   }
   emit peerStateChanged(deviceId, name);
-  if (name == QLatin1String("failed") && p.retries < kMaxRetries) {
+  // Only the offerer starts over (its new offer makes the answerer rebuild too); the answerer waits for it. A connection that closed
+  // by itself is handled like a failed one.
+  const bool dead = name == QLatin1String("failed") || name == QLatin1String("closed");
+  if (dead && p.offerer && !p.rebuildPending && p.retries < kMaxRetries) {
     ++p.retries;
+    p.rebuildPending = true;
     const unsigned g = p.gen;
     QTimer::singleShot(1500, this, [this, deviceId, g]() {
       const auto i = peers_.find(deviceId);
-      if (i != peers_.end() && i.value()->gen == g) buildPeer(*i.value());
+      if (i == peers_.end() || i.value()->gen != g) return;
+      i.value()->rebuildPending = false;
+      buildPeer(*i.value());
     });
   }
+}
+
+void VoiceEngine::simulateStateForTests(const QString& deviceId, int state) {
+  if (const auto it = peers_.find(deviceId); it != peers_.end()) onPcState(deviceId, it.value()->gen, state);
+}
+
+int VoiceEngine::buildsForTests(const QString& deviceId) const {
+  const auto it = peers_.constFind(deviceId);
+  return it == peers_.cend() ? -1 : static_cast<int>(it.value()->gen);
 }
 
 void VoiceEngine::setMembers(const QList<Member>& members) {

@@ -306,6 +306,7 @@ void ChatController::load(const QString& kind, const QString& id, bool initial) 
   Chat& c = chatFor(kind, id);
   if (c.loading) return;
   c.loading = true;
+  c.liveAfter = initial ? -1 : c.lastSeq;
   loadPage(keyOf(kind, id), kind == QLatin1String("run") && !initial ? c.lastSeq : 0, initial, 0);
   emitChanged(c);
 }
@@ -321,7 +322,8 @@ void ChatController::loadPage(const QString& key, qint64 afterSeq, bool initial,
     if (cit == self->chats_.end()) return;  // the scope was dropped meanwhile
     Chat& c = *cit;
     if (!p.ok) {
-      c.loading = false;  // the next scope change or reconnect tries again
+      c.loading = false;
+      c.liveAfter = -1;  // the next scope change or reconnect tries again
       self->emitChanged(c);
       return;
     }
@@ -329,7 +331,7 @@ void ChatController::loadPage(const QString& key, qint64 afterSeq, bool initial,
     for (ChatMessage m : p.messages) {
       m.scope = kind;
       m.id = id;
-      self->onMessage(m, false);
+      self->onMessage(m, c.liveAfter >= 0 && m.seq > c.liveAfter);
     }
     --self->bulk_;
     if (kind == QLatin1String("run") && p.nextAfterSeq > 0 && page + 1 < kMaxPages) {
@@ -337,6 +339,7 @@ void ChatController::loadPage(const QString& key, qint64 afterSeq, bool initial,
       return;
     }
     c.loading = false;
+    c.liveAfter = -1;
     c.loaded = true;
     if (kind == QLatin1String("run") && initial) {  // the last kHistoryRun of a long run
       qsizetype confirmed = 0;

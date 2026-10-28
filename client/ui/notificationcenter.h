@@ -14,8 +14,10 @@
 #include <QVariantMap>
 #include <QList>
 #include <functional>
+#include <memory>
 #include <QtQml/qqmlregistration.h>
 
+#include "plugin_sound.h"
 #include "playersettings.h"
 
 namespace uzume::ui {
@@ -67,6 +69,8 @@ class NotificationCenter : public QObject {
 
   // Tests: clock in ms, the tone, and the toast timer step (the timer calls it every 250 ms).
   void setClock(std::function<qint64()> clock) { clock_ = std::move(clock); }
+  // The two-note toast chime; the app plays it through the PluginSoundBus, so the mixer decides mute, volume and device.
+  static std::shared_ptr<const plugins::SoundClip> chime();
   void setSoundHook(std::function<void()> hook) { soundHook_ = std::move(hook); }
   void tick();
 
@@ -95,7 +99,6 @@ class NotificationCenter : public QObject {
   void promoteToasts();
   void rearm();
   void run(const Entry& e);
-  static void playTone();
 
   PlayerSettings* settings_;
   QList<Entry> entries_;  // oldest first

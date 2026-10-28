@@ -481,6 +481,7 @@ void SessionViewer::handleSignal(const SessionSignal& s) {
           bridge->post([this, ports = *caps]() {
             if (ports == hostPorts_) return;
             hostPorts_ = ports;
+            if (controlState_ == ControlState::Asking && controlPort_ >= ports) resetControl(QStringLiteral("unsupported"));
             emit controlChanged();
           });
         } else if (const auto answer = parseControlAnswer(raw)) {

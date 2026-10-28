@@ -6,6 +6,7 @@
 #include <QTimer>
 
 #include "controlcontroller.h"
+#include "envvar.h"
 #include "inputmap.h"
 #include "mcp_tools.h"
 #include "playercontroller.h"
@@ -18,6 +19,11 @@ using namespace tools;
 
 namespace {
 constexpr int kMaxRemoteFrames = 600;
+
+// Same switch as tools_ui.cpp: confirm: true counts only when the app was started with UZUME_MCP_CONFIRM=1.
+bool confirmed(const QJsonObject& a) {
+  return a.value(QStringLiteral("confirm")).toBool(false) && uzume::env::get("UZUME_MCP_CONFIRM") == QLatin1String("1");
+}
 
 QString watchedSession(ui::SessionController* sc, const QJsonObject& a) {
   QString sid = a.value(QStringLiteral("session_id")).toString();
@@ -53,13 +59,22 @@ void installControlTools(McpToolRegistry& registry, ui::PlayerController& player
   an.name = QStringLiteral("control_answer");
   an.description = QStringLiteral(
       "Host side: answers the pending controller request of a viewer like the Allow / Deny card on the stage (keys 1 / 2). viewer is the viewer_id from "
-      "control_state or session_viewers (default: the oldest pending request). Errors: no_pending_request.");
+      "control_state or session_viewers (default: the oldest pending request). Allow needs confirm: true and an app started with UZUME_MCP_CONFIRM=1 (else needs_confirmation_in_app); Deny is free. Errors: no_pending_request.");
   an.inputSchema = schema({{QStringLiteral("allow"), typeBool(QStringLiteral("true = Allow, false = Deny"))},
-                           {QStringLiteral("viewer"), typeStr(QStringLiteral("viewer_id (default: the oldest pending request)"))}},
+                           {QStringLiteral("viewer"), typeStr(QStringLiteral("viewer_id (default: the oldest pending request)"))},
+                           {QStringLiteral("confirm"), typeBool(QStringLiteral("Allow only: test runs started with UZUME_MCP_CONFIRM=1"))}},
                           {QStringLiteral("allow")});
   an.handler = [pc](const QJsonObject& a, ToolReply reply) {
     if (!pc) return reply(ToolResult::error(QStringLiteral("app_closing")));
     if (!a.value(QStringLiteral("allow")).isBool()) return reply(ToolResult::error(QStringLiteral("allow must be true or false")));
+    // Allow hands the game's controller to another person: like a destructive click it needs the test-run switch (UZUME_MCP_CONFIRM=1)
+    // and confirm: true. Deny stays free.
+    if (a.value(QStringLiteral("allow")).toBool() && !confirmed(a)) {
+      ToolResult r = ToolResult::error(QStringLiteral("needs_confirmation_in_app"));
+      r.addText(QStringLiteral("Allowing hands the controller to another person. Ask the person to press Allow in the app themselves. Test runs only: start "
+                               "the app with UZUME_MCP_CONFIRM=1 and pass confirm: true."));
+      return reply(r);
+    }
     QString viewer = a.value(QStringLiteral("viewer")).toString();
     if (viewer.isEmpty()) {
       const auto pending = pc->sessions()->host()->controlPending();

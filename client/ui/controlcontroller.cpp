@@ -9,6 +9,7 @@ namespace uzume::ui {
 
 namespace {
 constexpr int kEscWindowMs = 2000;
+constexpr int kAskSwitchGuardMs = 500;  // after the card switches to another request, a click or key 1/2 meant for the old one is ignored
 }
 
 ControlController::ControlController(SessionController* sessions, GameSession* game, QObject* parent)
@@ -43,6 +44,10 @@ void ControlController::setPortsProvider(std::function<int()> provider) {
 void ControlController::refreshPorts() {
   const bool live = game_ && game_->isActive() && sessions_->shared();
   const int ports = live && ports_ ? ports_() : 0;
+  // A grant belongs to the game it was given for: another game ends every hold (the port count alone may be the same).
+  const QString game = sessions_->hasLocalGame() ? sessions_->localTitle() : QString();
+  if (game != lastGameTitle_ && !lastGameTitle_.isEmpty() && hasHolder()) takeBack();
+  lastGameTitle_ = game;
   sessions_->host()->setControlPorts(ports);
   syncGame();
 }
@@ -60,6 +65,8 @@ void ControlController::onHostControl() {
   const auto pending = host->controlPending();
   Ask next;
   if (!pending.isEmpty()) next = {pending.first().viewerId, pending.first().port, pending.first().deadlineMs};
+  if (askOpen() && !next.viewerId.isEmpty() && (next.viewerId != ask_.viewerId || next.port != ask_.port)) askSwitched_.restart();
+  else if (next.viewerId.isEmpty()) askSwitched_.invalidate();
   ask_ = next;
   if (askOpen() || hasHolder()) ticker_.start();
   else ticker_.stop();
@@ -103,6 +110,7 @@ QString ControlController::holderText() const {
 
 void ControlController::answer(bool allow) {
   if (!askOpen()) return;
+  if (askSwitched_.isValid() && askSwitched_.elapsed() < kAskSwitchGuardMs) return;
   const QString id = ask_.viewerId;
   sessions_->host()->answerControl(id, allow);
 }
@@ -113,10 +121,14 @@ void ControlController::takeBack() {
 }
 
 bool ControlController::escapePressed() {
-  if (!hasHolder()) return false;
+  // Only a take-over of P1 takes the Esc: the host's own game is suspended then. A guest on P2 leaves Esc to pause as usual.
+  if (sessions_->host()->controlHolder(0).isEmpty()) {
+    escArmed_ = false;
+    return false;
+  }
   if (escArmed_ && escClock_.isValid() && escClock_.elapsed() <= kEscWindowMs) {
     escArmed_ = false;
-    takeBack();
+    sessions_->host()->takeBack(0);
     emit notice(tr("Controller taken back"));
     return true;
   }
@@ -201,7 +213,8 @@ void ControlController::pushInput(const QString& sessionId) {
 }
 
 void ControlController::onViewerControl() {
-  // A grant gives the tile the keyboard; the end of a hold lets go of everything.
+  // A grant gives the tile the keyboard; a hold that ends lets go of everything.
+  bool lost = false;
   for (const QString& sid : sessions_->shownSessionIds()) {
     SessionViewer* v = sessions_->viewer(sid);
     if (!v) continue;
@@ -210,10 +223,11 @@ void ControlController::onViewerControl() {
     lastState_.insert(sid, now);
     if (now == was) continue;
     if (v->controlState() != SessionViewer::ControlState::Granted) {
-      keys_.clear();
-      touching_ = false;
-      debug_ = 0;
       if (was == static_cast<int>(SessionViewer::ControlState::Granted)) {
+        lost = true;
+        keys_.clear();
+        touching_ = false;
+        debug_ = 0;
         const QString why = v->controlReason();
         if (why == QLatin1String("host")) emit notice(tr("%1 took the controller back").arg(sessions_->surfaceInfo().value(sid).toMap().value(QStringLiteral("who")).toString()));
       }
@@ -221,6 +235,9 @@ void ControlController::onViewerControl() {
       focus_ = sid;  // the tile is the one the person just asked from
       pushInput(sid);
     }
+  }
+  if (lost) {
+    for (const QString& sid : sessions_->shownSessionIds()) pushInput(sid);  // other sessions I still play in see the released keys
   }
   emit changed();
 }

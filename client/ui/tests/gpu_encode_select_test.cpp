@@ -64,6 +64,8 @@ class FakeCapture final : public GpuCapture {
       out->ntHandle = log_->handle;
       out->width = w;
       out->height = h;
+      out->luidValid = true;  // the adapter the capture's device ended up on: deliberately not the Vulkan device's (0x27 in byte 7)
+      for (int k = 0; k < 8; ++k) out->luid[k] = static_cast<unsigned char>(0x40 + k);
     }
     return script_[i];
   }
@@ -350,7 +352,7 @@ class GpuEncodeSelectTest : public QObject {
     const quint64 gen = img.generation;
     QVERIFY(gen != 0);
     QVERIFY(bridge.adapterLuid().valid);
-    QCOMPARE(bridge.adapterLuid().bytes[7], quint8(0x27));
+    QCOMPARE(bridge.adapterLuid().bytes[7], quint8(0x47));  // the capture's adapter, not a copy of the device's LUID
     emu::ExternalImage again;  // same size: the same texture, the same generation, no second capture object
     QCOMPARE(bridge.attachExternal(640, 480, device(0x1002), &again), Attach::Ok);
     QCOMPARE(again.generation, gen);

@@ -69,6 +69,10 @@ class VoiceEngine : public QObject {
   QList<PeerInfo> peers() const;
   QStringList peerDevices() const { return peers_.keys(); }
   qint64 framesSent() const { return framesSent_; }
+  // Tests: feed a state of the peer connection (rtc::PeerConnection::State as int: 4 = failed, 5 = closed) and read how often the
+  // connection to a device was built (-1 = no such peer).
+  void simulateStateForTests(const QString& deviceId, int state);
+  int buildsForTests(const QString& deviceId) const;
   void setTimersForTests(bool on) { decodeTimer_.setInterval(on ? 5 : 10); }
 
  signals:

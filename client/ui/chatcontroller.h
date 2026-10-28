@@ -137,6 +137,7 @@ class ChatController : public QObject {
     QString kind, id;
     QList<Msg> msgs;  // confirmed in seq order, then pending
     qint64 lastSeq = 0;
+    qint64 liveAfter = -1;  // while a catch-up reload runs: messages above this seq arrived while I was away and count as new
     int unread = 0;
     bool loaded = false;
     bool loading = false;

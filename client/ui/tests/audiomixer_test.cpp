@@ -168,6 +168,28 @@ class AudioMixerTest : public QObject {
     QCOMPARE(calls, before);
   }
 
+  void generatorNeverLengthensAShortGameRead() {
+    AudioMixer m;
+    m.openHeadless(48000);
+    const auto g = m.addInput(AudioMixer::Game);
+    m.setFocus(g);
+    int asked = 0;
+    m.addGenerator("plugin", [&](float* acc, int frames, int) {
+      asked = frames;
+      for (int i = 0; i < frames * 2; ++i) acc[i] += 0.1f;
+      return frames;
+    });
+    m.push(g, constant(8192, 6));
+    int n = 0;
+    level(m, 16, &n);
+    QCOMPARE(n, 6);  // the game's 6 frames, not the full request padded with silence
+    QCOMPARE(asked, 6);
+    asked = 0;
+    level(m, 16, &n);  // game dry: the plugin sound plays alone over the whole request
+    QCOMPARE(n, 16);
+    QCOMPARE(asked, 16);
+  }
+
   void underrunsCountOncePerDrySpell() {
     AudioMixer m;
     m.openHeadless(48000);

@@ -176,6 +176,7 @@ class VoiceController : public QObject {
   void feedMicFrameForTests(const int16_t* mono960) { onMicFrame(mono960); }
   VoiceEngine* engine() { return &engine_; }
   void tickForTests() { injectTick(); }
+  QString joinRequestIdForTests() const { return joinRequestId_; }
   void setCaptureProblemForTests(bool noDevice, bool blocked) {
     captureNoDevice_ = noDevice;
     captureBlocked_ = blocked;
@@ -201,7 +202,8 @@ class VoiceController : public QObject {
   void onVoiceRoom(const VoiceRoomMessage& room);
   void onVoiceSignal(const QString& scope, const QString& id, const QString& from, const QJsonObject& body);
   void onSocketState(HubSocket::State s);
-  void onHubError(const QString& code, const QString& message);
+  void onHubError(const QString& requestId, const QString& code, const QString& message);
+  void sendJoin();
   void onMicFrame(const int16_t* mono960);
   void onCaptureFrame(const QByteArray& mono16);
   void onCaptureStatus();
@@ -247,6 +249,7 @@ class VoiceController : public QObject {
   QList<Member> members_;
   QSet<QString> manualLeft_;  // scopes the person left by hand: no automatic join there
   bool firstRoomSeen_ = false;
+  QString joinRequestId_;  // the envelope id of my last voice_join: only an error answering it ends the join
   QString notice_;
   QTimer noticeTimer_;
   QString lastWireMode_;

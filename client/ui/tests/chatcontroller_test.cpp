@@ -213,13 +213,16 @@ class ChatControllerTest : public QObject {
     emit f.socket.stateChanged(HubSocket::State::Open);
     QCOMPARE(f.fetches.size(), 1);
     QCOMPARE(f.fetches[0].after, 3LL);
-    // Messages found this way are not news
+    // Messages that arrived while the link was down are news: unread and a mention signal
+    QSignalSpy mention(&f.chat, &ChatController::mentioned);
     ChatPage gap;
     gap.ok = true;
     gap.messages.append(msg(4, kLena, "while away"));
+    gap.messages.append(msg(5, kLena, "@Max you there", {}, {kMe}));
     f.fetches[0].cb(gap);
-    QCOMPARE(f.chat.messageCount(), 2);
-    QCOMPARE(f.chat.unread(), 0);
+    QCOMPARE(f.chat.messageCount(), 3);
+    QCOMPARE(f.chat.unread(), 2);
+    QCOMPARE(mention.count(), 1);
   }
 
   void unreadCountsOnlyWhileTheTabIsClosed() {

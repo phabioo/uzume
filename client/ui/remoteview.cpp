@@ -18,10 +18,13 @@ void RemoteView::setControl(ControlController* c) {
   if (control_ == c) return;
   if (control_) control_->disconnect(this);
   control_ = c;
+  wasControlling_ = false;
   if (control_) {
     // A grant for this Session gives the tile the keyboard.
     connect(control_, &ControlController::changed, this, [this]() {
-      if (control_->controlling(surfaceId_) && !hasActiveFocus()) forceActiveFocus();
+      const bool now = control_->controlling(surfaceId_);
+      if (now && !wasControlling_ && !hasActiveFocus()) forceActiveFocus();  // only on the transition, not on every change
+      wasControlling_ = now;
     });
   }
   emit controlChanged();

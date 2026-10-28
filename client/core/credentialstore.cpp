@@ -39,6 +39,12 @@ QString credentialTarget(const QString& hubId, const QString& deviceId) {
   return QStringLiteral("Uzume/%1/%2").arg(hubId, deviceId);
 }
 
+CredentialRead CredentialStore::readChecked(const QString& target) const {
+  const auto v = read(target);
+  if (!v) return {};
+  return {CredentialRead::Status::Ok, *v};
+}
+
 MemoryCredentialStore::MemoryCredentialStore() {
   static std::once_flag warned;
   std::call_once(warned, [] {
@@ -144,7 +150,8 @@ class PromptWaiter : public QObject {
 // session. Nothing is shared between operations, hence safe from any worker thread.
 class Op {
  public:
-  explicit Op(int promptTimeoutMs) : promptTimeoutMs_(promptTimeoutMs) {
+  explicit Op(int promptTimeoutMs, int callTimeoutMs = kCallTimeoutMs)
+      : promptTimeoutMs_(promptTimeoutMs), callTimeoutMs_(callTimeoutMs) {
     secretservice::registerTypes();
     static std::atomic<quint64> counter{0};
     name_ = QStringLiteral("uzume-secret-%1").arg(counter.fetch_add(1));
@@ -167,7 +174,7 @@ class Op {
                                    const QVariantList& args = {}, const QString& bus = kBusName) const {
     QDBusMessage msg = QDBusMessage::createMethodCall(bus, path, iface, method);
     msg.setArguments(args);
-    const QDBusMessage reply = conn_->call(msg, QDBus::Block, kCallTimeoutMs);
+    const QDBusMessage reply = conn_->call(msg, QDBus::Block, callTimeoutMs_);
     if (reply.type() != QDBusMessage::ReplyMessage) {
       qCDebug(lcCred) << "Secret Service call failed:" << method << reply.errorName() << reply.errorMessage();
       return std::nullopt;
@@ -274,6 +281,7 @@ class Op {
 
  private:
   int promptTimeoutMs_;
+  int callTimeoutMs_;
   QString name_;
   std::optional<QDBusConnection> conn_;
   QString session_;
@@ -297,16 +305,24 @@ bool SecretServiceCredentialStore::write(const QString& target, const QString& s
   return prompt == kNoObject || op.runPrompt(prompt).has_value();
 }
 
-std::optional<QString> SecretServiceCredentialStore::read(const QString& target) const {
+CredentialRead SecretServiceCredentialStore::readChecked(const QString& target) const {
+  using Status = CredentialRead::Status;
   Op op(promptTimeoutMs_);
-  if (!op.connected() || !op.openSession()) return std::nullopt;
+  if (!op.connected() || !op.openSession()) return {Status::Error, {}};
   const auto found = op.find(target);
-  if (!found.ok || found.items.isEmpty()) return std::nullopt;
+  if (!found.ok) return {Status::Error, {}};
+  if (found.items.isEmpty()) return {Status::NotFound, {}};
   const auto r = op.call(found.items.first().path(), kItemIface, QStringLiteral("GetSecret"),
                          {QVariant::fromValue(QDBusObjectPath(op.session()))});
-  if (!r || r->isEmpty()) return std::nullopt;
+  if (!r || r->isEmpty()) return {Status::Error, {}};
   const Secret s = qdbus_cast<Secret>(r->at(0));
-  return QString::fromUtf8(s.value);
+  return {Status::Ok, QString::fromUtf8(s.value)};
+}
+
+std::optional<QString> SecretServiceCredentialStore::read(const QString& target) const {
+  const CredentialRead r = readChecked(target);
+  if (r.status != CredentialRead::Status::Ok) return std::nullopt;
+  return r.secret;
 }
 
 bool SecretServiceCredentialStore::remove(const QString& target) {
@@ -328,20 +344,35 @@ bool SecretServiceCredentialStore::remove(const QString& target) {
 }
 
 bool SecretServiceCredentialStore::isAvailable() {
-  Op op(1000);
+  Op op(1000, 5000);  // activation of a stopped service may take a moment, but never forever
   if (!op.connected()) return false;
   const auto owned = op.call(QStringLiteral("/org/freedesktop/DBus"), QStringLiteral("org.freedesktop.DBus"),
                              QStringLiteral("NameHasOwner"), {kBusName}, QStringLiteral("org.freedesktop.DBus"));
-  if (owned && !owned->isEmpty() && owned->at(0).toBool()) return true;
-  const auto activatable = op.call(QStringLiteral("/org/freedesktop/DBus"), QStringLiteral("org.freedesktop.DBus"),
-                                   QStringLiteral("ListActivatableNames"), {}, QStringLiteral("org.freedesktop.DBus"));
-  return activatable && !activatable->isEmpty() && activatable->at(0).toStringList().contains(kBusName);
+  bool present = owned && !owned->isEmpty() && owned->at(0).toBool();
+  if (!present) {
+    const auto activatable = op.call(QStringLiteral("/org/freedesktop/DBus"), QStringLiteral("org.freedesktop.DBus"),
+                                     QStringLiteral("ListActivatableNames"), {}, QStringLiteral("org.freedesktop.DBus"));
+    present = activatable && !activatable->isEmpty() && activatable->at(0).toStringList().contains(kBusName);
+  }
+  if (!present) return false;
+  // Registered is not working: this call activates a merely activatable service and must be answered. No prompt is
+  // needed for OpenSession, so a service that cannot show one still passes only when it really runs.
+  if (!op.openSession()) {
+    qCWarning(lcCred) << "Secret Service is registered but does not answer";
+    return false;
+  }
+  return true;
 }
 #endif
 
 std::optional<QString> readCredential(CredentialStore& store, const QString& ref) {
   if (ref.isEmpty()) return std::nullopt;
   return store.read(ref);
+}
+
+CredentialRead readCredentialChecked(CredentialStore& store, const QString& ref) {
+  if (ref.isEmpty()) return {};
+  return store.readChecked(ref);
 }
 
 bool removeCredential(CredentialStore& store, const QString& ref) { return store.remove(ref); }

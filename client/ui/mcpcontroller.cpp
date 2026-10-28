@@ -82,9 +82,14 @@ void McpController::setToolInstaller(const std::function<void(mcp::McpToolRegist
 bool McpController::ensureToken() {
   if (!token_.isEmpty()) return true;
   if (!credentials_) return false;
-  const std::optional<QString> stored = credentials_->read(QString::fromLatin1(kTokenTarget));
-  if (stored && stored->size() >= 32) {
-    token_ = stored->toLatin1();
+  const CredentialRead stored = credentials_->readChecked(QString::fromLatin1(kTokenTarget));
+  if (stored.status == CredentialRead::Status::Error) {
+    // The stored token may exist: a new one would overwrite it, so the server does not start.
+    error_ = tr("The credential store did not answer. Unlock it and try again.");
+    return false;
+  }
+  if (stored.status == CredentialRead::Status::Ok && stored.secret.size() >= 32) {
+    token_ = stored.secret.toLatin1();
     return true;
   }
   const QByteArray fresh = mcp::generateToken();
@@ -104,8 +109,9 @@ void McpController::apply() {
     emit changed();
     return;
   }
+  error_.clear();
   if (!ensureToken()) {
-    error_ = tr("The token could not be stored in the credential store.");
+    if (error_.isEmpty()) error_ = tr("The token could not be stored in the credential store.");
     emit changed();
     return;
   }

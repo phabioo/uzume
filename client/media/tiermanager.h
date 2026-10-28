@@ -36,6 +36,12 @@ class TierManager {
     for (Enc& e : enc_) e = Enc();
   }
 
+  // The tier's encoder failed: forget it (its viewers were moved off it by the caller). Substituted viewers wanting it
+  // re-create it in tick() once they are picked again.
+  void evict(Quality q) {
+    if (q != Quality::Auto) enc_[idx(q)] = Enc();
+  }
+
   Change addViewer(const QString& id, qint64 nowMs) {
     if (const auto it = viewers_.constFind(id); it != viewers_.constEnd()) return {it->effective, false};
     const Quality eff = resolve(Quality::Auto, nowMs);
