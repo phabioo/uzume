@@ -25,7 +25,7 @@ User guides (install, using the app, server, saves, sessions, updates) live in t
 - [Development](development.md): build, test, dependency scripts, CI, versioning
 - [Roadmap](roadmap.md): direction and finished milestones; [History](history.md): finished milestones, PoC phases, renumbering
 - [Working with Claude Code](workflow.md): roles, briefs, phase plan
-- Legal: [LICENSE](../LICENSE), [NOTICE.md](../NOTICE.md) (trademarks, disclaimer), [third-party notices](../THIRD-PARTY-NOTICES.md), [CONTRIBUTING.md](../CONTRIBUTING.md), [CLA](../CLA.md)
+- Legal: [LICENSE](../LICENSE), [NOTICE.md](../NOTICE.md) (trademarks, disclaimer), [third-party notices](../THIRD-PARTY-NOTICES.md), [CONTRIBUTING.md](../CONTRIBUTING.md), [CLA](../CLA.md), [security policy](../SECURITY.md)
 - [Architecture](architecture/README.md): design basis of the PoC (index; read only the file you need)
 - [Design](design/README.md): screens, tokens, logo; [decisions](design/legacy/decisions.md); [Uzume design](design/uzume/README.md) (valid from 0.18 on)
 - [Decisions (ADRs)](adr/README.md): one table of all decision records

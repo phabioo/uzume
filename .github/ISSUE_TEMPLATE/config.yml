@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/phabioo/uzume/security/advisories/new
+    about: Report security problems privately, never in a public issue. See SECURITY.md.
   - name: Uzume documentation
     url: https://github.com/phabioo/uzume/tree/main/docs/guides
     about: Setup, server configuration, sessions over the internet and troubleshooting guides.
