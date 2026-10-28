@@ -1,22 +1,28 @@
 name: Release
 
-# Publishes the artifacts of a successful CI run on main as a GitHub prerelease vX.Y.Z (beta; the tag was reserved by
-# the CI version job), adds them to the signed updates index (release "updates-index") and prunes old prereleases.
-# No rebuild: the files are exactly what CI built and tested. ADR 0011.
+# Manual (beta on demand, ADR 0016 amendment 2026-10-28): publishes the artifacts of ONE successful CI run on main
+# (default: the newest build that is not released yet) as a GitHub prerelease vX.Y.Z (beta; the tag was reserved by the
+# CI version job), adds them to the signed updates index (release "updates-index") and prunes old prereleases.
+# Every main build has its number and artifacts; only the builds picked here become betas. No rebuild: the files are
+# exactly what CI built and tested (CI artifacts are kept 7 days). ADR 0011.
 # The stable release is made by promote.yml from such a prerelease (same files, same number). To make that possible
 # the index descriptions are also uploaded to the prerelease (index-hub.json, index-player.json).
 # The signing seed is the signing-key secret of the environment `release` (deployment branch: main only); it is only in the environment of the signing step.
 
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
+  workflow_dispatch:
+    inputs:
+      build:
+        description: 'Build to publish: 21.7, v21.7.0 or 21.7.0 (empty = newest green main build that is not published yet)'
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
 
-# Nothing is cancelled and no run is dropped (CI-6): a concurrency group keeps only ONE pending run, so with three main
-# builds finishing during a publish the middle one would be cancelled and never get its prerelease and index entry.
+# Nothing is cancelled and no run is dropped (CI-6): a concurrency group keeps only ONE pending run, so with several
+# publishes started during one the middle one would be cancelled and never get its prerelease and index entry.
 # Every run has its own group; the index update (read-modify-write) is serialised by the queue in
 # scripts/wait-index-turn.sh instead, oldest run first, shared with promote.yml.
 concurrency:
@@ -26,9 +32,7 @@ concurrency:
 jobs:
   publish:
     name: Publish release and update the index
-    if: >-
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main'
+    # The environment `release` is main-only; failing early in the first step gives a clearer message than a refused deployment.
     runs-on: ubuntu-24.04
     timeout-minutes: 90   # includes waiting for older index updates (wait-index-turn.sh, at most 40 minutes)
     environment: release
@@ -39,9 +43,53 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
-      RUN_ID: ${{ github.event.workflow_run.id }}
-      HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+      BUILD_INPUT: ${{ inputs.build }}
     steps:
+      - name: Find the CI build
+        run: |
+          set -euo pipefail
+          [ "$GITHUB_REF" = refs/heads/main ] || { echo "::error::run this workflow from main (selected: $GITHUB_REF); the signing environment is main-only"; exit 1; }
+          # Successful CI runs of pushes to main, newest first (the CI version job reserved one plain tag vR.B.0 per run).
+          gh run list --workflow ci.yml --branch main --event push --status success --limit 50 \
+            --json databaseId,headSha,createdAt --jq 'sort_by(.createdAt) | reverse' > "$RUNNER_TEMP/ci-runs.json"
+          released() { gh release view "$1" >/dev/null 2>&1; }
+          tag_sha() { gh api "repos/$GH_REPO/git/ref/tags/$1" --jq '.object | select(.type == "commit") | .sha' 2>/dev/null || true; }
+          want="$(echo "$BUILD_INPUT" | tr -d '[:space:]')"
+          run_id=""; head_sha=""; tag=""
+          if [ -n "$want" ]; then
+            want="${want#v}"
+            [[ "$want" =~ ^[0-9]+\.[0-9]+(\.0)?$ ]] || { echo "::error::build '$BUILD_INPUT' is not R.B, R.B.0 or vR.B.0"; exit 1; }
+            [[ "$want" =~ ^[0-9]+\.[0-9]+\.0$ ]] || want="$want.0"
+            tag="v$want"
+            head_sha="$(tag_sha "$tag")"
+            [ -n "$head_sha" ] || { echo "::error::no tag $tag: this build number was never reserved (or the tag was pruned after 8 days)"; exit 1; }
+            run_id="$(jq -r --arg s "$head_sha" '[.[] | select(.headSha == $s)][0].databaseId // empty' "$RUNNER_TEMP/ci-runs.json")"
+            [ -n "$run_id" ] || { echo "::error::no successful CI push run on main for $tag (commit $head_sha) among the newest 50: the build failed, is too old, or its artifacts expired (retention 7 days)"; exit 1; }
+          else
+            while read -r id sha; do
+              t="$(gh api --paginate "repos/$GH_REPO/git/matching-refs/tags/v" --jq '.[] | select(.object.sha == "'"$sha"'") | .ref | sub("^refs/tags/"; "") | select(test("^v[0-9]+\\.[0-9]+\\.0$"))' | sort -V | tail -n 1)"
+              [ -n "$t" ] || continue
+              if released "$t"; then
+                echo "::error::newest green main build $t is already published; nothing newer to release"
+                exit 1
+              fi
+              run_id="$id"; head_sha="$sha"; tag="$t"; break
+            done < <(jq -r '.[] | "\(.databaseId) \(.headSha)"' "$RUNNER_TEMP/ci-runs.json")
+            [ -n "$run_id" ] || { echo "::error::no green main build with a reserved version tag found among the newest 50 CI runs"; exit 1; }
+          fi
+          if released "$tag"; then
+            echo "::warning::$tag already has a release; the files are published again (--clobber) and the index entry is replaced"
+          fi
+          # Artifacts of old runs are deleted after 7 days; fail here, before the queue and the build of uzume-sign.
+          n="$(gh api "repos/$GH_REPO/actions/runs/$run_id/artifacts" --jq '[.artifacts[] | select((.expired | not) and (.name | startswith("uzume-")))] | length')"
+          [ "$n" -gt 0 ] || { echo "::error::the artifacts of CI run $run_id ($tag) are expired (retention 7 days); only builds of the last 7 days can be published"; exit 1; }
+          echo "RUN_ID=$run_id" >> "$GITHUB_ENV"
+          echo "HEAD_SHA=$head_sha" >> "$GITHUB_ENV"
+          {
+            echo "### Publishing build ${tag#v}"
+            echo "- Tag: \`$tag\`, commit \`${head_sha:0:12}\`, CI run [$run_id]($GITHUB_SERVER_URL/$GH_REPO/actions/runs/$run_id)"
+            if [ -n "$BUILD_INPUT" ]; then echo "- Chosen by input \`$BUILD_INPUT\`"; else echo "- Chosen: newest green main build that is not published yet"; fi
+          } >> "$GITHUB_STEP_SUMMARY"
       # The workflow file and scripts come from the default branch; the release files from the CI run (artifacts).
       - uses: actions/checkout@v7
         with:
@@ -64,7 +112,7 @@ jobs:
       - name: Download the artifacts of the CI run
         uses: actions/download-artifact@v8
         with:
-          run-id: ${{ github.event.workflow_run.id }}
+          run-id: ${{ env.RUN_ID }}
           github-token: ${{ github.token }}
           path: ${{ runner.temp }}/artifacts
           pattern: uzume-*
@@ -116,7 +164,7 @@ jobs:
           set -euo pipefail
           # Base = the highest plain vX.Y.Z release (prerelease or not) below this version; none: the newest stable release.
           # A failure here (API error, missing history) never blocks the release: fixed text and no `notes` in the index.
-          fallback="Automatic beta build of commit $HEAD_SHA from main."
+          fallback="Beta build of commit $HEAD_SHA from main."
           notes="$RUNNER_TEMP/notes.md"
           : > "$RUNNER_TEMP/notes-hub.txt"; : > "$RUNNER_TEMP/notes-player.txt"
           collect() {
@@ -198,9 +246,9 @@ jobs:
       - name: Prune orphan version tags (reserved by CI, never released)
         run: |
           set -euo pipefail
-          # The CI version job reserves vX.Y.Z before building (ADR 0016 D2). A build that fails afterwards leaves a tag
-          # without a release. Such a tag can never be released once the CI artifacts are gone (retention 7 days), so
-          # plain tags without a release whose commit is older than 8 days are deleted. Only the newest 60 plain tags
+          # The CI version job reserves vX.Y.Z before building (ADR 0016 D2). Since betas are published on demand, most
+          # tags never get a release (skipped or failed builds). Such a tag can never be released once the CI artifacts
+          # are gone (retention 7 days), so plain tags without a release whose commit is older than 8 days are deleted. Only the newest 60 plain tags
           # are looked at; tags with a release, other tag shapes and this run's tag are never touched.
           cutoff="$(date -u -d '8 days ago' +%Y-%m-%dT%H:%M:%SZ)"
           gh api --paginate "repos/$GH_REPO/git/matching-refs/tags/v" \

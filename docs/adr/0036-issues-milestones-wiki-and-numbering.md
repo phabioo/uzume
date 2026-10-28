@@ -27,7 +27,7 @@ User guides live in `wiki/` in the repository and are mirrored to the GitHub wik
 
 ### D4 Release numbering (replaces ADR 0016 D1/D2 numbering)
 
-- Chrome-like `R.B`: R is the release line ("Uzume 21"), B is a build number counting up with every push to `main`; each build is a beta.
+- Chrome-like `R.B`: R is the release line ("Uzume 21"), B is a build number counting up with every push to `main`; a build becomes a published beta only on demand (ADR 0016 amendment 2026-10-28).
 - The canonical string is `R.B.0` in tags (`vR.B.0`), files, index and MSI; people see `R.B`.
 - A stable release is a promoted build, without rebuild (as in ADR 0016). A hotfix is a later build of the same line, promoted.
 - `VERSION` holds the line (`21.0.0`); a release PR starts the next line by raising it to `22.0.0`.
