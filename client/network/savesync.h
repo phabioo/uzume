@@ -261,6 +261,9 @@ class SaveSync : public QObject {
   // The core's own save file could not be converted; it stays untouched locally and is not uploaded.
   void coreSaveProblem(const QString& gameId, const QString& message);
   void uploaded(const QString& gameId, int revision);  // after every accepted upload (tests/diagnostics)
+  // The first failed upload of a row (not offline, not a conflict): `errorCode` is the API error code or "http_<status>". Repeated
+  // retries of the same failure stay silent until an upload worked (ADR 0035 error events).
+  void uploadFailed(const QString& gameId, const QString& errorCode);
   // save_updated from another device; runningHere = this game runs on this Player with that slot (next upload conflicts).
   void saveChangedElsewhere(const uzume::SaveUpdate& update, bool runningHere);
   // save_updated "renamed" / "deleted" from another device, after the local slot was handled (moved, removed, or kept

@@ -1,6 +1,6 @@
 # ADR 0035: Error groups and GitHub issues
 
-- Status: Proposed (nothing implemented yet; issue templates added)
+- Status: Accepted (implemented; GitHub lookup against api.github.com and Windows untested)
 - Date: 2026-10-28
 - Deciders: Fabio (variant "grouped through Server › Reports", 2026-10-28), Claude (details)
 
@@ -48,3 +48,16 @@ Problem reports ([ADR 0029](0029-operations-and-safety.md) D3) go only to the us
 - ADR 0029 D3 "never to a third party" stays true for automatic data: only an admin decision sends text, and only to GitHub, through their own browser and account.
 - New: error events in the reports API (`reports_v2`), the "Errors" view, the public redaction, the manifest field `issues_url`, the unclean-exit marker in the app.
 - Open: a crash handler with minidumps (none today) would give better crash fingerprints; not part of this decision.
+
+## Implementation notes
+
+Where the implementation refines or differs from the decisions above:
+
+- Fingerprint: normalization lowercases ASCII only and applies its regexes literally in a fixed order, so a time such as 21:04:55 becomes `<ip>`. Shared vectors in `protocol/fixtures/error-fingerprint.json` are tested by the server (`errfp`) and the app (`errorfingerprint`).
+- API: 400 answers use `bad_request`; an invalid fingerprint in a path answers 404. PATCH takes `{"issue_url": string|null}` (null forgets the link) or `{"seen": true}`; an empty body is 400. Events over the per-device limit are dropped and the 202 answer carries `dropped`.
+- Redaction (`redact.Public`) replaces host names with two or more labels (github.com URLs and tokens that end in a common file extension stay), IPs, other URLs, codes, home paths, known user and device names and game titles.
+- The server records recovered handler panics, 5xx internal errors, failed backups and a failed self-update (device "Uzume server"), at most 20 per hour. Groups are not capped; each keeps 200 events.
+- App: an unclean exit (`<data>/running.marker`) becomes `app_crash` with the redacted last ERROR or FATAL line of `logs/player.1.log`. Further events: core load failure or crash, plugin paused by error, watchdog or quota, first failed save upload of a slot, failed self-update (not a plain failed update check). The queue is `<data>/errors-pending.json` (100 at most, the same fingerprint within 10 minutes merged), sent in batches of 20. A one-time banner asks; "Send automatically" and "Not now" are both answers.
+- Server › Reports has a "Reports | Errors" switch (only with `reports_v2`). "Report on GitHub" does the unauthenticated search first, stores a hit and offers "Open issue #N"; otherwise it previews the public text and then opens the URL. It is hidden when the group has no target repository. The Reports badge counts new reports plus unseen groups.
+- The manifest field `issues_url` is `https://github.com/<owner>/<repo>`; an invalid value is a warning and ignored. Issue templates are in `.github/ISSUE_TEMPLATE` and in `uzume-plugin-template`.
+- Untested: the lookup against the real api.github.com and Windows.

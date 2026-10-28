@@ -1135,6 +1135,111 @@ func (e ErrorCode) Valid() bool {
 	}
 }
 
+// Defines values for ErrorEventKind.
+const (
+	ErrorEventKindAppCrash      ErrorEventKind = "app_crash"
+	ErrorEventKindCoreFailure   ErrorEventKind = "core_failure"
+	ErrorEventKindPluginError   ErrorEventKind = "plugin_error"
+	ErrorEventKindServerError   ErrorEventKind = "server_error"
+	ErrorEventKindSyncFailure   ErrorEventKind = "sync_failure"
+	ErrorEventKindUpdateFailure ErrorEventKind = "update_failure"
+)
+
+// Valid indicates whether the value is a known member of the ErrorEventKind enum.
+func (e ErrorEventKind) Valid() bool {
+	switch e {
+	case ErrorEventKindAppCrash:
+		return true
+	case ErrorEventKindCoreFailure:
+		return true
+	case ErrorEventKindPluginError:
+		return true
+	case ErrorEventKindServerError:
+		return true
+	case ErrorEventKindSyncFailure:
+		return true
+	case ErrorEventKindUpdateFailure:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ErrorGroupKind.
+const (
+	ErrorGroupKindAppCrash      ErrorGroupKind = "app_crash"
+	ErrorGroupKindCoreFailure   ErrorGroupKind = "core_failure"
+	ErrorGroupKindPluginError   ErrorGroupKind = "plugin_error"
+	ErrorGroupKindServerError   ErrorGroupKind = "server_error"
+	ErrorGroupKindSyncFailure   ErrorGroupKind = "sync_failure"
+	ErrorGroupKindUpdateFailure ErrorGroupKind = "update_failure"
+)
+
+// Valid indicates whether the value is a known member of the ErrorGroupKind enum.
+func (e ErrorGroupKind) Valid() bool {
+	switch e {
+	case ErrorGroupKindAppCrash:
+		return true
+	case ErrorGroupKindCoreFailure:
+		return true
+	case ErrorGroupKindPluginError:
+		return true
+	case ErrorGroupKindServerError:
+		return true
+	case ErrorGroupKindSyncFailure:
+		return true
+	case ErrorGroupKindUpdateFailure:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ErrorGroupDetailKind.
+const (
+	AppCrash      ErrorGroupDetailKind = "app_crash"
+	CoreFailure   ErrorGroupDetailKind = "core_failure"
+	PluginError   ErrorGroupDetailKind = "plugin_error"
+	ServerError   ErrorGroupDetailKind = "server_error"
+	SyncFailure   ErrorGroupDetailKind = "sync_failure"
+	UpdateFailure ErrorGroupDetailKind = "update_failure"
+)
+
+// Valid indicates whether the value is a known member of the ErrorGroupDetailKind enum.
+func (e ErrorGroupDetailKind) Valid() bool {
+	switch e {
+	case AppCrash:
+		return true
+	case CoreFailure:
+		return true
+	case PluginError:
+		return true
+	case ServerError:
+		return true
+	case SyncFailure:
+		return true
+	case UpdateFailure:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ErrorGroupPatchSeen.
+const (
+	True ErrorGroupPatchSeen = true
+)
+
+// Valid indicates whether the value is a known member of the ErrorGroupPatchSeen enum.
+func (e ErrorGroupPatchSeen) Valid() bool {
+	switch e {
+	case True:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FirmwareMode.
 const (
 	Builtin FirmwareMode = "builtin"
@@ -3598,6 +3703,141 @@ type Error struct {
 // ErrorCode `save_not_snapshot` is no longer returned since `saves_v6` (any history version can be deleted).
 type ErrorCode string
 
+// ErrorEvent defines model for ErrorEvent.
+type ErrorEvent struct {
+	AppVersion string `json:"app_version"`
+
+	// Component `app`, `server`, `core:<core_id>` or `plugin:<plugin_id>`
+	Component   string         `json:"component"`
+	Fingerprint string         `json:"fingerprint"`
+	Kind        ErrorEventKind `json:"kind"`
+	Message     string         `json:"message"`
+	OccurredAt  time.Time      `json:"occurred_at"`
+	Os          string         `json:"os"`
+
+	// Title One line
+	Title string `json:"title"`
+}
+
+// ErrorEventKind defines model for ErrorEvent.Kind.
+type ErrorEventKind string
+
+// ErrorEventBatch defines model for ErrorEventBatch.
+type ErrorEventBatch struct {
+	Events []ErrorEvent `json:"events"`
+}
+
+// ErrorEventsAccepted defines model for ErrorEventsAccepted.
+type ErrorEventsAccepted struct {
+	Accepted int `json:"accepted"`
+
+	// Dropped Events over the limit of 20 per device and hour
+	Dropped int `json:"dropped"`
+}
+
+// ErrorGroup defines model for ErrorGroup.
+type ErrorGroup struct {
+	Component string `json:"component"`
+
+	// Count Events received (also those no longer kept)
+	Count int64 `json:"count"`
+
+	// Devices Distinct devices that sent an event
+	Devices     int       `json:"devices"`
+	Fingerprint string    `json:"fingerprint"`
+	FirstSeen   time.Time `json:"first_seen"`
+
+	// IssueUrl The remembered GitHub issue; null when none
+	IssueUrl *string `json:"issue_url"`
+
+	// IssuesBase Repository for a new issue: `https://github.com/phabioo/uzume` for `app` and `server`,
+	// `https://github.com/phabioo/azahar` for `core:azahar`, the manifest field `issues_url` of the plugin for
+	// `plugin:<id>`; null otherwise (no GitHub button).
+	IssuesBase *string        `json:"issues_base"`
+	Kind       ErrorGroupKind `json:"kind"`
+	LastSeen   time.Time      `json:"last_seen"`
+
+	// Seen False when an event arrived after the last seen mark
+	Seen  bool   `json:"seen"`
+	Title string `json:"title"`
+
+	// Versions App versions of the kept events, newest first
+	Versions []string `json:"versions"`
+}
+
+// ErrorGroupKind defines model for ErrorGroup.Kind.
+type ErrorGroupKind string
+
+// ErrorGroupDetail defines model for ErrorGroupDetail.
+type ErrorGroupDetail struct {
+	Component string `json:"component"`
+
+	// Count Events received (also those no longer kept)
+	Count int64 `json:"count"`
+
+	// Devices Distinct devices that sent an event
+	Devices int `json:"devices"`
+
+	// Events The newest events, newest first
+	Events      []ErrorGroupEvent `json:"events"`
+	Fingerprint string            `json:"fingerprint"`
+	FirstSeen   time.Time         `json:"first_seen"`
+
+	// IssueUrl The remembered GitHub issue; null when none
+	IssueUrl *string `json:"issue_url"`
+
+	// IssuesBase Repository for a new issue: `https://github.com/phabioo/uzume` for `app` and `server`,
+	// `https://github.com/phabioo/azahar` for `core:azahar`, the manifest field `issues_url` of the plugin for
+	// `plugin:<id>`; null otherwise (no GitHub button).
+	IssuesBase *string              `json:"issues_base"`
+	Kind       ErrorGroupDetailKind `json:"kind"`
+	LastSeen   time.Time            `json:"last_seen"`
+
+	// PublicSummary Newest message with the strict public redaction, plus "Seen N times on M devices, versions ..."; no device or user names
+	PublicSummary string `json:"public_summary"`
+
+	// PublicTitle Title with the strict public redaction (ADR 0035 D3)
+	PublicTitle string `json:"public_title"`
+
+	// Seen False when an event arrived after the last seen mark
+	Seen  bool   `json:"seen"`
+	Title string `json:"title"`
+
+	// Versions App versions of the kept events, newest first
+	Versions []string `json:"versions"`
+}
+
+// ErrorGroupDetailKind defines model for ErrorGroupDetail.Kind.
+type ErrorGroupDetailKind string
+
+// ErrorGroupEvent defines model for ErrorGroupEvent.
+type ErrorGroupEvent struct {
+	AppVersion string    `json:"app_version"`
+	DeviceName string    `json:"device_name"`
+	Message    string    `json:"message"`
+	OccurredAt time.Time `json:"occurred_at"`
+	Os         string    `json:"os"`
+	UserName   string    `json:"user_name"`
+}
+
+// ErrorGroupList defines model for ErrorGroupList.
+type ErrorGroupList struct {
+	Groups []ErrorGroup `json:"groups"`
+
+	// New Groups with `seen` false
+	New int `json:"new"`
+}
+
+// ErrorGroupPatch defines model for ErrorGroupPatch.
+type ErrorGroupPatch struct {
+	// IssueUrl A `https://github.com/<owner>/<repo>/issues/<number>` URL, or null to forget it. Absent = unchanged.
+	IssueUrl json.RawMessage      `json:"issue_url,omitempty"`
+	Seen     *ErrorGroupPatchSeen `json:"seen,omitempty"`
+}
+
+// ErrorGroupPatchSeen defines model for ErrorGroupPatch.Seen.
+type ErrorGroupPatchSeen bool
+
 // FirmwareFile defines model for FirmwareFile.
 type FirmwareFile struct {
 	DisplayName string `json:"display_name"`
@@ -3747,7 +3987,7 @@ type HandshakeRequest_Video struct {
 type HandshakeResponse struct {
 	Compatible bool `json:"compatible"`
 
-	// Features Optional server feature flags (additive, protocol_version unchanged). `saves_v1` = save sync API, `sessions_v1` = Sessions API and WSS endpoint, `users_v1` = invite redemption (`POST /invites/redeem`) and user management, `uploads_v1` = the calling user may upload ROMs (`POST /games`; advertised per caller), `firmware_v1` = systems registry and firmware download, `cores_v1` = signed core packages served by the server (`/api/v1/cores/...`, `core_package_version` in `SystemInfo`), `turn_v1` = at least one relay provider is on (the embedded TURN server and/or Cloudflare TURN; `turn_servers` in `hello_ack`, `ice_update` and the join response), `saves_v2` = save restore, manual snapshots, history labels and the `save_updated` WSS message, `saves_v3` = deleting manual snapshots (`DELETE /games/{game_id}/saves/{slot}/history/{version}`), `saves_v4` = uploading a save file into a slot (`POST /games/{game_id}/saves/{slot}/upload`), `saves_v5` = renaming a slot (`POST /games/{game_id}/saves/{slot}/rename`), deleting a slot (`DELETE /games/{game_id}/saves/{slot}`), `save_updated` reasons `renamed` and `deleted`, and 409 `session_running` on `saves_v4` uploads while a Session of the game runs, `saves_v6` = deleting any history version (before it only manual snapshots) and the main slot `default` (before it only other slots; renaming `default` stays refused), `cores_v2` = several cores per system (`default_core_id` and `cores` in `SystemInfo`; core ids follow `^[a-z0-9][a-z0-9_-]{0,63}$`), `ice_update_v1` = the server pushes the WSS message `ice_update` whenever its effective ICE configuration changes, `plugins_v1` = plugin list and download (`GET /plugins`, `GET /plugins/{plugin_id}/{version}/file`), `runs_v1` = runs, `runs_v2` = runs without plugins (`plugins` may be empty) and the run field `save_slot`, `local_roms_v1` = local-only games and resumable uploads (`POST /games/register`, `DELETE /games/{game_id}/registration`, `/uploads`; `stored`, `on_hub`, `roms`, `game_version`; `GET /roms/{sha256}` serves stored files only), `reports_v1` = problem reports (`POST /reports`; the admin endpoints under `/admin/reports`), `accounts_v1` = server accounts (`POST /auth/sign-in`, `/account` with password, confirmation and own devices, `/admin/users/{user_id}/password-reset`, `/admin/accounts/settings`; the error codes `confirmation_required`, `password_required` and `password_not_set`), `admin_v1` = the admin API under `/admin/...` (advertised only to admin users), `tools_v1` = the tools catalog (`GET /tools`, `GET /tools/{tool_id}/packages/{version}/{platform}`, `/admin/tools`), `variants_v1` = game variants and runs with a randomizer recipe (`/variants`, `/games/{game_id}/variants`, `randomizer` in the run object and in `POST /runs`, `variant` in `POST /runs/{run_id}/join`, `GET /runs/{run_id}/variant`, `POST /runs/{run_id}/variant-state`, `variant_kind` and `variant_state` per participant). `cores_index_v1` (signed core index) existed in 0.4 to 0.7 and was removed in 0.8.
+	// Features Optional server feature flags (additive, protocol_version unchanged). `saves_v1` = save sync API, `sessions_v1` = Sessions API and WSS endpoint, `users_v1` = invite redemption (`POST /invites/redeem`) and user management, `uploads_v1` = the calling user may upload ROMs (`POST /games`; advertised per caller), `firmware_v1` = systems registry and firmware download, `cores_v1` = signed core packages served by the server (`/api/v1/cores/...`, `core_package_version` in `SystemInfo`), `turn_v1` = at least one relay provider is on (the embedded TURN server and/or Cloudflare TURN; `turn_servers` in `hello_ack`, `ice_update` and the join response), `saves_v2` = save restore, manual snapshots, history labels and the `save_updated` WSS message, `saves_v3` = deleting manual snapshots (`DELETE /games/{game_id}/saves/{slot}/history/{version}`), `saves_v4` = uploading a save file into a slot (`POST /games/{game_id}/saves/{slot}/upload`), `saves_v5` = renaming a slot (`POST /games/{game_id}/saves/{slot}/rename`), deleting a slot (`DELETE /games/{game_id}/saves/{slot}`), `save_updated` reasons `renamed` and `deleted`, and 409 `session_running` on `saves_v4` uploads while a Session of the game runs, `saves_v6` = deleting any history version (before it only manual snapshots) and the main slot `default` (before it only other slots; renaming `default` stays refused), `cores_v2` = several cores per system (`default_core_id` and `cores` in `SystemInfo`; core ids follow `^[a-z0-9][a-z0-9_-]{0,63}$`), `ice_update_v1` = the server pushes the WSS message `ice_update` whenever its effective ICE configuration changes, `plugins_v1` = plugin list and download (`GET /plugins`, `GET /plugins/{plugin_id}/{version}/file`), `runs_v1` = runs, `runs_v2` = runs without plugins (`plugins` may be empty) and the run field `save_slot`, `local_roms_v1` = local-only games and resumable uploads (`POST /games/register`, `DELETE /games/{game_id}/registration`, `/uploads`; `stored`, `on_hub`, `roms`, `game_version`; `GET /roms/{sha256}` serves stored files only), `reports_v1` = problem reports (`POST /reports`; the admin endpoints under `/admin/reports`), `accounts_v1` = server accounts (`POST /auth/sign-in`, `/account` with password, confirmation and own devices, `/admin/users/{user_id}/password-reset`, `/admin/accounts/settings`; the error codes `confirmation_required`, `password_required` and `password_not_set`), `admin_v1` = the admin API under `/admin/...` (advertised only to admin users), `tools_v1` = the tools catalog (`GET /tools`, `GET /tools/{tool_id}/packages/{version}/{platform}`, `/admin/tools`), `variants_v1` = game variants and runs with a randomizer recipe (`/variants`, `/games/{game_id}/variants`, `randomizer` in the run object and in `POST /runs`, `variant` in `POST /runs/{run_id}/join`, `GET /runs/{run_id}/variant`, `POST /runs/{run_id}/variant-state`, `variant_kind` and `variant_state` per participant), `reports_v2` = error events and error groups (`POST /reports/errors`; the admin endpoints under `/admin/reports/errors`). `cores_index_v1` (signed core index) existed in 0.4 to 0.7 and was removed in 0.8.
 	Features           *[]string          `json:"features,omitempty"`
 	HubVersion         string             `json:"hub_version"`
 	MinProtocolVersion int                `json:"min_protocol_version"`
@@ -5361,6 +5601,9 @@ type InstallAdminIndexPluginJSONRequestBody = AdminPluginIndexInstall
 // OfferAdminPluginJSONRequestBody defines body for OfferAdminPlugin for application/json ContentType.
 type OfferAdminPluginJSONRequestBody = AdminPluginOffer
 
+// PatchAdminErrorGroupJSONRequestBody defines body for PatchAdminErrorGroup for application/json ContentType.
+type PatchAdminErrorGroupJSONRequestBody = ErrorGroupPatch
+
 // StartAdminRunJSONRequestBody defines body for StartAdminRun for application/json ContentType.
 type StartAdminRunJSONRequestBody = AdminRunStart
 
@@ -5474,6 +5717,9 @@ type PutPluginStoreValueJSONRequestBody = PluginStorePut
 
 // CreateReportMultipartRequestBody defines body for CreateReport for multipart/form-data ContentType.
 type CreateReportMultipartRequestBody CreateReportMultipartBody
+
+// CreateErrorEventsJSONRequestBody defines body for CreateErrorEvents for application/json ContentType.
+type CreateErrorEventsJSONRequestBody = ErrorEventBatch
 
 // CreateRunJSONRequestBody defines body for CreateRun for application/json ContentType.
 type CreateRunJSONRequestBody = RunCreateRequest
@@ -6151,6 +6397,18 @@ type ServerInterface interface {
 	// List problem reports, newest first (admin only, `reports_v1`)
 	// (GET /api/v1/admin/reports)
 	ListAdminReports(w http.ResponseWriter, r *http.Request, params ListAdminReportsParams)
+	// List error groups, last seen first (admin only, `reports_v2`)
+	// (GET /api/v1/admin/reports/errors)
+	ListAdminErrorGroups(w http.ResponseWriter, r *http.Request)
+	// Delete an error group and its events (admin only)
+	// (DELETE /api/v1/admin/reports/errors/{fingerprint})
+	DeleteAdminErrorGroup(w http.ResponseWriter, r *http.Request, fingerprint string)
+	// One error group with its newest events and the public text (admin only)
+	// (GET /api/v1/admin/reports/errors/{fingerprint})
+	GetAdminErrorGroup(w http.ResponseWriter, r *http.Request, fingerprint string)
+	// Remember the GitHub issue of a group or mark it seen (admin only)
+	// (PATCH /api/v1/admin/reports/errors/{fingerprint})
+	PatchAdminErrorGroup(w http.ResponseWriter, r *http.Request, fingerprint string)
 	// Delete a problem report and its files (admin only)
 	// (DELETE /api/v1/admin/reports/{id})
 	DeleteAdminReport(w http.ResponseWriter, r *http.Request, id int64)
@@ -6538,6 +6796,9 @@ type ServerInterface interface {
 	// Send a problem report to the server (`reports_v1`)
 	// (POST /api/v1/reports)
 	CreateReport(w http.ResponseWriter, r *http.Request)
+	// Send error events to the server (`reports_v2`)
+	// (POST /api/v1/reports/errors)
+	CreateErrorEvents(w http.ResponseWriter, r *http.Request)
 	// ROM download (range support). Only files stored on the server (`stored`); a file that is only registered as local is 404.
 	// (GET /api/v1/roms/{sha256})
 	DownloadRom(w http.ResponseWriter, r *http.Request, sha256 string, params DownloadRomParams)
@@ -7978,6 +8239,122 @@ func (siw *ServerInterfaceWrapper) ListAdminReports(w http.ResponseWriter, r *ht
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListAdminReports(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListAdminErrorGroups operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminErrorGroups(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAdminErrorGroups(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteAdminErrorGroup operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAdminErrorGroup(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "fingerprint" -------------
+	var fingerprint string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "fingerprint", r.PathValue("fingerprint"), &fingerprint, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "fingerprint", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteAdminErrorGroup(w, r, fingerprint)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminErrorGroup operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminErrorGroup(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "fingerprint" -------------
+	var fingerprint string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "fingerprint", r.PathValue("fingerprint"), &fingerprint, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "fingerprint", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminErrorGroup(w, r, fingerprint)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PatchAdminErrorGroup operation middleware
+func (siw *ServerInterfaceWrapper) PatchAdminErrorGroup(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "fingerprint" -------------
+	var fingerprint string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "fingerprint", r.PathValue("fingerprint"), &fingerprint, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "fingerprint", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PatchAdminErrorGroup(w, r, fingerprint)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -12711,6 +13088,26 @@ func (siw *ServerInterfaceWrapper) CreateReport(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r)
 }
 
+// CreateErrorEvents operation middleware
+func (siw *ServerInterfaceWrapper) CreateErrorEvents(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateErrorEvents(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // DownloadRom operation middleware
 func (siw *ServerInterfaceWrapper) DownloadRom(w http.ResponseWriter, r *http.Request) {
 
@@ -14447,6 +14844,10 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/admin/plugins/stage/{stage_id}/offer", wrapper.OfferAdminPlugin)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/api/v1/admin/plugins/{plugin_id}/{version}", wrapper.RemoveAdminPlugin)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/admin/reports", wrapper.ListAdminReports)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/admin/reports/errors", wrapper.ListAdminErrorGroups)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/api/v1/admin/reports/errors/{fingerprint}", wrapper.DeleteAdminErrorGroup)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/admin/reports/errors/{fingerprint}", wrapper.GetAdminErrorGroup)
+	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/api/v1/admin/reports/errors/{fingerprint}", wrapper.PatchAdminErrorGroup)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/api/v1/admin/reports/{id}", wrapper.DeleteAdminReport)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/admin/reports/{id}", wrapper.GetAdminReport)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/admin/reports/{id}/archive", wrapper.GetAdminReportArchive)
@@ -14576,6 +14977,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/api/v1/plugins/{plugin_id}/store/{key}", wrapper.PutPluginStoreValue)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/plugins/{plugin_id}/{version}/file", wrapper.GetPluginFile)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/reports", wrapper.CreateReport)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/reports/errors", wrapper.CreateErrorEvents)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/roms/{sha256}", wrapper.DownloadRom)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/runs", wrapper.ListRuns)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/runs", wrapper.CreateRun)
@@ -17908,6 +18310,312 @@ func (response ListAdminReports403JSONResponse) VisitListAdminReportsResponse(w 
 type ListAdminReports429JSONResponse struct{ RateLimitedJSONResponse }
 
 func (response ListAdminReports429JSONResponse) VisitListAdminReportsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminErrorGroupsRequestObject struct {
+}
+
+type ListAdminErrorGroupsResponseObject interface {
+	VisitListAdminErrorGroupsResponse(w http.ResponseWriter) error
+}
+
+type ListAdminErrorGroups200JSONResponse ErrorGroupList
+
+func (response ListAdminErrorGroups200JSONResponse) VisitListAdminErrorGroupsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminErrorGroups401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListAdminErrorGroups401JSONResponse) VisitListAdminErrorGroupsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminErrorGroups403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListAdminErrorGroups403JSONResponse) VisitListAdminErrorGroupsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAdminErrorGroups429JSONResponse struct{ RateLimitedJSONResponse }
+
+func (response ListAdminErrorGroups429JSONResponse) VisitListAdminErrorGroupsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminErrorGroupRequestObject struct {
+	Fingerprint string `json:"fingerprint"`
+}
+
+type DeleteAdminErrorGroupResponseObject interface {
+	VisitDeleteAdminErrorGroupResponse(w http.ResponseWriter) error
+}
+
+type DeleteAdminErrorGroup204Response struct {
+}
+
+func (response DeleteAdminErrorGroup204Response) VisitDeleteAdminErrorGroupResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteAdminErrorGroup401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteAdminErrorGroup401JSONResponse) VisitDeleteAdminErrorGroupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminErrorGroup403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response DeleteAdminErrorGroup403JSONResponse) VisitDeleteAdminErrorGroupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminErrorGroup404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteAdminErrorGroup404JSONResponse) VisitDeleteAdminErrorGroupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAdminErrorGroup429JSONResponse struct{ RateLimitedJSONResponse }
+
+func (response DeleteAdminErrorGroup429JSONResponse) VisitDeleteAdminErrorGroupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminErrorGroupRequestObject struct {
+	Fingerprint string `json:"fingerprint"`
+}
+
+type GetAdminErrorGroupResponseObject interface {
+	VisitGetAdminErrorGroupResponse(w http.ResponseWriter) error
+}
+
+type GetAdminErrorGroup200JSONResponse ErrorGroupDetail
+
+func (response GetAdminErrorGroup200JSONResponse) VisitGetAdminErrorGroupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminErrorGroup401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetAdminErrorGroup401JSONResponse) VisitGetAdminErrorGroupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminErrorGroup403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetAdminErrorGroup403JSONResponse) VisitGetAdminErrorGroupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminErrorGroup404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetAdminErrorGroup404JSONResponse) VisitGetAdminErrorGroupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminErrorGroup429JSONResponse struct{ RateLimitedJSONResponse }
+
+func (response GetAdminErrorGroup429JSONResponse) VisitGetAdminErrorGroupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PatchAdminErrorGroupRequestObject struct {
+	Fingerprint string `json:"fingerprint"`
+	Body        *PatchAdminErrorGroupJSONRequestBody
+}
+
+type PatchAdminErrorGroupResponseObject interface {
+	VisitPatchAdminErrorGroupResponse(w http.ResponseWriter) error
+}
+
+type PatchAdminErrorGroup200JSONResponse ErrorGroup
+
+func (response PatchAdminErrorGroup200JSONResponse) VisitPatchAdminErrorGroupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PatchAdminErrorGroup400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response PatchAdminErrorGroup400JSONResponse) VisitPatchAdminErrorGroupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PatchAdminErrorGroup401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response PatchAdminErrorGroup401JSONResponse) VisitPatchAdminErrorGroupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PatchAdminErrorGroup403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response PatchAdminErrorGroup403JSONResponse) VisitPatchAdminErrorGroupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PatchAdminErrorGroup404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response PatchAdminErrorGroup404JSONResponse) VisitPatchAdminErrorGroupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PatchAdminErrorGroup429JSONResponse struct{ RateLimitedJSONResponse }
+
+func (response PatchAdminErrorGroup429JSONResponse) VisitPatchAdminErrorGroupResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -27281,6 +27989,70 @@ func (response CreateReport429JSONResponse) VisitCreateReportResponse(w http.Res
 	return err
 }
 
+type CreateErrorEventsRequestObject struct {
+	Body *CreateErrorEventsJSONRequestBody
+}
+
+type CreateErrorEventsResponseObject interface {
+	VisitCreateErrorEventsResponse(w http.ResponseWriter) error
+}
+
+type CreateErrorEvents202JSONResponse ErrorEventsAccepted
+
+func (response CreateErrorEvents202JSONResponse) VisitCreateErrorEventsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(202)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateErrorEvents400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response CreateErrorEvents400JSONResponse) VisitCreateErrorEventsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateErrorEvents401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateErrorEvents401JSONResponse) VisitCreateErrorEventsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateErrorEvents429JSONResponse struct{ RateLimitedJSONResponse }
+
+func (response CreateErrorEvents429JSONResponse) VisitCreateErrorEventsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type DownloadRomRequestObject struct {
 	Sha256 string `json:"sha256"`
 	Params DownloadRomParams
@@ -30922,6 +31694,18 @@ type StrictServerInterface interface {
 	// List problem reports, newest first (admin only, `reports_v1`)
 	// (GET /api/v1/admin/reports)
 	ListAdminReports(ctx context.Context, request ListAdminReportsRequestObject) (ListAdminReportsResponseObject, error)
+	// List error groups, last seen first (admin only, `reports_v2`)
+	// (GET /api/v1/admin/reports/errors)
+	ListAdminErrorGroups(ctx context.Context, request ListAdminErrorGroupsRequestObject) (ListAdminErrorGroupsResponseObject, error)
+	// Delete an error group and its events (admin only)
+	// (DELETE /api/v1/admin/reports/errors/{fingerprint})
+	DeleteAdminErrorGroup(ctx context.Context, request DeleteAdminErrorGroupRequestObject) (DeleteAdminErrorGroupResponseObject, error)
+	// One error group with its newest events and the public text (admin only)
+	// (GET /api/v1/admin/reports/errors/{fingerprint})
+	GetAdminErrorGroup(ctx context.Context, request GetAdminErrorGroupRequestObject) (GetAdminErrorGroupResponseObject, error)
+	// Remember the GitHub issue of a group or mark it seen (admin only)
+	// (PATCH /api/v1/admin/reports/errors/{fingerprint})
+	PatchAdminErrorGroup(ctx context.Context, request PatchAdminErrorGroupRequestObject) (PatchAdminErrorGroupResponseObject, error)
 	// Delete a problem report and its files (admin only)
 	// (DELETE /api/v1/admin/reports/{id})
 	DeleteAdminReport(ctx context.Context, request DeleteAdminReportRequestObject) (DeleteAdminReportResponseObject, error)
@@ -31309,6 +32093,9 @@ type StrictServerInterface interface {
 	// Send a problem report to the server (`reports_v1`)
 	// (POST /api/v1/reports)
 	CreateReport(ctx context.Context, request CreateReportRequestObject) (CreateReportResponseObject, error)
+	// Send error events to the server (`reports_v2`)
+	// (POST /api/v1/reports/errors)
+	CreateErrorEvents(ctx context.Context, request CreateErrorEventsRequestObject) (CreateErrorEventsResponseObject, error)
 	// ROM download (range support). Only files stored on the server (`stored`); a file that is only registered as local is 404.
 	// (GET /api/v1/roms/{sha256})
 	DownloadRom(ctx context.Context, request DownloadRomRequestObject) (DownloadRomResponseObject, error)
@@ -32900,6 +33687,115 @@ func (sh *strictHandler) ListAdminReports(w http.ResponseWriter, r *http.Request
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListAdminReportsResponseObject); ok {
 		if err := validResponse.VisitListAdminReportsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListAdminErrorGroups operation middleware
+func (sh *strictHandler) ListAdminErrorGroups(w http.ResponseWriter, r *http.Request) {
+	var request ListAdminErrorGroupsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListAdminErrorGroups(ctx, request.(ListAdminErrorGroupsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListAdminErrorGroups")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListAdminErrorGroupsResponseObject); ok {
+		if err := validResponse.VisitListAdminErrorGroupsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteAdminErrorGroup operation middleware
+func (sh *strictHandler) DeleteAdminErrorGroup(w http.ResponseWriter, r *http.Request, fingerprint string) {
+	var request DeleteAdminErrorGroupRequestObject
+
+	request.Fingerprint = fingerprint
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteAdminErrorGroup(ctx, request.(DeleteAdminErrorGroupRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteAdminErrorGroup")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteAdminErrorGroupResponseObject); ok {
+		if err := validResponse.VisitDeleteAdminErrorGroupResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminErrorGroup operation middleware
+func (sh *strictHandler) GetAdminErrorGroup(w http.ResponseWriter, r *http.Request, fingerprint string) {
+	var request GetAdminErrorGroupRequestObject
+
+	request.Fingerprint = fingerprint
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminErrorGroup(ctx, request.(GetAdminErrorGroupRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminErrorGroup")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminErrorGroupResponseObject); ok {
+		if err := validResponse.VisitGetAdminErrorGroupResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PatchAdminErrorGroup operation middleware
+func (sh *strictHandler) PatchAdminErrorGroup(w http.ResponseWriter, r *http.Request, fingerprint string) {
+	var request PatchAdminErrorGroupRequestObject
+
+	request.Fingerprint = fingerprint
+
+	var body PatchAdminErrorGroupJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PatchAdminErrorGroup(ctx, request.(PatchAdminErrorGroupRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PatchAdminErrorGroup")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PatchAdminErrorGroupResponseObject); ok {
+		if err := validResponse.VisitPatchAdminErrorGroupResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -36559,6 +37455,37 @@ func (sh *strictHandler) CreateReport(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(CreateReportResponseObject); ok {
 		if err := validResponse.VisitCreateReportResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateErrorEvents operation middleware
+func (sh *strictHandler) CreateErrorEvents(w http.ResponseWriter, r *http.Request) {
+	var request CreateErrorEventsRequestObject
+
+	var body CreateErrorEventsJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateErrorEvents(ctx, request.(CreateErrorEventsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateErrorEvents")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateErrorEventsResponseObject); ok {
+		if err := validResponse.VisitCreateErrorEventsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

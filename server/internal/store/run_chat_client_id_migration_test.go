@@ -31,7 +31,7 @@ func TestMigrationRunChatClientIDPerUser(t *testing.T) {
 	var n int
 	var text, mentions string
 	if err := db.QueryRow(`SELECT COUNT(*) FROM run_chat_messages`).Scan(&n); err != nil || n != 2 {
-		t.Fatalf("rows after 0028: %d (%v)", n, err)
+		t.Fatalf("rows after 0029: %d (%v)", n, err)
 	}
 	if err := db.QueryRow(`SELECT text, mentions FROM run_chat_messages WHERE run_id = 'r1' AND seq = 1`).Scan(&text, &mentions); err != nil || text != "a" || mentions != `["u2"]` {
 		t.Fatalf("row 1: %q %q (%v)", text, mentions, err)

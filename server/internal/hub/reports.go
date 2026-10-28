@@ -386,10 +386,15 @@ func (s *Service) ReportCounts(ctx context.Context) (ReportCounts, error) {
 	return c, nil
 }
 
-// NewReportCount is the number of reports not yet marked seen (the navigation badge).
+// NewReportCount is the number of reports not yet marked seen plus the error groups with a new event (the
+// navigation badge, ADR 0035).
 func (s *Service) NewReportCount(ctx context.Context) (int, error) {
 	c, err := s.ReportCounts(ctx)
-	return c.New, err
+	if err != nil {
+		return 0, err
+	}
+	g, err := s.NewErrorGroupCount(ctx)
+	return c.New + g, err
 }
 
 // GetReport returns one report with its files. Reading does not mark it seen.

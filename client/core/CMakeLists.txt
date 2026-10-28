@@ -1,6 +1,6 @@
 # uzume_core: Player core without GUI (core/ + network/). Add sources here and in ../network.
 add_library(uzume_core STATIC version.cpp credentialstore.cpp profilestore.cpp romcache.cpp localstorage.cpp savestore.cpp statestore.cpp playersettings.cpp firmwarecache.cpp corecache.cpp dsvsave.cpp sdtree.cpp emulationsettings.cpp controllerprofiles.cpp
-  filelog.cpp diagbundle.cpp problemreport.cpp semver.cpp updateindex.cpp updaterollback.cpp updatesig.cpp installroot.cpp updater.cpp localhub.cpp hubsetup.cpp fsutil.cpp localromindex.cpp securitycode.cpp joinlink.cpp localpin.cpp localserverprocess.cpp
+  filelog.cpp diagbundle.cpp errorfingerprint.cpp errorevents.cpp problemreport.cpp semver.cpp updateindex.cpp updaterollback.cpp updatesig.cpp installroot.cpp updater.cpp localhub.cpp hubsetup.cpp fsutil.cpp localromindex.cpp securitycode.cpp joinlink.cpp localpin.cpp localserverprocess.cpp
   zipextract.cpp toolcache.cpp variantcache.cpp enginerunner.cpp variantbuilder.cpp variantlaunch.cpp)
 target_include_directories(uzume_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_features(uzume_core PUBLIC cxx_std_20)
@@ -32,6 +32,10 @@ uzume_add_test(core_corecache tests/corecache_test.cpp LIBS uzume_core)
 uzume_add_test(core_filelog tests/filelog_test.cpp LIBS uzume_core)
 uzume_add_test(core_diagbundle tests/diagbundle_test.cpp LIBS uzume_core)
 uzume_add_test(core_problemreport tests/problemreport_test.cpp LIBS uzume_core)
+uzume_add_test(core_errors tests/errors_test.cpp LIBS uzume_core)
+if(BUILD_TESTING)
+  target_compile_definitions(test_core_errors PRIVATE UZUME_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../protocol/fixtures")
+endif()
 uzume_add_test(core_update tests/update_test.cpp LIBS uzume_core)
 uzume_add_test(core_localhub tests/localhub_test.cpp LIBS uzume_core)
 uzume_add_test(core_localromindex tests/localromindex_test.cpp LIBS uzume_core)

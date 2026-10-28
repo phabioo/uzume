@@ -38,6 +38,7 @@ qt_add_qml_module(uzume_ui
     remoteview.h remoteview.cpp
     updatescontroller.h updatescontroller.cpp
     reportcontroller.h reportcontroller.cpp
+    errorscontroller.h errorscontroller.cpp
     mcpcontroller.h mcpcontroller.cpp
     admincontroller.h admincontroller.cpp
     savehistorycontroller.h savehistorycontroller.cpp
@@ -320,6 +321,8 @@ qt_add_qml_module(uzume_ui
     ServerUsersDevices.qml
     ServerUsersDialogs.qml
     ServerReportsPage.qml
+    ServerErrorsView.qml
+    ErrorsPrompt.qml
     ServerSystemsPage.qml
     ServerSystemsFileDialog.qml
     ServerPluginsPage.qml

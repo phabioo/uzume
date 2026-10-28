@@ -48,8 +48,8 @@ void AdminController::refreshAvailability() {
       status_.clear();
       statusProblem_.clear();
       emit statusChanged();
-      if (pendingDevices_ != 0 || newReports_ != 0 || !serverUpdateVersion_.isEmpty()) {
-        pendingDevices_ = newReports_ = 0;
+      if (pendingDevices_ != 0 || newReports_ != 0 || newErrors_ != 0 || !serverUpdateVersion_.isEmpty()) {
+        pendingDevices_ = newReports_ = newErrors_ = 0;
         serverUpdateVersion_.clear();
         emit countsChanged();
       }
@@ -375,7 +375,8 @@ void AdminController::refreshCounts() {
   if (!available_ || countsInFlight_) return;
   countsInFlight_ = true;
   const int gen = statusGeneration_;
-  auto pending = std::make_shared<int>(3);
+  const bool errorsToo = d_.conn && d_.conn->hubHasFeature(QStringLiteral("reports_v2"));
+  auto pending = std::make_shared<int>(errorsToo ? 4 : 3);
   auto apply = [this, gen, pending](int* target, int value) {
     if (gen != statusGeneration_) return;
     if (value >= 0 && *target != value) {
@@ -397,6 +398,14 @@ void AdminController::refreshCounts() {
     }
     apply(&newReports_, n);
   });
+  // Unseen error groups (reports_v2) count on the Reports badge too (ADR 0035); the server adds nothing to count_new.
+  if (errorsToo) {
+    api_.request(QStringLiteral("GET"), QStringLiteral("/admin/reports/errors"), QVariant(), [this, apply](const AdminApi::Result& r) {
+      int n = -1;
+      if (r.ok && r.data.typeId() == QMetaType::QVariantMap) n = r.data.toMap().value(QStringLiteral("new")).toInt();
+      apply(&newErrors_, n);
+    });
+  }
   // A server update on offer: settings.updates.available.version, skipped versions do not count. An answer that fails
   // (older server, no such field) leaves the last value alone.
   api_.request(QStringLiteral("GET"), QStringLiteral("/admin/settings"), QVariant(), [this, gen, pending](const AdminApi::Result& r) {
