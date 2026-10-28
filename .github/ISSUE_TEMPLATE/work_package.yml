@@ -1,0 +1,45 @@
+name: Work package
+description: A scoped piece of work for one thread and one PR (maintainers)
+labels: ["work-package"]
+body:
+  - type: markdown
+    attributes:
+      value: One work package is worked in one thread and closed by one PR ("Closes #N"). The maintainer sets the milestone ("Uzume 21" or "Uzume 22") and the theme label.
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: One or two sentences.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context and links
+      description: ADRs, design boards, architecture files, related issues.
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope and acceptance criteria
+      description: What is in, what is out, how we know it is done.
+  - type: dropdown
+    id: size
+    attributes:
+      label: Size
+      options:
+        - S
+        - M
+        - L
+  - type: dropdown
+    id: theme
+    attributes:
+      label: Theme
+      description: The label itself must be set by the maintainer.
+      options:
+        - emulation
+        - randomizer
+        - plugins
+        - together
+        - platforms
+        - app
+        - install-and-sharing

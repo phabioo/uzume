@@ -2,7 +2,7 @@
 
 Uzume documentation in one screen. New here: the [root README](../README.md) (what Uzume is, quick start). Using Uzume: Guides. Where the project stands: [Roadmap](roadmap.md). Working on the code: [Development](development.md).
 
-Every document starts with a short overview; detail follows further down or in linked documents. Each fact lives in one place: status and plan in the [roadmap](roadmap.md), finished work in [history](history.md) and `CHANGELOG.md`, reasons in the [ADRs](adr/README.md), what Uzume does today in [features](features.md), how to use it in the [wiki](https://github.com/phabioo/uzume/wiki) (source `wiki/`, mirrored to the GitHub wiki; user guides are no longer in `docs/guides/`), how to develop in [development](development.md).
+Every document starts with a short overview; detail follows further down or in linked documents. Each fact lives in one place: open work in GitHub issues and milestones, direction in the [roadmap](roadmap.md), finished work in [history](history.md) and `CHANGELOG.md`, reasons in the [ADRs](adr/README.md), what Uzume does today in [features](features.md), how to use it in the [wiki](https://github.com/phabioo/uzume/wiki) (source `wiki/`, mirrored to the GitHub wiki; user guides are no longer in `docs/guides/`), how to develop in [development](development.md).
 
 ## Developer guides
 
@@ -23,7 +23,7 @@ User guides (install, using the app, server, saves, sessions, updates) live in t
 ## Project
 
 - [Development](development.md): build, test, dependency scripts, CI, versioning
-- [Roadmap](roadmap.md): status and plan by version; [History](history.md): finished milestones, PoC phases, renumbering
+- [Roadmap](roadmap.md): direction and finished milestones; [History](history.md): finished milestones, PoC phases, renumbering
 - [Working with Claude Code](workflow.md): roles, briefs, phase plan
 - Legal: [LICENSE](../LICENSE), [NOTICE.md](../NOTICE.md) (trademarks, disclaimer), [third-party notices](../THIRD-PARTY-NOTICES.md), [CONTRIBUTING.md](../CONTRIBUTING.md), [CLA](../CLA.md)
 - [Architecture](architecture/README.md): design basis of the PoC (index; read only the file you need)

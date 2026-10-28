@@ -459,7 +459,7 @@ Tests only Fabio can do: the gamepad on the shell pages with a real pad, Text si
 
 ### 0.20 Emulation
 
-Decided by Fabio on 2026-10-21 (as 0.19; renumbered on 2026-10-22). Cheats added on 2026-10-23. Decisions: [ADR 0023](adr/0023-plugins.md) (plugin API), design [cheats](design/uzume/cheats.md). Built in six packages plus a final fixes PR; leftovers and Fabio's tests are in the [roadmap](roadmap.md#020-leftovers). Dependency chain: save states -> rewind -> run-ahead (all use `retro_serialize`). Behaviour: [features](features.md), [app guide](https://github.com/phabioo/uzume/wiki/Using-the-app), [plugin API](guides/plugin-api.md).
+Decided by Fabio on 2026-10-21 (as 0.19; renumbered on 2026-10-22). Cheats added on 2026-10-23. Decisions: [ADR 0023](adr/0023-plugins.md) (plugin API), design [cheats](design/uzume/cheats.md). Built in six packages plus a final fixes PR; leftovers and Fabio's tests are issues in the milestones "Uzume 21" and "Uzume 22". Dependency chain: save states -> rewind -> run-ahead (all use `retro_serialize`). Behaviour: [features](features.md), [app guide](https://github.com/phabioo/uzume/wiki/Using-the-app), [plugin API](guides/plugin-api.md).
 
 - [x] Done (PR #247, package 1, app): emulation foundation, optional `retro_serialize` and `retro_cheat_*` in the libretro backend, core profile block `cheats` with the supported formats (S-M)
 - [x] Done (PR #243, package 2): server save states (slots, own quota, preview PNG), core run rules (`rules.states`, `rewind`, `cheats`, `memory`) with `PUT /runs/{id}/rules` pushed live and `rules.changed` in the run log, the `cheats_used` save marker, migration 0024, OpenAPI 1.39.0 (M-L)
@@ -473,9 +473,18 @@ Decided by Fabio on 2026-10-21 (as 0.19; renumbered on 2026-10-22). Cheats added
 
 The Azahar Gateway connection (fork `phabioo/azahar`) and the per-format behaviour of `retro_cheat_set` can only be verified with the real cores; see the leftovers.
 
+### 0.21 Randomizer
+
+Decided by Fabio on 2026-10-23 (as 0.22; renumbered on 2026-10-23); [ADR 0031](adr/0031-game-variants-and-randomizer.md) accepted on 2026-10-27; design sheet 5, [randomizer.md](design/uzume/randomizer.md); behaviour in [features](features.md#game-variants-and-the-randomizer). Built on 2026-10-27 (server OpenAPI 1.40.0, migration 0025, app core, app UI, plugin `uzume-plugin-randomizer` v0.1, test engine `uzume_test_engine` in CI). Open items (real-engine test, 3DS updates, SoulLink showing the variant) are issues in the milestones "Uzume 21" and "Uzume 22". The engine is the Universal Pokémon Randomizer FVX (GPL-3.0, Gen 1 to 7, never in a repository); each app builds its own variant from a recipe, so no ROM data travels. Gen 1 to 5 are built as a whole ROM, Gen 6 and 7 as a LayeredFS folder in the Azahar dir of the slot.
+
+- [x] Game variants: variant = base game + recipe + owner + own save slot `var-<8 hex>`; REST, OpenAPI and migration; start exactly the variant; variant cache with limit and Storage entry; LayeredFS into the slot's Azahar dir; `fb.rom.*` reads the started file and lays mod files over the RomFS; variant count and slot picker.
+- [x] Tools catalog: the server downloads the engine per platform like cores (SHA-256 pin, `import-tools`, versions kept while in use, Server › Tools); the app starts it with a fixed argument list, no shell, progress, cancel, time and memory limits; permission `variants.build`, no `tool.exec`.
+- [x] Plugin `uzume-plugin-randomizer` v0.1: presets as settings strings, supported games and the overview card; Uzume draws the dialogs, the variant list and the run setting itself (ADR 0031 amendment).
+- [x] Runs with variants: run seed and pinned engine version, per-person seed derived from the run seed and the user ID or "Same world for everyone", own variants if allowed, "Building your variant", run board column Game and Randomizer block.
+
 ### 0.22 Plugins
 
-Decided by Fabio on 2026-10-21 (as 0.21; renumbered on 2026-10-22 and 2026-10-23). The UI is drawn in the Uzume design (developer console 4d-1/4d-2, run recap 4jh-app-2); no own design round. Every new screen was checked live through the debug MCP in the cloud. Shipped in the 0.20.N betas (ADR 0016 amendment 2026-10-27); leftovers and Fabio's tests are in the [roadmap](roadmap.md#022-leftovers). Behaviour: [features](features.md#plugins-and-runs), [plugin API](guides/plugin-api.md).
+Decided by Fabio on 2026-10-21 (as 0.21; renumbered on 2026-10-22 and 2026-10-23). The UI is drawn in the Uzume design (developer console 4d-1/4d-2, run recap 4jh-app-2); no own design round. Every new screen was checked live through the debug MCP in the cloud. Shipped in the 0.20.N betas (ADR 0016 amendment 2026-10-27); leftovers and Fabio's tests are issues in the milestones "Uzume 21" and "Uzume 22". Behaviour: [features](features.md#plugins-and-runs), [plugin API](guides/plugin-api.md).
 
 - [x] Done (PR #253, package 1, app): developer console with log filters and counts, permissions, reload with kept state, reload on file change, read-only memory viewer, "Load unpacked..."; debug MCP game identity override for plugin tests; the variants list keeps variants that are still building (M)
 - [x] Done (PR #262, package 2, app): run recap tab with tiles, lanes and glyphs from the manifest field `recap`, export as PNG or self-contained HTML, share link, MCP tool `run_recap` (M)
@@ -485,7 +494,7 @@ Decided by Fabio on 2026-10-21 (as 0.21; renumbered on 2026-10-22 and 2026-10-23
 
 ### 0.23 Together
 
-Decided by Fabio on 2026-10-21 (as 0.20; renumbered on 2026-10-22 and 2026-10-23). Decisions: [ADR 0033](adr/0033-together.md); leftovers and Fabio's tests are in the [roadmap](roadmap.md#023-leftovers). The UI is drawn in the Uzume design (speaking mark, mixer popover, People and Chat tabs, notifications); no own design round. Dependency chains: online status -> notifications -> ready check (same presence over WSS); chat -> audio mixer stage 2 -> voice chat; viewer role -> controller hand-over. Behaviour: [features](features.md), [app guide](https://github.com/phabioo/uzume/wiki/Using-the-app), [plugin API](guides/plugin-api.md).
+Decided by Fabio on 2026-10-21 (as 0.20; renumbered on 2026-10-22 and 2026-10-23). Decisions: [ADR 0033](adr/0033-together.md); leftovers and Fabio's tests are issues in the milestones "Uzume 21" and "Uzume 22". The UI is drawn in the Uzume design (speaking mark, mixer popover, People and Chat tabs, notifications); no own design round. Dependency chains: online status -> notifications -> ready check (same presence over WSS); chat -> audio mixer stage 2 -> voice chat; viewer role -> controller hand-over. Behaviour: [features](features.md), [app guide](https://github.com/phabioo/uzume/wiki/Using-the-app), [plugin API](guides/plugin-api.md).
 
 - [x] Done (PR #250, package 1): online status, who is online and what they play, "Watch" and "Invite" from the list (S)
 - [x] Done (PR #256, package 2, app): notifications as app toasts and bell for Session started, invite and run event, switchable per kind (S-M)
@@ -498,7 +507,7 @@ Decided by Fabio on 2026-10-21 (as 0.20; renumbered on 2026-10-22 and 2026-10-23
 
 ### 0.24 Platforms
 
-Decided by Fabio on 2026-10-21 (as 0.22; renumbered on 2026-10-22 and 2026-10-23). Decisions: [ADR 0034](adr/0034-linux-app-and-vulkan.md). Finished while 0.20 to 0.23 were still open; shipped in betas 0.20.5 to 0.20.13 (ADR 0016 amendment 2026-10-27); leftovers and Fabio's tests are in the [roadmap](roadmap.md#024-leftovers). Browser watching was dropped on 2026-10-22 ([ADR 0030](adr/0030-one-app-one-server-uzume.md) D2).
+Decided by Fabio on 2026-10-21 (as 0.22; renumbered on 2026-10-22 and 2026-10-23). Decisions: [ADR 0034](adr/0034-linux-app-and-vulkan.md). Finished while 0.20 to 0.23 were still open; shipped in betas 0.20.5 to 0.20.13 (ADR 0016 amendment 2026-10-27); leftovers and Fabio's tests are issues in the milestones "Uzume 21" and "Uzume 22". Browser watching was dropped on 2026-10-22 ([ADR 0030](adr/0030-one-app-one-server-uzume.md) D2).
 
 - [x] Done (PR #252): Linux credential store in the freedesktop Secret Service over QtDBus (GNOME Keyring, KWallet), memory only without a session bus; ADR 0034 (S-M)
 - [x] Done (PR #255): Vulkan hardware rendering next to OpenGL: libretro Vulkan hardware interface with readback display and encode (Azahar offers it; melonDS DS stays OpenGL) (L)
