@@ -98,6 +98,26 @@ class VoiceEngineTest : public QObject {
     QVERIFY(a.peers().first().framesReceived > 20);
   }
 
+  // Only the offerer rebuilds a failed or closed connection; the answerer waits for the new offer.
+  void onlyTheOffererRebuilds() {
+    constexpr int kFailed = 4, kClosed = 5;
+    for (const int dead : {kFailed, kClosed}) {
+      VoiceEngine offerer, answerer;
+      offerer.setSelf(QStringLiteral("u-a"), QStringLiteral("dev-a"));
+      answerer.setSelf(QStringLiteral("u-b"), QStringLiteral("dev-b"));
+      const QList<VoiceEngine::Member> room{{QStringLiteral("u-a"), QStringLiteral("dev-a")}, {QStringLiteral("u-b"), QStringLiteral("dev-b")}};
+      offerer.setMembers(room);
+      answerer.setMembers(room);
+      const int offererBefore = offerer.buildsForTests(QStringLiteral("dev-b"));
+      const int answererBefore = answerer.buildsForTests(QStringLiteral("dev-a"));
+      offerer.simulateStateForTests(QStringLiteral("dev-b"), dead);
+      answerer.simulateStateForTests(QStringLiteral("dev-a"), dead);
+      QTRY_VERIFY_WITH_TIMEOUT(offerer.buildsForTests(QStringLiteral("dev-b")) > offererBefore, 4000);
+      QTest::qWait(300);
+      QCOMPARE(answerer.buildsForTests(QStringLiteral("dev-a")), answererBefore);
+    }
+  }
+
   void meshOfThree() {
     VoiceEngine a, b, c;
     VoiceEngine* all[] = {&a, &b, &c};

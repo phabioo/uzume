@@ -242,11 +242,12 @@ void HubSocket::onPingTimer() {
   ws_->ping();
 }
 
-void HubSocket::send(const QString& type, const QJsonObject& payload) {
+void HubSocket::send(const QString& type, const QJsonObject& payload, const QString& id) {
   if (!ws_ || (state_ != State::Open && state_ != State::Connecting)) {
     return;
   }
-  const QJsonObject env{{QStringLiteral("type"), type}, {QStringLiteral("payload"), payload}};
+  QJsonObject env{{QStringLiteral("type"), type}, {QStringLiteral("payload"), payload}};
+  if (!id.isEmpty()) env.insert(QStringLiteral("id"), id);
   ws_->sendTextMessage(QString::fromUtf8(QJsonDocument(env).toJson(QJsonDocument::Compact)));
 }
 
@@ -309,8 +310,10 @@ bool HubSocket::sendChat(const QString& scope, const QString& id, const QString&
   return true;
 }
 
-void HubSocket::sendVoiceJoin(const QString& scope, const QString& id, const QString& mic) {
-  send(QStringLiteral("voice_join"), {{QStringLiteral("scope"), scope}, {QStringLiteral("id"), id}, {QStringLiteral("mic"), mic}});
+QString HubSocket::sendVoiceJoin(const QString& scope, const QString& id, const QString& mic) {
+  const QString requestId = QStringLiteral("vj-%1").arg(++requestSeq_);
+  send(QStringLiteral("voice_join"), {{QStringLiteral("scope"), scope}, {QStringLiteral("id"), id}, {QStringLiteral("mic"), mic}}, requestId);
+  return requestId;
 }
 void HubSocket::sendVoiceLeave(const QString& scope, const QString& id) {
   send(QStringLiteral("voice_leave"), {{QStringLiteral("scope"), scope}, {QStringLiteral("id"), id}});
@@ -413,6 +416,7 @@ void HubSocket::onTextMessage(const QString& text) {
     emit chatReceived(parseChatMessage(p));
   } else if (type == QLatin1String("error")) {
     emit hubError(str(p, "code"), str(p, "message"));
+    if (const QString requestId = str(env, "id"); !requestId.isEmpty()) emit hubErrorReply(requestId, str(p, "code"), str(p, "message"));
   } else {
     qCDebug(lcSocket) << "Ignoring unknown message type" << type;
   }
