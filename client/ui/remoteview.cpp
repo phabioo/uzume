@@ -38,7 +38,7 @@ std::optional<QPointF> RemoteView::touchTarget(const QPointF& itemPos, bool clam
     const ScreenPlacement pl = placeScreens(prof, layout_, size(), false, false, AspectMode::Core, swap_);
     return touchToFrameFor(prof, pl, itemPos, clamp);
   }
-  const double s = std::min(width() / img.width(), height() / img.height());
+  const double s = (std::min)(width() / img.width(), height() / img.height());
   const QSizeF fs(img.width() * s, img.height() * s);
   const QRectF target(QPointF((width() - fs.width()) / 2, (height() - fs.height()) / 2), fs);
   return touchToFrame(prof, target, itemPos, clamp);
@@ -175,7 +175,7 @@ void RemoteView::paint(QPainter* p) {
     }
     return;
   }
-  const double s = std::min(width() / img.width(), height() / img.height());
+  const double s = (std::min)(width() / img.width(), height() / img.height());
   const QSizeF size(img.width() * s, img.height() * s);
   const QRectF target(QPointF((width() - size.width()) / 2, (height() - size.height()) / 2), size);
   p->setRenderHint(QPainter::SmoothPixmapTransform, false);

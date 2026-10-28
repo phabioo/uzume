@@ -69,7 +69,7 @@ void ControlController::onHostControl() {
 
 void ControlController::tick() {
   const int before = askSeconds_;
-  askSeconds_ = askOpen() ? std::max(0, int(std::ceil((ask_.deadlineMs - sessions_->host()->controlNowMs()) / 1000.0))) : 0;
+  askSeconds_ = askOpen() ? (std::max)(0, int(std::ceil((ask_.deadlineMs - sessions_->host()->controlNowMs()) / 1000.0))) : 0;
   if (askSeconds_ != before) emit secondsChanged();
 }
 
