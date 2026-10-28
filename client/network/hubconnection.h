@@ -60,6 +60,9 @@ class HubConnection : public QObject {
   State state() const { return state_; }
   IncompatibleReason incompatibleReason() const { return incompatible_; }
   QString errorCode() const { return errorCode_; }
+  // Unreachable because the OS credential store was locked or dismissed: nothing may retry on its own (every try opens the
+  // unlock prompt again); only the person's Retry or Connect asks again.
+  bool credentialStoreLocked() const { return state_ == State::Unreachable && errorCode_ == QLatin1String("credential_store_unavailable"); }
   QString errorMessage() const { return errorMessage_; }
   // Seconds until the next try is possible when errorCode() is "rate_limited" and the server said so; 0 = unknown.
   int errorRetryAfter() const { return errorRetryAfter_; }
