@@ -97,7 +97,7 @@ jobs:
               python3 -I scripts/changelog.py collect --repo "$GH_REPO" --base "$(git rev-list --max-parents=0 "$TAG" | tail -n 1)" --head "$TAG" "$@"
             fi
           }
-          since="the beginning"; [ -z "$prev" ] || since="${prev#v}"; since="${since%.0}"
+          since="the beginning"; [ -z "$prev" ] || since="${prev#v}"; case $since in 0.*) ;; *) since="${since%.0}" ;; esac
           compare=()
           [ -z "$prev" ] || compare=(--compare-url)
           highlights=""

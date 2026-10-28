@@ -19,6 +19,8 @@ class CoreVersionTest : public QObject {
     QCOMPARE(QString::fromStdString(uzume::displayVersion("21.37.0")), QString("21.37"));
     QCOMPARE(QString::fromStdString(uzume::displayVersion("21.0.0-dev.5")), QString("21.0-dev.5"));
     QCOMPARE(QString::fromStdString(uzume::displayVersion("0.20.15")), QString("0.20.15"));
+    QCOMPARE(QString::fromStdString(uzume::displayVersion("0.17.0")), QString("0.17.0"));
+    QCOMPARE(QString::fromStdString(uzume::displayVersion("20.3.0")), QString("20.3.0"));
     QCOMPARE(QString::fromStdString(uzume::displayVersion("21.1.10")), QString("21.1.10"));
     QCOMPARE(QString::fromStdString(uzume::displayVersion("21.1")), QString("21.1"));
     QCOMPARE(QString::fromStdString(uzume::displayVersion("dev")), QString("dev"));

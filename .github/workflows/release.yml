@@ -133,7 +133,7 @@ jobs:
             git rev-parse --verify -q "refs/tags/$base" >/dev/null || git fetch --no-tags origin "refs/tags/$base:refs/tags/$base" || return 1
             {
               python3 -I scripts/changelog.py collect --repo "$GH_REPO" --base "$base" --head "$HEAD_SHA" --format markdown \
-                --title "## Changes since $(v=${base#v}; echo "${v%.0}")" --compare-url || return 1
+                --title "## Changes since $(v=${base#v}; case $v in 0.*) echo "$v" ;; *) echo "${v%.0}" ;; esac)" --compare-url || return 1
               echo
               echo "Commit: [\`${HEAD_SHA:0:12}\`]($GITHUB_SERVER_URL/$GH_REPO/commit/$HEAD_SHA)"
             } > "$notes.part" || return 1

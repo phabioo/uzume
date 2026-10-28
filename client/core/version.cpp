@@ -48,7 +48,8 @@ std::string displayVersion(std::string_view version) {
   if (d2 == std::string_view::npos) return std::string(version);
   const auto end = version.find_first_of("-+", d2 + 1);
   const std::string_view third = version.substr(d2 + 1, end == std::string_view::npos ? end : end - d2 - 1);
-  if (!isNumber(version.substr(0, d1)) || !isNumber(version.substr(d1 + 1, d2 - d1 - 1)) || third != "0") {
+  if (!isNumber(version.substr(0, d1)) || !isNumber(version.substr(d1 + 1, d2 - d1 - 1)) || third != "0" || d1 > 9 ||
+      std::stoi(std::string(version.substr(0, d1))) < 21) {
     return std::string(version);
   }
   return std::string(version.substr(0, d2)) + (end == std::string_view::npos ? std::string() : std::string(version.substr(end)));
