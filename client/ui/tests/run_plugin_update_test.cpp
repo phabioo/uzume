@@ -84,6 +84,37 @@ class RunPluginUpdateTest : public QObject {
     QVERIFY(c.isEmpty());
   }
 
+  // SoulLink + Core updated together (B 1.1 needs A ^2): a restore of either goes back as a pair; without a consistent set none is offered.
+  void restoreBundlesDependenciesBothWays() {
+    const QList<HubPluginInfo> list{offer("net.t.b", "1.0.0", "B", {"run.state"}, {{"net.t.a", "^1.0"}}), offer("net.t.b", "1.1.0", "B", {"run.state"}, {{"net.t.a", "^2.0"}}),
+                                    offer("net.t.a", "1.0.0", "A"), offer("net.t.a", "2.0.0", "A")};
+    const RunInfo run = runWith({{"net.t.b", "1.1.0", "bb", "1.0.0"}, {"net.t.a", "2.0.0", "aa", "1.0.0"}});
+    const auto restores = [&](const RunInfo& r) {
+      QMap<QString, runplugins::Change> m;
+      for (const auto& c : runplugins::changes(r, list))
+        if (c.restore) m.insert(c.pluginId, c);
+      return m;
+    };
+    auto m = restores(run);
+    QCOMPARE(m.size(), 2);
+    for (const QString& id : {QStringLiteral("net.t.b"), QStringLiteral("net.t.a")}) {
+      const auto& c = m.value(id);
+      QCOMPARE(c.request.size(), 2);
+      QCOMPARE(c.request.first().pluginId, id);
+      QMap<QString, QString> to;
+      for (const auto& r : c.request) to.insert(r.pluginId, r.version);
+      QCOMPARE(to.value("net.t.b"), QStringLiteral("1.0.0"));
+      QCOMPARE(to.value("net.t.a"), QStringLiteral("1.0.0"));
+      QCOMPARE(c.bundledNames.size(), 1);
+    }
+    // A's previous version is gone from the server: restoring B alone cannot work, and A has nothing to go back to: neither is offered.
+    const QList<HubPluginInfo> pruned{list.at(0), list.at(1), list.at(3)};
+    int offeredRestores = 0;
+    for (const auto& c : runplugins::changes(run, pruned))
+      if (c.restore) ++offeredRestores;
+    QCOMPARE(offeredRestores, 0);
+  }
+
   void addedPermissionsComeFromTheOfferedVersions() {
     const QList<HubPluginInfo> list{offer("net.t.a", "1.0.0", "A", {"run.state"}), offer("net.t.a", "1.1.0", "A", {"run.state", "cheats", "memory.write"})};
     QCOMPARE(runplugins::addedPermissions(list, "net.t.a", "1.1.0", "1.0.0"), (QStringList{"cheats", "memory.write"}));

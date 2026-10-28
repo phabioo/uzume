@@ -76,6 +76,65 @@ bool bundle(const RunInfo& run, const QList<HubPluginInfo>& offered, const HubPl
   }
   return true;
 }
+
+bool satisfies(const QString& version, const QString& rangeText) {
+  const auto range = plugins::VersionRange::parse(rangeText);
+  const auto v = update::SemVer::parse(version);
+  return range && v && range->matches(*v);
+}
+
+// Restore of `target` to its previous version together with every plugin that must move back with it: a pinned dependency that no longer
+// fits the restored version's requires goes to its own previous_version, and a pinned plugin whose requires the restored set would break
+// goes back to its previous_version too. false = no consistent set (a needed previous version is missing, not offered or does not fit).
+bool bundleRestore(const RunInfo& run, const QList<HubPluginInfo>& offered, const RunPluginRef& target, Change& c) {
+  QMap<QString, QString> resulting;
+  QMap<QString, const RunPluginRef*> pinned;
+  for (const RunPluginRef& p : run.plugins) {
+    resulting.insert(p.pluginId, p.version);
+    pinned.insert(p.pluginId, &p);
+  }
+  QStringList order{target.pluginId};
+  resulting.insert(target.pluginId, target.previousVersion);
+  const auto restoreOf = [&](const QString& id) {
+    const RunPluginRef* r = pinned.value(id, nullptr);
+    if (r == nullptr || r->previousVersion.isEmpty() || find(offered, id, r->previousVersion) == nullptr || order.contains(id)) return false;
+    resulting.insert(id, r->previousVersion);
+    order << id;
+    return true;
+  };
+  for (int guard = 0; guard < 64; ++guard) {
+    bool changed = false;
+    for (int i = 0; i < order.size(); ++i) {  // the restored versions' own requirements
+      const HubPluginInfo* info = find(offered, order.at(i), resulting.value(order.at(i)));
+      if (info == nullptr) continue;
+      for (auto it = info->requires_.begin(); it != info->requires_.end(); ++it) {
+        const auto have = resulting.constFind(it.key());
+        if (have != resulting.constEnd() && satisfies(have.value(), it.value().toString())) continue;
+        if (have == resulting.constEnd() || !restoreOf(it.key())) return false;
+        changed = true;
+      }
+    }
+    for (const RunPluginRef& y : run.plugins) {  // plugins that need what is being restored
+      if (order.contains(y.pluginId)) continue;
+      const HubPluginInfo* info = find(offered, y.pluginId, y.version);
+      if (info == nullptr) continue;
+      for (auto it = info->requires_.begin(); it != info->requires_.end(); ++it) {
+        if (!order.contains(it.key()) || satisfies(resulting.value(it.key()), it.value().toString())) continue;
+        if (!restoreOf(y.pluginId)) return false;
+        changed = true;
+        break;
+      }
+    }
+    if (!changed) break;
+  }
+  c.request.clear();
+  c.bundledNames.clear();
+  for (const QString& id : order) {
+    c.request.append({id, resulting.value(id), {}, {}});
+    if (id != target.pluginId) c.bundledNames << nameOfOffered(offered, id);
+  }
+  return true;
+}
 }  // namespace
 
 QStringList newPermissions(const QList<HubPluginInfo>& offered, const QString& pluginId, const QString& version, bool* known) {
@@ -131,8 +190,7 @@ QList<Change> changes(const RunInfo& run, const QList<HubPluginInfo>& offered) {
       c.from = pin.version;
       c.to = pin.previousVersion;
       c.restore = true;
-      c.request = {{pin.pluginId, pin.previousVersion, {}, {}}};
-      out.append(c);
+      if (bundleRestore(run, offered, pin, c)) out.append(c);
     }
   }
   return out;
