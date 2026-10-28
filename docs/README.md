@@ -2,23 +2,15 @@
 
 Uzume documentation in one screen. New here: the [root README](../README.md) (what Uzume is, quick start). Using Uzume: Guides. Where the project stands: [Roadmap](roadmap.md). Working on the code: [Development](development.md).
 
-Every document starts with a short overview; detail follows further down or in linked documents. Each fact lives in one place: status and plan in the [roadmap](roadmap.md), finished work in [history](history.md) and `CHANGELOG.md`, reasons in the [ADRs](adr/README.md), what Uzume does today in [features](features.md), how to use it in the guides, how to develop in [development](development.md).
+Every document starts with a short overview; detail follows further down or in linked documents. Each fact lives in one place: status and plan in the [roadmap](roadmap.md), finished work in [history](history.md) and `CHANGELOG.md`, reasons in the [ADRs](adr/README.md), what Uzume does today in [features](features.md), how to use it in the [wiki](https://github.com/phabioo/uzume/wiki) (source `wiki/`, mirrored to the GitHub wiki; user guides are no longer in `docs/guides/`), how to develop in [development](development.md).
 
-## Guides (running Uzume)
+## Developer guides
 
-- [Using the app](guides/app.md): install, pairing, playing, data directory, CLI and environment
-- [Server installation](guides/server-install.md): Debian package and systemd script on Linux / Raspberry Pi
-- [Server in Docker](guides/server-docker.md): official image (amd64, arm64), volumes, compose, upgrade by pulling
-- [Server backup and restore](guides/server-backup.md): one archive, schedule, retention, `uzume-server backup` / `restore`, admin API, restore on a new machine
-- [Server configuration](guides/server-configuration.md): commands, all flags and environment variables, certificates
-- [Sessions: LAN and internet](guides/sessions-over-the-internet.md): testing on a LAN, port forwards, TURN relay
-- [coturn on a VPS](guides/coturn-on-a-vps.md): own external TURN relay for the server
-- [Saves](guides/saves.md): sync, conflicts, history, restore, retention
-- [Updates and releases](guides/updates.md): channels, automatic updates, promoting a beta to a release, rollback
+User guides (install, using the app, server, saves, sessions, updates) live in the [wiki](https://github.com/phabioo/uzume/wiki); their source is the folder `wiki/`.
+
+- [Releasing](guides/releasing.md): promote a beta to a stable release (maintainers)
 - [Packaging](guides/packaging.md): Windows installer, server package
-- [Walkthrough](guides/walkthrough.md): try the main features
 - [Adding a system](guides/adding-a-system.md): server JSON, app manifest, core profile, input map, identity
-- [Local ROMs](guides/local-roms.md): library folders, upload to the server, what others see
 - [Plugin API](guides/plugin-api.md): Lua API for app plugins (0.11 runtime), developer mode
 - [Publishing an official plugin](guides/plugin-publishing.md): sign a `.uzplugin`, add it to the plugin index
 

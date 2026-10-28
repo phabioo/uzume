@@ -76,7 +76,7 @@ Milestone 0.3 ([Roadmap](../roadmap.md)) lets a change on `main` reach the test 
 ### D8 Rollback (decided: [ADR 0029](0029-operations-and-safety.md) D4)
 
 - 0.3 shipped without rollback: the index keeps the last 5 releases per product and channel, GitHub keeps the assets, the Hub keeps the last 5 DB backups. Manual procedure: Hub `sudo apt install --allow-downgrades ./framebeam-hub_<old>.deb`, plus restoring the matching backup if the schema changed (migrations are forward-only); Player: run an older installer.
-- Decided in 0.17: "Go back" for Player and Hub from the signed index, the Hub with its pre-update database backup; details in ADR 0029 D4 and [the guide](../guides/updates.md#rollback). The manual procedure stays as the fallback.
+- Decided in 0.17: "Go back" for Player and Hub from the signed index, the Hub with its pre-update database backup; details in ADR 0029 D4 and [the guide](https://github.com/phabioo/uzume/wiki/Updates#rollback). The manual procedure stays as the fallback.
 
 ## Rejected
 

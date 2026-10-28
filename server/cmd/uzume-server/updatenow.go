@@ -16,7 +16,7 @@ import (
 	"github.com/phabioo/uzume/server/internal/updates"
 )
 
-// dockerImage is the official image; a container is updated by pulling the new tag (docs/guides/server-docker.md).
+// dockerImage is the official image; a container is updated by pulling the new tag (wiki/Server-in-Docker.md).
 const dockerImage = "ghcr.io/phabioo/uzume-server"
 
 // runUpdateNow is `uzume-server update` without a sub-command: it looks for a newer version on the server's update

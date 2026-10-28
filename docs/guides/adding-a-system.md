@@ -116,7 +116,7 @@ Boot ROMs and BIOS files belong to the admin: uploaded on Systems & Cores, valid
 
 ## 5. Library and saves
 
-Nothing to add: the server imports files by extension and keeps the save as an opaque blob; the app stores the core's save (`save_ram` plus `.sav`) in the slot like other systems. A system whose save is not one file needs a new save source, which is code (see [Saves](saves.md), [ADR 0022](../adr/0022-nintendo-3ds-with-azahar.md) D3).
+Nothing to add: the server imports files by extension and keeps the save as an opaque blob; the app stores the core's save (`save_ram` plus `.sav`) in the slot like other systems. A system whose save is not one file needs a new save source, which is code (see [Saves](https://github.com/phabioo/uzume/wiki/Saves), [ADR 0022](../adr/0022-nintendo-3ds-with-azahar.md) D3).
 
 ## 6. Game identity (plugins)
 

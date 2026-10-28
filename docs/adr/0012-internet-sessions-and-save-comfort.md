@@ -86,7 +86,7 @@ An external TURN server (for example coturn) is not supported in 0.4; `-ice-serv
 
 - New Go dependency `pion/turn/v4`; the Hub opens UDP/TCP 3478 and a UDP range when TURN is on.
 - Relayed Sessions use the Hub's uplink: about 2 Mbit/s per relayed viewer (both directions through the Pi).
-- Fabio has to configure router port forwards and DynDNS himself (documented in [sessions-over-the-internet.md](../guides/sessions-over-the-internet.md); update 2026-10-08: this was moved there from `packaging/linux/README.md` and the root README).
+- Fabio has to configure router port forwards and DynDNS himself (documented in [sessions-over-the-internet.md](https://github.com/phabioo/uzume/wiki/Sessions-over-the-internet); update 2026-10-08: this was moved there from `packaging/linux/README.md` and the root README).
 
 ## Implementation notes (0.4 PR)
 
@@ -98,7 +98,7 @@ An external TURN server (for example coturn) is not supported in 0.4; `-ice-serv
 
 ## Amendment 2026-10-12: provider-neutral relay
 
-D1 ("no external TURN server") no longer holds. The relay is provider-neutral: besides the embedded TURN server (`-turn`) and Cloudflare TURN, the admin can add any number of standard external TURN servers (`-turn-external`, [server-configuration.md](../guides/server-configuration.md)): an own coturn on a VPS ([coturn-on-a-vps.md](../guides/coturn-on-a-vps.md)) or a third-party provider.
+D1 ("no external TURN server") no longer holds. The relay is provider-neutral: besides the embedded TURN server (`-turn`) and Cloudflare TURN, the admin can add any number of standard external TURN servers (`-turn-external`, [server-configuration.md](https://github.com/phabioo/uzume/wiki/Server-configuration)): an own coturn on a VPS ([coturn-on-a-vps.md](https://github.com/phabioo/uzume/wiki/coturn-on-a-VPS)) or a third-party provider.
 
 - Per server one of two credential modes: shared secret (TURN REST API, as the embedded TURN: username `<expiry>:<device-id>`, password `base64(HMAC-SHA1(secret, username))`, 12 h, renewed by `ice_update` every 6 h) or a static username and password.
 - All active providers go into `turn_servers`; `turn_v1` means any relay provider is on. The Player needs no change: it already offers every `turn_servers` entry to ICE and ignores `expires_at`. OpenAPI 1.13.0 makes `TurnServer.expires_at` optional (absent for static credentials).

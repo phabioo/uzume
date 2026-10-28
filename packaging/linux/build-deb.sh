@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds the Uzume server .deb with dpkg-deb only (no debhelper): docs/guides/server-install.md.
+# Builds the Uzume server .deb with dpkg-deb only (no debhelper): wiki/Server-installation.md.
 # Usage: build-deb.sh --binary PATH --arch amd64|arm64 --version X.Y.Z[-pre] --out DIR
 # Control Version: SemVer with - replaced by ~ (0.3.0-beta.57 -> 0.3.0~beta.57); the file name keeps the SemVer. Prints the .deb path.
 set -euo pipefail

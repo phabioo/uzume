@@ -17,8 +17,8 @@ Requires Go >= 1.25 (`go.mod`). `cmd/uzume-server` is the server, `cmd/uzume-sig
 
 ## Documentation
 
-- Install on Linux (`.deb`, systemd script): [docs/guides/server-install.md](../docs/guides/server-install.md)
-- Flags, environment, certificates, data directory: [docs/guides/server-configuration.md](../docs/guides/server-configuration.md)
-- Updates and releases: [docs/guides/updates.md](../docs/guides/updates.md); Sessions and the relay: [docs/guides/sessions-over-the-internet.md](../docs/guides/sessions-over-the-internet.md)
+- Install on Linux (`.deb`, systemd script): [Server installation (wiki)](https://github.com/phabioo/uzume/wiki/Server-installation)
+- Flags, environment, certificates, data directory: [Server configuration (wiki)](https://github.com/phabioo/uzume/wiki/Server-configuration)
+- Updates and releases: [Updates (wiki)](https://github.com/phabioo/uzume/wiki/Updates); Sessions and the relay: [Sessions over the internet (wiki)](https://github.com/phabioo/uzume/wiki/Sessions-over-the-internet)
 - Code layout, users/invites, firmware, update internals: [docs/reference/server-internals.md](../docs/reference/server-internals.md)
 - API: [protocol/README.md](../protocol/README.md); decisions: [ADR 0002](../docs/adr/0002-protocol-and-hub-phase1.md), [0005](../docs/adr/0005-saves-phase3.md), [0006](../docs/adr/0006-sessions-phase4.md), [0010](../docs/adr/0010-cores-from-the-hub.md), [0011](../docs/adr/0011-automatic-updates.md), [0012](../docs/adr/0012-internet-sessions-and-save-comfort.md), [0015](../docs/adr/0015-hub-ui-pass.md)

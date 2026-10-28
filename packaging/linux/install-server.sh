@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Install / upgrade / uninstall the Uzume server as a systemd service.
-# Installs a local binary; nothing is downloaded. See docs/guides/server-install.md.
+# Installs a local binary; nothing is downloaded. See wiki/Server-installation.md.
 set -euo pipefail
 
 SVC=uzume-server

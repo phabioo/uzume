@@ -517,7 +517,7 @@ func shellQuote(s string) string {
 // manualCommand is what an admin does by hand when the server cannot install the update itself.
 func manualCommand(platform string, a *UpdateAvailable) string {
 	if updates.InContainer() {
-		return "This server runs in a container. Update by pulling the new image and recreating the container (docker compose pull && docker compose up -d); see docs/guides/server-docker.md."
+		return "This server runs in a container. Update by pulling the new image and recreating the container (docker compose pull && docker compose up -d); see https://github.com/phabioo/uzume/wiki/Server-in-Docker."
 	}
 	if updates.KindFor(platform) == updates.KindMSI {
 		return "Download " + a.URL + " and run " + a.Artifact + " as Administrator."

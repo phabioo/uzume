@@ -1,10 +1,10 @@
 # Run the server in Docker
 
-At a glance: Run the server as a non-root container (amd64, arm64) with the volume `/data`: image, `docker run` or compose, volumes and permissions, upgrade, backup. Flags: [server-configuration.md](server-configuration.md).
+At a glance: Run the server as a non-root container (amd64, arm64) with the volume `/data`: image, `docker run` or compose, volumes and permissions, upgrade, backup. Flags: [server-configuration.md](Server-configuration).
 
 Contents: [Image](#image), [docker run](#docker-run), [docker compose](#docker-compose), [Volumes and permissions](#volumes-and-permissions), [Upgrade](#upgrade), [Backup](#backup), [Build the image yourself](#build-the-image-yourself).
 
-The official image runs the Uzume server as a non-root container for `linux/amd64` and `linux/arm64` (Raspberry Pi 5 included). Decisions: [ADR 0029](../adr/0029-operations-and-safety.md) D1. For flags and environment variables see [server-configuration.md](server-configuration.md); for apps outside your LAN see [sessions-over-the-internet.md](sessions-over-the-internet.md). The Debian package ([server-install.md](server-install.md)) stays the recommended install on Debian; use the image when you already run Docker (NAS, home server).
+The official image runs the Uzume server as a non-root container for `linux/amd64` and `linux/arm64` (Raspberry Pi 5 included). Decisions: [ADR 0029](https://github.com/phabioo/uzume/blob/main/docs/adr/0029-operations-and-safety.md) D1. For flags and environment variables see [server-configuration.md](Server-configuration); for apps outside your LAN see [sessions-over-the-internet.md](Sessions-over-the-internet). The Debian package ([server-install.md](Server-installation)) stays the recommended install on Debian; use the image when you already run Docker (NAS, home server).
 
 ## Image
 
@@ -16,7 +16,7 @@ The official image runs the Uzume server as a non-root container for `linux/amd6
 | `stable` and `latest` | The newest promoted release ("Promote to release", no rebuild). They exist only after the first promotion; until then pin `X.Y.Z` (or use `beta`). |
 | `beta` | The newest build of `main`. Not for production. |
 
-The image of FrameBeam (`framebeam-hub`) is no longer pushed. Coming from it: start with a new volume, see [Coming from FrameBeam](server-install.md#coming-from-framebeam).
+The image of FrameBeam (`framebeam-hub`) is no longer pushed. Coming from it: start with a new volume, see [Coming from FrameBeam](Server-installation#coming-from-framebeam).
 
 The image is `distroless/static` with the server binary only: no shell, no package manager. It runs as user `65532` and keeps all data in the volume `/data`. The image sets `UZUME_SERVER_CONTAINER=1`, which makes `/data` the default data directory; the server listens on `:8443` by default.
 
@@ -53,7 +53,7 @@ These work next to the running server (the container is the server; `-it` only f
 |---|---|
 | `setup-code`, `code`, `status` | `docker exec -it uzume-server uzume-server <command>` |
 | `reset-admin` | `docker exec -it uzume-server uzume-server reset-admin` (prints a one-time password; nothing else changes) |
-| `backup` | `docker exec -it uzume-server uzume-server backup` (see [server-backup.md](server-backup.md#docker)) |
+| `backup` | `docker exec -it uzume-server uzume-server backup` (see [server-backup.md](Server-backup#docker)) |
 | `update -check` | `docker exec uzume-server uzume-server update -check` prints the newer version; in a container `update` never installs, it names the tag to pull: see [Upgrade](#upgrade) |
 
 `restore` and `reset` need the server **stopped** (they refuse while it holds the data folder lock). Stop the service and run them in a one-off container that mounts the same volumes; the image's entrypoint is the server binary, so the command follows the service name:
@@ -101,7 +101,7 @@ Bridge networking is fine for the server port. For the TURN relay the server ann
 
 ## Volumes and permissions
 
-- Back up to a second volume, not into `/data`: see [server-backup.md](server-backup.md#docker).
+- Back up to a second volume, not into `/data`: see [server-backup.md](Server-backup#docker).
 - `/data` holds everything: `uzume.db`, `saves/`, `firmware/`, the ROM library, `tls/`, `cores/`, plugins and `backups/`. Nothing else in the container is state.
 - A new named volume starts owned by the container user. For a bind mount (`-v /srv/uzume:/data`) make the folder writable for uid `65532` first: `sudo chown 65532:65532 /srv/uzume`.
 - Own certificate: mount the PEM files read only (for example `-v /srv/certs:/certs:ro`) and set `UZUME_TLS_CERT=/certs/hub.pem`, `UZUME_TLS_KEY=/certs/hub.key`.
@@ -116,7 +116,7 @@ docker compose pull && docker compose up -d
 # docker rm -f uzume-server and run it again with the same -v option
 ```
 
-The server migrates its database at start and keeps a copy of the old one in `/data/backups`. To go back, start the older `X.Y.Z` tag with a restored copy (the server refuses a database from a newer version, see [Data directory](server-configuration.md#data-directory)).
+The server migrates its database at start and keeps a copy of the old one in `/data/backups`. To go back, start the older `X.Y.Z` tag with a restored copy (the server refuses a database from a newer version, see [Data directory](Server-configuration#data-directory)).
 
 ## Backup
 

@@ -4,12 +4,12 @@ At a glance: Back up and restore a whole Uzume server with one archive: by comma
 
 Contents: [What is inside](#what-is-inside), [Settings](#settings), [Command line](#command-line), [Admin API](#admin-api), [Restore](#restore), [Docker](#docker), [Restore on a new machine](#restore-on-a-new-machine), [Limits](#limits).
 
-One archive holds everything a Uzume server needs to come back on the same or a new machine. Decisions: [ADR 0029](../adr/0029-operations-and-safety.md) D2. Legacy design of the removed web admin page: [design/legacy/hub.md](../design/legacy/hub.md#6b-backups), decision 26 in [design/legacy/decisions.md](../design/legacy/decisions.md).
+One archive holds everything a Uzume server needs to come back on the same or a new machine. Decisions: [ADR 0029](https://github.com/phabioo/uzume/blob/main/docs/adr/0029-operations-and-safety.md) D2. Legacy design of the removed web admin page: [design/legacy/hub.md](https://github.com/phabioo/uzume/blob/main/docs/design/legacy/hub.md#6b-backups), decision 26 in [design/legacy/decisions.md](https://github.com/phabioo/uzume/blob/main/docs/design/legacy/decisions.md).
 
 Three ways to use it, all with the same archive:
 
 - **Command line**: `uzume-server backup`, `backup list`, `backup config`, `backup verify`, `restore`.
-- **Admin API**: `/api/v1/admin/backups` (admin device token, see [protocol/openapi](../../protocol/openapi/uzume.yaml)).
+- **Admin API**: `/api/v1/admin/backups` (admin device token, see [protocol/openapi](https://github.com/phabioo/uzume/blob/main/protocol/openapi/uzume.yaml)).
 - **App**: Server › Settings › Backups (status card, schedule, list, restore confirmation).
 
 ## What is inside
@@ -55,7 +55,7 @@ Server › Overview has a "Disk · backup" card with the free space of the backu
 
 ## Command line
 
-All commands take the usual `-data-dir` (and the other flags of [server-configuration.md](server-configuration.md)). On a systemd install run them as the service user so that files stay readable for the server, for example `sudo -u uzume uzume-server backup`.
+All commands take the usual `-data-dir` (and the other flags of [server-configuration.md](Server-configuration)). On a systemd install run them as the service user so that files stay readable for the server, for example `sudo -u uzume uzume-server backup`.
 
 ```
 uzume-server backup [--out DIR] [--roms | --no-roms]     make a backup now (the server may keep running)
@@ -70,7 +70,7 @@ uzume-server restore <file> [--safety-dir DIR | --no-safety]     restore (the se
 - `backup` into the configured folder behaves like a manual "Back up now" (the result shows on the Status card, retention runs afterwards). `--out DIR` writes a plain copy somewhere else: nothing is recorded and nothing is deleted.
 - `backup config` writes the settings into the database; a running server applies them within 5 minutes. Without flags it only shows them.
 - `restore` refuses while a server runs on the data folder (the server holds a lock file `hub.lock`). It makes a **safety backup** of the current state first (into `--safety-dir`, else the backup folder; `--no-safety` skips it, for a broken database or a fresh machine), verifies every checksum, unpacks to `restore-staging/` inside the data folder, then swaps everything in. If anything fails, the data folder is left exactly as it was. Run as root it gives the restored files the owner of the data folder.
-- On each platform (the same commands as every other server command, see [server-configuration.md](server-configuration.md#server-commands)): **Linux** `sudo uzume-server backup` (stop the service for `restore`: `sudo systemctl stop uzume-server`, then `sudo -u uzume uzume-server restore <file>`, then `sudo systemctl start uzume-server`); **Windows** in a terminal as administrator, `uzume-server backup` (for `restore`: `Stop-Service UzumeServer` first, then `Start-Service UzumeServer`); **Docker** `docker exec -it uzume-server uzume-server backup`, and `restore` in a one-off container, see [Docker](#docker). `uzume-server status` shows the backup folder and the last backup; `uzume-server reset` writes a safety backup (without ROMs) before it deletes everything, and a backup brings the data back.
+- On each platform (the same commands as every other server command, see [server-configuration.md](Server-configuration#server-commands)): **Linux** `sudo uzume-server backup` (stop the service for `restore`: `sudo systemctl stop uzume-server`, then `sudo -u uzume uzume-server restore <file>`, then `sudo systemctl start uzume-server`); **Windows** in a terminal as administrator, `uzume-server backup` (for `restore`: `Stop-Service UzumeServer` first, then `Start-Service UzumeServer`); **Docker** `docker exec -it uzume-server uzume-server backup`, and `restore` in a one-off container, see [Docker](#docker). `uzume-server status` shows the backup folder and the last backup; `uzume-server reset` writes a safety backup (without ROMs) before it deletes everything, and a backup brings the data back.
 - Exit status is non-zero on any failure, so the commands work in scripts and cron jobs. Example: `uzume-server backup --out /mnt/nas/uzume` from cron for an extra copy.
 
 ## Admin API
@@ -106,11 +106,11 @@ services:
       - /mnt/backup/uzume:/backup     # a second volume or bind mount for the backups
 ```
 
-Then set the folder to `/backup` (`docker compose exec hub uzume-server backup config --folder /backup --schedule daily`, or in Server › Settings › Backups). The container user (uid 65532) needs write access to the host folder. The CLI works the same inside the container; `restore` needs the server stopped, so run it in a one-off container that mounts the same volumes: `docker compose run --rm --no-deps hub restore /backup/<file>` (stop the `hub` service first: `docker compose stop hub`; `reset` works the same way, see [server-docker.md](server-docker.md#server-commands-in-docker)). The restore through the web or API needs no restart policy, see above.
+Then set the folder to `/backup` (`docker compose exec hub uzume-server backup config --folder /backup --schedule daily`, or in Server › Settings › Backups). The container user (uid 65532) needs write access to the host folder. The CLI works the same inside the container; `restore` needs the server stopped, so run it in a one-off container that mounts the same volumes: `docker compose run --rm --no-deps hub restore /backup/<file>` (stop the `hub` service first: `docker compose stop hub`; `reset` works the same way, see [server-docker.md](Server-in-Docker#server-commands-in-docker)). The restore through the web or API needs no restart policy, see above.
 
 ## Restore on a new machine
 
-1. Install the same or a newer server version ([server-install.md](server-install.md) or [server-docker.md](server-docker.md)), do not create an admin and do not start it yet (or stop it).
+1. Install the same or a newer server version ([server-install.md](Server-installation) or [server-docker.md](Server-in-Docker)), do not create an admin and do not start it yet (or stop it).
 2. Copy the backup file to the machine.
 3. `uzume-server restore <file> --no-safety` (as the service user, or as root).
 4. Copy anything from `<data folder>/restored-config/` that you need (own TLS certificate and key, `server.env`), set the public host and ports as on the old machine, start the server.
