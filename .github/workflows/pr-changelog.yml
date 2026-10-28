@@ -4,11 +4,15 @@ name: Changelog
 # scripts/changelog.py). Bot PRs are exempt. This workflow is a required check of the main ruleset.
 # workflow_dispatch (input pr) re-checks a PR whose events did not start workflows (PRs opened with GITHUB_TOKEN, e.g. the
 # changelog PR of promote.yml); run it with --ref <PR branch> so the check reports on the PR head commit.
+# merge_group: the required check must also report on the merge queue's commit, but the description was already checked
+# on the PR and a queue entry has no PR body, so the job only passes there.
 
 on:
   pull_request:
     branches: [main]
     types: [opened, edited, reopened, synchronize, ready_for_review]
+  merge_group:
+    types: [checks_requested]
   workflow_dispatch:
     inputs:
       pr:
@@ -21,7 +25,7 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: pr-changelog-${{ github.event.pull_request.number || inputs.pr }}
+  group: pr-changelog-${{ github.event.pull_request.number || inputs.pr || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -30,10 +34,15 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
+      - name: Skip in the merge queue
+        if: github.event_name == 'merge_group'
+        run: echo "The PR description was checked on the pull request; a merge queue entry has no description to read."
       - uses: actions/checkout@v7
+        if: github.event_name != 'merge_group'
         with:
           persist-credentials: false
       - name: Check the Changelog section
+        if: github.event_name != 'merge_group'
         env:
           # User text only ever travels through env, never through ${{ }} inside run.
           PR_BODY: ${{ github.event.pull_request.body }}
