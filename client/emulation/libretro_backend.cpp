@@ -232,6 +232,7 @@ bool LibretroBackend::loadCore(const QString& libraryPath, QString* error) {
     m_render.vulkanFallback = m_vkNote;
   }
   m_vkFailed = false;
+  m_openglTookOver = false;
   m_vkFailReason.clear();
   {
     QMutexLocker l(&m_optMutex);
@@ -698,6 +699,10 @@ bool LibretroBackend::setupHwRender(void* data) {
     m_render.fallbackReason = QString::fromLatin1(reason);
   };
   if (cb->context_type == RETRO_HW_CONTEXT_VULKAN) return setupVulkan(cb);
+  if (m_vkActive) {  // the core already runs on Vulkan: a further, OpenGL request must not switch the backend half way
+    qCInfo(lcCore) << "Vulkan is already active; a further hardware render request is refused";
+    return false;
+  }
   if (cb->context_type != RETRO_HW_CONTEXT_OPENGL && cb->context_type != RETRO_HW_CONTEXT_OPENGL_CORE) {
     if (cb->context_type == RETRO_HW_CONTEXT_NONE) return false;  // melonDS DS announces "no hardware" for software mode
     qCInfo(lcCore) << "Hardware render API" << static_cast<int>(cb->context_type) << "not supported; core falls back to software";
@@ -724,6 +729,7 @@ bool LibretroBackend::setupHwRender(void* data) {
   m_hwContextDestroy = cb->context_destroy;
   m_hwBottomLeft = cb->bottom_left_origin;
   m_hwActive = true;
+  if (m_vkFailed) m_openglTookOver = true;  // the core retried with OpenGL itself: a later load failure is not Vulkan's
   m_hwResetDone = false;
   {
     QMutexLocker l(&m_renderMutex);
@@ -813,7 +819,9 @@ bool LibretroBackend::finishHwSetup(unsigned maxWidth, unsigned maxHeight, QStri
     QString err;
     {
       QMutexLocker l(&m_targetMutex);
-      m_vk->setExternalMemoryWanted(m_nextDisplay != nullptr || m_nextTarget != nullptr);  // a display or encode target is waiting: the device gets the interop extensions
+      // Always asked for: a display or encode target can arrive after the device exists (a Session started later), and a
+      // device without the interop extensions can never take one. Devices that lack them simply stay without.
+      m_vk->setExternalMemoryWanted(true);
     }
     if (!m_vk->create(&err)) {
       qCWarning(lcCore).noquote() << "Vulkan context could not be created:" << err;
@@ -1022,6 +1030,8 @@ void LibretroBackend::handleVideo(const void* data, unsigned width, unsigned hei
     ++m_frameCount;
     if (m_vkActive && data == RETRO_HW_FRAME_BUFFER_VALID && width != 0 && height != 0)
       m_vk->presentFrame(static_cast<int>(width), static_cast<int>(height), QSize(), false, QSize(), nullptr, false);  // the core's work still runs
+    else if (m_vkActive && !data)
+      m_vk->presentDuplicate();  // a duplicate frame still submits the core's command buffers and signals its semaphores
     return;
   }
   if (m_vkActive && (!data || data == RETRO_HW_FRAME_BUFFER_VALID)) {  // Vulkan (ADR 0034): readback and the display copy
@@ -1306,8 +1316,12 @@ bool LibretroBackend::handleEnvironment(unsigned rawCmd, void* data) {
     }
     case RETRO_ENVIRONMENT_GET_HW_RENDER_CONTEXT_NEGOTIATION_INTERFACE_SUPPORT & ~RETRO_ENVIRONMENT_EXPERIMENTAL: {
       auto* q = static_cast<retro_hw_render_context_negotiation_interface*>(data);
-      if (!q || !VkRenderContext::compiledIn() || q->interface_type != RETRO_HW_RENDER_CONTEXT_NEGOTIATION_INTERFACE_VULKAN) return false;
-      q->interface_version = std::min(q->interface_version, 2u);  // create_instance / create_device2 are served
+      if (!q) return false;
+      // libretro.h: the frontend answers with the highest version it supports for that type (Vulkan: 2, create_instance and
+      // create_device2 are served); an unknown type is answered with true and version 0.
+      q->interface_version = (VkRenderContext::compiledIn() && q->interface_type == RETRO_HW_RENDER_CONTEXT_NEGOTIATION_INTERFACE_VULKAN)
+                                 ? 2u
+                                 : 0u;
       return true;
     }
     case RETRO_ENVIRONMENT_GET_HW_RENDER_INTERFACE & ~RETRO_ENVIRONMENT_EXPERIMENTAL: {

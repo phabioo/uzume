@@ -45,7 +45,7 @@ class LibretroBackend final : public EmulatorBackend {
 
   void setRequireHwRender(bool required) override { m_requireHw = required; }
   void setPreferredRenderer(const QString& renderer) override { m_preferredRenderer = renderer; }
-  bool vulkanAttemptFailed() const override { return m_vkFailed; }
+  bool vulkanAttemptFailed() const override { return m_vkFailed && !m_openglTookOver; }  // a failed load is Vulkan's fault only then
   QString vulkanFailureReason() const override { return m_vkFailReason; }
   void setVulkanFallbackNote(const QString& reason) override { m_vkNote = reason; }
   bool loadGame(const QString& path, QString* error = nullptr) override;
@@ -187,6 +187,7 @@ class LibretroBackend final : public EmulatorBackend {
   std::unique_ptr<HwRenderContext> m_hw;
   std::unique_ptr<VkRenderContext> m_vk;  // Vulkan next to OpenGL (ADR 0034); m_hwActive stays OpenGL-only
   bool m_vkActive = false;                // SET_HW_RENDER accepted with Vulkan (context created in finishHwSetup)
+  bool m_openglTookOver = false;          // after a failed Vulkan attempt the core itself got OpenGL in the same load
   bool m_vkFailed = false;                // a Vulkan attempt of this load failed (reset by loadCore); GET_PREFERRED then says OpenGL
   QString m_vkFailReason;
   QString m_vkNote;                       // Vulkan is off for this backend (retry after a failure); also the diagnostics reason

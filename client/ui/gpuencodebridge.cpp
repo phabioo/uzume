@@ -87,6 +87,7 @@ class D3d11Capture final : public GpuCapture {
       out->ntHandle = img.ntHandle;
       out->width = img.width;
       out->height = img.height;
+      out->luidValid = capture_.adapterLuid(out->luid);
     }
     return st;
   }
@@ -309,9 +310,10 @@ emu::GpuEncodeTarget::Attach GpuEncodeBridge::attachExternal(int width, int heig
   out->releaseKey = 1;  // ... and hands the texture to the capture, which takes key 1 and gives key 0 back
   {
     std::lock_guard<std::mutex> lock(mutex_);
+    // The capture's own adapter, not the Vulkan device's: the caller compares the two (a device compared with itself says nothing).
     luid_ = emu::AdapterLuid{};
-    luid_.valid = device.luid.valid;
-    std::memcpy(luid_.bytes, device.luid.bytes, 8);
+    luid_.valid = img.luidValid;
+    std::memcpy(luid_.bytes, img.luid, 8);
   }
   return Attach::Ok;
 }

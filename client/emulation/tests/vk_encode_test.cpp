@@ -504,17 +504,17 @@ class VkEncodeTest : public QObject {
     be.unloadCore();
   }
 
-  void targetThatWasNotThereAtCreateIsUnavailable() {
+  void targetThatArrivesAfterCreateIsServed() {
     LibretroBackend be;
     QString err;
-    QVERIFY2(start(be, nullptr, &err), qPrintable(err));  // no target at device creation: no interop extensions
+    QVERIFY2(start(be, nullptr, &err), qPrintable(err));  // no target at device creation: the interop extensions are enabled anyway
     for (int i = 0; i < 2; ++i) QVERIFY(be.runFrame());
     auto t = makeEncode();
     if (!t) return;
     be.setGpuEncodeTarget(t);
     for (int i = 0; i < 2; ++i) QVERIFY(be.runFrame());
-    QVERIFY2(!t->unavailableReason.isEmpty(), "a late target must be told Unavailable");
-    QCOMPARE(t->captures, 0);
+    QVERIFY2(t->unavailableReason.isEmpty(), qPrintable(t->unavailableReason));
+    QVERIFY2(t->captures > 0, "a late target gets the frames (a Session started after the game)");
     QVERIFY(!be.videoFrame().isNull());
     be.unloadCore();
   }
