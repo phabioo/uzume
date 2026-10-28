@@ -85,6 +85,13 @@ for d in wayland-shell-integration wayland-decoration-client wayland-graphics-in
   [ -d "$qt_plugins/$d" ] || { echo "Qt plugin directory $d is missing (qt6-wayland)" >&2; exit 1; }
   cp -r "$qt_plugins/$d" "$appdir/usr/plugins/"
 done
+# The copies keep the RUNPATH of the Qt installation (none): without one, libqt-plugin-wayland-egl.so cannot find
+# usr/lib/libQt6WaylandEglClientHwIntegration.so.6 and AppRun sets no LD_LIBRARY_PATH (#338). Same RUNPATH as the
+# platform plugins linuxdeploy deploys (usr/plugins/<dir>/x.so -> usr/lib).
+command -v patchelf >/dev/null 2>&1 || { echo "patchelf is required (apt install patchelf)" >&2; exit 1; }
+for d in wayland-shell-integration wayland-decoration-client wayland-graphics-integration-client; do
+  find "$appdir/usr/plugins/$d" -type f -name '*.so' -exec patchelf --set-rpath '$ORIGIN/../../lib' {} +
+done
 
 # The Qt multimedia plugin directory holds the FFmpeg and the GStreamer backend; only FFmpeg is wanted.
 find "$appdir/usr/plugins/multimedia" -name 'libgstreamermediaplugin.so' -delete 2>/dev/null || true
@@ -115,9 +122,10 @@ fi
 echo "Bundled license files: $(find "$doc/licenses" -type f | wc -l)" >&2
 
 # Every library must resolve inside the AppDir (or be a system library the image does not carry: glibc, GL, ...).
-# The run-time check is the smoke test in CI; this one catches a missing bundle before packaging.
+# The run-time check is the smoke test in CI; this one catches a missing bundle before packaging. It runs without any
+# LD_LIBRARY_PATH (also not the one set above for linuxdeploy), so a library or plugin without a working RUNPATH is found.
 missing="$(find "$appdir/usr" -type f \( -name 'uzume*' -o -name '*.so*' \) -print0 | while IFS= read -r -d '' f; do
-  case "$(file -b "$f")" in ELF*) LD_LIBRARY_PATH="$appdir/usr/lib" ldd "$f" 2>/dev/null | { grep 'not found' || true; } | sed "s|^|$(basename "$f"): |" ;; esac
+  case "$(file -b "$f")" in ELF*) env -u LD_LIBRARY_PATH ldd "$f" 2>/dev/null | { grep 'not found' || true; } | sed "s|^|$(basename "$f"): |" ;; esac
 done | sort -u)"
 if [ -n "$missing" ]; then
   echo "unresolved libraries in the AppDir:" >&2

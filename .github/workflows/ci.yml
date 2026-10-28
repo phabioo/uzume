@@ -527,7 +527,7 @@ jobs:
         timeout-minutes: 30
         run: |
           mapfile -t pkgs < <(grep -vE '^[[:space:]]*(#|$)' scripts/qt-packages.txt)
-          scripts/ci-apt-install.sh "${pkgs[@]}" ccache file qt6-wayland desktop-file-utils
+          scripts/ci-apt-install.sh "${pkgs[@]}" ccache file qt6-wayland desktop-file-utils patchelf sway
       - name: Bootstrap vcpkg
         timeout-minutes: 10
         run: scripts/bootstrap-vcpkg.sh
@@ -632,7 +632,7 @@ jobs:
           [ -d "$work/squashfs-root/usr" ] || { echo "::error::--appimage-extract produced no squashfs-root/usr"; exit 1; }
           root="$work/squashfs-root"
           notfound="$(find "$root/usr" -type f -print0 | while IFS= read -r -d '' f; do
-            case "$(file -b "$f")" in ELF*) LD_LIBRARY_PATH="$root/usr/lib" ldd "$f" 2>/dev/null | grep 'not found' | sed "s|^|${f#"$root"/}: |" || true ;; esac
+            case "$(file -b "$f")" in ELF*) ldd "$f" 2>/dev/null | grep 'not found' | sed "s|^|${f#"$root"/}: |" || true ;; esac
           done | sort -u)"
           if [ -n "$notfound" ]; then echo "$notfound"; echo "::error::unresolved libraries in the AppImage"; exit 1; fi
           if [ -n "$(find "$root" \( -name '*_libretro.*' -o -type d -iname cores \) -print)" ]; then echo "::error::emulator core in the AppImage"; exit 1; fi
@@ -662,6 +662,22 @@ jobs:
               echo "::error::missing library or plugin on platform $plat"; exit 1
             fi
           done
+          # 5) Wayland: sway headless (no input devices needed beyond the virtual seat), platform picked by Qt's wayland plugin.
+          # Catches plugins without RUNPATH (#338): "Failed to load client buffer integration" / cannot open shared object.
+          export XDG_RUNTIME_DIR="$RUNNER_TEMP/xdg-runtime"; rm -rf "$XDG_RUNTIME_DIR"; mkdir -m 0700 -p "$XDG_RUNTIME_DIR"
+          WLR_BACKENDS=headless WLR_LIBINPUT_NO_DEVICES=1 WLR_RENDERER=pixman sway --unsupported-gpu >"$out/sway.log" 2>&1 &
+          sway_pid=$!
+          for _ in $(seq 1 20); do ls "$XDG_RUNTIME_DIR"/wayland-* >/dev/null 2>&1 && break; sleep 0.5; done
+          wl="$(basename "$(ls "$XDG_RUNTIME_DIR"/wayland-[0-9] 2>/dev/null | head -n 1)")"
+          [ -n "$wl" ] || { tail -n 20 "$out/sway.log"; kill "$sway_pid" 2>/dev/null || true; echo "::error::sway did not start (no Wayland socket)"; exit 1; }
+          rc=0
+          WAYLAND_DISPLAY="$wl" QT_QPA_PLATFORM=wayland timeout 8 "$img" >"$out/gui-wayland.log" 2>&1 || rc=$?
+          kill "$sway_pid" 2>/dev/null || true
+          tail -n 20 "$out/gui-wayland.log"
+          if [ "$rc" != 124 ] && [ "$rc" != 0 ]; then echo "::error::GUI (wayland) exited with code $rc"; exit 1; fi
+          if grep -Ei 'error while loading shared libraries|cannot open shared object|failed to load client buffer integration|could not load the qt platform plugin|no qt platform plugin' "$out/gui-wayland.log"; then
+            echo "::error::missing library or plugin on platform wayland"; exit 1
+          fi
           test -f "$HOME/.local/share/Uzume/Uzume/device.json" || { find "$HOME/.local/share" | head -n 20; echo "::error::data folder is not the XDG data location"; exit 1; }
       - uses: actions/upload-artifact@v7
         with:

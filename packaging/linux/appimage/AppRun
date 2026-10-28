@@ -16,4 +16,19 @@ fi
 # Qt 6.4 on Ubuntu 24.04: the image carries the FFmpeg media backend only (no GStreamer).
 export QT_MEDIA_BACKEND="${QT_MEDIA_BACKEND:-ffmpeg}"
 
+# libOpenGL.so.0 (glvnd) is a system library the image does not carry. Without it the loader aborts with a message
+# nobody sees when the app is started from a file manager (#339): say it, with the package name, and stop.
+if ! { ldconfig -p 2>/dev/null || /sbin/ldconfig -p 2>/dev/null; } | grep -q 'libOpenGL\.so\.0'; then
+  found=""
+  for d in /usr/lib/x86_64-linux-gnu /usr/lib64 /usr/lib /lib/x86_64-linux-gnu /lib64 /lib; do
+    if [ -e "$d/libOpenGL.so.0" ]; then found=1; break; fi
+  done
+  if [ -z "$found" ]; then
+    msg="Uzume needs the system library libOpenGL.so.0, which is not installed. Install the package libopengl0 (Debian, Ubuntu) or libglvnd-opengl (Fedora), then start Uzume again."
+    echo "$msg" >&2
+    if command -v notify-send >/dev/null 2>&1; then notify-send -u critical "Uzume cannot start" "$msg" >/dev/null 2>&1 || true; fi
+    exit 1
+  fi
+fi
+
 exec "$APPDIR/usr/bin/uzume" "$@"
