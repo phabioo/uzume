@@ -29,6 +29,9 @@ class AudioController : public QObject {
   Q_PROPERTY(QString outputDevice READ outputDevice WRITE setOutputDevice NOTIFY changed)  // "" = system default
   Q_PROPERTY(QVariantList outputDevices READ outputDevices NOTIFY devicesChanged)         // [{value, label}], default first
   Q_PROPERTY(bool appActive READ appActive NOTIFY changed)
+  // 0.23: channel gains of the Sound popover next to the master volume ("My game"), 0..100 %.
+  Q_PROPERTY(int voiceGain READ voiceGain NOTIFY changed)
+  Q_PROPERTY(int pluginGain READ pluginGain NOTIFY changed)
 
  public:
   explicit AudioController(PlayerSettings* settings, QObject* parent = nullptr);
@@ -46,6 +49,10 @@ class AudioController : public QObject {
   void setOutputDevice(const QString& id);
   QVariantList outputDevices() const;
   bool appActive() const { return appActive_; }
+  int voiceGain() const { return voiceGain_; }
+  int pluginGain() const { return pluginGain_; }
+  // The local game is silent: "Muted in the background" and the window is inactive.
+  bool gameSilenced() const { return muteInBackground_ && !appActive_; }
 
   // Gains 0..1: the local game (also silent in the background) and watched sessions.
   double localGain() const;
@@ -58,6 +65,8 @@ class AudioController : public QObject {
   Q_INVOKABLE void toggleMute();   // hotkey: shows the notice
   Q_INVOKABLE void setVolume(int percent);  // slider: no notice
   Q_INVOKABLE void setMuted(bool muted);    // popover button: no notice
+  Q_INVOKABLE void setVoiceGain(int percent);
+  Q_INVOKABLE void setPluginGain(int percent);
   // The window became (in)active; connected to QGuiApplication::applicationStateChanged, callable from tests.
   void setAppActive(bool active);
 
@@ -80,6 +89,8 @@ class AudioController : public QObject {
   bool showVolume_ = true;
   QString device_;
   bool appActive_ = true;
+  int voiceGain_ = 100;
+  int pluginGain_ = 100;
 };
 
 }  // namespace uzume::ui

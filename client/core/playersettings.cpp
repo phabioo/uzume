@@ -74,6 +74,10 @@ constexpr const char* kAudioShowVolumeKey = "audio_show_volume";
 constexpr const char* kMcpEnabledKey = "mcp_enabled";
 constexpr const char* kMcpPortKey = "mcp_port";
 constexpr const char* kAudioDeviceKey = "audio_output_device";
+constexpr const char* kAudioVoiceGainKey = "audio_voice_gain";
+constexpr const char* kAudioPluginGainKey = "audio_plugin_gain";
+constexpr const char* kAudioMixAllKey = "audio_mix_all_tiles";
+constexpr const char* kAudioTileGainsKey = "audio_tile_gains";
 constexpr const char* kSaveSlotsKey = "save_slots";  // { hub_id: { game_id: slot } }
 }
 
@@ -129,6 +133,13 @@ PlayerSettings::PlayerSettings(const QString& baseDir)
     mcpPort_ = port >= 1024 && port <= 65535 ? port : kDefaultMcpPort;
   }
   audioOutputDevice_ = raw_.value(QLatin1String(kAudioDeviceKey)).toString();
+  audioVoiceGain_ = std::clamp(raw_.value(QLatin1String(kAudioVoiceGainKey)).toInt(100), 0, 100);
+  audioPluginGain_ = std::clamp(raw_.value(QLatin1String(kAudioPluginGainKey)).toInt(100), 0, 100);
+  audioMixAll_ = raw_.value(QLatin1String(kAudioMixAllKey)).toBool(false);
+  const QJsonObject tg = raw_.value(QLatin1String(kAudioTileGainsKey)).toObject();
+  for (auto it = tg.begin(); it != tg.end(); ++it) {
+    if (it.value().isDouble()) audioTileGains_.insert(it.key(), std::clamp(it.value().toInt(100), 0, 100));
+  }
   diagEmulationOpen_ = raw_.value(QLatin1String(kDiagEmulationKey)).toBool(true);
   diagStreamingOpen_ = raw_.value(QLatin1String(kDiagStreamingKey)).toBool(true);
   const QString sort = raw_.value(QLatin1String(kLibrarySortKey)).toString();
@@ -332,6 +343,36 @@ bool PlayerSettings::setMcpPort(int port) {
   if (port < 1024 || port > 65535) return false;
   mcpPort_ = port;
   raw_.insert(QLatin1String(kMcpPortKey), port);
+  return save();
+}
+
+bool PlayerSettings::setAudioVoiceGain(int percent) {
+  audioVoiceGain_ = std::clamp(percent, 0, 100);
+  raw_.insert(QLatin1String(kAudioVoiceGainKey), audioVoiceGain_);
+  return save();
+}
+
+bool PlayerSettings::setAudioPluginGain(int percent) {
+  audioPluginGain_ = std::clamp(percent, 0, 100);
+  raw_.insert(QLatin1String(kAudioPluginGainKey), audioPluginGain_);
+  return save();
+}
+
+bool PlayerSettings::setAudioMixAll(bool on) {
+  audioMixAll_ = on;
+  raw_.insert(QLatin1String(kAudioMixAllKey), on);
+  return save();
+}
+
+int PlayerSettings::audioTileGain(const QString& userId) const { return audioTileGains_.value(userId, 100); }
+
+bool PlayerSettings::setAudioTileGain(const QString& userId, int percent) {
+  if (userId.isEmpty()) return false;
+  percent = std::clamp(percent, 0, 100);
+  audioTileGains_.insert(userId, percent);
+  QJsonObject o = raw_.value(QLatin1String(kAudioTileGainsKey)).toObject();
+  o.insert(userId, percent);
+  raw_.insert(QLatin1String(kAudioTileGainsKey), o);
   return save();
 }
 

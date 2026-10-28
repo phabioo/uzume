@@ -161,7 +161,7 @@ ColumnLayout {
         Layout.minimumWidth: 0
         wrapMode: Text.WordWrap
         textFormat: Text.PlainText
-        text: qsTr("Private sessions are not listed. Sound plays from one tile only.")
+        text: qsTr("Private sessions are not listed. Sound plays from one tile unless Mix all tiles is on (Mixer).")
         font.family: Theme.sans
         font.pixelSize: Theme.roles.small.size
         lineHeight: Theme.roles.small.line

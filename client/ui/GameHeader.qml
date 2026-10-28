@@ -35,7 +35,7 @@ Rectangle {
     readonly property Item moreAnchor: moreButton
     readonly property Item layoutAnchor: layoutButton
     readonly property Item speedAnchor: speedValueButton
-    readonly property bool menuOpen: moreMenu.opened || layoutMenu.opened || speedMenu.opened || soundPopover.opened
+    readonly property bool menuOpen: moreMenu.opened || layoutMenu.opened || speedMenu.opened || soundPopover.opened || mixerPopover.opened
     readonly property var audio: player.audio
     readonly property SaveHistoryController saves: player.saveHistory
     signal fullscreenRequested()
@@ -87,6 +87,7 @@ Rectangle {
     }
     readonly property string audioWho: {
         const f = ctl.audioFocus
+        if (ctl.mixAllTiles && ctl.audibleSurfaces.length > 1) return qsTr("All tiles")
         if (f === "local") return ctl.ownName !== "" ? ctl.ownName : qsTr("You")
         return (ctl.surfaceInfo[f] || ({})).who || ""
     }
@@ -135,6 +136,8 @@ Rectangle {
     readonly property real wPause0: bw(pauseLabel, pauseHint, false)
     readonly property real wPause1: bw(pauseLabel, "", false)
     readonly property real wMulti: bw(qsTr("Multiview"), "", false)
+    readonly property real wMixer: bw(qsTr("Mixer"), "", false)
+    readonly property bool mixerShown: ctl.tab !== "session" && ctl.mixerTiles.length >= 1
     readonly property int level: {
         const gap = Theme.space1
         const left0 = backButton.implicitWidth + 2 * Theme.space2 + 1 + 160 + (systemCode !== "" ? 60 : 0)
@@ -145,6 +148,7 @@ Rectangle {
             const add = (x) => { w += x + (n > 0 ? gap : 0); ++n }
             if (watchingOnly) {
                 if (ctl.tab !== "session" && ctl.surfaceCount >= 1) add(addButton.implicitWidth)
+                if (mixerShown && l < 3) add(wMixer)
                 add(l < 3 ? wSound : wSound3); add(l < 1 ? wPanel0 : wPanel1); add(leaveButton.implicitWidth)
                 if (l < 2) add(wFullscreen)
                 add(more)
@@ -156,6 +160,7 @@ Rectangle {
                 if (l < 2 && layouts.length > 1) add(l < 1 ? wScreens0 : wScreens1)
                 if (!multi && own && l < 3) add(wMulti)
                 if (multi && ctl.surfaceCount >= 1) add(addButton.implicitWidth)
+                if (multi && mixerShown && l < 3) add(wMixer)
                 if (l < 3) { add(1); add(l < 1 ? wPanel0 : wPanel1) }
                 if (multi) add(leaveMulti.implicitWidth)
                 if (l < 2) add(wFullscreen)
@@ -212,6 +217,8 @@ Rectangle {
                 it.push({ label: root.panelShown ? qsTr("Hide panel") : qsTr("Show panel"), hint: root.panelValue, name: "panel" })
             if (root.level >= 3 && !root.multi && root.own)
                 it.push({ label: qsTr("Multiview"), name: "multiview" })
+            if (root.level >= 3 && root.mixerShown)
+                it.push({ label: qsTr("Mixer"), name: "mixer" })
             if (root.level >= 2 && root.layouts.length > 1)
                 it.push({ label: qsTr("Screens"), hint: root.screensValue, name: "screens" })
             if (root.level >= 2 && root.own && root.session.fastForwardAvailable) {
@@ -254,6 +261,7 @@ Rectangle {
         else if (name === "speedup") root.session.toggleFastForward()
         else if (name === "panel") root.panelToggled()
         else if (name === "multiview") root.ctl.tab = "multiview"
+        else if (name === "mixer") Qt.callLater(function () { mixerPopover.openFor(moreButton, "below", "end") })
         else if (name.indexOf("mode") === 0) root.ctl.multiviewMode = name.substring(4).toLowerCase()
         else if (name === "screens") Qt.callLater(root.toggleLayoutMenu)   // the menu opens after "⋯" has closed
         else if (name.indexOf("layout_") === 0) root.ctl.chooseScreenLayout(name.substring(7))
@@ -308,7 +316,7 @@ Rectangle {
         onChosen: (item) => root.session.fastForwardRatio = Number(item.value)
     }
 
-    // Sound (board 3g-9): the master volume of this PC. Voice and plugin sound rows come with 0.21.
+    // Sound (board 3g-9): My game (the master volume of this PC), Voice and Plugin sounds. Up / Down move to the next slider.
     UzPopover {
         id: soundPopover
         objectName: "soundPopover"
@@ -326,8 +334,41 @@ Rectangle {
             to: 100
             stepSize: root.audio.volumeStep
             muted: root.audio.muted
+            upDownSteps: false
+            KeyNavigation.down: voiceSlider
             onMoved: root.audio.setVolume(Math.round(value))
             Binding { target: soundSlider; property: "value"; value: root.audio.volume }   // survives the key nudges
+        }
+        UzSlider {
+            id: voiceSlider
+            objectName: "soundVoiceSlider"
+            Layout.fillWidth: true
+            Layout.leftMargin: Theme.space2
+            Layout.rightMargin: Theme.space2
+            label: qsTr("Voice")
+            from: 0
+            to: 100
+            stepSize: root.audio.volumeStep
+            upDownSteps: false
+            KeyNavigation.up: soundSlider
+            KeyNavigation.down: pluginSlider
+            onMoved: root.audio.setVoiceGain(Math.round(value))
+            Binding { target: voiceSlider; property: "value"; value: root.audio.voiceGain }
+        }
+        UzSlider {
+            id: pluginSlider
+            objectName: "soundPluginSlider"
+            Layout.fillWidth: true
+            Layout.leftMargin: Theme.space2
+            Layout.rightMargin: Theme.space2
+            label: qsTr("Plugin sounds")
+            from: 0
+            to: 100
+            stepSize: root.audio.volumeStep
+            upDownSteps: false
+            KeyNavigation.up: voiceSlider
+            onMoved: root.audio.setPluginGain(Math.round(value))
+            Binding { target: pluginSlider; property: "value"; value: root.audio.pluginGain }
         }
         Text {
             objectName: "soundBackgroundLine"
@@ -357,6 +398,57 @@ Rectangle {
                 onClicked: { soundPopover.close(); root.player.leaveGameView(); root.player.showSettingsSection("audio") }
             }
         ]
+    }
+
+    // Mixer (board 3r): one Slider per watched person, led by the person square, and "Mix all tiles" (off = one audible tile).
+    // The Repeater model is the count, so moving a slider (which changes the tile list's values) never rebuilds the rows.
+    UzPopover {
+        id: mixerPopover
+        objectName: "mixerPopover"
+        label: qsTr("Mixer")
+        popWidth: 320
+        Repeater {
+            model: root.ctl.mixerTiles.length
+            delegate: UzSlider {
+                id: tileSlider
+                required property int index
+                readonly property var tile: root.ctl.mixerTiles[index] || ({})
+                objectName: "mixerSlider_" + (tile.sid || "")
+                Layout.fillWidth: true
+                Layout.leftMargin: Theme.space2
+                Layout.rightMargin: Theme.space2
+                label: tile.who || ""
+                from: 0
+                to: 100
+                stepSize: 5
+                upDownSteps: false
+                lead: Rectangle { width: 8; height: 8; color: Theme.playerColor(tileSlider.tile.person || 1, Theme.dark) }
+                onMoved: root.ctl.setTileGain(tile.sid, Math.round(value))
+                Binding { target: tileSlider; property: "value"; value: tileSlider.tile.gain === undefined ? 100 : tileSlider.tile.gain }
+            }
+        }
+        UzToggle {
+            id: mixAllToggle
+            objectName: "mixAllToggle"
+            Layout.leftMargin: Theme.space2
+            Layout.topMargin: Theme.space1
+            text: qsTr("Mix all tiles")
+            checked: root.ctl.mixAllTiles
+            onToggled: root.ctl.mixAllTiles = checked
+        }
+        Text {
+            objectName: "mixerNote"
+            Layout.fillWidth: true
+            Layout.leftMargin: Theme.space2
+            Layout.rightMargin: Theme.space2
+            Layout.bottomMargin: Theme.space15
+            wrapMode: Text.WordWrap
+            text: root.ctl.mixAllTiles ? qsTr("You hear every tile at its own level.") : qsTr("You hear one tile: %1.").arg(root.audioWho)
+            textFormat: Text.PlainText
+            font.family: Theme.sans
+            font.pixelSize: Theme.roles.small.size
+            color: Theme.muted
+        }
     }
 
     RowLayout {
@@ -611,6 +703,19 @@ Rectangle {
                 ToolTip.delay: 500
                 ToolTip.text: qsTr("Running sessions · %1 of %2 tiles").arg(root.ctl.surfaceCount).arg(root.ctl.maxSurfaces)
                 onClicked: root.pickerToggled()
+            }
+            UzButton {
+                id: mixerButton
+                objectName: "mixerButton"
+                visible: root.mixerShown && root.level < 3
+                size: "sm"
+                focusPolicy: Qt.TabFocus
+                text: qsTr("Mixer")
+                on: mixerPopover.opened
+                ToolTip.visible: hovered && !root.menuOpen
+                ToolTip.delay: 500
+                ToolTip.text: qsTr("Volume per person · Mix all tiles")
+                onClicked: mixerPopover.opened ? mixerPopover.close() : mixerPopover.openFor(mixerButton, "below", "end")
             }
             Rectangle {
                 id: barDivider

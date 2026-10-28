@@ -194,6 +194,7 @@ class PluginsController : public QObject {
   // 0.20 plugin API emulation (fb.memory.write, fb.cheats, fb.save.snapshot). The PlayerController wires the snapshot function,
   // the cheats-used marker and the connection once, and sets the game info before gameStarted().
   PluginEmulationService* emulation() { return emulation_.get(); }
+  void setSoundSink(std::shared_ptr<plugins::SoundSink> sink) { sound_ = std::move(sink); }  // fb.sound (0.23)
   void setGameInfo(const PluginEmulationService::GameInfo& info) { gameInfo_ = info; }
   QVariantMap consentRequest() const { return emulation_->consentRequest(); }
   int cheatsOn() const { return emulation_->cheatsOn(); }
@@ -390,6 +391,7 @@ class PluginsController : public QObject {
   // Declared before host_: the plugin thread holds these until host_->stop() has returned.
   std::shared_ptr<PluginEmulationService> emulation_;
   std::shared_ptr<plugins::PluginStore> store_;
+  std::shared_ptr<plugins::SoundSink> sound_;
   std::unique_ptr<plugins::PluginStoreSync> storeSync_;
   QString storeKey_;
   QList<QPair<QString, QString>> pendingPicks_;  // (plugin id, request id) asked and not answered yet, oldest first

@@ -25,7 +25,17 @@ bool isConvertible(QAudioFormat::SampleFormat f) {
 
 AudioOutput::AudioOutput(QObject* parent) : QObject(parent) {}
 
-AudioOutput::~AudioOutput() { stop(); }
+AudioOutput::~AudioOutput() {
+  stop();
+  if (mixer_ && input_) mixer_->removeInput(input_);
+}
+
+void AudioOutput::setMixer(AudioMixer* mixer, AudioMixer::Channel channel, const QString& key) {
+  stop();
+  if (mixer_ && input_) mixer_->removeInput(input_);
+  mixer_ = mixer;
+  input_ = mixer ? mixer->addInput(channel, key) : 0;
+}
 
 QByteArray AudioOutput::convertSamples(const QByteArray& pcm16, QAudioFormat::SampleFormat target) {
   if (!isConvertible(target)) {
@@ -73,6 +83,23 @@ bool AudioOutput::start(int coreSampleRate) {
   stop();
   if (coreSampleRate <= 0) {
     coreSampleRate = kFallbackRate;
+  }
+  if (mixer_) {
+    if (!mixer_->acquire(coreSampleRate)) return false;
+    acquired_ = true;
+    fmt_ = mixer_->outputFormat();
+    outRate_ = mixer_->outputRate();
+    coreRate_ = coreSampleRate;
+    resampler_.reset();
+    resampler_.setRates(coreSampleRate, outRate_);
+    dropped_ = 0;
+    underruns_ = 0;
+    levelFrames_ = 0;
+    levelPeak_ = 0;
+    levelLogged_ = false;
+    mixer_->clearInput(input_);
+    mixer_->setUnderrunCounting(input_, counting_ && volume_ > 0.0);
+    return true;
   }
   QAudioDevice device;
   if (!deviceId_.isEmpty()) {
@@ -164,6 +191,10 @@ double AudioOutput::bufferedMsFor(qint64 sinkBufferBytes, qint64 sinkFreeBytes, 
 }
 
 double AudioOutput::bufferedMs() const {
+  if (mixer_) {
+    if (!acquired_ || outRate_ <= 0) return 0.0;
+    return mixer_->sinkBufferedMs() + static_cast<double>(mixer_->queuedFrames(input_)) * 1000.0 / outRate_;
+  }
   if (!sink_ || !device_) {
     return 0.0;
   }
@@ -175,6 +206,7 @@ void AudioOutput::setUnderrunCounting(bool on) {
     return;
   }
   counting_ = on;
+  if (mixer_) mixer_->setUnderrunCounting(input_, on && volume_ > 0.0);
   if (device_) {
     device_->setUnderrunCounting(on && volume_ > 0.0);
   }
@@ -202,6 +234,10 @@ void AudioOutput::setVolume(double gain) {
   gain = std::clamp(gain, 0.0, 1.0);
   if (gain == volume_) return;
   volume_ = gain;
+  if (mixer_) {
+    mixer_->setUnderrunCounting(input_, counting_ && volume_ > 0.0);
+    if (volume_ <= 0.0) mixer_->clearInput(input_);
+  }
   if (device_) {
     device_->setUnderrunCounting(counting_ && volume_ > 0.0);
     if (volume_ <= 0.0) device_->resetState();  // drop what is queued so the silence is immediate
@@ -209,6 +245,12 @@ void AudioOutput::setVolume(double gain) {
 }
 
 void AudioOutput::stop() {
+  if (acquired_) {
+    underruns_ = mixer_->underruns(input_);
+    mixer_->clearInput(input_);
+    mixer_->release();
+    acquired_ = false;
+  }
   if (sink_) {
     qCInfo(lcAudio) << "stop(): dropped bytes" << dropped_ << "error:" << static_cast<int>(sink_->error());
     sink_->stop();
@@ -223,7 +265,7 @@ void AudioOutput::stop() {
 }
 
 void AudioOutput::setCoreRate(int coreSampleRate) {
-  if (!sink_ || coreSampleRate <= 0 || coreSampleRate == coreRate_) {
+  if (!(sink_ || acquired_) || coreSampleRate <= 0 || coreSampleRate == coreRate_) {
     return;
   }
   qCInfo(lcAudio) << "core sample rate changed:" << coreRate_ << "->" << coreSampleRate << "Hz, output stays at" << outRate_;
@@ -233,6 +275,13 @@ void AudioOutput::setCoreRate(int coreSampleRate) {
 }
 
 void AudioOutput::push(const QByteArray& pcm) {
+  if (acquired_) {
+    if (pcm.isEmpty() || volume_ <= 0.0 || !mixer_->isAudible(input_)) return;
+    const QByteArray scaled = applyGain(pcm, volume_);
+    const qint64 drop = mixer_->push(input_, resampler_.isPassthrough() ? scaled : resampler_.process(scaled));
+    if (drop > 0) dropped_ += drop;
+    return;
+  }
   if (!sink_ || !device_ || pcm.isEmpty() || volume_ <= 0.0) {
     return;
   }

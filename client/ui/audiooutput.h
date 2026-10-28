@@ -16,6 +16,7 @@
 #include <memory>
 
 #include "audioresampler.h"
+#include "audiomixer.h"
 
 class QAudioSink;
 
@@ -68,6 +69,11 @@ class AudioOutput : public QObject {
   // Starts output for the core sample rate; if the device does not support it, audio is linearly resampled to
   // 48000 Hz. false: no device (silent).
   bool start(int coreSampleRate);
+  // Mixer mode (0.23): instead of an own sink the output is one input of the shared AudioMixer (resampled to its rate).
+  // Call before start(); null = the standalone sink above (tests, CLI).
+  void setMixer(AudioMixer* mixer, AudioMixer::Channel channel, const QString& key = QString());
+  AudioMixer* mixer() const { return mixer_; }
+  AudioMixer::InputId mixerInput() const { return input_; }
   // Output device id (QAudioDevice::id()); empty or a device that is gone = system default. Applies on the next start().
   void setDeviceId(const QByteArray& id) { deviceId_ = id; }
   QByteArray deviceId() const { return deviceId_; }
@@ -86,7 +92,7 @@ class AudioOutput : public QObject {
   void setCoreRate(int coreSampleRate);
   int coreRate() const { return coreRate_; }
 
-  bool isActive() const { return sink_ != nullptr; }
+  bool isActive() const { return sink_ != nullptr || acquired_; }
   int outputRate() const { return outRate_; }
   qint64 droppedBytes() const { return dropped_; }
   QAudioFormat outputFormat() const { return fmt_; }
@@ -95,11 +101,14 @@ class AudioOutput : public QObject {
   // the queue. Underrun = a read found the queue dry (padded with silence) after audio had been delivered, once per
   // dry spell; not counted while counting is off (paused game, muted surface: nothing is pushed on purpose).
   double bufferedMs() const;
-  int underruns() const { return device_ ? device_->underruns() : underruns_; }
+  int underruns() const { return acquired_ ? mixer_->underruns(input_) : device_ ? device_->underruns() : underruns_; }
   void setUnderrunCounting(bool on);
   static double bufferedMsFor(qint64 sinkBufferBytes, qint64 sinkFreeBytes, qint64 pendingBytes, int bytesPerFrame, int sampleRate);
 
  private:
+  AudioMixer* mixer_ = nullptr;
+  AudioMixer::InputId input_ = 0;
+  bool acquired_ = false;
   std::unique_ptr<AudioQueueDevice> device_;  // declared before sink_: the sink is destroyed first
   std::unique_ptr<QAudioSink> sink_;
   LinearResampler resampler_;

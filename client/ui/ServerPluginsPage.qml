@@ -82,6 +82,7 @@ AdminPage {
         case "memory.write": return qsTr("Change game memory")
         case "cheats": return qsTr("Turn cheats on and off")
         case "store": return qsTr("Keep its data with your account")
+        case "sound": return qsTr("Play sounds")
         default: return p
         }
     }

@@ -9,6 +9,7 @@
 #include <QtTest>
 
 #include "audiocontroller.h"
+#include "audiomixer.h"
 #include "controllerscontroller.h"
 #include "fakehub.h"
 #include "gameview.h"
@@ -1794,11 +1795,15 @@ class InGameUiTest : public QObject {
     QTest::keyClick(h.window, Qt::Key_M);
     QTRY_VERIFY(audio->muted());
     QTRY_COMPARE(textOf(visibleItem(h, "volumeToast")), QStringLiteral("Muted"));
-    QCOMPARE(h.controller->gameSession()->audio().volume(), 0.0);   // the local output follows
+    QCOMPARE(h.controller->audioMixer()->effectiveGain(h.controller->gameSession()->audio().mixerInput()), 0.0);   // the mixer follows
     QTest::keyClick(h.window, Qt::Key_M);
     QTRY_VERIFY(!audio->muted());
     QTRY_COMPARE(textOf(visibleItem(h, "volumeToast")), QStringLiteral("Sound on · 95 %"));
-    QCOMPARE(h.controller->gameSession()->audio().volume(), 0.95);
+    {   // master 0.95 on the game input once it is routed
+      AudioMixer* mx = h.controller->audioMixer();
+      QCOMPARE(mx->master(), 0.95);
+      QVERIFY(!mx->muted());
+    }
     QTest::keyClick(h.window, Qt::Key_M);   // muted; volume up unmutes
     QTRY_VERIFY(audio->muted());
     QTest::keyClick(h.window, Qt::Key_Plus);
@@ -1824,6 +1829,33 @@ class InGameUiTest : public QObject {
     QQuickItem* slider = visibleItem(h, "soundVolumeSlider");
     QVERIFY(slider != nullptr);
     QCOMPARE(slider->property("value").toInt(), 90);
+    // 0.23: Voice and Plugin sounds next to My game; they drive the voice and plugin channels of the mixer
+    {
+      AudioMixer* mx = h.controller->audioMixer();
+      QVERIFY(visibleItem(h, "soundVoiceSlider") != nullptr && visibleItem(h, "soundPluginSlider") != nullptr);
+      QCOMPARE(visibleItem(h, "soundVoiceSlider")->property("value").toInt(), 100);
+      QQuickItem* voice = visibleItem(h, "soundVoiceSlider");
+      voice->setProperty("value", 70);
+      QMetaObject::invokeMethod(voice, "moved");
+      QTRY_COMPARE(audio->voiceGain(), 70);
+      QCOMPARE(mx->channelGain(AudioMixer::Voice), 0.7);
+      QQuickItem* plug = visibleItem(h, "soundPluginSlider");
+      plug->setProperty("value", 40);
+      QMetaObject::invokeMethod(plug, "moved");
+      QTRY_COMPARE(audio->pluginGain(), 40);
+      QCOMPARE(mx->channelGain(AudioMixer::Plugin), 0.4);
+      QCOMPARE(h.controller->playerSettings()->audioPluginGain(), 40);
+      // Down moves to the next slider instead of nudging
+      slider->forceActiveFocus(Qt::TabFocusReason);
+      QTest::keyClick(h.window, Qt::Key_Down);
+      QTRY_VERIFY(voice->hasActiveFocus());
+      QCOMPARE(audio->voiceGain(), 70);
+      QTest::keyClick(h.window, Qt::Key_Left);
+      QTRY_COMPARE(audio->voiceGain(), 60);
+      uitest::saveShot(h.window, QStringLiteral("p6-sound-popover"));
+      audio->setVoiceGain(100);
+      audio->setPluginGain(100);
+    }
     QVERIFY(h.click("soundMuteButton"));
     QTRY_VERIFY(audio->muted());
     QTRY_COMPARE(textOf(visibleItem(h, "soundMuteButton")), QStringLiteral("Unmute"));

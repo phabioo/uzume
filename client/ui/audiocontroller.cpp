@@ -17,6 +17,8 @@ AudioController::AudioController(PlayerSettings* settings, QObject* parent) : QO
     step_ = settings_->audioVolumeStep();
     showVolume_ = settings_->audioShowVolume();
     device_ = settings_->audioOutputDevice();
+    voiceGain_ = settings_->audioVoiceGain();
+    pluginGain_ = settings_->audioPluginGain();
   }
   if (auto* app = qGuiApp) {
     connect(app, &QGuiApplication::applicationStateChanged, this,
@@ -61,6 +63,22 @@ void AudioController::setVolume(int percent) {
   if (percent == volume_) return;
   volume_ = percent;
   if (settings_) settings_->setAudioVolume(volume_);
+  apply();
+}
+
+void AudioController::setVoiceGain(int percent) {
+  percent = std::clamp(percent, 0, 100);
+  if (percent == voiceGain_) return;
+  voiceGain_ = percent;
+  if (settings_) settings_->setAudioVoiceGain(percent);
+  apply();
+}
+
+void AudioController::setPluginGain(int percent) {
+  percent = std::clamp(percent, 0, 100);
+  if (percent == pluginGain_) return;
+  pluginGain_ = percent;
+  if (settings_) settings_->setAudioPluginGain(percent);
   apply();
 }
 
