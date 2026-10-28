@@ -10,6 +10,7 @@
 #include <QUrlQuery>
 #include <QUuid>
 #include <QJsonArray>
+#include <QRegularExpression>
 #include <QJsonDocument>
 #include <QSslConfiguration>
 #include <QSslSocket>
@@ -354,6 +355,28 @@ void FakeHub::fillDirectory() {
   };
   dirReports = QJsonArray{report(12, "new", "Sound crackles in Multiview", "Lena", 40, {QStringLiteral("app-log.txt"), QStringLiteral("diagnostics.json")}, "Audio underrun"),
                           report(11, "seen", "Touch offset on bottom screen", "Jonas", 60 * 24 * 4, {}, "")};
+  const auto group = [&](const char* fp, const char* kind, const char* component, const char* title, int count, int devices, bool seen, const char* issueUrl,
+                         const char* issuesBase, int lastAgo) {
+    QJsonArray events;
+    events.append(QJsonObject{{QStringLiteral("occurred_at"), at(lastAgo)}, {QStringLiteral("app_version"), QStringLiteral("0.24.0")},
+                              {QStringLiteral("os"), QStringLiteral("Windows 11")}, {QStringLiteral("device_name"), QStringLiteral("Lena-PC")},
+                              {QStringLiteral("user_name"), QStringLiteral("Lena")}, {QStringLiteral("message"), QStringLiteral("boom in the core")}});
+    return QJsonObject{{QStringLiteral("fingerprint"), QString::fromLatin1(fp)}, {QStringLiteral("kind"), QString::fromLatin1(kind)},
+                       {QStringLiteral("component"), QString::fromLatin1(component)}, {QStringLiteral("title"), QString::fromLatin1(title)},
+                       {QStringLiteral("count"), count}, {QStringLiteral("devices"), devices}, {QStringLiteral("first_seen"), at(lastAgo + 600)},
+                       {QStringLiteral("last_seen"), at(lastAgo)}, {QStringLiteral("versions"), QJsonArray{QStringLiteral("0.24.0"), QStringLiteral("0.23.2")}},
+                       {QStringLiteral("issue_url"), *issueUrl ? QJsonValue(QString::fromLatin1(issueUrl)) : QJsonValue()},
+                       {QStringLiteral("seen"), seen}, {QStringLiteral("issues_base"), *issuesBase ? QJsonValue(QString::fromLatin1(issuesBase)) : QJsonValue()},
+                       {QStringLiteral("events"), events}, {QStringLiteral("public_title"), QString::fromLatin1(title) + QStringLiteral(" (public)")},
+                       {QStringLiteral("public_summary"), QStringLiteral("Seen %1 times on %2 devices, versions 0.24.0, 0.23.2.").arg(count).arg(devices)}};
+  };
+  if (dirErrorGroups.isEmpty()) {
+    dirErrorGroups = QJsonArray{
+        group("uz-aaaaaaaaaaaa", "core_failure", "core:azahar", "Core failed", 7, 2, false, "", "https://github.com/phabioo/azahar", 5),
+        group("uz-bbbbbbbbbbbb", "plugin_error", "plugin:uzume.soullink", "Plugin stopped after an error", 3, 1, true,
+              "https://github.com/phabioo/uzume-plugin-soullink/issues/4", "https://github.com/phabioo/uzume-plugin-soullink", 90),
+        group("uz-cccccccccccc", "sync_failure", "app", "Save sync failed", 1, 1, true, "", "", 60 * 24)};
+  }
 }
 
 bool FakeHub::handleDirectory(QSslSocket* sock, const FakeRequest& req, const QString& path, const QJsonObject& body) {
@@ -511,6 +534,53 @@ bool FakeHub::handleDirectory(QSslSocket* sock, const FakeRequest& req, const QS
     }
     dirRequests.removeAt(i);
     respond(sock, 204, {});
+    return true;
+  }
+  if (kind == QLatin1String("reports") && id == QLatin1String("errors")) {
+    count();
+    if (seg.size() == 2 && m == "GET") {
+      QJsonArray out;
+      int unseen = 0;
+      for (const QJsonValue& v : std::as_const(dirErrorGroups)) {
+        QJsonObject o = v.toObject();
+        if (!o.value(QStringLiteral("seen")).toBool()) ++unseen;
+        o.remove(QStringLiteral("events"));
+        o.remove(QStringLiteral("public_title"));
+        o.remove(QStringLiteral("public_summary"));
+        out.append(o);
+      }
+      respond(sock, 200, json({{QStringLiteral("groups"), out}, {QStringLiteral("new"), unseen}}));
+      return true;
+    }
+    const int gi = find(dirErrorGroups, QStringLiteral("fingerprint"), seg.value(2));
+    if (gi < 0) { err(404, QStringLiteral("not_found"), QStringLiteral("Unknown error group")); return true; }
+    if (seg.size() == 3 && m == "GET") {
+      respond(sock, 200, json(dirErrorGroups.at(gi).toObject()));
+    } else if (seg.size() == 3 && m == "DELETE") {
+      dirErrorGroups.removeAt(gi);
+      respond(sock, 204, {});
+    } else if (seg.size() == 3 && m == "PATCH") {
+      if (!body.contains(QStringLiteral("issue_url")) && !body.value(QStringLiteral("seen")).toBool()) {
+        err(400, QStringLiteral("bad_request"), QStringLiteral("nothing to change"));
+        return true;
+      }
+      if (body.contains(QStringLiteral("issue_url"))) {
+        const QJsonValue u = body.value(QStringLiteral("issue_url"));
+        if (!u.isNull() && !QRegularExpression(QStringLiteral(R"(^https://github\.com/[A-Za-z0-9-]+/[A-Za-z0-9._-]+/issues/\d+$)")).match(u.toString()).hasMatch()) {
+          err(400, QStringLiteral("bad_request"), QStringLiteral("issue_url must be a GitHub issue address"));
+          return true;
+        }
+        edit(dirErrorGroups, gi, QStringLiteral("issue_url"), u);
+      }
+      if (body.value(QStringLiteral("seen")).toBool()) edit(dirErrorGroups, gi, QStringLiteral("seen"), true);
+      QJsonObject o = dirErrorGroups.at(gi).toObject();  // like the server: the PATCH answer is the group without events and public text
+      o.remove(QStringLiteral("events"));
+      o.remove(QStringLiteral("public_title"));
+      o.remove(QStringLiteral("public_summary"));
+      respond(sock, 200, json(o));
+    } else {
+      err(404, QStringLiteral("not_found"), QStringLiteral("Unknown route"));
+    }
     return true;
   }
   if (kind == QLatin1String("reports")) {
@@ -780,6 +850,16 @@ void FakeHub::handle(QSslSocket* sock, const FakeRequest& req) {
     // answered
   } else if (req.path == QLatin1String("/api/v1/runs") || req.path.startsWith(QLatin1String("/api/v1/runs/"))) {
     handleRuns(sock, req);
+  } else if (req.method == "POST" && req.path == QLatin1String("/api/v1/reports/errors")) {
+    // Error events (reports_v2): {"events":[...]} -> 202 {"accepted","dropped"}; errorBatchFailNext answers errorBatchFailStatus first.
+    if (errorBatchFailNext > 0) {
+      --errorBatchFailNext;
+      respondError(sock, errorBatchFailStatus, errorBatchFailStatus == 400 ? QStringLiteral("invalid_request") : QStringLiteral("internal"));
+      return;
+    }
+    const QJsonArray events = QJsonDocument::fromJson(req.body).object().value(QStringLiteral("events")).toArray();
+    errorBatches.append(events);
+    respond(sock, 202, json({{QStringLiteral("accepted"), events.size()}, {QStringLiteral("dropped"), 0}}));
   } else if (req.method == "POST" && req.path == QLatin1String("/api/v1/reports")) {
     if (reportUnauthorizedNext > 0) {
       --reportUnauthorizedNext;

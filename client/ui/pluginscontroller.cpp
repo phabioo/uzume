@@ -990,6 +990,7 @@ void PluginsController::onStatus(const QString& id) {
     qCInfo(lcPlugins) << "plugin" << id << "started";
   } else if (snap.status == PluginStatus::Paused) {
     qCWarning(lcPlugins) << "plugin" << id << "paused:" << snap.error.section(QLatin1Char('\n'), 0, 0);  // the notice comes from the DevConsole
+    if (!snap.error.isEmpty()) emit pluginFailed(id, snap.error.section(QLatin1Char('\n'), 0, 0));
   }
 }
 

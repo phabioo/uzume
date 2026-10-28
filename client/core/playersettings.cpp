@@ -686,6 +686,17 @@ bool PlayerSettings::setNotifyQuietFullscreen(bool on) {
   return save();
 }
 
+std::optional<bool> PlayerSettings::sendErrors() const {
+  const QJsonValue v = raw_.value(QLatin1String("send_errors"));
+  if (!v.isBool()) return std::nullopt;
+  return v.toBool();
+}
+
+bool PlayerSettings::setSendErrors(bool on) {
+  raw_.insert(QLatin1String("send_errors"), on);
+  return save();
+}
+
 bool PlayerSettings::notifySound() const { return raw_.value(QLatin1String(kNotifyKey)).toObject().value(QStringLiteral("sound")).toBool(false); }
 
 bool PlayerSettings::setNotifySound(bool on) {

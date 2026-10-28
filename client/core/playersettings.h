@@ -254,6 +254,10 @@ class PlayerSettings {
   QString viewerQuality() const { return viewerQuality_; }
   bool setViewerQuality(const QString& pick);  // anything else is rejected (false)
 
+  // "Send errors to the server automatically" (ADR 0035 D1), per app: unset = not asked yet (treated as off), true/false = answered.
+  std::optional<bool> sendErrors() const;
+  bool setSendErrors(bool on);  // the answer; false: not writable
+
  private:
   bool save() const;
 

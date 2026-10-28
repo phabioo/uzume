@@ -273,7 +273,7 @@ func TestHandshakeAdvertisesFeatures(t *testing.T) {
 		Features []string `json:"features"`
 	}](t, rec).Features
 	// The test device belongs to the admin, who may always upload and gets the admin API.
-	if strings.Join(f, ",") != "saves_v1,sessions_v1,users_v1,firmware_v1,cores_v1,saves_v2,cores_v2,saves_v3,saves_v4,saves_v5,saves_v6,local_setup_v1,ice_update_v1,plugins_v1,runs_v1,runs_v2,local_roms_v1,reports_v1,accounts_v1,setup_code_v1,states_v1,run_rules_v1,tools_v1,variants_v1,plugin_store_v1,cheat_db_v1,uploads_v1,admin_v1" {
+	if strings.Join(f, ",") != "saves_v1,sessions_v1,users_v1,firmware_v1,cores_v1,saves_v2,cores_v2,saves_v3,saves_v4,saves_v5,saves_v6,local_setup_v1,ice_update_v1,plugins_v1,runs_v1,runs_v2,local_roms_v1,reports_v1,accounts_v1,setup_code_v1,states_v1,run_rules_v1,tools_v1,variants_v1,plugin_store_v1,cheat_db_v1,reports_v2,uploads_v1,admin_v1" {
 		t.Fatalf("%v", f)
 	}
 }

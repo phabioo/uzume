@@ -1205,12 +1205,14 @@ void SaveSync::uploadCurrent(const QString& reason, std::function<void(UploadOut
       persist();
       out = UploadOutcome::Conflict;
     } else {
+      const bool firstFailure = !a_.failedOnce && r.kind != K::Offline;
       a_.failedOnce = true;
       a_.backoffMs = std::min(timing_.retryMaxMs, std::max(timing_.retryBaseMs, a_.backoffMs * 2));
       a_.sinceFail.restart();
       a_.st.lastError = r.errorCode;
       persist();
       out = r.kind == K::Offline ? UploadOutcome::Offline : UploadOutcome::Failed;
+      if (firstFailure) emit uploadFailed(a_.gameId, r.errorCode);
     }
     done(out);
     if (a_.finalRequested != 0) {

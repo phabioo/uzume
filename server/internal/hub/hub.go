@@ -151,6 +151,7 @@ type Service struct {
 	runs   runState
 	bk     backupState
 	rep    reportState
+	errs   errorState
 	play   playState
 	tg     togetherState
 	chat   chatState
@@ -208,7 +209,10 @@ func Open(ctx context.Context, db *sql.DB, o Options) (*Service, error) {
 	// The plugin store is the run plugin catalog, and a version used by a running run cannot be removed.
 	s.SetPluginCatalog(s)
 	s.SetPluginInUseCheck(s.RunsUsingPluginVersion)
-	s.PruneOldPlugins(ctx) // clean up servers that already hold superseded versions
+	s.PruneOldPlugins(ctx)                    // clean up servers that already hold superseded versions
+	if r := s.LastUpdateFailure(); r != nil { // an update that failed while the server was down (ADR 0035)
+		s.recordUpdateFailure(ctx, r.Version, r.Time, r.Message)
+	}
 	if o.CleanStaging {
 		s.cleanReportStaging()
 		s.cleanStaging()

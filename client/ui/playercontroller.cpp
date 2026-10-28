@@ -640,6 +640,21 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
     });
   }
   {
+    // Error events (ADR 0035): one call from each existing error path; the opt-in decides whether they ever leave this PC.
+    ErrorsController::Deps ed;
+    ed.settings = settings_.get();
+    ed.conn = conn_.get();
+    ed.dataDir = profiles_->baseDir();
+    ed.source.appVersion = updates_->currentVersion();
+    ed.source.os = QSysInfo::prettyProductName();
+    ed.serverVersion = [this]() { return conn_->hubInfo().hubVersion; };
+    errors_ = std::make_unique<ErrorsController>(ed);
+    connect(plugins_.get(), &PluginsController::pluginFailed, errors_.get(), &ErrorsController::recordPluginError);
+    connect(saves_.get(), &SaveSync::uploadFailed, errors_.get(),
+            [this](const QString&, const QString& code) { errors_->recordSyncFailure(code.isEmpty() ? QStringLiteral("upload failed") : QStringLiteral("upload failed: ") + code); });
+    connect(updates_->manager(), &update::UpdateManager::failed, errors_.get(), &ErrorsController::recordUpdateFailure);
+  }
+  {
     LocalHubController::Deps ld;
     ld.conn = conn_.get();
     ld.addHub = [this](const QString& address) { addHub(address); };
@@ -862,6 +877,7 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
     emit stopSaveErrorChanged();
   });
   connect(&session_, &GameSession::startFailed, this, [this](const QString& msg) {
+    noteCoreFailure(msg);
     saves_->finalSync(true);
     phase_ = PlayPhase::None;
     shareOnStart_ = false;
@@ -875,6 +891,7 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
   connect(&session_, &GameSession::errorChanged, this, [this]() {
     // Runtime error in the game: back to the Library, error shown in the detail pane.
     if (gameActive_ && session_.state() == GameSession::Failed) {
+      noteCoreFailure(session_.errorText());
       saves_->finalSync(true);
       const bool fromRun = runStart_.pending();
       endGameContext();
@@ -1565,6 +1582,13 @@ QString PlayerController::logFile() const { return QDir::toNativeSeparators(file
 QString PlayerController::userName() const { return conn_->userDisplayName(); }
 bool PlayerController::cheatDbSupported() const { return conn_->hubHasFeature(QStringLiteral("cheat_db_v1")); }
 bool PlayerController::isAdmin() const { return conn_->userRole() == QLatin1String("admin"); }
+// The core of the running launch failed to load or stopped (ADR 0035 error event core_failure).
+void PlayerController::noteCoreFailure(const QString& message) {
+  if (!errors_) return;
+  const QString coreId = emulation_ ? emulation_->launchCoreId(launchGame_.system, launchGame_.id) : QString();
+  errors_->recordCoreFailure(coreId, tr("Core failed"), message);
+}
+
 QString PlayerController::hubVersion() const { return conn_->hubInfo().hubVersion; }
 QString PlayerController::versionRelation() const {
   if (conn_->state() != HubConnection::State::Connected) return QStringLiteral("unknown");

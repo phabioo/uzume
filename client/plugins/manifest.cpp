@@ -191,6 +191,23 @@ void parseRecap(const QJsonValue& v, Manifest& m) {
   }
 }
 
+// `issues_url`: where problems of this plugin are reported (ADR 0035 D4), an https GitHub repository address. Anything else is a
+// warning and the field is ignored; the manifest still loads.
+void parseIssuesUrl(const QJsonValue& v, Manifest& m) {
+  if (v.isUndefined() || v.isNull()) return;
+  static const QRegularExpression re(QStringLiteral("\\Ahttps://github\\.com/[A-Za-z0-9-]+/[A-Za-z0-9._-]+\\z"));
+  if (!v.isString()) {
+    m.warnings << QStringLiteral("issues_url: ignored, it must be a string");
+    return;
+  }
+  const QString url = v.toString();
+  if (!re.match(url).hasMatch()) {
+    m.warnings << QStringLiteral("issues_url: ignored, use https://github.com/<owner>/<repository>");
+    return;
+  }
+  m.issuesUrl = url;
+}
+
 }  // namespace
 
 bool validRecapGlyph(const QString& glyph) {
@@ -478,6 +495,7 @@ ManifestResult parseManifest(const QByteArray& json, const QString& pluginDir) {
     if (const QString e = parseRunSettings(rsV, m.runSettings); !e.isEmpty()) return fail(e);
 
   parseRecap(o.value(QLatin1String("recap")), m);
+  parseIssuesUrl(o.value(QLatin1String("issues_url")), m);
 
   const QJsonValue uiV = o.value(QLatin1String("ui"));
   if (!uiV.isUndefined() && !uiV.isNull()) {

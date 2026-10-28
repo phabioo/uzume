@@ -76,6 +76,9 @@ func validRange(s string) bool {
 	return looseVersion(t)
 }
 
+// issuesURLRe is the form of the optional manifest field issues_url.
+var issuesURLRe = regexp.MustCompile(`^https://github\.com/[A-Za-z0-9-]+/[A-Za-z0-9._-]+$`)
+
 var (
 	uiHotkeyIDRe = regexp.MustCompile(`^[a-z0-9-]{1,32}$`)
 	uiKnownKeys  = map[string]bool{"panel": true, "hud": true, "tile": true, "screen": true, "detail": true, "run": true, "hotkeys": true}

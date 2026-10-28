@@ -69,6 +69,13 @@ uzume_add_test(ui_report report_ui_test.cpp ${FB_NETTEST_DIR}/fakehub.cpp ${FB_N
 target_include_directories(test_ui_report PRIVATE ${FB_NETTEST_DIR})
 target_compile_definitions(test_ui_report PRIVATE FB_TEST_DATA_DIR="${FB_NETTEST_DIR}/testdata")
 
+# Error groups (ADR 0035): opt-in prompt and setting, events to the server only with the setting on, Server > Reports > Errors against
+# FakeHub's error group fixtures, Report on GitHub (lookup, preview, prefilled address).
+uzume_add_test(ui_errors errors_ui_test.cpp ${FB_NETTEST_DIR}/fakehub.cpp ${FB_NETTEST_DIR}/fakehub.h
+  LIBS ${FB_UI_TEST_LIBS})
+target_include_directories(test_ui_errors PRIVATE ${FB_NETTEST_DIR})
+target_compile_definitions(test_ui_errors PRIVATE FB_TEST_DATA_DIR="${FB_NETTEST_DIR}/testdata")
+
 # Admin area (0.18 package 8): SERVER group in AppNav, server screen and Status page, the admin request helper with
 # "Confirm it's you" (park, ask, replay, cancel, lock), downloads and uploads, UzTable / UzMetric; FakeHub with admin_v1.
 uzume_add_test(ui_admin admin_ui_test.cpp ${FB_NETTEST_DIR}/fakehub.cpp ${FB_NETTEST_DIR}/fakehub.h

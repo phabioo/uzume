@@ -464,6 +464,7 @@ void UpdateManager::setState(State s, const QString& text) {
   state_ = s;
   status_ = text;
   emit changed();
+  if (s == State::Error && !quietError_) emit failed(lastError_.isEmpty() ? text : lastError_);
 }
 
 void UpdateManager::start(int firstDelayMs) { timer_.start(firstDelayMs); }
@@ -507,7 +508,9 @@ void UpdateManager::onIndex(const FetchedIndex& fi) {
       emit changed();  // a staged update stays usable
       return;
     }
+    quietError_ = true;
     setState(State::Error, tr("Update check failed: %1").arg(fi.error));
+    quietError_ = false;
     return;
   }
   lastError_.clear();

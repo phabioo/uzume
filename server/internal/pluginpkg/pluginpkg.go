@@ -79,6 +79,11 @@ type Manifest struct {
 	Games       []Game            `json:"games"`
 	// RunSettings is the optional manifest field run_settings (validated; entries normalized to the known fields).
 	RunSettings []RunSetting `json:"run_settings,omitempty"`
+	// IssuesURL is the optional manifest field issues_url: the GitHub repository for error reports of the plugin
+	// (ADR 0035 D4). Empty when absent or invalid.
+	IssuesURL string `json:"issues_url,omitempty"`
+	// Warnings are problems that do not stop the plugin from loading (an invalid issues_url).
+	Warnings []string `json:"-"`
 }
 
 // Package is a validated .uzplugin file held in memory (at most 32 MiB).
@@ -449,6 +454,14 @@ func ParseManifest(raw []byte) (Manifest, error) {
 			if SafeName(strings.TrimSuffix(a, "/")) != nil {
 				return m, invalid("invalid asset path %q", a)
 			}
+		}
+	}
+	if v, ok := o["issues_url"]; ok && string(v) != "null" {
+		var u string
+		if json.Unmarshal(v, &u) != nil || !issuesURLRe.MatchString(u) {
+			m.Warnings = append(m.Warnings, "issues_url must be a https://github.com/<owner>/<repo> URL; ignored")
+		} else {
+			m.IssuesURL = u
 		}
 	}
 	if v, ok := o["run_settings"]; ok && string(v) != "null" {
