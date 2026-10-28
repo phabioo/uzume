@@ -540,6 +540,11 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
   });
   connect(&model_, &LibraryModel::collectionsChanged, this, &PlayerController::selectedGameChanged);
   connect(runs_.get(), &RunsController::launchRequested, this, &PlayerController::startRunGame);
+  // A Play routed through "Play run" (#355) that fails there says why on the screen the person is on, not only on the Runs screen.
+  connect(runs_.get(), &RunsController::messageChanged, this, [this] {
+    if (routed_.runId.isEmpty() || !runs_->messageIsError() || runs_->message().isEmpty()) return;
+    launchProblem(runs_->message());
+  });
   connect(runs_.get(), &RunsController::ownVariantJoined, this, [this](const QString& runId, const QString& variantId) {
     if (variants_) variants_->setRunOwnVariant(runId, variantId);
   });
@@ -3004,7 +3009,7 @@ void PlayerController::playSelected() {
     }
     return;
   }
-  if (routeRunSlotStart()) return;
+  if (routeRunSlotStart(false)) return;
   cancelBackgroundUpdateForSelected();
   starter_->startSelected(false);
 }
@@ -3016,7 +3021,8 @@ void PlayerController::playSelected() {
 //  - slot of a finished, unknown or foreign run (or of another game): the game's slot goes back to Main and the start
 //    carries on there; returns false.
 // Main, variant slots and other named slots are left alone.
-bool PlayerController::routeRunSlotStart() {
+bool PlayerController::routeRunSlotStart(bool share) {
+  routed_ = {};
   if (startPending() || selectedId_.isEmpty() || !runClient_) return false;
   const QString slot = saves_->slotFor(selectedId_);
   if (slot == QLatin1String("default") || slot.startsWith(QLatin1String("var-"))) return false;
@@ -3032,6 +3038,7 @@ bool PlayerController::routeRunSlotStart() {
   if (found != nullptr && !found->isOver()) {
     const RunParticipant* mine = found->participant(runClient_->myUserId());
     if (mine != nullptr && mine->status == QLatin1String("joined") && mine->gameId == selectedId_) {
+      routed_ = {found->runId.toLower(), share};
       runs_->playRun(found->runId);
       return true;
     }
@@ -3157,7 +3164,7 @@ void PlayerController::confirmQuitAndStart() {
   }
   const bool share = confirmShare_;
   quitGame();  // saved and synced first (core unloaded, final upload), also clears the confirmation
-  if (routeRunSlotStart()) return;
+  if (routeRunSlotStart(share)) return;
   cancelBackgroundUpdateForSelected();
   starter_->startSelected(share);
 }
@@ -3175,7 +3182,7 @@ void PlayerController::playAndShareSelected() {
   if (phase_ != PlayPhase::None || session_.isActive()) {
     return;
   }
-  if (routeRunSlotStart()) return;
+  if (routeRunSlotStart(true)) return;
   cancelBackgroundUpdateForSelected();
   starter_->startSelected(true);
 }
@@ -3261,9 +3268,11 @@ bool PlayerController::openRunLink(const QString& link) {
 
 void PlayerController::startRunGame(const QString& runId, const QString& gameId) {
   if (background_ || gameActive_ || session_.isActive() || phase_ != PlayPhase::None) {
+    routed_ = {};
     return;  // a game is running or starting: the Runs screen is not reachable then, nothing to do
   }
   finishRunStart();
+  lastRunStartShared_ = routed_.runId == runId.toLower() && routed_.share;
   // A run with a randomizer builds the person's run variant first; the game of the run starts when it is ready (0.21).
   if (variants_ && variants_->runUsesVariant(runId) && !variants_->runVariantBuilt(runId)) {
     pendingRunPlay_ = {runId, gameId};
@@ -3287,15 +3296,27 @@ void PlayerController::startRunGame(const QString& runId, const QString& gameId)
     if (why.isEmpty()) why = startError_;
     if (why.isEmpty()) why = tr("The game of this run cannot start right now.");
     finishRunStart();
-    runs_->showLaunchProblem(why);
+    launchProblem(why);
     return;
   }
   cancelBackgroundUpdateForSelected();
-  starter_->startSelected(false);
+  // A routed Play and share keeps its share request; a Play run from the Runs screen starts unshared as before.
+  starter_->startSelected(lastRunStartShared_);
   if (phase_ == PlayPhase::None && !gameActive_ && !session_.isActive() && !startError_.isEmpty()) {
     const QString why = startError_;
     finishRunStart();
-    runs_->showLaunchProblem(why);
+    launchProblem(why);
+  }
+  routed_ = {};
+}
+
+void PlayerController::launchProblem(const QString& text) {
+  runs_->showLaunchProblem(text);
+  const bool routed = !routed_.runId.isEmpty();
+  routed_ = {};
+  if (routed && page_ != QLatin1String("runs")) {  // started from the library / game page: the game shows why
+    startError_ = text;
+    emit selectedGameChanged();
   }
 }
 

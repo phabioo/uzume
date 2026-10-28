@@ -1181,6 +1181,38 @@ class RunsUiTest : public QObject {
     QCOMPARE(launch.first().at(0).toString(), runId);
     QCOMPARE(launch.first().at(1).toString(), kGameId);
     QVERIFY(h.controller->saveSync()->setSlot(kGameId, QStringLiteral("default")));
+    // #375: a routed Play and share keeps the share request; a Play run from the Runs screen starts unshared as before.
+    h.controller->showLibrary();
+    QVERIFY(h.controller->saveSync()->setSlot(kGameId, runSaveSlot(runId)));
+    h.controller->playAndShareSelected();
+    QTRY_COMPARE_WITH_TIMEOUT(launch.size(), 2, 8000);
+    QVERIFY(h.controller->lastRunStartShared());
+    QVERIFY(h.controller->saveSync()->setSlot(kGameId, QStringLiteral("default")));
+    runs->playRun(runId);  // from the Runs screen: no share
+    QTRY_COMPARE_WITH_TIMEOUT(launch.size(), 3, 8000);
+    QVERIFY(!h.controller->lastRunStartShared());
+    QVERIFY(h.controller->saveSync()->setSlot(kGameId, QStringLiteral("default")));
+    // #375: a routed Play that fails in Play run (the run's plugin cannot be prepared) says why on the screen the person is on.
+    {
+      QJsonObject bad = hub.makeRun(QStringLiteral("Broken plugin"), {hub.runsMe}, hub.runsMe,
+                                    QJsonArray{QJsonObject{{"plugin_id", "net.test.gone"}, {"version", "1.0.0"}, {"sha256", QString(64, QLatin1Char('d'))}}});
+      const QString badId = bad.value("run_id").toString();
+      QJsonArray bp = bad.value("participants").toArray();
+      QJsonObject me = bp.at(0).toObject();
+      me.insert("game_id", kGameId);
+      bp.replace(0, me);
+      bad.insert("participants", bp);
+      hub.runs.insert(badId, bad);
+      hub.pushRun(badId);
+      QTRY_VERIFY_WITH_TIMEOUT(runs->client()->run(badId).has_value(), 8000);
+      h.controller->showLibrary();
+      h.controller->selectGame(kGameId);
+      QVERIFY(h.controller->saveSync()->setSlot(kGameId, runSaveSlot(badId)));
+      h.controller->playSelected();
+      QTRY_VERIFY_WITH_TIMEOUT(h.controller->selectedGame().value("error").toString().contains(QStringLiteral("could not be prepared")), 8000);
+      QCOMPARE(launch.size(), 3);  // never launched
+      QVERIFY(h.controller->saveSync()->setSlot(kGameId, QStringLiteral("default")));
+    }
     run = hub.runs.value(runId);
     run.insert("status", "finished");
     hub.runs.insert(runId, run);
@@ -1190,14 +1222,14 @@ class RunsUiTest : public QObject {
     QVERIFY(h.controller->saveSync()->setSlot(kGameId, runSaveSlot(runId)));
     h.controller->playSelected();
     QCOMPARE(h.controller->saveSync()->slotFor(kGameId), QStringLiteral("default"));
-    QCOMPARE(launch.size(), 1);
+    QCOMPARE(launch.size(), 3);
     QVERIFY(h.controller->saveSync()->setSlot(kGameId, QStringLiteral("run-deadbeef")));  // unknown run
     h.controller->playSelected();
     QCOMPARE(h.controller->saveSync()->slotFor(kGameId), QStringLiteral("default"));
     QVERIFY(h.controller->saveSync()->setSlot(kGameId, QStringLiteral("var-cafe1234")));  // variants are left alone
     h.controller->playSelected();
     QCOMPARE(h.controller->saveSync()->slotFor(kGameId), QStringLiteral("var-cafe1234"));
-    QCOMPARE(launch.size(), 1);
+    QCOMPARE(launch.size(), 3);
   }
 
   // A requirement the Hub cannot satisfy blocks the start with a clear error.
