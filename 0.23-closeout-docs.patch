@@ -1,0 +1,159 @@
+From ce83f92e358dc7ff2db8d213ce17bc2f74770b79 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 28 Oct 2026 02:14:10 +0000
+Subject: [PATCH] Docs: 0.23 Together close-out (history, roadmap, ADR 0033
+ accepted)
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_018nMJJiXXdwiG2Puzn7MT2r
+---
+ README.md                 |  2 +-
+ docs/adr/0033-together.md |  2 +-
+ docs/features.md          |  2 +-
+ docs/history.md           | 14 ++++++++++++++
+ docs/roadmap.md           | 31 +++++++++++++++----------------
+ 5 files changed, 32 insertions(+), 19 deletions(-)
+
+diff --git a/README.md b/README.md
+index 3482a6f..676bf36 100644
+--- a/README.md
++++ b/README.md
+@@ -10,7 +10,7 @@ Uzume (formerly FrameBeam) is a self-hosted retro gaming platform. The **Uzume s
+ 
+ > The server manages. The app emulates. Audio and video flow directly between apps wherever possible.
+ 
+-Current version: 0.19 — status and plan: [roadmap](docs/roadmap.md). Platforms: Windows app; Linux server (Debian, Pi), also Windows and Docker.
++Current version: 0.23 — status and plan: [roadmap](docs/roadmap.md). Platforms: Windows app; Linux server (Debian, Pi), also Windows and Docker.
+ 
+ ## Highlights
+ 
+diff --git a/docs/adr/0033-together.md b/docs/adr/0033-together.md
+index 26e64d4..94eb556 100644
+--- a/docs/adr/0033-together.md
++++ b/docs/adr/0033-together.md
+@@ -1,6 +1,6 @@
+ # ADR 0033: Together (0.23)
+ 
+-- Status: Accepted for implementation; scope decided by Fabio on 2026-10-21 (roadmap 0.23), details proposed by Claude on 2026-10-27.
++- Status: Accepted (implemented); scope decided by Fabio on 2026-10-21 (roadmap 0.23), details proposed by Claude on 2026-10-27.
+ - Date: 2026-10-27
+ - Deciders: Fabio (scope, roadmap 2026-10-21/23)
+ 
+diff --git a/docs/features.md b/docs/features.md
+index 398a80a..72a892e 100644
+--- a/docs/features.md
++++ b/docs/features.md
+@@ -80,7 +80,7 @@ There is no web admin: the server serves only the REST API (`/api/v1`, admin und
+ - Hold-Select hotkey sheet: holding the gamepad hotkey button (default Select) alone for about 400 ms in a running, unpaused game shows the "Hold Select +" sheet over the stage with the current gamepad hotkeys (including Screen layout; rows that do not apply are greyed with the reason). Releasing it or pressing another button hides it; hotkeys fire as before.
+ - Speed-up / fast-forward ([ADR 0018](adr/0018-player-speed-up.md)): Space or the header split button, speed 1.5× to 8× (default 2×, speed menu on the button), for cores that allow it; Emulation settings for speed, speed-up on start and audio; usable while the Session is shared.
+ - Hotkeys (Controllers › Hotkeys): fullscreen (F11), diagnostics (F3), snapshot (F5), speed-up (Space), volume up/down (+ / −, repeat while held; up while muted unmutes), mute (M), screenshot (F12). Esc is fixed, always pauses and opens the Quick menu; F11 is the only key that leaves fullscreen. Gamepad hotkeys: hotkey button (default Select) plus a button, per action (fullscreen Select + B, speed-up Select + R2, volume Select + D-pad up/down, mute Select + X, screenshot Select + Y; tried with virtual joysticks only). Plugin hotkeys have no default, conflicts are shown, Uzume keys win.
+-- Audio (0.19, stage 1): master volume 0-100 % (default 100) and mute, per PC, applied as a software gain to the local game and to watched Sessions; the Session share sent to viewers is unaffected. In game, the header "Sound" control (shows the volume, for example "5 %") opens the "Sound" popover (slider "My game", "Muted in the background", "Mute all" / "Unmute", "Sound settings"); hotkey changes show a short toast ("Volume 72 %", "Muted", "Sound on · 72 %"). Settings › This PC › Audio & video: Output (System default or a device, applies from the next game start), Mute when in the background (default on; watched Sessions stay audible), Volume steps 5 % / 10 % (default 5 %), Show volume on screen (default on). Audio stage 2 (0.23, [ADR 0033](adr/0033-together.md) D6): one mixer and one output sink for everything the app plays (the local game, watched tiles, voice, plugin sounds, soft-clipped); the Sound popover also has the sliders "Voice" (the voice channel, adjustable before voice chat exists) and "Plugin sounds"; in the Multiview the header button "Mixer" opens a popover with one slider per watched person (remembered per person on this PC) and "Mix all tiles" (off by default: only the one tile with the AUDIO tag is heard, as before; on: every tile and your game are mixed at their own levels and all carry the AUDIO tag). Plugins can play short sounds with `fb.sound` (permission `sound`). Video rows are not built yet.
++- Audio (0.19, stage 1): master volume 0-100 % (default 100) and mute, per PC, applied as a software gain to the local game and to watched Sessions; the Session share sent to viewers is unaffected. In game, the header "Sound" control (shows the volume, for example "5 %") opens the "Sound" popover (slider "My game", "Muted in the background", "Mute all" / "Unmute", "Sound settings"); hotkey changes show a short toast ("Volume 72 %", "Muted", "Sound on · 72 %"). Settings › This PC › Audio & video: Output (System default or a device, applies from the next game start), Mute when in the background (default on; watched Sessions stay audible), Volume steps 5 % / 10 % (default 5 %), Show volume on screen (default on). Audio stage 2 (0.23, [ADR 0033](adr/0033-together.md) D6): one mixer and one output sink for everything the app plays (the local game, watched tiles, voice, plugin sounds, soft-clipped); the Sound popover also has the sliders "Voice" (the voice channel) and "Plugin sounds"; in the Multiview the header button "Mixer" opens a popover with one slider per watched person (remembered per person on this PC) and "Mix all tiles" (off by default: only the one tile with the AUDIO tag is heard, as before; on: every tile and your game are mixed at their own levels and all carry the AUDIO tag). Plugins can play short sounds with `fb.sound` (permission `sound`). Video rows are not built yet.
+ - Controllers page: SDL3 gamepads, built-in (read-only, "Duplicate to edit") and user profiles, remapping, input test, a system selector; only mapped inputs are listed.
+ - Data-driven systems ([ADR 0024](adr/0024-system-template-and-game-boy.md), [guide](guides/adding-a-system.md)): one embedded JSON per system (`nds`, `3ds`, `gb`, `gbc`, `gba`), reconciled into the database at start without touching admin state. System manifests carry input maps, game identity and display layout.
+ - Nintendo DS: melonDS DS, firmware files fetched from the server in native mode; the app shows "Firmware required" / "Firmware missing" instead of launching without them.
+diff --git a/docs/history.md b/docs/history.md
+index 0357438..1bfc8bd 100644
+--- a/docs/history.md
++++ b/docs/history.md
+@@ -58,6 +58,7 @@ Milestone sections in order. Names of the products in old text (FrameBeam Hub, P
+ - [0.18 Uzume: one app, one server, new name](#018-uzume-one-app-one-server-new-name)
+ - [0.19 Player comfort and library](#019-player-comfort-and-library)
+ - [0.19.x Readable UI pass](#019x-readable-ui-pass)
++- [0.23 Together](#023-together)
+ - [0.24 Platforms](#024-platforms)
+ 
+ ### 0.1.1 Finish the PoC
+@@ -454,6 +455,19 @@ Not built: the panel tabs Run · Chat · Saves of board 3g-1-r6 (Chat comes with
+ 
+ Tests only Fabio can do: the gamepad on the shell pages with a real pad, Text size TV on a TV, the wide Windows font, Kinari and Sumi visually.
+ 
++### 0.23 Together
++
++Decided by Fabio on 2026-10-21 (as 0.20; renumbered on 2026-10-22 and 2026-10-23). Decisions: [ADR 0033](adr/0033-together.md); leftovers and Fabio's tests are in the [roadmap](roadmap.md#023-leftovers). The UI is drawn in the Uzume design (speaking mark, mixer popover, People and Chat tabs, notifications); no own design round. Dependency chains: online status -> notifications -> ready check (same presence over WSS); chat -> audio mixer stage 2 -> voice chat; viewer role -> controller hand-over. Behaviour: [features](features.md), [app guide](guides/app.md), [plugin API](guides/plugin-api.md).
++
++- [x] Done (package 1): online status, who is online and what they play, "Watch" and "Invite" from the list (S)
++- [x] Done (package 2, app): notifications as app toasts and bell for Session started, invite and run event, switchable per kind (S-M)
++- [x] Done (package 3): ready check and shared pause for runs and Sessions over WSS (`together_v1`) (S-M)
++- [x] Done (package 4): Session and run chat with emotes, pings and mentions, run history stored on the server (migration `run_chat_messages`), panel tabs in the app (M)
++- [x] Done (package 5): viewer role cleanly separated, quality per viewer with selection and latency display (M)
++- [x] Done (package 6): audio mixer stage 2 with channels game, tiles and plugin sounds (`fb.sound`) (M)
++- [x] Done (package 7): voice chat with signaling over WSS, microphone, push-to-talk, volume per person, host mute and ducking (L)
++- [x] Done (package 8): controller hand-over, a viewer controls P2 or takes over P1, the host confirms (M-L)
++
+ ### 0.24 Platforms
+ 
+ Decided by Fabio on 2026-10-21 (as 0.22; renumbered on 2026-10-22 and 2026-10-23). Decisions: [ADR 0034](adr/0034-linux-app-and-vulkan.md). Finished while 0.20 to 0.23 were still open; leftovers and Fabio's tests are in the [roadmap](roadmap.md#024-leftovers). Browser watching was dropped on 2026-10-22 ([ADR 0030](adr/0030-one-app-one-server-uzume.md) D2).
+diff --git a/docs/roadmap.md b/docs/roadmap.md
+index 051c83d..9591054 100644
+--- a/docs/roadmap.md
++++ b/docs/roadmap.md
+@@ -1,6 +1,6 @@
+ # Roadmap
+ 
+-Status and plan of Uzume after the proof of concept: what is finished, what comes next up to 1.0 and what is deliberately left for later. Work is cut into one work package per thread and PR (see [workflow](workflow.md)). Next up: 0.20 (emulation); 0.21 (randomizer) is built, its real-engine test and the 3DS updates are open. Finished milestones and the decisions behind the old numbering are in [history](history.md); what the product does today is in [features](features.md).
++Status and plan of Uzume after the proof of concept: what is finished, what comes next up to 1.0 and what is deliberately left for later. Work is cut into one work package per thread and PR (see [workflow](workflow.md)). Finished in code: 0.23 (together), its leftovers and Fabio's tests are below; next up: 0.20 (emulation); 0.21 (randomizer) is built, its real-engine test and the 3DS updates are open. Finished milestones and the decisions behind the old numbering are in [history](history.md); what the product does today is in [features](features.md).
+ 
+ ## Goal 1.0
+ 
+@@ -40,8 +40,9 @@ Decided by Fabio on 2026-10-11: 1.0 is reached when a group of friends completes
+ | 0.19 | App comfort and library | [ADR 0030](adr/0030-one-app-one-server-uzume.md) D8 |
+ | 0.19.x | Readable UI pass (design system r6) | [decisions](design/uzume/decisions.md#sheet-6--readable-pass-2026-10-26) |
+ | 0.19.x | In-game redesign (sheet 7): control bar, Quick menu, Game tab | [decisions](design/uzume/decisions.md#sheet-7--in-game-redesign-2026-10-26) |
++| 0.23 | Together: online status, notifications, ready check, chat, viewer role, mixer, voice chat, controller hand-over | [ADR 0033](adr/0033-together.md) |
+ | 0.24 | Platforms: Linux AppImage, Secret Service, Vulkan | [ADR 0034](adr/0034-linux-app-and-vulkan.md) |
+-| 0.20 to 0.23, 1.0 | Planned, see below | |
++| 0.20 to 0.22, 1.0 | Planned, see below | |
+ 
+ Not all items of the finished milestones are closed. Open leftovers are recorded in their [history](history.md) sections, among them: the 0.11 plugin open points (non-admin plugin upload, Azahar memory maps), the 0.16 "What's new" screen and plugin repository PR templates, the 0.10.x library speed with many games.
+ 
+@@ -71,6 +72,18 @@ Tests only Fabio can do at the end: audio on Windows (volume, mute, mute in back
+ 
+ Tests only Fabio can do at the end: Azahar with Vulkan on a real GPU (and the Renderer row switching it); OpenGL unchanged on NVIDIA, AMD and Intel; the AppImage on a desktop (X11 and Wayland); audio through PipeWire and PulseAudio; gamepads; the Steam Deck in desktop mode and as a non-Steam game in game mode; GNOME Keyring and KWallet (sign-in survives a restart); the AppImage self-update and its restore of `.previous`; "Only on this PC" with the bundled server on Linux.
+ 
++## 0.23 leftovers
++
++- The plugin sound bus (`fb.sound`) and the real audio sink are untested without an audio device.
++- Real microphone capture, echo cancellation and voice over real networks are untested in the cloud.
++- Analog sticks travel in hand-over frames but reach the core only as digital directions.
++- No built-in system declares 2 input ports yet, so "Play as P2" is only covered by tests.
++- A rare freeze or crash was seen once on "Join" of a run invite during live tests; not reproducible in 16 runs.
++- The "My game" slider stays the master volume; there is no separate game channel gain.
++- `ui_runs_widefont` is flaky locally.
++
++Tests only Fabio can do at the end: voice with real microphones and speakers or headphones on Windows (push-to-talk V and Select + R3, echo without headphones, noise suppression, ducking); quality tiers and GPU-direct encoding with a fixed tier on NVIDIA; controller hand-over with a real gamepad and NDS/3DS touch; the mixer with several watched tiles and plugin sounds; the notification toast sound; ready check and pause in a real run with friends.
++
+ ## Open milestones
+ 
+ Planned, in this order. Each section is the work list; check an item off here and, when the milestone is finished, move the section to [history](history.md) and add a row above.
+@@ -80,7 +93,6 @@ Planned, in this order. Each section is the work list; check an item off here an
+ | [0.20](#020-emulation) | Emulation: save states, rewind, run-ahead, `memory.write`, snapshots, cheats |
+ | [0.21](#021-randomizer) | Randomizer: game variants, tools catalog, plugin, runs with their own randomized game |
+ | [0.22](#022-plugins) | Plugins: developer console, run recap, Discord Rich Presence, tracker plugins |
+-| [0.23](#023-together) | Together: online status, notifications, ready check, chat, viewer role, audio mixer, voice chat, controller hand-over |
+ | [1.0](#10-test-phase) | Test phase and the SoulLink run |
+ 
+ ## 0.20 Emulation
+@@ -128,19 +140,6 @@ Decided by Fabio on 2026-10-21 (as 0.21; renumbered on 2026-10-22 and 2026-10-23
+ - [ ] Discord Rich Presence as a local app option, switch in My account (S)
+ - [ ] Tracker plugins (speedrun splits and autosplitter, randomizer tracker) in their own plugin repositories (M per plugin)
+ 
+-## 0.23 Together
+-
+-Decided by Fabio on 2026-10-21 (as 0.20; renumbered on 2026-10-22 and 2026-10-23). The UI is drawn in the Uzume design (speaking mark, mixer popover, People and Chat tabs, notifications); no own design round. Dependency chains: online status -> notifications -> ready check (same presence over WSS); chat -> audio mixer stage 2 -> voice chat; viewer role -> controller hand-over. Spike first for voice chat (echo and noise without libwebrtc). Decisions: [ADR 0033](adr/0033-together.md).
+-
+-- [ ] Online status: who is online and what they play, "Watch" and "Invite" from the list (S)
+-- [ ] Notifications (app toasts and bell): Session started, invite, run event; switchable per kind (S-M)
+-- [ ] Ready check and shared pause for runs and Sessions (S-M)
+-- [ ] Session and run chat with emotes and pings; history on the Hub for runs (M)
+-- [ ] Viewer role cleanly separated; quality per viewer (selection and latency display) (M)
+-- [ ] Audio mixer stage 2: channels game, tiles and plugin sounds; mixing in Multiview optional (M)
+-- [ ] Voice chat: spike first, then microphone, push-to-talk, volume per person, ducking (L)
+-- [ ] Controller hand-over: a viewer controls P2 or takes over P1, the host confirms (M-L)
+-
+ ## 1.0 Test phase
+ 
+ - Open: test evening(s) with friends; date not set.
+-- 
+2.43.0
+
