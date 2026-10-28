@@ -437,7 +437,7 @@ class RunsUiTest : public QObject {
     QTRY_COMPARE_WITH_TIMEOUT(runs->finishedCount(), 1, 8000);
   }
 
-  // Run view: the run detail shows the "run" slot of the run's ui.run plugins (pinned Hub copies, read-only fb.run) for a
+  // Run view: the run detail shows the "run" slot of the run's ui.run plugins (pinned Hub copies, read-only uz.run) for a
   // participant; opening another run, closing the detail or an invited-only run shows nothing.
   void runViewInDetail() {
     FakeHub hub(QStringLiteral("a"));
@@ -450,9 +450,9 @@ class RunsUiTest : public QObject {
     spec.name = "Run Notes";
     spec.permissions = {"run.state", "ui"};
     spec.ui = QJsonObject{{"run", QJsonObject{{"title", "Board"}}}};
-    spec.lua = "local c = fb.run.current()\n"
-               "local ok, err = fb.run.setState({a = 1})\n"
-               "fb.ui.set('run', {type = 'text', text = 'view=' .. tostring(c.view) .. ' ' .. tostring(c.name) .. ' ' .. tostring(err)})\n";
+    spec.lua = "local c = uz.run.current()\n"
+               "local ok, err = uz.run.setState({a = 1})\n"
+               "uz.ui.set('run', {type = 'text', text = 'view=' .. tostring(c.view) .. ' ' .. tostring(c.name) .. ' ' .. tostring(err)})\n";
     const QByteArray file = makeUzPlugin(spec);
     const QString sha = sha256Hex(file);
     hub.pluginList.append(QJsonObject{{"plugin_id", spec.id}, {"version", spec.version}, {"name", spec.name}, {"description", "Notes for runs"}, {"api", 1},
@@ -528,8 +528,8 @@ class RunsUiTest : public QObject {
     QCOMPARE(pc->runViewId(), mine);
   }
 
-  // A plugin that declares ui.screen: its screen tree is the plugin tab (last, named after the screen title), fb.ui.badge shows on the
-  // tab, fb.ui.open("screen") selects the tab in the open run and opens the screen sheet otherwise; a plugin the Hub removed loses its tab.
+  // A plugin that declares ui.screen: its screen tree is the plugin tab (last, named after the screen title), uz.ui.badge shows on the
+  // tab, uz.ui.open("screen") selects the tab in the open run and opens the screen sheet otherwise; a plugin the Hub removed loses its tab.
   void pluginTabFromScreen() {
     FakeHub hub(QStringLiteral("a"));
     hub.hubId = QStringLiteral("hub-tab");
@@ -541,9 +541,9 @@ class RunsUiTest : public QObject {
     spec.name = "Pair Board";
     spec.permissions = {"run.state", "ui"};
     spec.ui = QJsonObject{{"screen", QJsonObject{{"title", "Pairs"}}}, {"run", QJsonObject{{"title", "Ignored"}}}};
-    spec.lua = "fb.ui.set('screen', {type = 'text', text = 'screen ' .. tostring(fb.run.current().view)})\n"
-               "fb.ui.set('run', {type = 'text', text = 'run tree'})\n"
-               "fb.ui.badge(3)\n";
+    spec.lua = "uz.ui.set('screen', {type = 'text', text = 'screen ' .. tostring(uz.run.current().view)})\n"
+               "uz.ui.set('run', {type = 'text', text = 'run tree'})\n"
+               "uz.ui.badge(3)\n";
     const QByteArray file = makeUzPlugin(spec);
     const QString sha = sha256Hex(file);
     hub.pluginList.append(QJsonObject{{"plugin_id", spec.id}, {"version", spec.version}, {"name", spec.name}, {"description", ""}, {"api", 1},
@@ -565,7 +565,7 @@ class RunsUiTest : public QObject {
     QVERIFY(h.click("navRuns"));
     QTRY_COMPARE_WITH_TIMEOUT(h.controller->screen(), QStringLiteral("runs"), 8000);
 
-    // Outside a run view, fb.ui.open("screen") asks for the screen sheet; a plugin that does not run here (not installed) has none.
+    // Outside a run view, uz.ui.open("screen") asks for the screen sheet; a plugin that does not run here (not installed) has none.
     QSignalSpy sheet(h.controller.get(), &PlayerController::pluginScreenRequested);
     h.controller->openPluginScreen(spec.id);
     QCOMPARE(sheet.size(), 0);
@@ -575,7 +575,7 @@ class RunsUiTest : public QObject {
     const QVariantMap tab = runs->runTabs().at(0).toMap();
     QCOMPARE(tab.value("pluginId").toString(), spec.id);
     QCOMPARE(tab.value("title").toString(), QStringLiteral("Pairs"));  // ui.screen title wins over the ui.run title
-    QTRY_COMPARE(runs->runTabs().at(0).toMap().value("badge").toInt(), 3);  // fb.ui.badge(3) shows on the tab
+    QTRY_COMPARE(runs->runTabs().at(0).toMap().value("badge").toInt(), 3);  // uz.ui.badge(3) shows on the tab
     const QVariantMap sec = pc->runSections().at(0).toMap();
     QCOMPARE(sec.value("slot").toString(), QStringLiteral("screen"));
     QTRY_COMPARE_WITH_TIMEOUT(pc->runSections().at(0).toMap().value("tree").toMap().value("text").toString(), QStringLiteral("screen true"), 10000);
@@ -591,7 +591,7 @@ class RunsUiTest : public QObject {
     QTRY_COMPARE(h.item("tabCountText_Pairs")->property("text").toString(), QStringLiteral("3"));  // the badge sits on the tab
     QCOMPARE(runs->runTab(), QStringLiteral("board"));
 
-    // The run view instance is the plugin: fb.ui.open("screen") selects its tab, no sheet.
+    // The run view instance is the plugin: uz.ui.open("screen") selects its tab, no sheet.
     h.controller->openPluginScreen(spec.id);
     QCOMPARE(sheet.size(), 0);
     QCOMPARE(runs->runTab(), "plugin:" + spec.id);

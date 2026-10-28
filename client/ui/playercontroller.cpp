@@ -815,7 +815,7 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
       sessions_->setBottomWindow(emulation_->uzumeValue(QString::fromLatin1(EmulationController::kBottomWindowKey), launchGame_.system, launchGame_.id) == QLatin1String("on"));
     }
     applyUzumeOptions();  // picture options of the game (gameActive_ is set now)
-    {  // identity, cheat formats and core of the running game for fb.cheats / fb.memory.write
+    {  // identity, cheat formats and core of the running game for uz.cheats / uz.memory.write
       PluginEmulationService::GameInfo gi;
       gi.id = launchGame_.id;
       gi.title = launchGame_.title;

@@ -3,7 +3,7 @@ import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import Uzume.App
 
-// In-game plugin screen (docs/design/legacy/plugins.md, "In-game screen sheet"): opened by fb.ui.open("screen"). Covers the body
+// In-game plugin screen (docs/design/legacy/plugins.md, "In-game screen sheet"): opened by uz.ui.open("screen"). Covers the body
 // below the GameHeader (play area and side panel; in fullscreen the play area). In the active theme (the game view is dark). The game keeps running
 // underneath. Top bar: "← Back to game", plugin icon, screen title and plugin name, key hint Esc; below it the plugin's
 // "screen" tree (max 1100 wide; centered, scrolling vertically). With `width = "dialog"` on its root column the sheet is a 560 px dialog,

@@ -38,7 +38,7 @@ QString writePlugin(const QString& parent, const QString& id, const QString& nam
   mf.write(QJsonDocument(m).toJson());
   QFile lf(dir + "/main.lua");
   if (!lf.open(QIODevice::WriteOnly)) return {};
-  lf.write("fb.log.info('hello')\n");
+  lf.write("uz.log.info('hello')\n");
   return dir;
 }
 
@@ -548,7 +548,7 @@ class PluginsUiTest : public QObject {
     broken.id = "net.example.broken";
     broken.name = "Broken Download";
     FbSpec brokenServed = broken;
-    brokenServed.lua = "fb.log.info('HELLO')\n";  // same length: the size check passes, the SHA-256 pin does not
+    brokenServed.lua = "uz.log.info('HELLO')\n";  // same length: the size check passes, the SHA-256 pin does not
     offer(official);
     offer(community);
     offer(broken, makeUzPlugin(brokenServed));

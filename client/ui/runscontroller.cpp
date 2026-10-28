@@ -383,7 +383,7 @@ void RunsController::rebuildDetail() {
 }
 
 // Run view: while a run is shown in detail, the user takes part and no game runs, the plugins of the run that declare ui.run or ui.screen run
-// in the shell context (read-only fb.run). The exact pinned copies are fetched first when they are missing (joining was the consent).
+// in the shell context (read-only uz.run). The exact pinned copies are fetched first when they are missing (joining was the consent).
 void RunsController::setRunViewState(const QString& state, const QString& text) {
   if (runViewState_ == state && runViewText_ == text) return;
   runViewState_ = state;

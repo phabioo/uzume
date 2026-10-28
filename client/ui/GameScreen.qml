@@ -50,7 +50,7 @@ Rectangle {
                                        : ctl.multiviewMode === "grid" ? qsTr("Multiview · Grid 2×2")
                                        : qsTr("Multiview · Picture-in-Picture")
 
-    // In-game plugin screen (fb.ui.open("screen")): plugin id, "" = closed. The game keeps running underneath.
+    // In-game plugin screen (uz.ui.open("screen")): plugin id, "" = closed. The game keeps running underneath.
     property string screenSheetPlugin: ""
     function openPluginScreen(pluginId) {
         root.closePopover()

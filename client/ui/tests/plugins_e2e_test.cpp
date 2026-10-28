@@ -1,5 +1,5 @@
 // End to end: the Uzume test core runs with EmulationRunner, a PluginHost with the real memory adapter runs a plugin
-// (homebrew Lua in a temp dir) that checks the magic, follows the party pointer, decrypts slot 1 with fb.codec.pk6_decrypt
+// (homebrew Lua in a temp dir) that checks the magic, follows the party pointer, decrypts slot 1 with uz.codec.pk6_decrypt
 // and emits the species. Also: the manager resolves plugins for the game, developer mode gates local plugins, and a
 // plugin written to a linked folder reloads. Only synthetic data (test core party built with testutil/synth_formats.h).
 #include <QCoreApplication>
@@ -29,29 +29,29 @@ namespace {
 
 const char* kMain = R"LUA(
 local HDR = 0x08000000
-fb.memory.watch("hdr", HDR, 0x20)
-fb.dev.watch("magic", HDR, "u32")
-fb.dev.watch("party ptr", HDR + 0x10, "u32")
+uz.memory.watch("hdr", HDR, 0x20)
+uz.dev.watch("magic", HDR, "u32")
+uz.dev.watch("party ptr", HDR + 0x10, "u32")
 local followed, emitted = false, false
-fb.on_tick(function()
-  local magic = fb.memory.u32(HDR)
+uz.on_tick(function()
+  local magic = uz.memory.u32(HDR)
   if magic ~= 0x4D4D4246 then return end
-  local ptr = fb.memory.u32(HDR + 0x10)
+  local ptr = uz.memory.u32(HDR + 0x10)
   if not ptr or ptr == 0 then return end
   if not followed then
-    fb.memory.watch("party", ptr, 4 + 6 * 260)
+    uz.memory.watch("party", ptr, 4 + 6 * 260)
     followed = true
     return
   end
-  local count = fb.memory.u32(ptr)
-  local raw = fb.memory.bytes(ptr + 4, 260)
+  local count = uz.memory.u32(ptr)
+  local raw = uz.memory.bytes(ptr + 4, 260)
   if not count or not raw then return end
-  local plain, ok = fb.codec.pk6_decrypt(raw)
-  if not plain then fb.log.error("decrypt failed", ok) return end
+  local plain, ok = uz.codec.pk6_decrypt(raw)
+  if not plain then uz.log.error("decrypt failed", ok) return end
   if not emitted then
     emitted = true
-    fb.log.info("party", count, "checksum", tostring(ok))
-    fb.events.emit("species", string.unpack("<I2", plain, 9))
+    uz.log.info("party", count, "checksum", tostring(ok))
+    uz.events.emit("species", string.unpack("<I2", plain, 9))
   end
 end)
 )LUA";
@@ -167,7 +167,7 @@ class PluginsE2eTest : public QObject {
 
   void managerGatesLocalPluginsByDeveloperModeAndGame() {
     PluginManager mgr(m_dir.filePath("mgr"));
-    const QString src = writePlugin(m_dir.filePath("src2"), "net.test.only3ds", "fb.log.info('x')",
+    const QString src = writePlugin(m_dir.filePath("src2"), "net.test.only3ds", "uz.log.info('x')",
                                     QJsonArray{QJsonObject{{"system", "3ds"}}});
     const auto r = mgr.installFromFolder(src);
     QVERIFY2(r.ok, qPrintable(r.error));
@@ -182,7 +182,7 @@ class PluginsE2eTest : public QObject {
   void linkedPluginReloadsOnChange() {
     PluginManager mgr(m_dir.filePath("mgr2"));
     mgr.setDeveloperMode(true);
-    const QString src = writePlugin(m_dir.filePath("src3"), "net.test.linked", "fb.log.info('v1')");
+    const QString src = writePlugin(m_dir.filePath("src3"), "net.test.linked", "uz.log.info('v1')");
     const auto r = mgr.linkDevFolder(src);
     QVERIFY2(r.ok, qPrintable(r.error));
     QVERIFY(mgr.setEnabled(r.id, true));
@@ -195,7 +195,7 @@ class PluginsE2eTest : public QObject {
     QTRY_COMPARE_WITH_TIMEOUT(host.consoleSnapshot(r.id).status, PluginStatus::Running, 10000);
     QSignalSpy changed(&mgr, &PluginManager::pluginChanged);
     QObject::connect(&mgr, &PluginManager::pluginChanged, &host, [&host](const QString& id) { host.reload(id); });
-    writeFile(src + "/main.lua", "fb.log.info('v2')");
+    writeFile(src + "/main.lua", "uz.log.info('v2')");
     QTRY_VERIFY_WITH_TIMEOUT(changed.count() >= 1, 10000);
     QTRY_VERIFY_WITH_TIMEOUT(
         [&] {

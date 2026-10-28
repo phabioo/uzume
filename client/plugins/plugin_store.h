@@ -1,5 +1,5 @@
 #pragma once
-// PluginStore: the local copy of the plugin user store (fb.store, permission `store`). One instance per person and server,
+// PluginStore: the local copy of the plugin user store (uz.store, permission `store`). One instance per person and server,
 // kept in a directory of the app's data dir (one JSON file per plugin id). Reads and writes never wait for the network;
 // PluginStoreSync (network/) pushes the dirty keys to the server and pulls newer ones. Thread-safe.
 //

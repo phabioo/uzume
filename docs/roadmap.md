@@ -41,7 +41,7 @@ Decided by Fabio on 2026-10-11: 1.0 is reached when a group of friends completes
 | 0.19.x | Readable UI pass (design system r6) | [decisions](design/uzume/decisions.md#sheet-6--readable-pass-2026-10-26) |
 | 0.19.x | In-game redesign (sheet 7): control bar, Quick menu, Game tab | [decisions](design/uzume/decisions.md#sheet-7--in-game-redesign-2026-10-26) |
 | 0.20 | Emulation: save states, rewind, run-ahead, `memory.write`, snapshots, cheats, plugin store | [ADR 0023](adr/0023-plugins.md), [cheats design](design/uzume/cheats.md) |
-| 0.22 | Plugins: developer console, run recap, Discord Rich Presence, Splits and Tracker plugins, fb.ui `disabled` | [ADR 0023](adr/0023-plugins.md) |
+| 0.22 | Plugins: developer console, run recap, Discord Rich Presence, Splits and Tracker plugins, uz.ui `disabled` | [ADR 0023](adr/0023-plugins.md) |
 | 0.23 | Together: online status, notifications, ready check, chat, viewer role, mixer, voice chat, controller hand-over | [ADR 0033](adr/0033-together.md) |
 | 0.24 | Platforms: Linux AppImage, Secret Service, Vulkan | [ADR 0034](adr/0034-linux-app-and-vulkan.md) |
 | 0.21, 1.0 | Planned, see below | |
@@ -92,7 +92,7 @@ Tests only Fabio can do at the end (list: project notes `notes/0.22/weekend-test
 
 ## 0.23 leftovers
 
-- The plugin sound bus (`fb.sound`) and the real audio sink are untested without an audio device.
+- The plugin sound bus (`uz.sound`) and the real audio sink are untested without an audio device.
 - Real microphone capture, echo cancellation and voice over real networks are untested in the cloud.
 - Analog sticks travel in hand-over frames but reach the core only as digital directions.
 - No built-in system declares 2 input ports yet, so "Play as P2" is only covered by tests.
@@ -116,7 +116,7 @@ Planned, in this order. Each section is the work list; check an item off here an
 Decided by Fabio on 2026-10-23 (as 0.22; renumbered on 2026-10-23); [ADR 0031](adr/0031-game-variants-and-randomizer.md) accepted on 2026-10-27; design sheet 5, [randomizer.md](design/uzume/randomizer.md); behaviour in [features](features.md#game-variants-and-the-randomizer). Built (2026-10-27): server (OpenAPI 1.40.0, migration 0025), app core, app UI, plugin `uzume-plugin-randomizer` v0.1, with the test engine `uzume_test_engine` in CI. Open: 3DS updates and Fabio's test with the real engine on his PC (determinism per system, LayeredFS in a slot); the milestone moves to [history](history.md) when both are done. Friends want a SoulLink or Nuzlocke run where each person plays their own randomized game. The engine is the Universal Pokémon Randomizer FVX (GPL-3.0, Gen 1 to 7, never in a repository); each app builds its own variant from a recipe, so no ROM data travels. Gen 1 to 5 are built as a whole ROM, Gen 6 and 7 as a LayeredFS folder in the Azahar dir of the slot.
 
 - [ ] Fabio's test on his PC with the real engine: server › Tools gets FVX, ORAS is randomized twice with the same seed and `variant_files` gives the same hashes, the variant starts with the mod loaded and Main is original, a run "Each person gets their own" with two accounts, SoulLink sees randomized encounters; one game per system (GB, GBC, GBA, NDS) for determinism (S)
-- [x] Game variants: variant = base game + recipe + owner + own save slot `var-<8 hex>`; REST, OpenAPI and migration; start exactly the variant; variant cache with limit and Storage entry; LayeredFS into the slot's Azahar dir; `fb.rom.*` reads the started file and lays mod files over the RomFS; variant count and slot picker (M-L)
+- [x] Game variants: variant = base game + recipe + owner + own save slot `var-<8 hex>`; REST, OpenAPI and migration; start exactly the variant; variant cache with limit and Storage entry; LayeredFS into the slot's Azahar dir; `uz.rom.*` reads the started file and lays mod files over the RomFS; variant count and slot picker (M-L)
 - [ ] 3DS updates on the server and in the app, so a variant can be built for the update the app plays (10b-3d, 10d-4f/g); decided after Fabio's ORAS test, 0.21 builds and plays without an update (M)
 - [x] Tools catalog: the server downloads the engine per platform like cores (SHA-256 pin, `import-tools`, versions kept while in use, Server › Tools); the app starts it with a fixed argument list, no shell, progress, cancel, time and memory limits; permission `variants.build`, no `tool.exec` (M)
 - [x] Plugin `uzume-plugin-randomizer` v0.1 in its own repository: presets as settings strings, supported games and the overview card; Uzume draws the dialogs, the variant list and the run setting itself (ADR 0031 amendment) (M)

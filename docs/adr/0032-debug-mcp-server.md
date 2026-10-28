@@ -55,7 +55,7 @@ Long reads are bounded (memory 1 MiB per call, RomFS 4 MiB per call, logs 2000 l
 
 #### Amendment (0.20 package 6, 2026-10-27): run and plugin helper tools
 
-`runs_list` (runs of the connected server with core rules, plugins and people), `run_set_rules` (`PUT /runs/{id}/rules`, the whole object; creator or admin), `run_events` (event log from the app cache), `developer_mode`, `plugin_link` (link a development folder) and `file_dialog_pick` (answers an open `fb.ui.pick_file` request with a path, empty = cancel) let a debug session drive runs, rules and plugin file pickers without a mouse. `cheats_list` and `cheats_apply` now work in a game without the cheats plugin (the app service is there for every game, so the run rule and the live rule toast also work there). `store_get` of a plugin that is neither installed nor has data answers `plugin_not_found`. Nothing changes about the opt-in, the token or what plugins can do.
+`runs_list` (runs of the connected server with core rules, plugins and people), `run_set_rules` (`PUT /runs/{id}/rules`, the whole object; creator or admin), `run_events` (event log from the app cache), `developer_mode`, `plugin_link` (link a development folder) and `file_dialog_pick` (answers an open `uz.ui.pick_file` request with a path, empty = cancel) let a debug session drive runs, rules and plugin file pickers without a mouse. `cheats_list` and `cheats_apply` now work in a game without the cheats plugin (the app service is there for every game, so the run rule and the live rule toast also work there). `store_get` of a plugin that is neither installed nor has data answers `plugin_not_found`. Nothing changes about the opt-in, the token or what plugins can do.
 
 #### Amendment (0.20 final live check, 2026-10-27): gaps closed
 

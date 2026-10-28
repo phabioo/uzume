@@ -194,7 +194,7 @@ void installEmulationTools(McpToolRegistry& registry, ui::PlayerController& play
     ToolDef t;
     t.name = QStringLiteral("cheats_apply");
     t.description = QStringLiteral(
-        "Replaces the whole active cheat list of the running game, as the plugin \"mcp\" (same path as fb.cheats.apply: run rule, "
+        "Replaces the whole active cheat list of the running game, as the plugin \"mcp\" (same path as uz.cheats.apply: run rule, "
         "consent, safety copy \"Before cheats\", run log, cheats-used marker). Items: {id?, name, format, code, enabled?}. Without "
         "bypass_consent the per-game question is asked in the app and the call returns \"consent_required\"; with bypass_consent "
         "true the question is skipped (debug only; the run rule and the safety copy still apply). Returns {applied, rejected}.");
@@ -251,7 +251,7 @@ void installEmulationTools(McpToolRegistry& registry, ui::PlayerController& play
     ToolDef t;
     t.name = QStringLiteral("store_get");
     t.description = QStringLiteral(
-        "Reads a key of a plugin's own data (fb.store) from the local copy of the connected user: {found, value, revision, "
+        "Reads a key of a plugin's own data (uz.store) from the local copy of the connected user: {found, value, revision, "
         "conflicts: [{value, revision, source}]}. Does not need the plugin to run; error \"plugin_not_found\" for a plugin that is neither "
         "installed nor has data.");
     t.inputSchema = schema({{QStringLiteral("plugin_id"), typeStr(QStringLiteral("Plugin id, e.g. \"uzume.cheats\"."))},
@@ -278,8 +278,8 @@ void installEmulationTools(McpToolRegistry& registry, ui::PlayerController& play
     ToolDef t;
     t.name = QStringLiteral("store_put");
     t.description = QStringLiteral(
-        "Writes a key of a plugin's own data (fb.store) into the local copy and lets the sync push it to the server. Optional "
-        "base_revision as in fb.store.put: a stale one keeps both versions as a conflict. Changes the user's plugin data.");
+        "Writes a key of a plugin's own data (uz.store) into the local copy and lets the sync push it to the server. Optional "
+        "base_revision as in uz.store.put: a stale one keeps both versions as a conflict. Changes the user's plugin data.");
     t.inputSchema = schema({{QStringLiteral("plugin_id"), typeStr(QStringLiteral("Plugin id."))},
                             {QStringLiteral("key"), typeStr(QStringLiteral("Key ([a-z0-9_.-], 1 to 64 characters)."))},
                             {QStringLiteral("value"), typeAny(QStringLiteral("Any JSON value (max 256 KiB)."))},

@@ -1,5 +1,5 @@
 #pragma once
-// fb.run (permission run.state): the plugin thread's view of the run the game was started in. The plugin thread never
+// uz.run (permission run.state): the plugin thread's view of the run the game was started in. The plugin thread never
 // touches the network: reads come from a snapshot, writes are handed to the UI thread. Implemented by
 // RunSessionBridge (production) and by fakes in tests.
 #include <QJsonArray>
@@ -12,7 +12,7 @@
 
 namespace uzume::plugins {
 
-// Something the plugins subscribed to with fb.run.on: kind "event" (data = event), "state" (data = {user_id, plugin_id, state}),
+// Something the plugins subscribed to with uz.run.on: kind "event" (data = event), "state" (data = {user_id, plugin_id, state}),
 // "status" (data = {status, previous}) or "participants" (data = {participants}).
 struct RunNotification {
   QString kind;
@@ -47,7 +47,7 @@ class RunBridge {
   virtual QList<RunNotification> takeNotifications() = 0;
 };
 
-// fb.run for plugins that run in the run view (Runs screen, outside a game): reads and notifications come from `inner`, current()
+// uz.run for plugins that run in the run view (Runs screen, outside a game): reads and notifications come from `inner`, current()
 // has the extra field view = true, every write is refused with a message (no Lua error), like in a paused run.
 class ReadOnlyRunBridge : public RunBridge {
  public:

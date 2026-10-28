@@ -270,7 +270,7 @@ target_compile_definitions(test_ui_plugin_detail PRIVATE FB_TEST_DATA_DIR="${FB_
 # map selection / filter / clusters / keyboard. With UZUME_SCREENSHOT_DIR it also saves PNGs for the review.
 uzume_add_test(ui_plugin_blocks plugin_blocks_ui_test.cpp LIBS ${FB_UI_TEST_LIBS})
 
-# Plugins end to end against the Uzume test core: EmulationRunner + memory adapter + PluginHost + fb.codec.pk6_decrypt.
+# Plugins end to end against the Uzume test core: EmulationRunner + memory adapter + PluginHost + uz.codec.pk6_decrypt.
 uzume_add_test(plugins_e2e_testcore plugins_e2e_test.cpp LIBS uzume_ui uzume_core uzume_emulation uzume_plugins TEST_CORE)
 target_compile_definitions(test_plugins_e2e_testcore PRIVATE FB_TEST_ROM_PATH="${FB_ROM_DIR}/uzume_test.nds")
 add_dependencies(test_plugins_e2e_testcore uzume_test_rom)
@@ -364,7 +364,7 @@ target_include_directories(test_ui_variants PRIVATE ${FB_NETTEST_DIR} ${CMAKE_CU
 target_compile_definitions(test_ui_variants PRIVATE FB_TEST_DATA_DIR="${FB_NETTEST_DIR}/testdata" FB_TEST_ENGINE_PATH="$<TARGET_FILE:uzume_test_engine>")
 add_dependencies(test_ui_variants uzume_test_engine)
 
-# PluginEmulationService (fb.cheats, fb.memory.write, fb.save.snapshot: run rule, consent, safety copy, run log) against the test core.
+# PluginEmulationService (uz.cheats, uz.memory.write, uz.save.snapshot: run rule, consent, safety copy, run log) against the test core.
 uzume_add_test(ui_plugin_emulation_testcore plugin_emulation_test.cpp LIBS uzume_ui uzume_core uzume_emulation uzume_plugins TEST_CORE)
 target_compile_definitions(test_ui_plugin_emulation_testcore PRIVATE FB_TEST_ROM_PATH="${FB_ROM_DIR}/uzume_test.nds")
 add_dependencies(test_ui_plugin_emulation_testcore uzume_test_rom)

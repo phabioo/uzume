@@ -1,4 +1,4 @@
-// fb.video (permission video.capture): permission check, rectangle validation, rate limit, busy, event delivery with a fake frame.
+// uz.video (permission video.capture): permission check, rectangle validation, rate limit, busy, event delivery with a fake frame.
 #include <QTemporaryDir>
 #include <QtTest>
 #include <atomic>
@@ -72,9 +72,9 @@ bool hasLog(const ConsoleSnapshot& c, const QString& needle) {
 // Collects every video.captured event as one log line "cap id ok err w h pngmagic ihdrW ihdrH".
 const char* kHelpers = R"LUA(
   local function be32(s, i) local a, b, c, d = s:byte(i, i + 3) return ((a * 256 + b) * 256 + c) * 256 + d end
-  fb.events.on("fb", "video.captured", function(e)
+  uz.events.on("uz", "video.captured", function(e)
     local magic = e.png and e.png:sub(1, 8) == "\137PNG\r\n\26\n"
-    fb.log.info(string.format("cap id=%d ok=%s err=%s w=%s h=%s png=%s ihdr=%s", e.id, tostring(e.ok), tostring(e.error), tostring(e.w), tostring(e.h),
+    uz.log.info(string.format("cap id=%d ok=%s err=%s w=%s h=%s png=%s ihdr=%s", e.id, tostring(e.ok), tostring(e.error), tostring(e.w), tostring(e.h),
       tostring(magic), e.png and (be32(e.png, 17) .. "x" .. be32(e.png, 21)) or "-"))
   end)
 )LUA";
@@ -116,11 +116,11 @@ class VideoTest : public QObject {
 
   void permissionRequired() {
     startWith({}, R"LUA(
-      for _, f in ipairs({ function() return fb.video.screens() end, function() return fb.video.capture("top") end }) do
+      for _, f in ipairs({ function() return uz.video.screens() end, function() return uz.video.capture("top") end }) do
         local ok, e = pcall(f)
         assert(not ok and e:find("permission video.capture not granted", 1, true), tostring(e))
       end
-      fb.log.info("denied ok")
+      uz.log.info("denied ok")
     )LUA");
     QTRY_VERIFY(hasLog(con(), "denied ok"));
     QCOMPARE(m_video->requests.load(), 0);
@@ -128,11 +128,11 @@ class VideoTest : public QObject {
 
   void screensAndNamedCapture() {
     startWith({"video.capture"}, R"LUA(
-      local s = fb.video.screens()
+      local s = uz.video.screens()
       assert(#s == 2 and s[1].name == "top" and s[2].name == "bottom" and s[2].y == 8 and s[2].w == 8 and s[2].h == 8)
-      local id = fb.video.capture("bottom")
+      local id = uz.video.capture("bottom")
       assert(math.type(id) == "integer")
-      fb.log.info("requested " .. id)
+      uz.log.info("requested " .. id)
     )LUA");
     QTRY_VERIFY(hasLog(con(), "cap id=1 ok=true err=nil w=8 h=8 png=true ihdr=8x8"));
     QVERIFY(hasLog(con(), "requested 1"));
@@ -141,20 +141,20 @@ class VideoTest : public QObject {
   void rectCaptureAndValidation() {
     startWith({"video.capture"}, R"LUA(
       -- invalid argument types are Lua errors, everything else arrives as an event
-      assert(not pcall(fb.video.capture))
-      assert(not pcall(fb.video.capture, { x = 0, y = 0, w = 1 }))
-      assert(not pcall(fb.video.capture, { x = 0.5, y = 0, w = 1, h = 1 }))
-      fb.video.capture({ x = 2, y = 4, w = 3, h = 5 })
+      assert(not pcall(uz.video.capture))
+      assert(not pcall(uz.video.capture, { x = 0, y = 0, w = 1 }))
+      assert(not pcall(uz.video.capture, { x = 0.5, y = 0, w = 1, h = 1 }))
+      uz.video.capture({ x = 2, y = 4, w = 3, h = 5 })
     )LUA");
     QTRY_VERIFY(hasLog(con(), "cap id=1 ok=true err=nil w=3 h=5 png=true ihdr=3x5"));
   }
 
   void rectErrors() {
     startWith({"video.capture"}, R"LUA(
-      fb.video.capture({ x = 0, y = 0, w = 0, h = 4 })        -- 1: empty
-      fb.video.capture({ x = -1, y = 0, w = 4, h = 4 })       -- 2: negative origin
-      fb.video.capture({ x = 0, y = 0, w = 5000, h = 4 })     -- 3: too large
-      fb.video.capture("nope")                                -- 4: unknown screen
+      uz.video.capture({ x = 0, y = 0, w = 0, h = 4 })        -- 1: empty
+      uz.video.capture({ x = -1, y = 0, w = 4, h = 4 })       -- 2: negative origin
+      uz.video.capture({ x = 0, y = 0, w = 5000, h = 4 })     -- 3: too large
+      uz.video.capture("nope")                                -- 4: unknown screen
     )LUA");
     QTRY_VERIFY(hasLog(con(), "cap id=4 ok=false err=unknown_screen"));
     QVERIFY(hasLog(con(), "cap id=1 ok=false err=invalid_rect"));
@@ -164,15 +164,15 @@ class VideoTest : public QObject {
   }
 
   void rectOutsideFrame() {
-    startWith({"video.capture"}, R"LUA(fb.video.capture({ x = 6, y = 0, w = 4, h = 4 }))LUA");
+    startWith({"video.capture"}, R"LUA(uz.video.capture({ x = 6, y = 0, w = 4, h = 4 }))LUA");
     QTRY_VERIFY(hasLog(con(), "cap id=1 ok=false err=invalid_rect"));
   }
 
   void busyWhilePending() {
     m_video->manual = true;
     startWith({"video.capture"}, R"LUA(
-      fb.video.capture("top")   -- 1: pending
-      fb.video.capture("top")   -- 2: busy
+      uz.video.capture("top")   -- 1: pending
+      uz.video.capture("top")   -- 2: busy
     )LUA");
     QTRY_VERIFY(hasLog(con(), "cap id=2 ok=false err=busy"));
     QCOMPARE(m_video->requests.load(), 1);
@@ -183,15 +183,15 @@ class VideoTest : public QObject {
   void rateLimitOnePerSecond() {
     // The first capture completes at once; asking again from its result is refused (1 per second), after 1.2 s it works.
     startWith({"video.capture"}, R"LUA(
-      local t0 = fb.clock()
+      local t0 = uz.clock()
       local third = false
-      fb.events.on("fb", "video.captured", function(e)
-        if e.id == 1 then fb.video.capture("top") end            -- id 2: rate_limited
+      uz.events.on("uz", "video.captured", function(e)
+        if e.id == 1 then uz.video.capture("top") end            -- id 2: rate_limited
       end)
-      fb.on_tick(function()
-        if not third and fb.clock() - t0 > 1200 then third = true fb.video.capture("top") end   -- id 3
+      uz.on_tick(function()
+        if not third and uz.clock() - t0 > 1200 then third = true uz.video.capture("top") end   -- id 3
       end)
-      fb.video.capture("top")                                    -- id 1
+      uz.video.capture("top")                                    -- id 1
     )LUA");
     QTRY_VERIFY(hasLog(con(), "cap id=2 ok=false err=rate_limited"));
     QVERIFY(hasLog(con(), "cap id=1 ok=true"));
@@ -202,14 +202,14 @@ class VideoTest : public QObject {
 
   void errorsFromFrameSource() {
     m_video->failWith = "denied";
-    startWith({"video.capture"}, R"LUA(fb.video.capture("top"))LUA");
+    startWith({"video.capture"}, R"LUA(uz.video.capture("top"))LUA");
     QTRY_VERIFY(hasLog(con(), "cap id=1 ok=false err=denied"));
   }
 
   void noProvider() {
     startWith({"video.capture"}, R"LUA(
-      assert(fb.video.screens() == nil)
-      fb.video.capture("top")
+      assert(uz.video.screens() == nil)
+      uz.video.capture("top")
     )LUA", false);
     QTRY_VERIFY(hasLog(con(), "cap id=1 ok=false err=unsupported"));
   }

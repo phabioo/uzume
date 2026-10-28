@@ -1,5 +1,5 @@
 // Run tools of the debug MCP server (Uzume 0.20 package 6): list the runs of the connected server, read their log, change the core
-// rules (run_rules_v1), plus the plugin helpers needed to drive plugins without a mouse: link a developer folder, turn Developer mode on or off, and answer an open fb.ui.pick_file request with a path. The handlers use the same calls the UI uses
+// rules (run_rules_v1), plus the plugin helpers needed to drive plugins without a mouse: link a developer folder, turn Developer mode on or off, and answer an open uz.ui.pick_file request with a path. The handlers use the same calls the UI uses
 // (RunClient::setRules, PluginsController::linkDevFolder / completePick).
 #include <QFileInfo>
 #include <QJsonArray>
@@ -163,7 +163,7 @@ void installRunTools(McpToolRegistry& registry, ui::PlayerController& player) {
     ToolDef t;
     t.name = QStringLiteral("file_dialog_pick");
     t.description = QStringLiteral(
-        "Answers an open fb.ui.pick_file request of a plugin with a file path, without any dialog (the dialog or path field that is open "
+        "Answers an open uz.ui.pick_file request of a plugin with a file path, without any dialog (the dialog or path field that is open "
         "closes). The plugin gets the content, never the path. An empty path cancels. Without plugin_id the oldest open request is answered; "
         "error \"no_pick_request\" when none is open.");
     t.inputSchema = schema({{QStringLiteral("path"), typeStr(QStringLiteral("Absolute path of the file; empty = cancel."))},

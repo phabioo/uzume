@@ -1,4 +1,4 @@
-// fb.variants (permission variants.build): register round trip into the registry, validation, engine / list / build with a fake
+// uz.variants (permission variants.build): register round trip into the registry, validation, engine / list / build with a fake
 // provider, the "variants.state" host event, and the gate in the plugin manager (signed official plugins only).
 #include <QTemporaryDir>
 #include <QtTest>
@@ -50,7 +50,7 @@ bool hasLog(const ConsoleSnapshot& c, const QString& needle) {
 }
 
 const char* kRegister = R"LUA(
-  fb.variants.register{
+  uz.variants.register{
     engine = "randomizer",
     presets = {
       { id = "classic", label = "Classic", hint = "Plain shuffle", settings = { ["427"] = "427old", ["428"] = "428new" } },
@@ -96,13 +96,13 @@ class VariantsPluginTest : public QObject {
   }
 
   void withoutThePermissionThereIsNoApi() {
-    startWith({"memory.read"}, "fb.log.info('variants=' .. tostring(fb.variants))");
+    startWith({"memory.read"}, "uz.log.info('variants=' .. tostring(uz.variants))");
     QTRY_VERIFY(hasLog(con(), "variants=nil"));
     QVERIFY(m_prov->reg->all().isEmpty());
   }
 
   void registerRoundTrip() {
-    startWith({"variants.build"}, QString::fromLatin1(kRegister) + "fb.log.info('registered')");
+    startWith({"variants.build"}, QString::fromLatin1(kRegister) + "uz.log.info('registered')");
     QTRY_VERIFY(hasLog(con(), "registered"));
     const auto all = m_prov->reg->all();
     QCOMPARE(all.size(), 1);
@@ -136,10 +136,10 @@ class VariantsPluginTest : public QObject {
         { games = { { codes = { "A" } } } },
       }
       for i, t in ipairs(bad) do
-        local ok, e = pcall(fb.variants.register, t)
+        local ok, e = pcall(uz.variants.register, t)
         assert(not ok, "case " .. i .. " accepted")
       end
-      fb.log.info("all refused")
+      uz.log.info("all refused")
     )LUA");
     QTRY_VERIFY(hasLog(con(), "all refused"));
     QVERIFY(m_prov->reg->all().isEmpty());
@@ -147,17 +147,17 @@ class VariantsPluginTest : public QObject {
 
   void engineListAndBuild() {
     startWith({"variants.build"}, R"LUA(
-      local e = fb.variants.engine()
-      fb.log.info(string.format("engine offered=%s version=%s on_pc=%s", tostring(e.offered), tostring(e.version), tostring(e.on_pc)))
-      local l = fb.variants.list()
-      fb.log.info(string.format("list n=%d id=%s slot=%s preset=%s state=%s seed=%s", #l, l[1].id, l[1].slot, l[1].preset_id, l[1].state, tostring(l[1].seed)))
-      local id = fb.variants.build{ name = "Mine", preset_id = "classic", seed = 123, spoiler_log = true }
-      fb.log.info("build id=" .. id)
-      fb.events.on("fb", "variants.state", function(ev) fb.log.info(string.format("state id=%d %s %.2f %s", ev.id, ev.state, ev.progress, tostring(ev.error))) end)
-      assert(not pcall(fb.variants.build, { name = "x" }))                                 -- neither preset nor settings
-      assert(not pcall(fb.variants.build, { name = "x", preset_id = "a", settings = "b" })) -- both
-      assert(not pcall(fb.variants.build, { name = "", preset_id = "a" }))
-      assert(not pcall(fb.variants.build, { name = "x", preset_id = "a", seed = -5 }))
+      local e = uz.variants.engine()
+      uz.log.info(string.format("engine offered=%s version=%s on_pc=%s", tostring(e.offered), tostring(e.version), tostring(e.on_pc)))
+      local l = uz.variants.list()
+      uz.log.info(string.format("list n=%d id=%s slot=%s preset=%s state=%s seed=%s", #l, l[1].id, l[1].slot, l[1].preset_id, l[1].state, tostring(l[1].seed)))
+      local id = uz.variants.build{ name = "Mine", preset_id = "classic", seed = 123, spoiler_log = true }
+      uz.log.info("build id=" .. id)
+      uz.events.on("uz", "variants.state", function(ev) uz.log.info(string.format("state id=%d %s %.2f %s", ev.id, ev.state, ev.progress, tostring(ev.error))) end)
+      assert(not pcall(uz.variants.build, { name = "x" }))                                 -- neither preset nor settings
+      assert(not pcall(uz.variants.build, { name = "x", preset_id = "a", settings = "b" })) -- both
+      assert(not pcall(uz.variants.build, { name = "", preset_id = "a" }))
+      assert(not pcall(uz.variants.build, { name = "x", preset_id = "a", seed = -5 }))
     )LUA");
     QTRY_VERIFY(hasLog(con(), "engine offered=true version=1.6.2 on_pc=false"));
     QTRY_VERIFY(hasLog(con(), "list n=1 id=v1 slot=var-12345678 preset=classic state=ready seed=nil"));  // never the seed
@@ -177,10 +177,10 @@ class VariantsPluginTest : public QObject {
 
   void shellContextNeedsAGameId() {
     startWith({"variants.build"}, R"LUA(
-      assert(not pcall(fb.variants.build, { name = "x", preset_id = "a" }))
-      local id = fb.variants.build{ name = "x", preset_id = "a", game_id = "g-9" }
-      fb.variants.list("g-9")
-      fb.log.info("shell ok " .. id)
+      assert(not pcall(uz.variants.build, { name = "x", preset_id = "a" }))
+      local id = uz.variants.build{ name = "x", preset_id = "a", game_id = "g-9" }
+      uz.variants.list("g-9")
+      uz.log.info("shell ok " .. id)
     )LUA", true);
     QTRY_VERIFY(hasLog(con(), "shell ok 1"));
     QCOMPARE(m_prov->requests.first().gameId, QStringLiteral("g-9"));
@@ -190,7 +190,7 @@ class VariantsPluginTest : public QObject {
   void withoutProviderRegisterFails() {
     PluginSpec s;
     s.permissions = {"variants.build"};
-    s.lua = "local ok = pcall(fb.variants.register, {}); local e = fb.variants.engine(); fb.log.info('noprov ok=' .. tostring(ok) .. ' offered=' .. tostring(e.offered))";
+    s.lua = "local ok = pcall(uz.variants.register, {}); local e = uz.variants.engine(); uz.log.info('noprov ok=' .. tostring(ok) .. ' offered=' .. tostring(e.offered))";
     GameContext ctx{"nds", "ABCD", "abc123", "Test Game", "", "en"};
     m_host->start(ctx, nullptr, {infoFor(writePlugin(m_dir.path() + "/src", s), m_dir.path() + "/cache")});
     QTRY_VERIFY(hasLog(con(), "noprov ok=false offered=false"));

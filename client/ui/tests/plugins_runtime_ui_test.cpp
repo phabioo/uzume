@@ -34,19 +34,19 @@ QString writePlugin(const QString& parent, const QString& id, const QJsonObject&
 }
 
 const char* kShellLua = R"LUA(
-  fb.ui.set('screen', {type='text', text='ready'})
-  fb.ui.badge(3)
-  fb.ui.set('hud', {type='text', text='hud'})
-  fb.ui.on_action(function(a, v, slot) fb.ui.set('screen', {type='text', text=a .. ':' .. tostring(v) .. ':' .. slot}) end)
-  fb.events.on('fb', 'detail.game', function(g)
-    if g then fb.ui.set('detail', {type='text', text=g.title}) else fb.ui.clear('detail') end
+  uz.ui.set('screen', {type='text', text='ready'})
+  uz.ui.badge(3)
+  uz.ui.set('hud', {type='text', text='hud'})
+  uz.ui.on_action(function(a, v, slot) uz.ui.set('screen', {type='text', text=a .. ':' .. tostring(v) .. ':' .. slot}) end)
+  uz.events.on('fb', 'detail.game', function(g)
+    if g then uz.ui.set('detail', {type='text', text=g.title}) else uz.ui.clear('detail') end
   end)
-  fb.events.on('fb', 'hud.visible', function(v) fb.ui.set('hud', {type='text', text='visible=' .. tostring(v)}) end)
-  fb.events.on('fb', 'tiles', function(t) fb.ui.set('tile:' .. t[1].id, {type='text', text=t[1].player}) end)
-  fb.ui.notify{ text='hello', actions={ {label='Go', action='go'} } }
+  uz.events.on('fb', 'hud.visible', function(v) uz.ui.set('hud', {type='text', text='visible=' .. tostring(v)}) end)
+  uz.events.on('fb', 'tiles', function(t) uz.ui.set('tile:' .. t[1].id, {type='text', text=t[1].player}) end)
+  uz.ui.notify{ text='hello', actions={ {label='Go', action='go'} } }
 )LUA";
 
-// fb.run of the run view: reads from a fixed run, every write attempt is counted (the controller must wrap it read-only).
+// uz.run of the run view: reads from a fixed run, every write attempt is counted (the controller must wrap it read-only).
 class FakeRunBridge : public uzume::plugins::RunBridge {
  public:
   QJsonObject current() const override {
@@ -78,13 +78,13 @@ class RulesRunBridge : public FakeRunBridge {
 };
 
 const char* kRunViewLua = R"LUA(
-  fb.log.info('boot')
-  local c = fb.run.current()
-  local ok, err = fb.run.setState({hp = 1})
-  local id, err2 = fb.run.event{type = 'x.y'}
-  local hp = fb.run.state().hp
-  fb.ui.set('run', {type = 'text', text = 'view=' .. tostring(c.view) .. ' hp=' .. tostring(hp) .. ' ' .. tostring(err) .. ' ' .. tostring(err2) .. ' game=' .. tostring(fb.game.title)})
-  fb.ui.on_action(function(a, v, slot) fb.ui.set('run', {type = 'text', text = 'act:' .. a .. ':' .. slot}) end)
+  uz.log.info('boot')
+  local c = uz.run.current()
+  local ok, err = uz.run.setState({hp = 1})
+  local id, err2 = uz.run.event{type = 'x.y'}
+  local hp = uz.run.state().hp
+  uz.ui.set('run', {type = 'text', text = 'view=' .. tostring(c.view) .. ' hp=' .. tostring(hp) .. ' ' .. tostring(err) .. ' ' .. tostring(err2) .. ' game=' .. tostring(uz.game.title)})
+  uz.ui.on_action(function(a, v, slot) uz.ui.set('run', {type = 'text', text = 'act:' .. a .. ':' .. slot}) end)
 )LUA";
 
 }  // namespace
@@ -121,14 +121,14 @@ class PluginsRuntimeUiTest : public QObject {
   }
 
   void shellContextAndModels() {
-    writePlugin(m_src.path(), "net.test.dep", {{"provides", QJsonArray{"dep.api"}}}, "fb.log.info('dep')", {});
+    writePlugin(m_src.path(), "net.test.dep", {{"provides", QJsonArray{"dep.api"}}}, "uz.log.info('dep')", {});
     writePlugin(m_src.path(), "net.test.shell",
                 {{"requires", QJsonObject{{"net.test.dep", "*"}}},
                  {"ui", QJsonObject{{"screen", QJsonObject{{"title", "Runs"}}}, {"detail", true}, {"hud", true}, {"tile", true},
                                     {"hotkeys", QJsonArray{QJsonObject{{"id", "toggle-hud"}, {"label", "Toggle"}}}}}}},
                 kShellLua);
     writePlugin(m_src.path(), "net.test.panel", {{"ui", QJsonObject{{"panel", QJsonObject{{"title", "Panel"}}}}}},
-                "fb.ui.set('panel', {type='text', text='in game'}) fb.ui.dot('news')");
+                "uz.ui.set('panel', {type='text', text='in game'}) uz.ui.dot('news')");
     install("net.test.dep");
     install("net.test.shell");
     install("net.test.panel");
@@ -235,9 +235,9 @@ class PluginsRuntimeUiTest : public QObject {
 
   void runViewSet() {
     // A local shell plugin, and a plugin that is in both sets (local screen plugin + pinned Hub copy with ui.run).
-    writePlugin(m_src.path(), "net.test.shell", {{"ui", QJsonObject{{"screen", QJsonObject{{"title", "Runs"}}}}}}, "fb.ui.set('screen', {type='text', text='shell'})");
+    writePlugin(m_src.path(), "net.test.shell", {{"ui", QJsonObject{{"screen", QJsonObject{{"title", "Runs"}}}}}}, "uz.ui.set('screen', {type='text', text='shell'})");
     writePlugin(m_src.path(), "net.test.both", {{"ui", QJsonObject{{"screen", QJsonObject{{"title", "Both"}}}}}},
-                "fb.log.info('local') fb.ui.set('screen', {type='text', text='local both'})");
+                "uz.log.info('local') uz.ui.set('screen', {type='text', text='local both'})");
     install("net.test.shell");
     install("net.test.both");
     m_pc->setDeveloperMode(true);
@@ -249,7 +249,7 @@ class PluginsRuntimeUiTest : public QObject {
     installHubCopy("net.test.runonly", "1.2.0", QJsonObject{{"run", QJsonObject{{"title", "Board"}}}}, {"ui", "run.state"}, kRunViewLua, &shaRun);
     installHubCopy("net.test.both", "2.0.0", QJsonObject{{"run", QJsonObject{{"title", "Both run"}}}, {"screen", QJsonObject{{"title", "Both"}}}},
                    {"ui", "run.state"}, kRunViewLua, &shaBoth);
-    installHubCopy("net.test.plain", "1.0.0", QJsonObject{}, {"run.state"}, "fb.log.info('plain')", &shaPlain);
+    installHubCopy("net.test.plain", "1.0.0", QJsonObject{}, {"run.state"}, "uz.log.info('plain')", &shaPlain);
 
     auto bridge = std::make_shared<FakeRunBridge>();
     RunLaunch launch;
@@ -327,15 +327,15 @@ class PluginsRuntimeUiTest : public QObject {
   // 0.20 final live check, P1: in a run the plugins pinned to the run start, plus the person's own enabled plugins that change the
   // game (cheats / memory.write) while the run's rules allow that; they stop again when the rule goes back to off.
   void runGameStartsCheatsPluginByRules() {
-    writePlugin(m_src.path(), "net.test.cheater", {}, "fb.log.info('cheater boot')", {"cheats"});
-    writePlugin(m_src.path(), "net.test.editor", {{"requires", QJsonObject{{"net.test.core", "*"}}}}, "fb.log.info('editor boot')", {"memory.write"});
-    writePlugin(m_src.path(), "net.test.core", {{"provides", QJsonArray{"core.api"}}}, "fb.log.info('core boot')", {});
-    writePlugin(m_src.path(), "net.test.harmless", {}, "fb.log.info('harmless')", {"ui"});
+    writePlugin(m_src.path(), "net.test.cheater", {}, "uz.log.info('cheater boot')", {"cheats"});
+    writePlugin(m_src.path(), "net.test.editor", {{"requires", QJsonObject{{"net.test.core", "*"}}}}, "uz.log.info('editor boot')", {"memory.write"});
+    writePlugin(m_src.path(), "net.test.core", {{"provides", QJsonArray{"core.api"}}}, "uz.log.info('core boot')", {});
+    writePlugin(m_src.path(), "net.test.harmless", {}, "uz.log.info('harmless')", {"ui"});
     for (const char* id : {"net.test.cheater", "net.test.editor", "net.test.core", "net.test.harmless"}) install(id);
     m_pc->setDeveloperMode(true);
     for (const char* id : {"net.test.cheater", "net.test.editor", "net.test.core", "net.test.harmless"}) m_pc->setPluginEnabled(id, true);
     QString shaPlain;
-    installHubCopy("net.test.pinned", "1.0.0", QJsonObject{}, {"run.state"}, "fb.log.info('pinned')", &shaPlain);
+    installHubCopy("net.test.pinned", "1.0.0", QJsonObject{}, {"run.state"}, "uz.log.info('pinned')", &shaPlain);
 
     auto bridge = std::make_shared<RulesRunBridge>();
     RunLaunch launch;
@@ -371,7 +371,7 @@ class PluginsRuntimeUiTest : public QObject {
   }
 
   void toastMuting() {
-    writePlugin(m_src.path(), "net.test.shell", {{"ui", QJsonObject{{"screen", QJsonObject{{"title", "Runs"}}}}}}, "fb.ui.notify{ text='a' }");
+    writePlugin(m_src.path(), "net.test.shell", {{"ui", QJsonObject{{"screen", QJsonObject{{"title", "Runs"}}}}}}, "uz.ui.notify{ text='a' }");
     install("net.test.shell");
     m_pc->setDeveloperMode(true);
     m_pc->muteToasts("net.test.shell", "always");
@@ -394,7 +394,7 @@ class PluginsRuntimeUiTest : public QObject {
   }
 
   void reloadToastAndConsoleModel() {
-    writePlugin(m_src.path(), "net.test.shell", {{"name", "Item Helper"}, {"ui", QJsonObject{{"screen", QJsonObject{{"title", "Runs"}}}}}}, "fb.log.info('hi')");
+    writePlugin(m_src.path(), "net.test.shell", {{"name", "Item Helper"}, {"ui", QJsonObject{{"screen", QJsonObject{{"title", "Runs"}}}}}}, "uz.log.info('hi')");
     install("net.test.shell");
     m_pc->setDeveloperMode(true);
     m_pc->setPluginEnabled("net.test.shell", true);
@@ -423,7 +423,7 @@ class PluginsRuntimeUiTest : public QObject {
 
   void threeErrorsPauseWithToast() {
     writePlugin(m_src.path(), "net.test.shell", {{"name", "Item Helper"}, {"ui", QJsonObject{{"screen", QJsonObject{{"title", "Runs"}}}}}},
-                "fb.ui.on_action(function() error('boom') end)");
+                "uz.ui.on_action(function() error('boom') end)");
     install("net.test.shell");
     m_pc->setDeveloperMode(true);
     m_pc->setPluginEnabled("net.test.shell", true);
@@ -456,7 +456,7 @@ class PluginsRuntimeUiTest : public QObject {
   void loadUnpackedChecksTheManifest() {
     m_pc->setDeveloperMode(true);
     // 4d-2B: a manifest problem installs nothing.
-    const QString bad = writePlugin(m_src.path(), "net.test.bad", {{"name", "Item Helper"}, {"permissions", "oops"}}, "fb.log.info('x')", {});
+    const QString bad = writePlugin(m_src.path(), "net.test.bad", {{"name", "Item Helper"}, {"permissions", "oops"}}, "uz.log.info('x')", {});
     const QVariantMap r = m_pc->loadUnpacked(bad);
     QCOMPARE(r.value("state").toString(), QStringLiteral("error"));
     QCOMPARE(r.value("title").toString(), QStringLiteral("Item Helper didn't load"));
@@ -469,7 +469,7 @@ class PluginsRuntimeUiTest : public QObject {
     QVERIFY(!m_pc->loadUnpacked(m_src.path() + "/missing").value("detail").toString().isEmpty());
     QCOMPARE(m_pc->plugins().size(), 0);
     // A good folder is linked and turned on; the console lists it with the Unpacked flag and its folder.
-    const QString good = writePlugin(m_src.path(), "net.test.good", {{"name", "Item Helper"}, {"ui", QJsonObject{{"screen", QJsonObject{{"title", "Runs"}}}}}}, "fb.log.info('ok')");
+    const QString good = writePlugin(m_src.path(), "net.test.good", {{"name", "Item Helper"}, {"ui", QJsonObject{{"screen", QJsonObject{{"title", "Runs"}}}}}}, "uz.log.info('ok')");
     const QVariantMap ok = m_pc->loadUnpacked(good);
     QCOMPARE(ok.value("state").toString(), QStringLiteral("ok"));
     QCOMPARE(m_pc->plugins().size(), 1);
@@ -480,7 +480,7 @@ class PluginsRuntimeUiTest : public QObject {
     QVERIFY(model.value("unpacked").toBool());
     QVERIFY(QDir(model.value("folder").toString()) == QDir(good));
     // A second folder: the console switches to the plugin that was just loaded (not the first one it listed).
-    const QString second = writePlugin(m_src.path(), "net.test.second", {{"name", "Second Helper"}}, "fb.log.info('ok')");
+    const QString second = writePlugin(m_src.path(), "net.test.second", {{"name", "Second Helper"}}, "uz.log.info('ok')");
     QCOMPARE(m_pc->loadUnpacked(second).value("state").toString(), QStringLiteral("ok"));
     QCOMPARE(m_pc->devConsole()->selectedId(), QStringLiteral("net.test.second"));
     m_pc->selectConsolePlugin(QStringLiteral("net.test.good"));
@@ -501,7 +501,7 @@ class PluginsRuntimeUiTest : public QObject {
 
   // The debug MCP game_start identity: only with Developer mode, once, and plugin matching sees it.
   void identityOverrideGuard() {
-    writePlugin(m_src.path(), "net.test.gba", {{"games", QJsonArray{QJsonObject{{"system", "gba"}, {"codes", QJsonArray{"AXVE"}}}}}}, "fb.log.info('matched')", {});
+    writePlugin(m_src.path(), "net.test.gba", {{"games", QJsonArray{QJsonObject{{"system", "gba"}, {"codes", QJsonArray{"AXVE"}}}}}}, "uz.log.info('matched')", {});
     install("net.test.gba");
     m_pc->setPluginEnabled("net.test.gba", true);
     QVERIFY(!m_pc->setIdentityOverride("gba", "AXVE"));  // Developer mode is off

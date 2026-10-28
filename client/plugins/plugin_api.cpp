@@ -61,7 +61,7 @@ std::string checkStr(lua_State* L, int idx) {
   return std::string(s, n);
 }
 
-// ------------------------------------------------------------------ fb.log
+// ------------------------------------------------------------------ uz.log
 
 int logFn(lua_State* L) {
   const auto level = static_cast<LogLevel>(lua_tointeger(L, lua_upvalueindex(1)));
@@ -79,7 +79,7 @@ int logFn(lua_State* L) {
   return 0;
 }
 
-// ------------------------------------------------------------------ fb.memory
+// ------------------------------------------------------------------ uz.memory
 
 uint64_t watchedTotal(const Plugin& p, const std::string& exceptKey) {
   uint64_t total = 0;
@@ -157,7 +157,7 @@ int memFrame(lua_State* L) {
   return 1;
 }
 
-// ------------------------------------------------------------------ fb.on_tick, fb.events
+// ------------------------------------------------------------------ uz.on_tick, uz.events
 
 int onTick(lua_State* L) {
   Plugin* p = self(L);
@@ -179,7 +179,7 @@ int eventsEmit(lua_State* L) {
   if (name.empty() || name.size() > 128) luaL_error(L, "event name must be 1 to 128 characters");
   Value v;
   std::string err;
-  if (lua_gettop(L) >= 2 && !readValue(L, 2, v, err)) luaL_error(L, "fb.events.emit: %s", err.c_str());
+  if (lua_gettop(L) >= 2 && !readValue(L, 2, v, err)) luaL_error(L, "uz.events.emit: %s", err.c_str());
   if (!p->engine->eventFits(p->id(), valueBytes(v) + name.size() + sizeof(QueuedEvent))) luaL_error(L, "event queue is full");
   p->engine->emitEvent(*p, name, std::move(v));
   return 0;
@@ -187,7 +187,8 @@ int eventsEmit(lua_State* L) {
 
 int eventsOn(lua_State* L) {
   Plugin* p = self(L);
-  const std::string from = checkStr(L, 1);
+  std::string from = checkStr(L, 1);
+  if (from == "fb") from = "uz";  // host events: "fb" is the old source name, kept for plugins written for older apps
   const std::string name = checkStr(L, 2);
   luaL_checktype(L, 3, LUA_TFUNCTION);
   if (p->subs.size() >= kMaxSubs) luaL_error(L, "too many event subscriptions (max %d)", static_cast<int>(kMaxSubs));
@@ -197,7 +198,7 @@ int eventsOn(lua_State* L) {
   return 0;
 }
 
-// ------------------------------------------------------------------ fb.provide / fb.call
+// ------------------------------------------------------------------ uz.provide / uz.call
 
 int provide(lua_State* L) {
   Plugin* p = self(L);
@@ -222,7 +223,7 @@ int call(lua_State* L) {
   for (int i = 3; i <= top; ++i) {
     Value v;
     std::string err;
-    if (!readValue(L, i, v, err)) luaL_error(L, "fb.call argument %d: %s", i - 2, err.c_str());
+    if (!readValue(L, i, v, err)) luaL_error(L, "uz.call argument %d: %s", i - 2, err.c_str());
     args.push_back(std::move(v));
   }
   Plugin* callee = nullptr;
@@ -269,14 +270,14 @@ int call(lua_State* L) {
       luaL_error(L, "plugin %s was paused: %s", callee->id().toUtf8().constData(), first.c_str());
     }
     eng.log(*callee, LogLevel::Error, "Call " + name + "." + fn + " from " + me->id().toStdString() + " failed: " + first);
-    luaL_error(L, "fb.call %s.%s failed: %s", name.c_str(), fn.c_str(), first.c_str());
+    luaL_error(L, "uz.call %s.%s failed: %s", name.c_str(), fn.c_str(), first.c_str());
   }
   luaL_checkstack(L, static_cast<int>(results.size()) + 4, "too many results");
   for (const Value& v : results) pushValue(L, v);
   return static_cast<int>(results.size());
 }
 
-// ------------------------------------------------------------------ fb.dev
+// ------------------------------------------------------------------ uz.dev
 
 int devWatch(lua_State* L) {
   need(L, "memory.read");
@@ -324,9 +325,9 @@ int devUnwatch(lua_State* L) {
   return 0;
 }
 
-// ------------------------------------------------------------------ fb.video
+// ------------------------------------------------------------------ uz.video
 
-// fb.video.screens() -> { { name, x, y, w, h }, ... } or nil when no game runs.
+// uz.video.screens() -> { { name, x, y, w, h }, ... } or nil when no game runs.
 int videoScreens(lua_State* L) {
   need(L, "video.capture");
   Plugin* p = self(L);
@@ -363,7 +364,7 @@ lua_Integer rectField(lua_State* L, int idx, const char* key) {
   return v;
 }
 
-// fb.video.capture(name | {x, y, w, h}) -> request id. Everything that can fail depending on the game or timing
+// uz.video.capture(name | {x, y, w, h}) -> request id. Everything that can fail depending on the game or timing
 // (busy, rate limit, no frame, ...) is reported in the "video.captured" event, never as a Lua error.
 int videoCapture(lua_State* L) {
   need(L, "video.capture");
@@ -385,7 +386,7 @@ int videoCapture(lua_State* L) {
   return 1;
 }
 
-// ------------------------------------------------------------------ fb.rom
+// ------------------------------------------------------------------ uz.rom
 
 QFile* openRom(lua_State* L, Plugin& p) {
   if (p.engine->ctx.romPath.isEmpty()) return nullptr;
@@ -421,7 +422,7 @@ int romRead(lua_State* L) {
   return 1;
 }
 
-// ------------------------------------------------------------------ fb.codec and fb.rom.romfs
+// ------------------------------------------------------------------ uz.codec and uz.rom.romfs
 // Pure functions over strings (client/formats). Failures return nil, message (never a Lua error); only wrong argument
 // types raise. Indexes are 1-based in Lua.
 
@@ -580,7 +581,7 @@ int romRomfsList(lua_State* L) {
   return 1;
 }
 
-// ------------------------------------------------------------------ fb.variants
+// ------------------------------------------------------------------ uz.variants
 
 void setStr(lua_State* L, const char* k, const QString& v);
 
@@ -608,7 +609,7 @@ bool validPresetId(const QString& id) {
 
 std::shared_ptr<VariantsProvider> variantsProvider(lua_State* L) { return self(L)->engine->ctx.variants; }
 
-// fb.variants.register{engine, presets = {{id, label, hint, settings = {["428"] = "..."}}}, games = {{system, codes = {...}}}}
+// uz.variants.register{engine, presets = {{id, label, hint, settings = {["428"] = "..."}}}, games = {{system, codes = {...}}}}
 int variantsRegister(lua_State* L) {
   need(L, "variants.build");
   luaL_checktype(L, 1, LUA_TTABLE);
@@ -689,7 +690,7 @@ int variantsRegister(lua_State* L) {
   return 1;
 }
 
-// fb.variants.engine() -> {offered = bool, version = string | nil, on_pc = bool}
+// uz.variants.engine() -> {offered = bool, version = string | nil, on_pc = bool}
 int variantsEngine(lua_State* L) {
   need(L, "variants.build");
   const auto prov = variantsProvider(L);
@@ -704,7 +705,7 @@ int variantsEngine(lua_State* L) {
   return 1;
 }
 
-// fb.variants.list([game_id]) -> {{id, name, slot, preset_id, state, tool_version}}; the variants of the game in the context
+// uz.variants.list([game_id]) -> {{id, name, slot, preset_id, state, tool_version}}; the variants of the game in the context
 // (in the shell context, which has no game: of `game_id`). Never the seed or the settings.
 int variantsList(lua_State* L) {
   need(L, "variants.build");
@@ -728,7 +729,7 @@ int variantsList(lua_State* L) {
   return 1;
 }
 
-// fb.variants.build{name, preset_id | settings, seed, spoiler_log, game_id} -> request id. Progress and the result arrive as the
+// uz.variants.build{name, preset_id | settings, seed, spoiler_log, game_id} -> request id. Progress and the result arrive as the
 // host event "variants.state" {id, state, progress, error}; failures that depend on the PC or the server are reported there, not as
 // Lua errors.
 int variantsBuild(lua_State* L) {
@@ -763,7 +764,7 @@ int variantsBuild(lua_State* L) {
   return 1;
 }
 
-// ------------------------------------------------------------------ fb.cache
+// ------------------------------------------------------------------ uz.cache
 
 }  // namespace
 
@@ -884,7 +885,7 @@ int cacheWrite(lua_State* L) {
   });
 }
 
-// ------------------------------------------------------------------ fb.ui (needs permission `ui`)
+// ------------------------------------------------------------------ uz.ui (needs permission `ui`)
 
 QString checkSlot(lua_State* L, int idx) {
   need(L, "ui");
@@ -920,7 +921,7 @@ int uiPatch(lua_State* L) {
   const Value props = readUiArg(L, 3);
   Plugin* p = self(L);
   auto it = p->uiTrees.find(slot);
-  if (it == p->uiTrees.end()) luaL_error(L, "ui tree: slot %s has no tree to patch (call fb.ui.set first)", slot.toUtf8().constData());
+  if (it == p->uiTrees.end()) luaL_error(L, "ui tree: slot %s has no tree to patch (call uz.ui.set first)", slot.toUtf8().constData());
   QVariantMap tree = it->second;
   QString e;
   if (!patchUiTree(tree, id, props, e)) luaL_error(L, "ui tree: %s", e.toUtf8().constData());
@@ -939,7 +940,7 @@ int uiClear(lua_State* L) {
 
 int uiTitle(lua_State* L) {
   const QString slot = checkSlot(L, 1);
-  if (slot != QLatin1String("panel") && slot != QLatin1String("screen")) luaL_error(L, "fb.ui.title only supports the slots panel and screen");
+  if (slot != QLatin1String("panel") && slot != QLatin1String("screen")) luaL_error(L, "uz.ui.title only supports the slots panel and screen");
   QString title;
   if (!lua_isnil(L, 2)) {
     title = QString::fromStdString(checkStr(L, 2));
@@ -980,13 +981,13 @@ int uiNotify(lua_State* L) {
   const Value v = readUiArg(L, 1);
   QVariantMap toast;
   QString e;
-  if (!convertToast(v, toast, e)) luaL_error(L, "fb.ui.notify: %s", e.toUtf8().constData());
+  if (!convertToast(v, toast, e)) luaL_error(L, "uz.ui.notify: %s", e.toUtf8().constData());
   Plugin* p = self(L);
   const auto now = std::chrono::steady_clock::now();
   p->toastTokens = (std::min)(3.0, p->toastTokens + std::chrono::duration<double>(now - p->toastLast).count());
   p->toastLast = now;
   if (p->toastTokens < 1.0) {
-    p->engine->log(*p, LogLevel::Warn, "fb.ui.notify: dropped (at most one notification per second)");
+    p->engine->log(*p, LogLevel::Warn, "uz.ui.notify: dropped (at most one notification per second)");
     lua_pushnil(L);
     return 1;
   }
@@ -997,16 +998,16 @@ int uiNotify(lua_State* L) {
 
 int uiOpen(lua_State* L) {
   const QString slot = checkSlot(L, 1);
-  if (slot != QLatin1String("panel") && slot != QLatin1String("screen")) luaL_error(L, "fb.ui.open only supports the slots screen and panel");
+  if (slot != QLatin1String("panel") && slot != QLatin1String("screen")) luaL_error(L, "uz.ui.open only supports the slots screen and panel");
   Plugin* p = self(L);
   p->engine->store.ui.addOpenRequest(p->id(), slot);
   return 0;
 }
 
-// fb.ui.close(slot): closes the screen sheet / panel tab that fb.ui.open showed.
+// uz.ui.close(slot): closes the screen sheet / panel tab that uz.ui.open showed.
 int uiClose(lua_State* L) {
   const QString slot = checkSlot(L, 1);
-  if (slot != QLatin1String("panel") && slot != QLatin1String("screen")) luaL_error(L, "fb.ui.close only supports the slots screen and panel");
+  if (slot != QLatin1String("panel") && slot != QLatin1String("screen")) luaL_error(L, "uz.ui.close only supports the slots screen and panel");
   Plugin* p = self(L);
   p->engine->store.ui.addCloseRequest(p->id(), slot);
   return 0;
@@ -1025,7 +1026,7 @@ int uiOnAction(lua_State* L) {
 }
 
 
-// ------------------------------------------------------------------ fb.memory.write (permission memory.write)
+// ------------------------------------------------------------------ uz.memory.write (permission memory.write)
 
 constexpr lua_Integer kMaxWriteBytes = 64 * 1024;
 
@@ -1075,7 +1076,7 @@ int memWriteNum(lua_State* L) {
   return doWrite(L, addr, b);
 }
 
-// ------------------------------------------------------------------ fb.cheats (permission cheats)
+// ------------------------------------------------------------------ uz.cheats (permission cheats)
 
 constexpr size_t kMaxCheatEntries = 2000;
 
@@ -1112,7 +1113,7 @@ int cheatsFormats(lua_State* L) {
   return 2;
 }
 
-// fb.cheats.allowed() -> true | false, reason ("run_rule"): whether the run's rule lets cheats be turned on.
+// uz.cheats.allowed() -> true | false, reason ("run_rule"): whether the run's rule lets cheats be turned on.
 int cheatsAllowed(lua_State* L) {
   need(L, "cheats");
   const auto& emu = self(L)->engine->ctx.emulation;
@@ -1182,7 +1183,7 @@ int cheatsDatabase(lua_State* L) {
   return 1;
 }
 
-// ------------------------------------------------------------------ fb.save.snapshot (no permission)
+// ------------------------------------------------------------------ uz.save.snapshot (no permission)
 
 constexpr int kMaxSnapshotReason = 80;
 
@@ -1204,7 +1205,7 @@ int saveSnapshot(lua_State* L) {
   return 1;
 }
 
-// ------------------------------------------------------------------ fb.store (permission store)
+// ------------------------------------------------------------------ uz.store (permission store)
 
 QString storeKey(lua_State* L, int idx) {
   const QString key = QString::fromStdString(checkStr(L, idx));
@@ -1235,13 +1236,13 @@ int storeGet(lua_State* L) {
 int storePut(lua_State* L) {
   PluginStore* st = storeOf(L);
   const QString key = storeKey(L, 1);
-  if (lua_isnoneornil(L, 2)) luaL_error(L, "fb.store.put: value must not be nil");
+  if (lua_isnoneornil(L, 2)) luaL_error(L, "uz.store.put: value must not be nil");
   Value v;
   std::string err;
-  if (!readValue(L, 2, v, err)) luaL_error(L, "fb.store.put: %s", err.c_str());
+  if (!readValue(L, 2, v, err)) luaL_error(L, "uz.store.put: %s", err.c_str());
   QJsonValue json;
   QString e;
-  if (!jsonFromValue(v, json, e)) luaL_error(L, "fb.store.put: %s", e.toUtf8().constData());
+  if (!jsonFromValue(v, json, e)) luaL_error(L, "uz.store.put: %s", e.toUtf8().constData());
   std::optional<qint64> base;
   if (!lua_isnoneornil(L, 3)) base = static_cast<qint64>(luaL_checkinteger(L, 3));
   if (!st) return pushNilMsg(L, QStringLiteral("unavailable"));
@@ -1278,7 +1279,7 @@ int storeConflicts(lua_State* L) {
   return 1;
 }
 
-// ------------------------------------------------------------------ fb.sound (permission sound)
+// ------------------------------------------------------------------ uz.sound (permission sound)
 
 constexpr size_t kMaxSoundClips = 8;
 
@@ -1310,9 +1311,9 @@ int soundPlay(lua_State* L) {
     luaL_checktype(L, 2, LUA_TTABLE);
     lua_getfield(L, 2, "volume");
     if (!lua_isnil(L, -1)) {
-      if (!lua_isnumber(L, -1)) luaL_error(L, "fb.sound.play: volume must be a number between 0 and 1");
+      if (!lua_isnumber(L, -1)) luaL_error(L, "uz.sound.play: volume must be a number between 0 and 1");
       volume = lua_tonumber(L, -1);
-      if (!(volume >= 0.0 && volume <= 1.0)) luaL_error(L, "fb.sound.play: volume must be between 0 and 1");
+      if (!(volume >= 0.0 && volume <= 1.0)) luaL_error(L, "uz.sound.play: volume must be between 0 and 1");
     }
     lua_pop(L, 1);
   }
@@ -1348,12 +1349,12 @@ int soundStopAll(lua_State* L) {
   return 1;
 }
 
-// ------------------------------------------------------------------ fb.ui.pick_file (permission ui)
+// ------------------------------------------------------------------ uz.ui.pick_file (permission ui)
 
 constexpr lua_Integer kPickDefaultMax = 1024 * 1024;
 constexpr lua_Integer kPickMaxMax = 8 * 1024 * 1024;
 
-// fb.ui.pick_file{title=, filters={"*.cht"}, max_bytes=} , callback: opens a file dialog; callback(content, {name=, size=}) on
+// uz.ui.pick_file{title=, filters={"*.cht"}, max_bytes=} , callback: opens a file dialog; callback(content, {name=, size=}) on
 // success, callback(nil) when cancelled, callback(nil, "too_large" | "read_failed") otherwise. The plugin never learns the path.
 int uiPickFile(lua_State* L) {
   need(L, "ui");
@@ -1366,20 +1367,20 @@ int uiPickFile(lua_State* L) {
     if (lua_isfunction(L, -1)) cbIdx = lua_gettop(L);
     else lua_pop(L, 1);
   }
-  if (cbIdx == 0) luaL_error(L, "fb.ui.pick_file: a callback function is required");
+  if (cbIdx == 0) luaL_error(L, "uz.ui.pick_file: a callback function is required");
   PickRequest req;
   req.title = tableString(L, 1, "title", false, 100);
   lua_getfield(L, 1, "filters");
   if (!lua_isnil(L, -1)) {
-    if (!lua_istable(L, -1)) luaL_error(L, "fb.ui.pick_file: filters must be a list of patterns like \"*.cht\"");
+    if (!lua_istable(L, -1)) luaL_error(L, "uz.ui.pick_file: filters must be a list of patterns like \"*.cht\"");
     const lua_Integer n = luaL_len(L, -1);
-    if (n > 12) luaL_error(L, "fb.ui.pick_file: at most 12 filters");
+    if (n > 12) luaL_error(L, "uz.ui.pick_file: at most 12 filters");
     for (lua_Integer i = 1; i <= n; ++i) {
       lua_rawgeti(L, -1, i);
-      if (lua_type(L, -1) != LUA_TSTRING) luaL_error(L, "fb.ui.pick_file: filters must be strings");
+      if (lua_type(L, -1) != LUA_TSTRING) luaL_error(L, "uz.ui.pick_file: filters must be strings");
       const QString f = QString::fromUtf8(lua_tostring(L, -1));
       static const QRegularExpression ok(QStringLiteral("^\\*\\.[A-Za-z0-9]{1,10}$"));
-      if (!ok.match(f).hasMatch()) luaL_error(L, "fb.ui.pick_file: filter '%s' must look like \"*.cht\"", f.toUtf8().constData());
+      if (!ok.match(f).hasMatch()) luaL_error(L, "uz.ui.pick_file: filter '%s' must look like \"*.cht\"", f.toUtf8().constData());
       req.filters << f;
       lua_pop(L, 1);
     }
@@ -1388,9 +1389,9 @@ int uiPickFile(lua_State* L) {
   lua_getfield(L, 1, "max_bytes");
   lua_Integer maxBytes = kPickDefaultMax;
   if (!lua_isnil(L, -1)) {
-    if (!lua_isinteger(L, -1)) luaL_error(L, "fb.ui.pick_file: max_bytes must be an integer");
+    if (!lua_isinteger(L, -1)) luaL_error(L, "uz.ui.pick_file: max_bytes must be an integer");
     maxBytes = lua_tointeger(L, -1);
-    if (maxBytes < 1 || maxBytes > kPickMaxMax) luaL_error(L, "fb.ui.pick_file: max_bytes must be between 1 and 8388608");
+    if (maxBytes < 1 || maxBytes > kPickMaxMax) luaL_error(L, "uz.ui.pick_file: max_bytes must be between 1 and 8388608");
   }
   lua_pop(L, 1);
   req.maxBytes = maxBytes;
@@ -1410,7 +1411,7 @@ int uiPickFile(lua_State* L) {
 }
 
 
-// ------------------------------------------------------------------ fb.run (permission run.state)
+// ------------------------------------------------------------------ uz.run (permission run.state)
 
 RunBridge* runBridge(lua_State* L) {
   need(L, "run.state");
@@ -1440,7 +1441,7 @@ int runCurrent(lua_State* L) {
   return 1;
 }
 
-// fb.run.state([user_id [, plugin_id]]): defaults are the own user and the calling plugin.
+// uz.run.state([user_id [, plugin_id]]): defaults are the own user and the calling plugin.
 int runState(lua_State* L) {
   RunBridge* b = runBridge(L);
   const QString user = lua_isnoneornil(L, 1) ? b->current().value(QStringLiteral("me")).toString() : QString::fromStdString(checkStr(L, 1));
@@ -1455,7 +1456,7 @@ int runState(lua_State* L) {
   return 1;
 }
 
-// fb.run.states([plugin_id]): {user_id = state} of that plugin (default: the calling plugin).
+// uz.run.states([plugin_id]): {user_id = state} of that plugin (default: the calling plugin).
 int runStates(lua_State* L) {
   RunBridge* b = runBridge(L);
   const QString plugin = lua_isnoneornil(L, 1) ? self(L)->id() : QString::fromStdString(checkStr(L, 1));
@@ -1463,17 +1464,17 @@ int runStates(lua_State* L) {
   return 1;
 }
 
-// fb.run.setState(tbl): replaces the calling plugin's state of the own participant. Coalesced per plugin: the bridge keeps
+// uz.run.setState(tbl): replaces the calling plugin's state of the own participant. Coalesced per plugin: the bridge keeps
 // the latest value and the RunClient sends at most 4 writes per second for each plugin.
 int runSetState(lua_State* L) {
   RunBridge* b = runBridge(L);
   luaL_checktype(L, 1, LUA_TTABLE);
   Value v;
   std::string err;
-  if (!readValue(L, 1, v, err)) luaL_error(L, "fb.run.setState: %s", err.c_str());
+  if (!readValue(L, 1, v, err)) luaL_error(L, "uz.run.setState: %s", err.c_str());
   QJsonObject o;
   QString e;
-  if (!jsonObjectFromValue(v, o, e)) luaL_error(L, "fb.run.setState: %s", e.toUtf8().constData());
+  if (!jsonObjectFromValue(v, o, e)) luaL_error(L, "uz.run.setState: %s", e.toUtf8().constData());
   e = b->setState(self(L)->id(), o);
   if (!e.isEmpty()) return pushRefusal(L, e);
   lua_pushboolean(L, 1);
@@ -1485,17 +1486,17 @@ int runEvent(lua_State* L) {
   luaL_checktype(L, 1, LUA_TTABLE);
   Value v;
   std::string err;
-  if (!readValue(L, 1, v, err)) luaL_error(L, "fb.run.event: %s", err.c_str());
+  if (!readValue(L, 1, v, err)) luaL_error(L, "uz.run.event: %s", err.c_str());
   const Value type = fieldOf(v, "type");
   const Value text = fieldOf(v, "text");
   const Value payload = fieldOf(v, "payload");
   const Value source = fieldOf(v, "source");
-  if (type.type != Value::Type::String) luaL_error(L, "fb.run.event: type must be a string");
-  if (text.type != Value::Type::Nil && text.type != Value::Type::String) luaL_error(L, "fb.run.event: text must be a string");
-  if (source.type != Value::Type::Nil && source.type != Value::Type::String) luaL_error(L, "fb.run.event: source must be \"automatic\" or \"manual\"");
+  if (type.type != Value::Type::String) luaL_error(L, "uz.run.event: type must be a string");
+  if (text.type != Value::Type::Nil && text.type != Value::Type::String) luaL_error(L, "uz.run.event: text must be a string");
+  if (source.type != Value::Type::Nil && source.type != Value::Type::String) luaL_error(L, "uz.run.event: source must be \"automatic\" or \"manual\"");
   QJsonObject po;
   QString e;
-  if (payload.type != Value::Type::Nil && !jsonObjectFromValue(payload, po, e)) luaL_error(L, "fb.run.event: payload: %s", e.toUtf8().constData());
+  if (payload.type != Value::Type::Nil && !jsonObjectFromValue(payload, po, e)) luaL_error(L, "uz.run.event: payload: %s", e.toUtf8().constData());
   QString clientId;
   e = b->postEvent(self(L)->id(), source.type == Value::Type::Nil ? QStringLiteral("automatic") : QString::fromStdString(source.s),
                    QString::fromStdString(type.s), QString::fromStdString(text.s), po, &clientId);
@@ -1509,7 +1510,7 @@ int runEvents(lua_State* L) {
   RunBridge* b = runBridge(L);
   const lua_Integer after = luaL_optinteger(L, 1, 0);
   const lua_Integer limit = luaL_optinteger(L, 2, 100);
-  if (limit < 1 || limit > 500) luaL_error(L, "fb.run.events: limit must be 1 to 500");
+  if (limit < 1 || limit > 500) luaL_error(L, "uz.run.events: limit must be 1 to 500");
   pushValue(L, valueFromJson(b->events(static_cast<qint64>(after), static_cast<int>(limit))));
   return 1;
 }
@@ -1519,9 +1520,9 @@ int runOn(lua_State* L) {
   Plugin* p = self(L);
   const std::string kind = checkStr(L, 1);
   if (kind != "event" && kind != "state" && kind != "status" && kind != "participants")
-    luaL_error(L, "fb.run.on: unknown kind '%s' (use \"event\", \"state\", \"status\" or \"participants\")", kind.c_str());
+    luaL_error(L, "uz.run.on: unknown kind '%s' (use \"event\", \"state\", \"status\" or \"participants\")", kind.c_str());
   luaL_checktype(L, 2, LUA_TFUNCTION);
-  if (p->runSubs.size() >= 16) luaL_error(L, "too many fb.run.on callbacks (max 16)");
+  if (p->runSubs.size() >= 16) luaL_error(L, "too many uz.run.on callbacks (max 16)");
   lua_pushvalue(L, 2);
   p->runSubs.push_back({kind, luaL_ref(L, LUA_REGISTRYINDEX)});
   return 0;
@@ -1550,7 +1551,7 @@ int runSetBoard(lua_State* L) {
   return 1;
 }
 
-// ------------------------------------------------------------------ fb.i18n
+// ------------------------------------------------------------------ uz.i18n
 
 void flatten(const QString& prefix, const QJsonObject& o, QHash<QString, QString>& out) {
   for (auto it = o.begin(); it != o.end(); ++it) {
@@ -1636,7 +1637,7 @@ int i18nT(lua_State* L) {
   });
 }
 
-// fb.game.hash(): SHA-256 of the game file (hex) for the cheat database match, nil without a game.
+// uz.game.hash(): SHA-256 of the game file (hex) for the cheat database match, nil without a game.
 int gameHash(lua_State* L) {
   const QString h = self(L)->engine->ctx.sha256;
   if (h.isEmpty()) {
@@ -1675,21 +1676,21 @@ void registerFbApi(PluginEngine& engine, Plugin& p) {
   lua_pushinteger(L, kPluginApiVersion);
   lua_setfield(L, -2, "api");
 
-  lua_newtable(L);  // fb.plugin
+  lua_newtable(L);  // uz.plugin
   setStr(L, "id", p.info.manifest.id);
   setStr(L, "version", p.info.manifest.version.toString());
   lua_setfield(L, -2, "plugin");
 
-  lua_newtable(L);  // fb.game
+  lua_newtable(L);  // uz.game
   setStr(L, "system", g.system);
   setStr(L, "code", g.code);
   setStr(L, "sha256", g.sha256);
   setStr(L, "title", g.title);
   if (!g.shell) setStr(L, "language", g.language);
-  if (!g.shell) setFn(L, "hash", gameHash);  // the shell has no game: fb.game stays empty
+  if (!g.shell) setFn(L, "hash", gameHash);  // the shell has no game: uz.game stays empty
   lua_setfield(L, -2, "game");
 
-  lua_newtable(L);  // fb.log
+  lua_newtable(L);  // uz.log
   static const struct { const char* name; LogLevel level; } levels[] = {
       {"debug", LogLevel::Debug}, {"info", LogLevel::Info}, {"warn", LogLevel::Warn}, {"error", LogLevel::Error}};
   for (const auto& lv : levels) {
@@ -1699,7 +1700,7 @@ void registerFbApi(PluginEngine& engine, Plugin& p) {
   }
   lua_setfield(L, -2, "log");
 
-  lua_newtable(L);  // fb.memory
+  lua_newtable(L);  // uz.memory
   setFn(L, "watch", memWatch);
   setFn(L, "unwatch", memUnwatch);
   setFn(L, "bytes", memBytes);
@@ -1722,7 +1723,7 @@ void registerFbApi(PluginEngine& engine, Plugin& p) {
 
   setFn(L, "on_tick", onTick);
 
-  lua_newtable(L);  // fb.events
+  lua_newtable(L);  // uz.events
   setFn(L, "emit", eventsEmit);
   setFn(L, "on", eventsOn);
   lua_setfield(L, -2, "events");
@@ -1730,32 +1731,32 @@ void registerFbApi(PluginEngine& engine, Plugin& p) {
   setFn(L, "provide", provide);
   setFn(L, "call", call);
 
-  lua_newtable(L);  // fb.dev
+  lua_newtable(L);  // uz.dev
   setFn(L, "watch", devWatch);
   setFn(L, "unwatch", devUnwatch);
   lua_setfield(L, -2, "dev");
 
-  lua_newtable(L);  // fb.rom
+  lua_newtable(L);  // uz.rom
   setFn(L, "size", romSize);
   setFn(L, "read", romRead);
   setFn(L, "romfs", romRomfs);
   setFn(L, "romfs_list", romRomfsList);
   lua_setfield(L, -2, "rom");
 
-  lua_newtable(L);  // fb.video
+  lua_newtable(L);  // uz.video
   setFn(L, "screens", videoScreens);
   setFn(L, "capture", videoCapture);
   lua_setfield(L, -2, "video");
 
   if (p.info.manifest.hasPermission(QStringLiteral("variants.build"))) {
-    lua_newtable(L);  // fb.variants (only with the permission variants.build)
+    lua_newtable(L);  // uz.variants (only with the permission variants.build)
     setFn(L, "register", variantsRegister);
     setFn(L, "engine", variantsEngine);
     setFn(L, "list", variantsList);
     setFn(L, "build", variantsBuild);
     lua_setfield(L, -2, "variants");
   }
-  lua_newtable(L);  // fb.cheats (permission cheats)
+  lua_newtable(L);  // uz.cheats (permission cheats)
   setFn(L, "formats", cheatsFormats);
   setFn(L, "allowed", cheatsAllowed);
   setFn(L, "apply", cheatsApply);
@@ -1763,22 +1764,22 @@ void registerFbApi(PluginEngine& engine, Plugin& p) {
   setFn(L, "database", cheatsDatabase);
   lua_setfield(L, -2, "cheats");
 
-  lua_newtable(L);  // fb.save (no permission)
+  lua_newtable(L);  // uz.save (no permission)
   setFn(L, "snapshot", saveSnapshot);
   lua_setfield(L, -2, "save");
 
-  lua_newtable(L);  // fb.store (permission store)
+  lua_newtable(L);  // uz.store (permission store)
   setFn(L, "get", storeGet);
   setFn(L, "put", storePut);
   setFn(L, "conflicts", storeConflicts);
   lua_setfield(L, -2, "store");
 
-  lua_newtable(L);  // fb.sound (permission sound)
+  lua_newtable(L);  // uz.sound (permission sound)
   setFn(L, "play", soundPlay);
   setFn(L, "stop_all", soundStopAll);
   lua_setfield(L, -2, "sound");
 
-  lua_newtable(L);  // fb.codec (pure functions, no permission)
+  lua_newtable(L);  // uz.codec (pure functions, no permission)
   setFn(L, "lz_decompress", codecLz);
   setFn(L, "garc", codecGarc);
   setFn(L, "garc_file", codecGarcFile);
@@ -1790,13 +1791,13 @@ void registerFbApi(PluginEngine& engine, Plugin& p) {
   setFn(L, "pk6_encrypt", codecPk6Encrypt);
   lua_setfield(L, -2, "codec");
 
-  lua_newtable(L);  // fb.cache
+  lua_newtable(L);  // uz.cache
   setFn(L, "read", cacheRead);
   setFn(L, "write", cacheWrite);
   setFn(L, "exists", cacheExists);
   lua_setfield(L, -2, "cache");
 
-  lua_newtable(L);  // fb.ui
+  lua_newtable(L);  // uz.ui
   setFn(L, "set", uiSet);
   setFn(L, "patch", uiPatch);
   setFn(L, "clear", uiClear);
@@ -1810,12 +1811,12 @@ void registerFbApi(PluginEngine& engine, Plugin& p) {
   setFn(L, "close", uiClose);
   lua_setfield(L, -2, "ui");
 
-  lua_newtable(L);  // fb.i18n
+  lua_newtable(L);  // uz.i18n
   setFn(L, "t", i18nT);
   lua_setfield(L, -2, "i18n");
 
   if (g.run) {
-    lua_newtable(L);  // fb.run (only when the game was started in a run)
+    lua_newtable(L);  // uz.run (only when the game was started in a run)
     setFn(L, "current", runCurrent);
     setFn(L, "state", runState);
     setFn(L, "states", runStates);
@@ -1828,7 +1829,10 @@ void registerFbApi(PluginEngine& engine, Plugin& p) {
   }
 
   setFn(L, "clock", clockFn);
+  // Namespace `uz` (Uzume 0.22); `fb` stays as an alias of the same table for plugins written for older apps.
+  lua_pushvalue(L, -1);
   lua_setglobal(L, "fb");
+  lua_setglobal(L, "uz");
 }
 
 }  // namespace uzume::plugins

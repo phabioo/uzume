@@ -1,6 +1,6 @@
 #pragma once
-// Plugin UI language (docs/architecture/12-plugins.md 16.9a): the tag behind GameContext.language / fb.game.language and the
-// first lookup of fb.i18n.t. Pure functions, no UI and no settings access.
+// Plugin UI language (docs/architecture/12-plugins.md 16.9a): the tag behind GameContext.language / uz.game.language and the
+// first lookup of uz.i18n.t. Pure functions, no UI and no settings access.
 #include <QList>
 #include <QLocale>
 #include <QMap>

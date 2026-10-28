@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Uzume.App
 
-// fb.ui.pick_file without the file dialogs of QtQuick.Dialogs (not installed, or without Qt.labs.folderlistmodel): the person types or
+// uz.ui.pick_file without the file dialogs of QtQuick.Dialogs (not installed, or without Qt.labs.folderlistmodel): the person types or
 // pastes the path of a file, like the other pickers do (Upload ROM, plugin install). The plugin still only gets the content.
 // objectNames: pluginPickPathDialog, pluginPickPathField, pluginPickPathOk, pluginPickPathCancel.
 UzDialog {

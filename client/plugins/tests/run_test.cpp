@@ -1,4 +1,4 @@
-// fb.run (permission run.state): the Lua API against the real RunClient + RunSessionBridge + fake Hub, plus the cases
+// uz.run (permission run.state): the Lua API against the real RunClient + RunSessionBridge + fake Hub, plus the cases
 // without a run and without the permission. Synthetic plugins only.
 #include <QJsonArray>
 #include <QSignalSpy>
@@ -110,7 +110,7 @@ class RunApiTest : public QObject {
 
   void absentOutsideRuns() {
     connectHub();
-    startPlugin(R"LUA( assert(fb.run == nil) fb.log.info("no run") )LUA", {QStringLiteral("run.state")}, false);
+    startPlugin(R"LUA( assert(uz.run == nil) uz.log.info("no run") )LUA", {QStringLiteral("run.state")}, false);
     QCOMPARE(con().status, PluginStatus::Running);
     QVERIFY(hasLog(con(), "no run"));
   }
@@ -118,9 +118,9 @@ class RunApiTest : public QObject {
   void needsPermission() {
     connectHub();
     startPlugin(R"LUA(
-      local ok, err = pcall(fb.run.current)
+      local ok, err = pcall(uz.run.current)
       assert(not ok and tostring(err):find("permission run.state"), tostring(err))
-      fb.log.info("denied")
+      uz.log.info("denied")
     )LUA",
                 {});
     QCOMPARE(con().status, PluginStatus::Running);
@@ -135,7 +135,7 @@ class RunApiTest : public QObject {
     hub_->pushRun(runId_);
     QTRY_VERIFY_WITH_TIMEOUT(client_->lastSeq(runId_) == 2, 8000);
     startPlugin(R"LUA(
-      local c = fb.run.current()
+      local c = uz.run.current()
       assert(c.name == "Test run" and c.status == "active", c.status)
       assert(c.me == "u_test_1")
       assert(c.settings.hardcore == true)
@@ -143,14 +143,14 @@ class RunApiTest : public QObject {
       assert(#c.participants == 2 and c.participants[1].user_id == "u_test_1" and c.participants[1].status == "joined")
       assert(c.participants[1].color == 0 and c.participants[2].color == nil)
       assert(c.randomizer == nil and c.participants[1].variant_kind == nil)
-      assert(next(fb.run.state()) == nil)
-      assert(fb.run.state("nobody") == nil)
-      assert(next(fb.run.state("u_test_1", "net.test.second")) == nil)
-      assert(fb.run.state("u_test_1", "net.not.in.run") == nil)
-      local evs = fb.run.events(0, 10)
+      assert(next(uz.run.state()) == nil)
+      assert(uz.run.state("nobody") == nil)
+      assert(next(uz.run.state("u_test_1", "net.test.second")) == nil)
+      assert(uz.run.state("u_test_1", "net.not.in.run") == nil)
+      local evs = uz.run.events(0, 10)
       assert(#evs == 2 and evs[1].type == "run.created" and evs[2].type == "test.old" and evs[2].user_id == "u_other_1", #evs)
-      assert(#fb.run.events(1, 10) == 1 and #fb.run.events(0, 1) == 1)
-      fb.log.info("read ok")
+      assert(#uz.run.events(1, 10) == 1 and #uz.run.events(0, 1) == 1)
+      uz.log.info("read ok")
     )LUA");
     QCOMPARE(con().status, PluginStatus::Running);
     QVERIFY2(hasLog(con(), "read ok"), con().error.toUtf8().constData());
@@ -175,7 +175,7 @@ class RunApiTest : public QObject {
     hub_->pushRun(runId_);
     QTRY_VERIFY_WITH_TIMEOUT(client_->run(runId_)->randomizerMode() == QLatin1String("each"), 8000);
     startPlugin(R"LUA(
-      local c = fb.run.current()
+      local c = uz.run.current()
       local z = c.randomizer
       assert(z.mode == "each" and z.preset_id == "classic" and z.tool_version == "1.6.2" and z.allow_own == true)
       assert(z.preset_label == nil)
@@ -184,7 +184,7 @@ class RunApiTest : public QObject {
       assert(n == 4, n)
       assert(z.seed == nil and z.settings == nil and z.base_sha256 == nil)
       assert(c.participants[1].variant_kind == "run" and c.participants[2].variant_kind == nil)
-      fb.log.info("rand ok")
+      uz.log.info("rand ok")
     )LUA");
     QCOMPARE(con().status, PluginStatus::Running);
     QVERIFY2(hasLog(con(), "rand ok"), con().error.toUtf8().constData());
@@ -193,13 +193,13 @@ class RunApiTest : public QObject {
   void writesReachTheHub() {
     connectHub();
     startPlugin(R"LUA(
-      assert(fb.run.setState({hp = 5, party = {"a", "b"}}) == true)
-      assert(fb.run.state().hp == 5, "own write is visible at once")
-      assert(fb.run.states()["u_test_1"].party[2] == "b")
-      local id = fb.run.event{type = "test.caught", text = "Caught it", payload = {species = 25, shiny = false}, source = "manual"}
+      assert(uz.run.setState({hp = 5, party = {"a", "b"}}) == true)
+      assert(uz.run.state().hp == 5, "own write is visible at once")
+      assert(uz.run.states()["u_test_1"].party[2] == "b")
+      local id = uz.run.event{type = "test.caught", text = "Caught it", payload = {species = 25, shiny = false}, source = "manual"}
       assert(type(id) == "string" and #id == 36, tostring(id))
-      assert(fb.run.setBoard({type = "text", text = "Board"}) == true)
-      fb.log.info("wrote")
+      assert(uz.run.setBoard({type = "text", text = "Board"}) == true)
+      uz.log.info("wrote")
     )LUA");
     QVERIFY2(hasLog(con(), "wrote"), con().error.toUtf8().constData());
     QTRY_VERIFY_WITH_TIMEOUT(!hub_->runStatePuts.isEmpty(), 8000);
@@ -221,14 +221,14 @@ class RunApiTest : public QObject {
     connectHub();
     startPlugin(R"LUA(
       local got = {events = 0, states = 0, status = 0, parts = 0}
-      fb.run.on("event", function(e) got.events = got.events + 1 got.lastEvent = e.type got.lastText = e.text end)
-      fb.run.on("state", function(user, st, plugin) got.states = got.states + 1 got.user = user got.hp = st.hp got.plugin = plugin end)
-      fb.run.on("status", function(s, prev) got.status = got.status + 1 got.s = s got.prev = prev end)
-      fb.run.on("participants", function(list) got.parts = got.parts + 1 got.n = #list end)
-      fb.on_tick(function()
+      uz.run.on("event", function(e) got.events = got.events + 1 got.lastEvent = e.type got.lastText = e.text end)
+      uz.run.on("state", function(user, st, plugin) got.states = got.states + 1 got.user = user got.hp = st.hp got.plugin = plugin end)
+      uz.run.on("status", function(s, prev) got.status = got.status + 1 got.s = s got.prev = prev end)
+      uz.run.on("participants", function(list) got.parts = got.parts + 1 got.n = #list end)
+      uz.on_tick(function()
         if got.events > 0 and got.states > 0 and got.status > 0 and got.parts > 0 and not got.done then
           got.done = true
-          fb.log.info(string.format("callbacks e=%s:%s st=%s:%d@%s s=%s<-%s n=%d", got.lastEvent, got.lastText, got.user, got.hp, got.plugin, got.s, got.prev, got.n))
+          uz.log.info(string.format("callbacks e=%s:%s st=%s:%d@%s s=%s<-%s n=%d", got.lastEvent, got.lastText, got.user, got.hp, got.plugin, got.s, got.prev, got.n))
         end
       end)
     )LUA");
@@ -257,17 +257,17 @@ class RunApiTest : public QObject {
   void readsOtherPluginsStateAndWritesOnlyItsOwn() {
     connectHub();
     startPlugin(R"LUA(
-      assert(fb.run.setState({mine = 1}) == true)
-      fb.on_tick(function()
-        local other = fb.run.state("u_other_1", "net.test.second")
-        if other and other.hp == 9 and not fb.done then
-          fb.done = true
-          local all = fb.run.states("net.test.second")
-          local own = fb.run.states()
+      assert(uz.run.setState({mine = 1}) == true)
+      uz.on_tick(function()
+        local other = uz.run.state("u_other_1", "net.test.second")
+        if other and other.hp == 9 and not uz.done then
+          uz.done = true
+          local all = uz.run.states("net.test.second")
+          local own = uz.run.states()
           assert(all["u_other_1"].hp == 9 and own["u_test_1"].mine == 1 and next(own["u_other_1"]) == nil)
-          assert(fb.run.state().mine == 1 and fb.run.state(nil, "net.test.second").hp == nil)
-          fb.run.setState({mine = 2})
-          fb.log.info("read other " .. other.hp)
+          assert(uz.run.state().mine == 1 and uz.run.state(nil, "net.test.second").hp == nil)
+          uz.run.setState({mine = 2})
+          uz.log.info("read other " .. other.hp)
         end
       end)
     )LUA");
@@ -285,13 +285,13 @@ class RunApiTest : public QObject {
   void refusedWhenPausedAndAfterwardsFine() {
     connectHub(QStringLiteral("paused"));
     startPlugin(R"LUA(
-      local ok, err = fb.run.setState({a = 1})
+      local ok, err = uz.run.setState({a = 1})
       assert(ok == nil and err:find("paused"), tostring(err))
-      local id, err2 = fb.run.event{type = "test.x"}
+      local id, err2 = uz.run.event{type = "test.x"}
       assert(id == nil and err2:find("paused"), tostring(err2))
-      local ok3, err3 = fb.run.setBoard({type = "text", text = "x"})
+      local ok3, err3 = uz.run.setBoard({type = "text", text = "x"})
       assert(ok3 == nil and err3:find("paused"), tostring(err3))
-      fb.log.info("refused")
+      uz.log.info("refused")
     )LUA");
     QCOMPARE(con().status, PluginStatus::Running);
     QVERIFY2(hasLog(con(), "refused"), con().error.toUtf8().constData());
@@ -302,14 +302,14 @@ class RunApiTest : public QObject {
   void badArgumentsRaiseButWritesNeverPauseOnRefusal() {
     connectHub();
     startPlugin(R"LUA(
-      assert(not pcall(fb.run.event, {text = "no type"}))
-      assert(not pcall(fb.run.event, {type = 5}))
-      assert(not pcall(fb.run.setState, {1, 2, 3}))          -- a list is not a state object
-      assert(not pcall(fb.run.setState, "text"))
-      assert(not pcall(fb.run.setBoard, {type = "nonsense"}))
-      assert(not pcall(fb.run.on, "bogus", function() end))
-      local id, err = fb.run.event{type = "Bad Type"}         -- refused by the client: no crash
-      fb.log.info("args ok")
+      assert(not pcall(uz.run.event, {text = "no type"}))
+      assert(not pcall(uz.run.event, {type = 5}))
+      assert(not pcall(uz.run.setState, {1, 2, 3}))          -- a list is not a state object
+      assert(not pcall(uz.run.setState, "text"))
+      assert(not pcall(uz.run.setBoard, {type = "nonsense"}))
+      assert(not pcall(uz.run.on, "bogus", function() end))
+      local id, err = uz.run.event{type = "Bad Type"}         -- refused by the client: no crash
+      uz.log.info("args ok")
     )LUA");
     QCOMPARE(con().status, PluginStatus::Running);
     QVERIFY2(hasLog(con(), "args ok"), con().error.toUtf8().constData());
@@ -322,19 +322,19 @@ class RunApiTest : public QObject {
     s.permissions = {QStringLiteral("run.state"), QStringLiteral("ui")};
     s.ui = QJsonObject{{"run", QJsonObject{{"title", "Board"}}}};
     s.lua = R"LUA(
-      local c = fb.run.current()
+      local c = uz.run.current()
       assert(c.view == true and c.name == "Test run" and c.me == "u_test_1")
-      assert(next(fb.game) == nil or fb.game.title == nil)
-      local ok, e1 = fb.run.setState({hp = 1})
-      local id, e2 = fb.run.event{type = "test.x", text = "no"}
-      local b, e3 = fb.run.setBoard({type = "text", text = "no"})
+      assert(next(uz.game) == nil or uz.game.title == nil)
+      local ok, e1 = uz.run.setState({hp = 1})
+      local id, e2 = uz.run.event{type = "test.x", text = "no"}
+      local b, e3 = uz.run.setBoard({type = "text", text = "no"})
       assert(ok == nil and e1 == "read only outside the game", tostring(e1))
       assert(id == nil and e2 == "read only outside the game", tostring(e2))
       assert(b == nil and e3 == "read only outside the game", tostring(e3))
-      assert(next(fb.run.state()) == nil and #fb.run.events(0, 10) >= 1)
+      assert(next(uz.run.state()) == nil and #uz.run.events(0, 10) >= 1)
       local seen = 0
-      fb.run.on("event", function(e) seen = seen + 1 fb.ui.set("run", {type = "text", text = "events:" .. seen .. ":" .. e.type}) end)
-      fb.ui.set("run", {type = "text", text = "view:" .. tostring(c.view)})
+      uz.run.on("event", function(e) seen = seen + 1 uz.ui.set("run", {type = "text", text = "events:" .. seen .. ":" .. e.type}) end)
+      uz.ui.set("run", {type = "text", text = "view:" .. tostring(c.view)})
     )LUA";
     const QString dir = writePlugin(dir_->filePath(QStringLiteral("src")), s);
     GameContext ctx;
@@ -352,8 +352,8 @@ class RunApiTest : public QObject {
   void boardIsLimitedToOnePerSecond() {
     connectHub();
     startPlugin(R"LUA(
-      for i = 1, 10 do assert(fb.run.setBoard({type = "text", text = "v" .. i})) end
-      fb.log.info("sent")
+      for i = 1, 10 do assert(uz.run.setBoard({type = "text", text = "v" .. i})) end
+      uz.log.info("sent")
     )LUA");
     QVERIFY2(hasLog(con(), "sent"), con().error.toUtf8().constData());
     // the first goes out at once, the last one follows once the second is over

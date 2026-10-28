@@ -284,7 +284,7 @@ ApplicationWindow {
         }
     }
 
-    // fb.ui.open("screen") outside the game view: the plugin's tab of the opened run, else the plugin screen sheet (in the game
+    // uz.ui.open("screen") outside the game view: the plugin's tab of the opened run, else the plugin screen sheet (in the game
     // view GameScreen shows the sheet). "Open" in Settings > Plugins takes the same way.
     property string screenSheetPlugin: ""
     Connections {
@@ -311,7 +311,7 @@ ApplicationWindow {
             pluginPickPath.ask(pluginId, requestId, title, filters)
         }
     }
-    // fb.ui.pick_file and the consent question of cheats / memory writes (0.20).
+    // uz.ui.pick_file and the consent question of cheats / memory writes (0.20).
     DialogsGate { id: dialogsGate }
     Loader {
         id: pluginPick

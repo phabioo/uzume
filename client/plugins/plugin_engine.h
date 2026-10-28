@@ -39,7 +39,7 @@ class ConsoleStore {
   QStringList ids() const;
   QStringList takeDirty();
 
-  UiStore ui;  // trees, titles, badges and toasts of fb.ui (own mutex)
+  UiStore ui;  // trees, titles, badges and toasts of uz.ui (own mutex)
 
  private:
   mutable std::mutex m_mutex;
@@ -69,7 +69,7 @@ struct RunSub {
   int ref = 0;
 };
 
-// Results of fb.video.capture arrive on any thread (the Player's GUI thread) and are drained on the plugin thread.
+// Results of uz.video.capture arrive on any thread (the Player's GUI thread) and are drained on the plugin thread.
 // Shared with the callbacks, so a late result after stop() lands in a mailbox nobody reads and is freed with it.
 struct CaptureInbox {
   struct Item {
@@ -102,18 +102,18 @@ struct Plugin {
   qint64 cacheBytes = -1;
   int cacheFiles = 0;  // files in the cache, valid with cacheBytes
   QList<WatchedRow> lastRows;
-  int actionRef = -2;                         // fb.ui.on_action handler (LUA_NOREF)
-  std::vector<RunSub> runSubs;                // fb.run.on callbacks
-  QJsonObject boardPending;                   // fb.run.setBoard: latest tree waiting for the 1/s limit
+  int actionRef = -2;                         // uz.ui.on_action handler (LUA_NOREF)
+  std::vector<RunSub> runSubs;                // uz.run.on callbacks
+  QJsonObject boardPending;                   // uz.run.setBoard: latest tree waiting for the 1/s limit
   bool hasBoardPending = false;
   std::chrono::steady_clock::time_point boardLast;
-  std::map<QString, QVariantMap> uiTrees;     // slot -> current tree (for fb.ui.patch)
-  uint64_t captureNextId = 1;                 // fb.video.capture request ids
+  std::map<QString, QVariantMap> uiTrees;     // slot -> current tree (for uz.ui.patch)
+  uint64_t captureNextId = 1;                 // uz.video.capture request ids
   std::optional<PendingCapture> capture;      // at most one pending capture
   std::optional<std::chrono::steady_clock::time_point> captureLast;  // last accepted request (1 per second)
-  std::map<QString, std::shared_ptr<const SoundClip>> soundClips;  // fb.sound.play: decoded files by path (at most 8)
-  std::optional<std::chrono::steady_clock::time_point> snapshotLast;  // fb.save.snapshot: last accepted call (1 per minute)
-  std::map<uint64_t, int> pickRefs;           // fb.ui.pick_file: request id -> registry ref of the callback
+  std::map<QString, std::shared_ptr<const SoundClip>> soundClips;  // uz.sound.play: decoded files by path (at most 8)
+  std::optional<std::chrono::steady_clock::time_point> snapshotLast;  // uz.save.snapshot: last accepted call (1 per minute)
+  std::map<uint64_t, int> pickRefs;           // uz.ui.pick_file: request id -> registry ref of the callback
   uint64_t pickNextId = 1;
   double toastTokens = 3;                     // notify rate limit: burst 3, one per second sustained
   std::chrono::steady_clock::time_point toastLast = std::chrono::steady_clock::now();
@@ -132,7 +132,7 @@ struct QueuedEvent {
   size_t bytes = 0;  // valueBytes(value) + name: what the queue accounts for
 };
 
-// Event queue limits: by count and by (real) bytes, in total and per emitting plugin (plugin "fb" = host events).
+// Event queue limits: by count and by (real) bytes, in total and per emitting plugin (plugin "uz" = host events).
 inline constexpr size_t kMaxQueuedEventCount = 10000;
 inline constexpr size_t kMaxQueuedEventBytes = 16u * 1024 * 1024;
 inline constexpr size_t kMaxQueuedEventBytesPerPlugin = 4u * 1024 * 1024;
@@ -150,9 +150,9 @@ class PluginEngine {
   void iterate();  // one host iteration: events, tick, watched rows
   // Host-side input from the UI thread (queued onto the plugin thread by the host).
   void deliverAction(const QString& pluginId, const QString& slot, const QString& action, const Value& value);
-  void postHostEvent(const QString& name, Value value, const QString& target);  // event source "fb"
+  void postHostEvent(const QString& name, Value value, const QString& target);  // event source "uz"
   void postAppEvent(const QString& name, Value value, const QString& target);   // event source "app" (cheats.blocked ...)
-  // fb.ui.pick_file result: calls the callback of the request once; `error` empty = content valid.
+  // uz.ui.pick_file result: calls the callback of the request once; `error` empty = content valid.
   void deliverFile(const QString& pluginId, uint64_t requestId, const std::string& content, const std::string& name, const std::string& error);
   // Whether an event of `bytes` from `from` still fits the queue (count, total bytes, per-source bytes).
   bool eventFits(const QString& from, size_t bytes) const;
@@ -170,12 +170,12 @@ class PluginEngine {
   // Runs a callback (registry ref) of `p` with arguments pushed by `pushArgs`; pauses `p` on failure.
   void callRef(Plugin& p, int ref, const std::function<int(lua_State*)>& pushArgs);
   void releaseState(Plugin& p);
-  // fb.video.capture: returns the request id; the result (or the error) arrives as host event "video.captured" to `p`.
+  // uz.video.capture: returns the request id; the result (or the error) arrives as host event "video.captured" to `p`.
   // `screen` non-empty = a named screen, otherwise the rectangle x/y/w/h (source-frame pixels).
   uint64_t requestCapture(Plugin& p, const std::string& screen, int x, int y, int w, int h);
 
-  // Debug probes of the MCP server (ADR 0032), plugin thread: call fb.provide'd function / run a chunk in the plugin's
-  // state under the normal budget. Output (print, fb.log) written meanwhile is captured into the result.
+  // Debug probes of the MCP server (ADR 0032), plugin thread: call uz.provide'd function / run a chunk in the plugin's
+  // state under the normal budget. Output (print, uz.log) written meanwhile is captured into the result.
   ProbeResult probeCall(const QString& id, const std::string& iface, const std::string& fn, const std::vector<Value>& args);
   ProbeResult probeEval(const QString& id, const std::string& code);
 
@@ -212,7 +212,7 @@ class PluginEngine {
   std::chrono::steady_clock::time_point m_lastWatched;
 };
 
-// fb.cache file names: A-Z a-z 0-9 . _ - and /, no "..", no device names (also used by the MCP server's cache tools).
+// uz.cache file names: A-Z a-z 0-9 . _ - and /, no "..", no device names (also used by the MCP server's cache tools).
 bool validCacheName(const std::string& name);
 // plugin_api.cpp: creates the `fb` global in p.lua.
 void registerFbApi(PluginEngine& engine, Plugin& p);

@@ -461,7 +461,7 @@ class PlayerController : public QObject {
   Q_PROPERTY(bool collectingDiagnostics READ collectingDiagnostics NOTIFY collectingDiagnosticsChanged)
   Q_INVOKABLE void showEmulation();
   Q_INVOKABLE void showControllers();
-  // fb.ui.open("screen") / "Open" in Settings > Plugins outside a game: selects the plugin's tab when it runs as the opened run's
+  // uz.ui.open("screen") / "Open" in Settings > Plugins outside a game: selects the plugin's tab when it runs as the opened run's
   // view, else asks the window to show the plugin screen sheet (pluginScreenRequested). Plugins have no sidebar entry.
   Q_INVOKABLE void openPluginScreen(const QString& pluginId);
   Q_INVOKABLE void showRuns();  // Runs screen (docs/design/legacy/plugins.md 4j-2)
@@ -613,7 +613,7 @@ class PlayerController : public QObject {
   QMap<QString, QString> coreVersions_;  // core_id -> version from the core info
   QMap<QString, QString> coreNames_;  // core_id -> name from the core info (only if probed)
   AudioMixer mixer_;                          // the one output sink of the app (0.23); before session_ and sessions_
-  std::shared_ptr<PluginSoundBus> soundBus_;  // fb.sound; before plugins_
+  std::shared_ptr<PluginSoundBus> soundBus_;  // uz.sound; before plugins_
   LibraryModel model_;
   GameSession session_;
   std::unique_ptr<SessionController> sessions_;

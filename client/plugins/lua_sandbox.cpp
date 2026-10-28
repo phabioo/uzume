@@ -33,7 +33,7 @@ const char* safeToString(lua_State* L, int idx, size_t* len) {
   const int top = lua_gettop(L);
   const char* name = luaL_typename(L, idx);
   if (luaL_getmetafield(L, idx, "__name") == LUA_TSTRING) name = lua_tostring(L, -1);
-  if (lua_getfield(L, LUA_REGISTRYINDEX, "fb.ids") != LUA_TTABLE) {
+  if (lua_getfield(L, LUA_REGISTRYINDEX, "uz.ids") != LUA_TTABLE) {
     lua_pop(L, 1);
     lua_createtable(L, 0, 8);
     lua_createtable(L, 0, 1);
@@ -41,18 +41,18 @@ const char* safeToString(lua_State* L, int idx, size_t* len) {
     lua_setfield(L, -2, "__mode");
     lua_setmetatable(L, -2);
     lua_pushvalue(L, -1);
-    lua_setfield(L, LUA_REGISTRYINDEX, "fb.ids");
+    lua_setfield(L, LUA_REGISTRYINDEX, "uz.ids");
   }
   lua_pushvalue(L, idx);
   lua_rawget(L, -2);
   lua_Integer id = lua_tointeger(L, -1);
   lua_pop(L, 1);
   if (id == 0) {
-    lua_getfield(L, LUA_REGISTRYINDEX, "fb.idn");
+    lua_getfield(L, LUA_REGISTRYINDEX, "uz.idn");
     id = lua_tointeger(L, -1) + 1;
     lua_pop(L, 1);
     lua_pushinteger(L, id);
-    lua_setfield(L, LUA_REGISTRYINDEX, "fb.idn");
+    lua_setfield(L, LUA_REGISTRYINDEX, "uz.idn");
     lua_pushvalue(L, idx);
     lua_pushinteger(L, id);
     lua_rawset(L, -3);

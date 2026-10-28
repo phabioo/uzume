@@ -39,7 +39,7 @@ namespace uzume::ui {
 
 class GameSession;
 
-// A game started in a run: exactly these Hub copies run, with fb.run backed by `bridge`.
+// A game started in a run: exactly these Hub copies run, with uz.run backed by `bridge`.
 struct RunLaunch {
   std::shared_ptr<plugins::RunBridge> bridge;
   QList<plugins::RunPluginPin> pins;
@@ -86,7 +86,7 @@ class PluginsController : public QObject {
   //  path}; empty before the first attempt or after dismissUnpackedResult(). An error installs nothing (board 4d-2B).
   Q_PROPERTY(QVariantMap unpackedResult READ unpackedResult NOTIFY unpackedResultChanged)
 
-  // Plugin UI v1 (fb.ui). Models are rebuilt on the UI thread when the plugin thread delivers changes (coalesced to
+  // Plugin UI v1 (uz.ui). Models are rebuilt on the UI thread when the plugin thread delivers changes (coalesced to
   // about 30 updates per second and slot); the trees themselves are fetched with slotTree() on slotChanged().
   // [{pluginId, name, title, icon, origin, dot, paused}]: in-game panel tabs of the running plugins that declare ui.panel.
   Q_PROPERTY(QVariantList panelTabs READ panelTabs NOTIFY panelTabsChanged)
@@ -166,7 +166,7 @@ class PluginsController : public QObject {
   QStringList shellPluginIds() const { return shellIds_; }
   bool shellRunning() const { return shellRunning_; }
   // Run view: while the Runs screen shows a run (and no game runs) the plugins of the run that declare ui.run or ui.screen run next to the
-  // shell set, as the exact pinned Hub copies (resolveForRun), in the shell context with a read-only fb.run bound to
+  // shell set, as the exact pinned Hub copies (resolveForRun), in the shell context with a read-only uz.run bound to
   // `run.bridge` (current().view == true; writes are refused). Calling it again for the same run and pins keeps the running
   // plugins; another run replaces them. A plugin that is in the shell set too runs once, as the run view instance.
   // gameStarted() ends the run view (inGameChanged() tells the Runs screen to start it again after the game).
@@ -191,17 +191,17 @@ class PluginsController : public QObject {
   QString hubStatus() const;
   QString hubError() const { return hubClient_ != nullptr ? hubClient_->errorMessage() : QString(); }
 
-  // 0.20 plugin API emulation (fb.memory.write, fb.cheats, fb.save.snapshot). The PlayerController wires the snapshot function,
+  // 0.20 plugin API emulation (uz.memory.write, uz.cheats, uz.save.snapshot). The PlayerController wires the snapshot function,
   // the cheats-used marker and the connection once, and sets the game info before gameStarted().
   PluginEmulationService* emulation() { return emulation_.get(); }
-  void setSoundSink(std::shared_ptr<plugins::SoundSink> sink) { sound_ = std::move(sink); }  // fb.sound (0.23)
+  void setSoundSink(std::shared_ptr<plugins::SoundSink> sink) { sound_ = std::move(sink); }  // uz.sound (0.23)
   void setGameInfo(const PluginEmulationService::GameInfo& info) { gameInfo_ = info; }
   QVariantMap consentRequest() const { return emulation_->consentRequest(); }
   int cheatsOn() const { return emulation_->cheatsOn(); }
   Q_INVOKABLE void answerConsent(bool allow) { emulation_->answerConsent(allow); }
-  // fb.ui.pick_file: the file dialog answered (path or file:// URL) or was cancelled (empty path).
+  // uz.ui.pick_file: the file dialog answered (path or file:// URL) or was cancelled (empty path).
   Q_INVOKABLE void completePick(const QString& pluginId, const QString& requestId, const QString& pathOrUrl);
-  // fb.store: the local copy of this person's plugin data (per server and user); null before the first start.
+  // uz.store: the local copy of this person's plugin data (per server and user); null before the first start.
   std::shared_ptr<plugins::PluginStore> store() {
     ensureStore();
     return store_;
@@ -215,9 +215,9 @@ class PluginsController : public QObject {
   // The game ended or failed: stops all plugins.
   void gameStopped();
 
-  // Uzume 0.21 (fb.variants, permission variants.build): the app side of the game variants. Set once; the shell plugins restart so a
+  // Uzume 0.21 (uz.variants, permission variants.build): the app side of the game variants. Set once; the shell plugins restart so a
   // plugin that registers its presets there sees it. launchContext = library id of the game about to start and the 3DS mod folder
-  // of a started variant (fb.variants.list, the fb.rom RomFS overlay); call it before gameStarted().
+  // of a started variant (uz.variants.list, the uz.rom RomFS overlay); call it before gameStarted().
   void setVariantsProvider(std::shared_ptr<plugins::VariantsProvider> provider);
   void setLaunchContext(const QString& gameId, const QString& modDir) {
     launchGameId_ = gameId;
@@ -248,7 +248,7 @@ class PluginsController : public QObject {
   bool setIdentityOverride(const QString& system, const QString& code);
   void clearIdentityOverride();
   QVariantMap identityOverride() const;
-  // Open fb.ui.pick_file requests as [{pluginId, requestId}], oldest first (debug MCP: file_dialog_pick).
+  // Open uz.ui.pick_file requests as [{pluginId, requestId}], oldest first (debug MCP: file_dialog_pick).
   Q_INVOKABLE QVariantList pendingPicks() const;
   Q_INVOKABLE void uninstall(const QString& id);
   Q_INVOKABLE void setPluginEnabled(const QString& id, bool enabled);
@@ -264,7 +264,7 @@ class PluginsController : public QObject {
   Q_INVOKABLE QVariantMap slotTree(const QString& pluginId, const QString& slot) const;
   Q_INVOKABLE QVariantList tileStrips(const QString& tileId) const;  // [{pluginId, name, icon, origin, tree}]
   // Forwards a UI action (button, toggle, select, list row, map marker, toast action slot "toast", hotkey slot "hotkey")
-  // to the plugin's fb.ui.on_action handler.
+  // to the plugin's uz.ui.on_action handler.
   Q_INVOKABLE void sendAction(const QString& pluginId, const QString& slot, const QString& action, const QVariant& value = QVariant());
   // The game detail pane shows this game (empty system = none): clears the "detail" slots and sends fb/detail.game.
   Q_INVOKABLE void setDetailGame(const QString& system, const QString& code, const QString& sha256, const QString& title);
@@ -330,11 +330,11 @@ class PluginsController : public QObject {
   void actionSent(const QString& pluginId, const QString& slot, const QString& action, const QVariant& value);
   // The tree of a slot was set, patched or cleared (fetch it with slotTree()).
   void slotChanged(const QString& pluginId, const QString& slot);
-  // fb.ui.open(slot) of a running plugin ("screen" or "panel"); the game view and Main.qml decide what to show.
+  // uz.ui.open(slot) of a running plugin ("screen" or "panel"); the game view and Main.qml decide what to show.
   void openRequested(const QString& pluginId, const QString& slot);
-  // fb.ui.close(slot) of a running plugin: close the sheet or panel tab fb.ui.open showed.
+  // uz.ui.close(slot) of a running plugin: close the sheet or panel tab uz.ui.open showed.
   void closeRequested(const QString& pluginId, const QString& slot);
-  // fb.ui.pick_file of a running plugin: show a file dialog (title, filters like "*.cht", max_bytes) and answer with completePick().
+  // uz.ui.pick_file of a running plugin: show a file dialog (title, filters like "*.cht", max_bytes) and answer with completePick().
   void pickFileRequested(const QString& pluginId, const QString& requestId, const QString& title, const QStringList& filters, double maxBytes);
   // The request was answered (a file, or cancel): dialogs that are still open for it close (also when the MCP tool answered it).
   void pickCompleted(const QString& pluginId, const QString& requestId);
@@ -407,13 +407,13 @@ class PluginsController : public QObject {
   QString hubBusyId_;
   QList<QPair<QString, QString>> installQueue_;  // (id, version) still to install after the current one
   std::shared_ptr<MemoryWatchAdapter> adapter_;
-  std::shared_ptr<plugins::VariantsProvider> variants_;  // fb.variants of every context (shell and game)
+  std::shared_ptr<plugins::VariantsProvider> variants_;  // uz.variants of every context (shell and game)
   plugins::GameContext gameCtx_;  // of the running game (restarts when the rules of a run change)
   QString gameSystem_, gameCode_;
   RunLaunch runLaunch_;
   QString launchGameId_;
   QString launchModDir_;
-  std::shared_ptr<VideoCaptureAdapter> video_;  // fb.video of the running game; released on the GUI thread after host_->stop()
+  std::shared_ptr<VideoCaptureAdapter> video_;  // uz.video of the running game; released on the GUI thread after host_->stop()
   std::unique_ptr<DevConsole> devConsole_;
   QVariantMap unpackedResult_;
   struct IdentityOverride {
@@ -421,7 +421,7 @@ class PluginsController : public QObject {
     qint64 setAtMs = 0;
   };
   std::optional<IdentityOverride> identityOverride_;
-  std::shared_ptr<plugins::RunBridge> consoleRun_;  // fb.run bridge of the running game (Inspect: run state)
+  std::shared_ptr<plugins::RunBridge> consoleRun_;  // uz.run bridge of the running game (Inspect: run state)
   bool running_ = false;                      // plugins of the running game are started
   bool inGame_ = false;                       // a game runs (with or without plugins)
   bool shellRunning_ = false;

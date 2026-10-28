@@ -29,14 +29,14 @@ class EngineBudgetTest : public QObject {
   void iterateStopsDeliveringWhenTheAggregateBudgetIsUsed() {
     PluginSpec emitter;
     emitter.id = "net.test.emitter";
-    emitter.lua = "for i = 1, 24 do fb.events.emit('ping', i) end";
+    emitter.lua = "for i = 1, 24 do uz.events.emit('ping', i) end";
     PluginSpec slow;
     slow.id = "net.test.slow";
     slow.lua = R"LUA(
-      fb.events.on("*", "ping", function()
+      uz.events.on("*", "ping", function()
         local x = 0
         for i = 1, 4000000 do x = x + i end   -- a few tens of ms: well below the per-call limits, far above the aggregate budget
-        fb.log.info("h")
+        uz.log.info("h")
       end)
     )LUA";
     ConsoleStore store;
@@ -74,12 +74,12 @@ class EngineBudgetTest : public QObject {
       local n = 0
       local last
       for i = 1, 100 do
-        local ok, e = pcall(fb.events.emit, "flood", big)
+        local ok, e = pcall(uz.events.emit, "flood", big)
         if not ok then last = e break end
         n = n + 1
       end
-      fb.log.info("emitted " .. n)
-      fb.log.info("stopped: " .. tostring(last))
+      uz.log.info("emitted " .. n)
+      uz.log.info("stopped: " .. tostring(last))
     )LUA";
     ConsoleStore store;
     std::atomic<int> hz{100};

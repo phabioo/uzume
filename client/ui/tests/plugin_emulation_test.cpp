@@ -1,5 +1,5 @@
 // PluginEmulationService against the Uzume test core: run rule -> consent -> safety copy -> emulation queue -> run log, for
-// fb.cheats and fb.memory.write, plus the plugin snapshot rate limit (0.20 package 5). The plugin thread side of the API is
+// uz.cheats and uz.memory.write, plus the plugin snapshot rate limit (0.20 package 5). The plugin thread side of the API is
 // covered by plugins/tests/emulation_test.cpp with a fake bridge.
 #include <QDir>
 #include <QFile>

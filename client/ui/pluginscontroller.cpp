@@ -655,7 +655,7 @@ void PluginsController::refreshPlugins() {
   }
   updateImageSources();
   if (variants_ != nullptr) {
-    // What a plugin registered through fb.variants stays only while the plugin is on and without problems.
+    // What a plugin registered through uz.variants stays only while the plugin is on and without problems.
     QSet<QString> active;
     for (const plugins::PluginInfo& p : list)
       if (p.enabled && p.problems.isEmpty() && p.manifest.hasPermission(QStringLiteral("variants.build"))) active.insert(p.manifest.id);
@@ -668,7 +668,7 @@ void PluginsController::refreshPlugins() {
 
 void PluginsController::setVariantsProvider(std::shared_ptr<plugins::VariantsProvider> provider) {
   variants_ = std::move(provider);
-  shellSignature_.clear();  // the shell plugins start again with fb.variants
+  shellSignature_.clear();  // the shell plugins start again with uz.variants
   updateShell();
 }
 
@@ -860,7 +860,7 @@ void PluginsController::stopGame(bool restartShell) {
 
 // Shell context: while no game runs, the enabled plugins with ui.screen or ui.detail run with an empty game. While the Runs
 // screen shows a run (run view), the run's pinned plugins with ui.run or ui.screen (plus what they require) join them in the same host,
-// with a read-only fb.run; a plugin that is in both sets runs once, as the run view instance.
+// with a read-only uz.run; a plugin that is in both sets runs once, as the run view instance.
 void PluginsController::updateShell() {
   if (inGame_) return;
   const plugins::GameResolution res = manager_->resolveForShell();
@@ -1011,7 +1011,7 @@ QStringList PluginsController::consoleIds() const {
   return ids;
 }
 
-// Inspect area of the console: the run state this plugin wrote (fb.run) and its keys in the plugin store (fb.store).
+// Inspect area of the console: the run state this plugin wrote (uz.run) and its keys in the plugin store (uz.store).
 QVariantMap PluginsController::inspectOf(const QString& id) const {
   QVariantMap out;
   std::shared_ptr<plugins::RunBridge> run = consoleRun_ ? consoleRun_ : runViewBridge_;
@@ -1069,7 +1069,7 @@ void PluginsController::setPreviewConsole(const QVariantMap& console) {
   emit consoleChanged();
 }
 
-// ---------------------------------------------------------------- plugin UI (fb.ui)
+// ---------------------------------------------------------------- plugin UI (uz.ui)
 
 QStringList PluginsController::activeIds() const { return inGame_ ? runningIds_ : shellIds_; }
 

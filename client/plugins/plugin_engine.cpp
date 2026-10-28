@@ -437,8 +437,8 @@ void PluginEngine::reload(const QString& id) {
   const qint64 ms = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - t0).count();
   if (p->status == PluginStatus::Running) {
     log(*p, LogLevel::Info, "Reloaded in " + std::to_string(ms) + " ms");
-    // What survives a reload: fb.store, fb.cache, the run state on the server, per-game consent. The Lua state does not, so the
-    // plugin hears about it (fb.events.on("fb", "reloaded", fn)) and can restore from fb.store.
+    // What survives a reload: uz.store, uz.cache, the run state on the server, per-game consent. The Lua state does not, so the
+    // plugin hears about it (uz.events.on("uz", "reloaded", fn)) and can restore from uz.store.
     postHostEvent(QStringLiteral("reloaded"), valueFromVariant(QVariantMap{{QStringLiteral("ms"), ms}}), p->id());
   }
   store.setReloaded(p->id(), ms);
@@ -484,8 +484,8 @@ void PluginEngine::deliverAction(const QString& pluginId, const QString& slot, c
 
 void PluginEngine::postHostEvent(const QString& name, Value value, const QString& target) {
   const std::string n = name.toStdString();
-  if (!eventFits(QStringLiteral("fb"), valueBytes(value) + n.size() + sizeof(QueuedEvent))) return;
-  pushEvent({QStringLiteral("fb"), n, std::move(value), target, 0});
+  if (!eventFits(QStringLiteral("uz"), valueBytes(value) + n.size() + sizeof(QueuedEvent))) return;
+  pushEvent({QStringLiteral("uz"), n, std::move(value), target, 0});
 }
 
 void PluginEngine::postAppEvent(const QString& name, Value value, const QString& target) {
@@ -579,7 +579,7 @@ void PluginEngine::updateWatched() {
   }
 }
 
-// fb.run: hands what happened in the run to the subscribed plugins, and sends boards that waited for the 1/s limit.
+// uz.run: hands what happened in the run to the subscribed plugins, and sends boards that waited for the 1/s limit.
 void PluginEngine::pollRun() {
   if (!ctx.run) return;
   const auto now = Clock::now();
@@ -589,7 +589,7 @@ void PluginEngine::pollRun() {
       p.hasBoardPending = false;
       p.boardLast = now;
       const QString e = ctx.run->setBoard(p.id(), p.boardPending);
-      if (!e.isEmpty()) log(p, LogLevel::Warn, "fb.run.setBoard: " + e.toStdString());
+      if (!e.isEmpty()) log(p, LogLevel::Warn, "uz.run.setBoard: " + e.toStdString());
     }
   }
   for (const RunNotification& n : ctx.run->takeNotifications()) {

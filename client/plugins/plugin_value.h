@@ -6,7 +6,7 @@
 
 struct lua_State;
 
-// Plain-data copy of a Lua value, used to move values between Lua states (events, fb.call, fb.provide results).
+// Plain-data copy of a Lua value, used to move values between Lua states (events, uz.call, uz.provide results).
 // Allowed: nil, boolean, number, string, tables of these. Functions, userdata and threads are rejected.
 namespace uzume::plugins {
 

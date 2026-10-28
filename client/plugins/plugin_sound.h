@@ -1,5 +1,5 @@
 #pragma once
-// fb.sound (0.23, ADR 0033 D6): plugin sounds. The plugin runtime decodes a 16-bit PCM WAV from the plugin package and hands
+// uz.sound (0.23, ADR 0033 D6): plugin sounds. The plugin runtime decodes a 16-bit PCM WAV from the plugin package and hands
 // the clip to a SoundSink (the app's plugin sound bus in the audio mixer). No Qt Multimedia here.
 
 #include <QByteArray>

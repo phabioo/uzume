@@ -19,24 +19,24 @@ namespace uzume::plugins {
 
 enum class PluginStatus { Loading, Running, Paused, Stopped };
 
-// What the plugins are told about the running game (fb.game). Empty fields become nil in Lua.
+// What the plugins are told about the running game (uz.game). Empty fields become nil in Lua.
 struct GameContext {
   QString system;    // "nds", "3ds", ...
   QString code;      // game code, e.g. the 4-letter DS code or the 3DS title id
   QString sha256;
   QString title;
-  QString romPath;   // game file for fb.rom (rom.read)
-  QString language;  // game language for fb.i18n, e.g. "de", "en", "de-DE"
-  bool shell = false;  // shell context: no game runs; fb.game is an empty table, memory/rom reads return nil
-  std::shared_ptr<RunBridge> run;  // the game was started in a run: fb.run exists (permission run.state); null = no fb.run
-  std::shared_ptr<EmulationBridge> emulation;  // fb.memory.write, fb.cheats, fb.save.snapshot (0.20); null = "no_game"
-  std::shared_ptr<PluginStore> store;  // fb.store (permission store); null = nil, "unavailable"
-  std::shared_ptr<VideoProvider> video;  // frame source of the running game (fb.video, video.capture); null = fb.video.screens() is nil, captures fail with "unsupported"
+  QString romPath;   // game file for uz.rom (rom.read)
+  QString language;  // game language for uz.i18n, e.g. "de", "en", "de-DE"
+  bool shell = false;  // shell context: no game runs; uz.game is an empty table, memory/rom reads return nil
+  std::shared_ptr<RunBridge> run;  // the game was started in a run: uz.run exists (permission run.state); null = no uz.run
+  std::shared_ptr<EmulationBridge> emulation;  // uz.memory.write, uz.cheats, uz.save.snapshot (0.20); null = "no_game"
+  std::shared_ptr<PluginStore> store;  // uz.store (permission store); null = nil, "unavailable"
+  std::shared_ptr<VideoProvider> video;  // frame source of the running game (uz.video, video.capture); null = uz.video.screens() is nil, captures fail with "unsupported"
   // New fields go at the end (the tests aggregate-initialise the leading ones).
-  QString gameId;    // library id of the game (fb.variants.list); empty in the shell context
-  QString modDir;    // 3DS variant: LayeredFS mod folder laid over the RomFS of romPath by fb.rom.romfs / romfs_list; empty otherwise
-  std::shared_ptr<SoundSink> sound;  // fb.sound (permission sound); null = fb.sound.play returns nil, "unavailable"
-  std::shared_ptr<VariantsProvider> variants;  // fb.variants (permission variants.build); null = fb.variants.register / build fail with "variants are not available"
+  QString gameId;    // library id of the game (uz.variants.list); empty in the shell context
+  QString modDir;    // 3DS variant: LayeredFS mod folder laid over the RomFS of romPath by uz.rom.romfs / romfs_list; empty otherwise
+  std::shared_ptr<SoundSink> sound;  // uz.sound (permission sound); null = uz.sound.play returns nil, "unavailable"
+  std::shared_ptr<VariantsProvider> variants;  // uz.variants (permission variants.build); null = uz.variants.register / build fail with "variants are not available"
 };
 
 struct HostLimits {

@@ -163,7 +163,7 @@ struct FbSpec {
   QString name;
   QString version = QStringLiteral("1.0.0");
   QStringList permissions{QStringLiteral("memory.read")};
-  QString lua = QStringLiteral("fb.log.info('hello')\n");
+  QString lua = QStringLiteral("uz.log.info('hello')\n");
   QMap<QString, QByteArray> extra;  // extra files
   bool sign = false;
   TestKey key = fixedTestKey();
