@@ -219,6 +219,9 @@ class PlayerSettings {
   // Visibility of the own shared Session: "private" | "hub_users" | "invite_only"; "" = not chosen yet (the caller's default).
   QString sessionVisibility() const { return sessionVisibility_; }
   bool setSessionVisibility(const QString& visibility);  // anything else is rejected (false)
+  // Quality a new watched Session starts with on this PC (ADR 0033 D5): "auto" | "high" | "medium" | "low".
+  QString viewerQuality() const { return viewerQuality_; }
+  bool setViewerQuality(const QString& pick);  // anything else is rejected (false)
 
  private:
   bool save() const;
@@ -239,6 +242,7 @@ class PlayerSettings {
   bool stateLoadAsk_ = true;
   QString libraryView_ = QStringLiteral("list");
   QString sessionVisibility_;
+  QString viewerQuality_ = QStringLiteral("auto");
   QStringList libraryFolders_;
   bool developerMode_ = false;
   bool pluginReloadOnChange_ = true;

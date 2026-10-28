@@ -17,7 +17,9 @@
 #include "notificationcenter.h"
 #include "onboardingcontroller.h"
 #include "playercontroller.h"
+#include "qualitytier.h"
 #include "sessioncontroller.h"
+#include "sessionviewer.h"
 #include "togethercontroller.h"
 #include "tools_util.h"
 
@@ -378,6 +380,81 @@ void installTogetherTools(McpToolRegistry& registry, ui::PlayerController& playe
     reply(ToolResult::json(QJsonObject{{QStringLiteral("ok"), true}}));
   };
   registry.add(std::move(tp));
+
+  // session_quality / session_viewers (0.23, ADR 0033 D5): quality per viewer.
+  ToolDef sq;
+  sq.name = QStringLiteral("session_quality");
+  sq.description = QStringLiteral(
+      "Viewer side: picks the quality of a watched Session like the Quality segmented of the People tab (pick auto | high | medium | low; High 4 "
+      "Mbit/s, Medium 1.5, Low 0.6 at 30 fps, Auto adaptive). The pick also becomes this PC's default for new Sessions. session_id defaults to the "
+      "first watched Session. Answers not_watching without one. Reads back the pick and what the host serves (tier, kbps, once the host said).");
+  sq.inputSchema = schema({{QStringLiteral("pick"), typeStr(QStringLiteral("auto | high | medium | low"))},
+                           {QStringLiteral("session_id"), typeStr(QStringLiteral("Watched Session (default: the first one)"))}},
+                          {QStringLiteral("pick")});
+  sq.handler = [pc](const QJsonObject& a, ToolReply reply) {
+    if (!pc) return reply(ToolResult::error(QStringLiteral("app_closing")));
+    const QString pick = a.value(QStringLiteral("pick")).toString();
+    if (!parseQualityToken(pick)) return reply(ToolResult::error(QStringLiteral("pick must be auto, high, medium or low")));
+    ui::SessionController* sc = pc->sessions();
+    QString sid = a.value(QStringLiteral("session_id")).toString();
+    if (sid.isEmpty() && !sc->shownSessionIds().isEmpty()) sid = sc->shownSessionIds().first();
+    if (sid.isEmpty() || sc->role(sid) != QLatin1String("viewer")) return reply(ToolResult::error(QStringLiteral("not_watching")));
+    sc->setQuality(sid, pick);
+    SessionViewer* v = sc->viewer(sid);
+    QJsonObject o{{QStringLiteral("session_id"), sid}, {QStringLiteral("role"), sc->role(sid)}, {QStringLiteral("pick"), sc->quality(sid)},
+                  {QStringLiteral("default"), sc->defaultQuality()}};
+    if (v && v->hasServedTier()) {
+      o.insert(QStringLiteral("tier"), qualityToken(v->servedTier()));
+      o.insert(QStringLiteral("kbps"), v->servedKbps());
+    }
+    reply(ToolResult::json(o));
+  };
+  registry.add(std::move(sq));
+
+  ToolDef sv;
+  sv.name = QStringLiteral("session_viewers");
+  sv.description = QStringLiteral(
+      "Roles and quality of the Session you are in. As host (a shared Session): viewers [{viewer_id, name, role, rtt_ms (fb-diag ping/pong), pick, "
+      "tier, kbps, gets, connection}], the stream line (\"Sending 2 streams · 3.1 Mbit/s\"), encoders alive and their tiers. As viewer: watching "
+      "[{session_id, role, pick, tier, kbps, latency_ms}]. Read-only.");
+  sv.inputSchema = schema();
+  sv.handler = [pc](const QJsonObject&, ToolReply reply) {
+    if (!pc) return reply(ToolResult::error(QStringLiteral("app_closing")));
+    ui::SessionController* sc = pc->sessions();
+    QJsonArray viewers;
+    for (const QVariant& v : sc->viewerStates()) {
+      const QVariantMap m = v.toMap();
+      QJsonObject o;
+      for (auto it = m.constBegin(); it != m.constEnd(); ++it) o.insert(it.key(), QJsonValue::fromVariant(it.value()));
+      viewers.append(o);
+    }
+    QJsonArray watching;
+    for (const QString& sid : sc->shownSessionIds()) {
+      if (sc->role(sid) != QLatin1String("viewer")) continue;
+      QJsonObject o{{QStringLiteral("session_id"), sid}, {QStringLiteral("role"), sc->role(sid)}, {QStringLiteral("pick"), sc->quality(sid)}};
+      if (SessionViewer* v = sc->viewer(sid)) {
+        if (v->hasServedTier()) {
+          o.insert(QStringLiteral("tier"), qualityToken(v->servedTier()));
+          o.insert(QStringLiteral("kbps"), v->servedKbps());
+        }
+        if (v->latencyMs()) o.insert(QStringLiteral("latency_ms"), qRound(*v->latencyMs()));
+      }
+      watching.append(o);
+    }
+    const SessionStats st = sc->host()->stats();
+    QJsonArray tiers;
+    for (const Quality q : sc->host()->encoderTiers()) tiers.append(qualityToken(q));
+    reply(ToolResult::json(QJsonObject{{QStringLiteral("hosting"), sc->shared()},
+                                       {QStringLiteral("role"), sc->shared() ? QStringLiteral("host") : (watching.isEmpty() ? QString() : QStringLiteral("viewer"))},
+                                       {QStringLiteral("viewers"), viewers},
+                                       {QStringLiteral("sending"), sc->sendingLine()},
+                                       {QStringLiteral("encoders"), sc->shared() ? sc->host()->encoderCount() : 0},
+                                       {QStringLiteral("tiers"), tiers},
+                                       {QStringLiteral("video_kbps"), qRound(st.videoBitrateKbps)},
+                                       {QStringLiteral("watching"), watching},
+                                       {QStringLiteral("default_quality"), sc->defaultQuality()}}));
+  };
+  registry.add(std::move(sv));
 }
 
 }  // namespace uzume::mcp

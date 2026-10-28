@@ -1,5 +1,6 @@
 #include "sessioncontroller.h"
 
+#include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
 #include <QJsonDocument>
@@ -12,6 +13,25 @@
 #include "screenlayout.h"
 
 namespace uzume::ui {
+
+namespace {
+QString tr2(const char* text) { return QCoreApplication::translate("uzume::ui::SessionController", text); }
+
+// "Direct" / "Relayed": the connection pill without the TURN detail (that stays in the diagnostics).
+QString shortPath(const QString& pillText) {
+  return pillText.startsWith(QLatin1String("Relayed")) ? tr2("Relayed") : pillText;
+}
+
+// What a person gets, as the People tab words it: "gets High" (Auto: the tier the adaptive bitrate is closest to), "picked Medium", or
+// "picked Low · gets Medium" when three encoders were alive already and the host served the closest tier.
+QString qualityPhrase(Quality pick, Quality tier, int kbps, bool known) {
+  const Quality got = tier == Quality::Auto ? qualityForKbps(kbps) : tier;
+  if (pick == Quality::Auto) return known ? tr2("gets %1").arg(qualityLabel(got)) : QString();
+  if (known && got != pick) return tr2("picked %1 · gets %2").arg(qualityLabel(pick), qualityLabel(got));
+  return tr2("picked %1").arg(qualityLabel(pick));
+}
+}  // namespace
+
 
 SessionController::SessionController(HubConnection* conn, ProfileStore* profiles, GameSession* game, QObject* parent)
     : QObject(parent), conn_(conn), profiles_(profiles), game_(game), api_(conn), socket_(conn) {
@@ -321,6 +341,7 @@ QVariantList SessionController::participants() const {
   for (const SessionViewerEntry& v : own_.viewers) {
     watchingNames << v.displayName;
     out.append(QVariantMap{{QStringLiteral("kind"), QStringLiteral("viewer")},
+                           {QStringLiteral("role"), sessionRoleToken(SessionRole::Viewer)},
                            {QStringLiteral("id"), v.viewerId},
                            {QStringLiteral("name"), v.displayName},
                            {QStringLiteral("online"), true},
@@ -354,6 +375,7 @@ QVariantList SessionController::sessionPeople(const QString& sessionId) const {
   QVariantList out;
   const auto person = [](const QString& userId, const QString& name, const QString& role, bool me, const QString& conn, const QString& tone, int color) {
     return QVariantMap{{QStringLiteral("userId"), userId}, {QStringLiteral("name"), name}, {QStringLiteral("role"), role}, {QStringLiteral("me"), me},
+                       {QStringLiteral("roleKey"), role == QLatin1String("HOST") ? sessionRoleToken(SessionRole::Host) : (role == QLatin1String("VIEWER") ? sessionRoleToken(SessionRole::Viewer) : QString())},
                        {QStringLiteral("color"), color}, {QStringLiteral("connection"), conn}, {QStringLiteral("tone"), tone}};
   };
   if (shared_ && own_.sessionId == sessionId) {
@@ -361,19 +383,67 @@ QVariantList SessionController::sessionPeople(const QString& sessionId) const {
     int n = 1;
     for (const SessionViewerEntry& v : own_.viewers) {
       const QVariantMap link = linkByViewer_.value(v.viewerId).toMap();
-      out.append(person({}, v.displayName, QStringLiteral("VIEWER"), false, link.value(QStringLiteral("text")).toString(),
+      const QString line = link.value(QStringLiteral("line")).toString();
+      out.append(person({}, v.displayName, QStringLiteral("VIEWER"), false, line.isEmpty() ? link.value(QStringLiteral("text")).toString() : line,
                         link.value(QStringLiteral("tone"), QStringLiteral("neutral")).toString(), 2 + (n++ % 7)));
     }
     return out;
   }
   if (const Remote* r = remote(sessionId)) {
     const QVariantMap link = surfaceLinks_.value(sessionId).toMap();
-    QString conn = link.value(QStringLiteral("text")).toString();
+    QString conn = shortPath(link.value(QStringLiteral("text")).toString());
     if (!link.value(QStringLiteral("rtt")).toString().isEmpty()) conn += QStringLiteral(" · ") + link.value(QStringLiteral("rtt")).toString();
     out.append(person(r->info.owner.userId, r->info.owner.displayName, QStringLiteral("HOST"), false, conn, link.value(QStringLiteral("tone"), QStringLiteral("neutral")).toString(), 1));
-    out.append(person(conn_->hubUserId(), conn_->userDisplayName(), QStringLiteral("VIEWER"), true, {}, {}, 2));
+    QVariantMap me = person(conn_->hubUserId(), conn_->userDisplayName(), QStringLiteral("VIEWER"), true, link.value(QStringLiteral("quality")).toString(), {}, 2);
+    me.insert(QStringLiteral("qualityPick"), qualityToken(r->viewer->quality()));
+    me.insert(QStringLiteral("sessionId"), sessionId);
+    out.append(me);
     // Other viewers are not known to a viewer: only their number (the Hub counts them in viewerCount)
     for (int i = 1; i < r->info.viewerCount; ++i) out.append(person({}, tr("Another viewer"), QStringLiteral("VIEWER"), false, {}, {}, 3 + (i % 6)));
+  }
+  return out;
+}
+
+QString SessionController::role(const QString& sessionId) const {
+  if (shared_ && own_.sessionId == sessionId) return sessionRoleToken(SessionRole::Host);
+  return remote(sessionId) ? sessionRoleToken(SessionRole::Viewer) : QString();
+}
+
+QString SessionController::quality(const QString& sessionId) const {
+  const Remote* r = remote(sessionId);
+  return r ? qualityToken(r->viewer->quality()) : QString();
+}
+
+QString SessionController::defaultQuality() const { return settings_ ? settings_->viewerQuality() : QStringLiteral("auto"); }
+
+void SessionController::setQuality(const QString& sessionId, const QString& pick) {
+  const auto q = parseQualityToken(pick);
+  Remote* r = remote(sessionId);
+  if (!q || !r) return;  // viewers only: the host has no quality to pick
+  r->viewer->setQuality(*q);
+  if (settings_ && settings_->viewerQuality() != pick && settings_->setViewerQuality(pick)) emit qualityDefaultChanged();
+  updateLinks();
+}
+
+QVariantList SessionController::viewerStates() const {
+  QVariantList out;
+  if (!shared_) return out;
+  const QList<ViewerLinkStats> links = viewerLinks();
+  for (const SessionViewerEntry& v : own_.viewers) {
+    ViewerLinkStats l;
+    for (const ViewerLinkStats& cand : links) {
+      if (cand.viewerId == v.viewerId) l = cand;
+    }
+    const std::optional<double> rtt = l.latencyMs ? l.latencyMs : l.rttMs;
+    out.append(QVariantMap{{QStringLiteral("viewer_id"), v.viewerId},
+                           {QStringLiteral("name"), v.displayName},
+                           {QStringLiteral("role"), sessionRoleToken(SessionRole::Viewer)},
+                           {QStringLiteral("rtt_ms"), rtt ? QVariant(qRound(*rtt)) : QVariant()},
+                           {QStringLiteral("pick"), qualityToken(l.pick)},
+                           {QStringLiteral("tier"), qualityToken(l.tier)},
+                           {QStringLiteral("kbps"), l.tierKbps},
+                           {QStringLiteral("gets"), qualityLabel(l.tier == Quality::Auto ? qualityForKbps(l.tierKbps) : l.tier)},
+                           {QStringLiteral("connection"), l.connectionType}});
   }
   return out;
 }
@@ -773,6 +843,7 @@ void SessionController::watch(const QString& sessionId) {
     rem->viewerId = r.join->viewerId;
     rem->viewer = new SessionViewer(this);
     SessionViewer* v = rem->viewer;
+    if (settings_) v->setQuality(parseQualityToken(settings_->viewerQuality()).value_or(Quality::Auto));  // this PC's default
     connect(v, &SessionViewer::signalOut, &socket_, &HubSocket::sendSignal);
     connect(v, &SessionViewer::frameReady, this, [this, sessionId](const QImage& img) {
       if (Remote* cur = remote(sessionId)) {
@@ -1189,16 +1260,27 @@ void SessionController::updateLinks() {
     for (const SessionViewerEntry& v : own_.viewers) {
       QString type;
       RelayReason reason = RelayReason::None;
+      ViewerLinkStats found;
+      bool haveLink = false;
       for (const ViewerLinkStats& l : links) {
         if (l.viewerId == v.viewerId) {
           type = l.connectionType;
           reason = l.relayReason;
+          found = l;
+          haveLink = true;
         }
       }
       const DiagnosticsModel::Pill pill = DiagnosticsModel::connectionPill(type);
       const QString reasonText = DiagnosticsModel::relayReasonText(reason);
+      // People tab line (3g-12): "Direct · 18 ms · gets High" / "Relayed · 60 ms · picked Medium"
+      QStringList line{shortPath(pill.text)};
+      const std::optional<double> rtt = found.latencyMs ? found.latencyMs : found.rttMs;
+      if (rtt) line << tr("%1 ms").arg(qRound(*rtt));
+      const QString phrase = qualityPhrase(found.pick, found.tier, found.tierKbps, haveLink && found.tierKbps > 0);
+      if (!phrase.isEmpty()) line << phrase;
       byViewer.insert(v.viewerId, QVariantMap{{QStringLiteral("text"), pill.text}, {QStringLiteral("tone"), pill.tone},
-                                              {QStringLiteral("reason"), reasonText}});
+                                              {QStringLiteral("reason"), reasonText},
+                                              {QStringLiteral("line"), line.join(QStringLiteral(" · "))}});
       if (DiagnosticsModel::isRelayed(type)) {
         relayed << (reasonText.isEmpty() ? v.displayName : QStringLiteral("%1 (%2)").arg(v.displayName, reasonText));
       }
@@ -1210,9 +1292,18 @@ void SessionController::updateLinks() {
   } else if (relayed.size() > 1) {
     hint = tr("%1 are relayed via the server (TURN) · may lag slightly.").arg(relayed.join(QStringLiteral(", ")));
   }
-  if (byViewer != linkByViewer_ || hint != relayHint_) {
+  QString sending;
+  if (shared_ && !own_.viewers.isEmpty()) {
+    const SessionStats st = override_ && overrideLocalSet_ ? overrideLocal_ : host_.stats();
+    if (st.active && st.encoders > 0) {
+      sending = st.encoders == 1 ? tr("Sending 1 stream · %1 Mbit/s").arg(DiagnosticsModel::mbit(st.videoBitrateKbps))
+                                 : tr("Sending %1 streams · %2 Mbit/s").arg(st.encoders).arg(DiagnosticsModel::mbit(st.videoBitrateKbps));
+    }
+  }
+  if (byViewer != linkByViewer_ || hint != relayHint_ || sending != sendingLine_) {
     linkByViewer_ = byViewer;
     relayHint_ = hint;
+    sendingLine_ = sending;
     emit shareChanged();
   }
   QVariantMap remoteLinks;
@@ -1220,10 +1311,13 @@ void SessionController::updateLinks() {
     const QString id = r->info.sessionId;
     const SessionStats st = override_ && overrideRemotes_.contains(id) ? overrideRemotes_.value(id) : r->viewer->stats();
     const DiagnosticsModel::Pill pill = DiagnosticsModel::connectionPill(st.connectionType);
+    const std::optional<double> latency = st.latencyMs ? st.latencyMs : st.rttMs;  // the ping/pong, else the SCTP RTT
     remoteLinks.insert(id, QVariantMap{{QStringLiteral("text"), pill.text},
                                        {QStringLiteral("tone"), pill.tone},
                                        {QStringLiteral("reason"), DiagnosticsModel::relayReasonText(st.relayReason)},
-                                       {QStringLiteral("rtt"), st.rttMs ? tr("%1 ms").arg(qRound(*st.rttMs)) : QString()}});
+                                       {QStringLiteral("rtt"), latency ? tr("%1 ms").arg(qRound(*latency)) : QString()},
+                                       {QStringLiteral("quality"), qualityPhrase(r->viewer->quality(), st.servedTier, st.servedKbps, st.hasServedTier)},
+                                       {QStringLiteral("pick"), qualityToken(r->viewer->quality())}});
   }
   if (remoteLinks != surfaceLinks_) {
     surfaceLinks_ = remoteLinks;
@@ -1276,7 +1370,7 @@ void SessionController::refreshDiagnostics() {
         }
         people.append(DiagnosticsModel::participant(tr("You"), tr("host"), {tr("Local"), QStringLiteral("neutral")},
                                                     DiagnosticsModel::hostLine(local),
-                                                    DiagnosticsModel::hostSendingLine(std::max(viewers, local.viewers))));
+                                                    DiagnosticsModel::hostSendingLine(std::max(viewers, local.viewers), local.encoders)));
         people.append(viewerRows);
         groups.append(QVariantMap{{QStringLiteral("surface"), id}, {QStringLiteral("title"), tr("Tile %1 · your session").arg(tileNo)},
                                   {QStringLiteral("details"), DiagnosticsModel::hostDetailRows(local)},

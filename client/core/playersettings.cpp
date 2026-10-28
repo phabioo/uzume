@@ -53,6 +53,7 @@ constexpr const char* kPluginHudAllHiddenKey = "plugin_hud_all_hidden";
 constexpr const char* kPluginHotkeysKey = "plugin_hotkeys";          // { "<plugin_id>/<hotkey_id>": key | "none" }
 constexpr const char* kPluginToastMuteKey = "plugin_toast_mute";    // { plugin_id: mode }
 constexpr const char* kSessionVisibilityKey = "session_visibility";
+constexpr const char* kViewerQualityKey = "viewer_quality";
 constexpr const char* kBottomWindowKey = "bottom_window";
 constexpr const char* kLibrarySortKey = "library_sort";
 constexpr const char* kLibraryReadyFirstKey = "library_ready_first";
@@ -146,6 +147,10 @@ PlayerSettings::PlayerSettings(const QString& baseDir)
   for (const QJsonValue& v : raw_.value(QLatin1String(kLibraryFoldersKey)).toArray()) {
     const QString f = QDir::cleanPath(v.toString());
     if (QDir::isAbsolutePath(f) && !libraryFolders_.contains(f)) libraryFolders_.append(f);
+  }
+  const QString vq = raw_.value(QLatin1String(kViewerQualityKey)).toString();
+  if (vq == QLatin1String("auto") || vq == QLatin1String("high") || vq == QLatin1String("medium") || vq == QLatin1String("low")) {
+    viewerQuality_ = vq;
   }
   const QString vis = raw_.value(QLatin1String(kSessionVisibilityKey)).toString();
   if (vis == QLatin1String("private") || vis == QLatin1String("hub_users") || vis == QLatin1String("invite_only")) {
@@ -657,6 +662,15 @@ bool PlayerSettings::setSessionVisibility(const QString& visibility) {
   }
   sessionVisibility_ = visibility;
   raw_.insert(QLatin1String(kSessionVisibilityKey), visibility);
+  return save();
+}
+
+bool PlayerSettings::setViewerQuality(const QString& pick) {
+  if (pick != QLatin1String("auto") && pick != QLatin1String("high") && pick != QLatin1String("medium") && pick != QLatin1String("low")) {
+    return false;
+  }
+  viewerQuality_ = pick;
+  raw_.insert(QLatin1String(kViewerQualityKey), pick);
   return save();
 }
 

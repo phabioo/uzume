@@ -19,6 +19,8 @@
 #include "bitratecontroller.h"
 #include "rtcutil.h"
 #include "mediastats.h"
+#include "qualitytier.h"
+#include "tiermanager.h"
 #include "sessiontypes.h"
 #include "videoencoder.h"
 #include "viewerreports.h"
@@ -86,6 +88,18 @@ class SessionHost : public QObject {
   // Last full second, aggregated over viewers; cheap.
   SessionStats stats() const;
   QList<ViewerLinkStats> viewerLinks() const;
+  // Encoders alive for the viewers' quality picks (ADR 0033 D5): Auto = the adaptive one, plus one per fixed tier in use.
+  // Auto viewers only: 1. Idle ones are dropped 10 s after their last viewer left.
+  int encoderCount() const { return tiers_.encoderCount(); }
+  QList<Quality> encoderTiers() const { return tiers_.aliveTiers(); }
+  // The pick a viewer made and the tier it is served by (differs only when three encoders are alive already).
+  Quality viewerPick(const QString& viewerId) const { return tiers_.pick(viewerId); }
+  Quality viewerTier(const QString& viewerId) const { return tiers_.effective(viewerId); }
+  // Tests: advance the tier clock (drop of idle encoders) without waiting; ms added to the real clock.
+  void advanceTierClockForTest(qint64 ms) {
+    clockSkewMs_ += ms;
+    tickTiers();
+  }
 
   // Video: raw libretro frame (XRGB8888/RGB565, stride in bytes) or a QImage (any format, converted). The first
   // frame after a viewer joined fixes the encoder resolution; a size change reopens the encoder.
@@ -172,6 +186,11 @@ class SessionHost : public QObject {
     bool connected = false;
     QString state = QStringLiteral("new");
     IceTrace ice;  // candidate counts of this connection (UI thread)
+    Quality fedTier = Quality::Auto;   // the encoder this viewer's video track is fed by (sinks); a change needs a keyframe
+    Quality sentTier = Quality::Auto;  // last "tier" message (fb-diag), resent when the Auto target moves a lot
+    int sentKbps = -1;
+    int pingN = 0;
+    std::optional<double> latencyMs;  // from the fb-diag ping/pong (the viewer answers ours)
   };
 
   void dropViewer(const QString& viewerId, const QString& reason);
@@ -182,6 +201,15 @@ class SessionHost : public QObject {
   void startEncoder();
   void stopEncoder();
   void requestKeyframe();
+  void requestKeyframeFor(const QString& viewerId);  // from the encoder of that viewer's tier
+  qint64 tierNowMs() const { return adaptClock_.elapsed() + clockSkewMs_; }
+  void onQualityPick(const QString& viewerId, Quality pick);
+  void onPingPong(const QString& viewerId, const PingMessage& m);
+  void applyTiers();  // after every change of picks or viewers: sinks, worker encoders, keyframes, tier messages
+  void tickTiers();
+  void sendTier(const QString& viewerId, bool force);
+  void sendPings();
+  int autoKbps() const { return targetKbps_.load(); }
   void publishSinks();
   void updateStats();
   void applyRemoteCandidate(Viewer& v, const SessionSignal& s);
@@ -194,6 +222,9 @@ class SessionHost : public QObject {
   bool forceRelay_ = false;
   bool relayTcpOnly_ = false;
   BitrateController bitrate_;
+  TierManager tiers_;
+  QTimer pingTimer_;
+  qint64 clockSkewMs_ = 0;
   QElapsedTimer adaptClock_;  // monotonic clock of the controller, never restarted
   std::atomic<int> targetKbps_{0};
   bool open_ = false;
@@ -212,6 +243,7 @@ class SessionHost : public QObject {
   bool keyframePending_ = false;
   QElapsedTimer clock_;
   qint64 lastEncodeNs_ = 0;  // arrival of the last frame taken (drop test)
+  qint64 lastCpuEncodeNs_ = 0;  // same for the readback frames that only feed fixed tiers while the adaptive encoder is GPU-direct
   qint64 lastStampNs_ = 0;   // its stream timestamp
 
   // GPU-direct input (ADR 0019). Atomic where stats()/gpuInputActive() may be read from other threads.

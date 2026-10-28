@@ -5,6 +5,7 @@
 #include <optional>
 
 #include "connectionpath.h"
+#include "qualitytier.h"
 
 namespace uzume {
 
@@ -23,6 +24,12 @@ struct ViewerLinkStats {
   double reportKbps = 0.0;                // video kbit/s the viewer received
   std::optional<double> reportFps;        // frames/s the viewer decoded
   QString reportDecoder;                  // decoder the viewer uses, e.g. "h264"
+  // Host side, ADR 0033 D5: the quality the viewer picked, the tier it is served by and its bitrate (Auto: the adaptive
+  // target), and the latency measured with the fb-diag ping/pong (nullopt until the first pong).
+  Quality pick = Quality::Auto;
+  Quality tier = Quality::Auto;
+  int tierKbps = 0;
+  std::optional<double> latencyMs;
 };
 
 struct SessionStats {
@@ -49,6 +56,14 @@ struct SessionStats {
   int keyframeRequests = 0;      // host: PLI received, viewer: PLI sent
   bool gpuInput = false;         // host: the encoder takes CUDA frames straight from the GPU (GPU-direct, ADR 0019)
   bool gpuInputFailed = false;   // host: GPU-direct was tried in this Session and failed; readback frames again
+  int encoders = 0;              // host: encoders sending (Auto = adaptive + one per fixed quality tier with viewers, ADR 0033 D5)
+  QString tiersInUse;            // host: e.g. "Auto, Low" (diagnostics)
+  // Viewer: the tier the host serves this viewer ("tier" message), the viewer's own pick and the latency from the ping/pong.
+  Quality servedTier = Quality::Auto;
+  bool hasServedTier = false;
+  int servedKbps = 0;
+  Quality pick = Quality::Auto;
+  std::optional<double> latencyMs;
 };
 
 }  // namespace uzume

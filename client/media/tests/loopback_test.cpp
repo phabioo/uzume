@@ -336,6 +336,58 @@ class LoopbackTest : public QObject {
     QVERIFY(!v2->isConnected());
   }
 
+  // ADR 0033 D5: one viewer stays on Auto, the other picks Low. The host keeps two encoders, both viewers get frames, the
+  // Low viewer's stream is ~30 fps (every 2nd frame of the 60 fps source is skipped), ping/pong gives both sides a latency.
+  void viewerPicksLowWhileAnotherStaysAuto() {
+    Rig rig;
+    SessionViewer* vAuto = rig.addViewer();
+    SessionViewer* vLow = rig.addViewer();
+    int fAuto = 0, fLow = 0;
+    QObject::connect(vAuto, &SessionViewer::frameReady, this, [&](const QImage&) { ++fAuto; });
+    QObject::connect(vLow, &SessionViewer::frameReady, this, [&](const QImage&) { ++fLow; });
+    QCOMPARE(rig.host.encoderCount(), 1);  // everyone on Auto: the adaptive encoder only
+    vLow->setQuality(Quality::Low);        // before the channel is open: sent when it opens
+    rig.source.start();
+    QVERIFY2(QTest::qWaitFor([&]() { return fAuto >= 30 && fLow >= 30; }, 20000), qPrintable(QStringLiteral("%1/%2").arg(fAuto).arg(fLow)));
+    QVERIFY2(QTest::qWaitFor([&]() { return rig.host.encoderCount() == 2; }, 10000), qPrintable(QString::number(rig.host.encoderCount())));
+    QCOMPARE(rig.host.viewerPick(rig.ids.at(1)), Quality::Low);
+    QCOMPARE(rig.host.viewerTier(rig.ids.at(1)), Quality::Low);
+    QCOMPARE(rig.host.viewerTier(rig.ids.at(0)), Quality::Auto);
+    // The viewer learns what it gets; the Auto viewer is told "auto" with the adaptive target.
+    QVERIFY2(QTest::qWaitFor([&]() { return vLow->hasServedTier() && vAuto->hasServedTier(); }, 10000), "no tier message");
+    QCOMPARE(vLow->servedTier(), Quality::Low);
+    QCOMPARE(vLow->servedKbps(), 600);
+    QCOMPARE(vAuto->servedTier(), Quality::Auto);
+    // Frame rates over a window once both streams run: Low ~30, Auto ~60 (the sender is a 16 ms timer, so allow a wide band).
+    QTest::qWait(500);
+    const int a0 = fAuto, l0 = fLow;
+    QElapsedTimer t;
+    t.start();
+    QTest::qWait(3000);
+    const double secs = t.elapsed() / 1000.0;
+    const double rateAuto = (fAuto - a0) / secs, rateLow = (fLow - l0) / secs;
+    qInfo().noquote() << "[loopback] auto" << rateAuto << "fps, low" << rateLow << "fps";
+    QVERIFY2(rateLow > 12.0 && rateLow < 36.0, qPrintable(QString::number(rateLow)));
+    QVERIFY2(rateAuto > rateLow * 1.3, qPrintable(QStringLiteral("auto %1 low %2").arg(rateAuto).arg(rateLow)));
+    // Latency from the 2 s ping/pong, on both sides and in the host's per-viewer links.
+    QVERIFY2(QTest::qWaitFor([&]() {
+      const auto links = rig.host.viewerLinks();
+      return vLow->latencyMs().has_value() && links.size() == 2 && links.at(0).latencyMs.has_value() && links.at(1).latencyMs.has_value();
+    }, 10000), "no latency from ping/pong");
+    for (const ViewerLinkStats& l : rig.host.viewerLinks()) {
+      QVERIFY(*l.latencyMs >= 0.0 && *l.latencyMs < 1000.0);
+      QCOMPARE(l.tier, l.viewerId == rig.ids.at(1) ? Quality::Low : Quality::Auto);
+    }
+    QVERIFY2(QTest::qWaitFor([&]() { return rig.host.stats().encoders == 2; }, 3000), "stats do not show two encoders");
+    // Back to Auto: one stream again; the Low encoder is dropped after its idle time (fake clock).
+    vLow->setQuality(Quality::Auto);
+    QVERIFY2(QTest::qWaitFor([&]() { return rig.host.viewerTier(rig.ids.at(1)) == Quality::Auto; }, 10000), "pick did not arrive");
+    rig.host.advanceTierClockForTest(11000);
+    QCOMPARE(rig.host.encoderCount(), 1);
+    const int l1 = fLow;
+    QVERIFY2(QTest::qWaitFor([&]() { return fLow >= l1 + 20; }, 10000), "viewer got no frames after switching back to Auto");
+  }
+
   void lateJoinerGetsKeyframe() {
     Rig rig;
     SessionViewer* v1 = rig.addViewer();

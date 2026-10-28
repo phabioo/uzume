@@ -266,7 +266,10 @@ QString DiagnosticsModel::hostLine(const SessionStats& s) {
   return line;
 }
 
-QString DiagnosticsModel::hostSendingLine(int viewers) {
+QString DiagnosticsModel::hostSendingLine(int viewers, int encoders) {
+  if (encoders > 1) {  // viewers picked a fixed quality (ADR 0033 D5): one stream per tier in use
+    return viewers == 1 ? tr("Sending to 1 viewer · %1 streams").arg(encoders) : tr("Sending to %1 viewers · %2 streams").arg(viewers).arg(encoders);
+  }
   return viewers == 1 ? tr("Sending to 1 viewer · adaptive bitrate") : tr("Sending to %1 viewers · adaptive bitrate").arg(viewers);
 }
 
@@ -379,11 +382,21 @@ QVariantList DiagnosticsModel::hostDetailRows(const SessionStats& s) {
       enc += tr(" · GPU-direct");
     }
   }
-  return detailRows(tr("Encoder"), enc, s);
+  QVariantList rows = detailRows(tr("Encoder"), enc, s);
+  if (s.encoders > 0) {  // the tiers in use and the viewers on them (ADR 0033 D5)
+    rows.append(QVariant(QVariantList{tr("Stream"), s.viewers == 1 ? tr("%1 · 1 viewer").arg(s.tiersInUse) : tr("%1 · %2 viewers").arg(s.tiersInUse).arg(s.viewers)}));
+  }
+  return rows;
 }
 
 QVariantList DiagnosticsModel::viewerDetailRows(const SessionStats& s) {
-  return detailRows(tr("Decoder"), s.decoderName.isEmpty() ? QString() : s.decoderName + QStringLiteral(" · H.264"), s);
+  QVariantList rows = detailRows(tr("Decoder"), s.decoderName.isEmpty() ? QString() : s.decoderName + QStringLiteral(" · H.264"), s);
+  if (s.hasServedTier) {  // what the host serves this viewer (ADR 0033 D5)
+    const Quality got = s.servedTier == Quality::Auto ? qualityForKbps(s.servedKbps) : s.servedTier;
+    const QString who = s.pick == Quality::Auto ? tr("Auto") : tr("picked %1").arg(qualityLabel(s.pick));
+    rows.append(QVariant(QVariantList{tr("Stream"), tr("%1 · gets %2 · %3 Mbit/s").arg(who, qualityLabel(got), mbit(s.servedKbps))}));
+  }
+  return rows;
 }
 
 }  // namespace uzume::ui

@@ -45,6 +45,7 @@ uzume_warnings(uzume_audioutil)
 add_library(uzume_media STATIC
   bitratecontroller.cpp
   hoststate.cpp
+  qualitytier.cpp
   videoencoder.cpp
   videodecoder.cpp
   cudadriver.cpp
@@ -77,6 +78,7 @@ if(BUILD_TESTING)
 endif()
 uzume_add_test(media_bitrate tests/bitratecontroller_test.cpp LIBS uzume_media)
 uzume_add_test(media_host_state tests/hoststate_test.cpp LIBS uzume_media)
+uzume_add_test(media_quality_tier tests/qualitytier_test.cpp LIBS uzume_media)
 uzume_add_test(media_rtcutil tests/rtcutil_test.cpp LIBS uzume_media)
 uzume_add_test(media_connectiontest tests/connectiontest_test.cpp LIBS uzume_media)
 uzume_add_test(media_stream_timestamp tests/stream_timestamp_test.cpp LIBS uzume_media)

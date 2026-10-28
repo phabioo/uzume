@@ -118,6 +118,31 @@ class DiagnosticsTest : public QObject {
     QCOMPARE(DiagnosticsModel::decoderLine(QString(), std::nullopt, std::nullopt), QStringLiteral("Decoder — · H.264 · — · —"));
   }
 
+  // ADR 0033 D5: the Stream row names the tiers in use and the viewers; the viewer side says what the host serves.
+  void streamRowsNameTiersAndViewers() {
+    SessionStats h;
+    h.encoderName = QStringLiteral("libx264");
+    QCOMPARE(DiagnosticsModel::hostDetailRows(h).size(), 1);  // no encoders counted yet: no Stream row
+    h.encoders = 2;
+    h.tiersInUse = QStringLiteral("Auto, Low");
+    h.viewers = 2;
+    const QVariantList rows = DiagnosticsModel::hostDetailRows(h);
+    QCOMPARE(rows.last().toList().first().toString(), QStringLiteral("Stream"));
+    QCOMPARE(rows.last().toList().last().toString(), QStringLiteral("Auto, Low · 2 viewers"));
+    QCOMPARE(DiagnosticsModel::hostSendingLine(2, 2), QStringLiteral("Sending to 2 viewers · 2 streams"));
+    QCOMPARE(DiagnosticsModel::hostSendingLine(2, 1), QStringLiteral("Sending to 2 viewers · adaptive bitrate"));
+    SessionStats v;
+    v.hasServedTier = true;
+    v.servedTier = Quality::Medium;
+    v.servedKbps = 1500;
+    v.pick = Quality::Medium;
+    QCOMPARE(DiagnosticsModel::viewerDetailRows(v).last().toList().last().toString(), QStringLiteral("picked Medium · gets Medium · 1.5 Mbit/s"));
+    v.pick = Quality::Auto;
+    v.servedTier = Quality::Auto;
+    v.servedKbps = 4000;
+    QCOMPARE(DiagnosticsModel::viewerDetailRows(v).last().toList().last().toString(), QStringLiteral("Auto · gets High · 4.0 Mbit/s"));
+  }
+
   // ADR 0019: the host line names the GPU-direct path, or says that it was tried and is off. Without either, the string is
   // exactly the one above.
   void hostLineNamesTheGpuPath() {

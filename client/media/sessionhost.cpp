@@ -22,6 +22,7 @@ extern "C" {
 #include "hoststate.h"
 #include "mediacaps.h"
 #include "opuscodec.h"
+#include "qualitytier.h"
 #include "rtcutil.h"
 
 namespace uzume {
@@ -34,6 +35,9 @@ constexpr int kAudioPayloadType = 111;
 constexpr int kMaxFragment = 1200;
 constexpr uint32_t kOpusClockRate = 48000;
 constexpr uint16_t kDiagChannelId = 0;
+constexpr int kTierFps = 30;                       // fixed tiers (ADR 0033 D5): 30 fps, every 2nd frame of a 60 fps core is skipped
+constexpr qint64 kTierFrameGapNs = 26'000'000;     // a bit under 1/30 s: 60 fps input gives every 2nd frame, jitter does not
+constexpr int kPingIntervalMs = 2000;
 constexpr int kGpuWatchdogFrames = 60;  // readback frames without a GPU frame before GPU input is turned off (ADR 0019)
 
 QString stateName(rtc::PeerConnection::State s) {
@@ -54,6 +58,7 @@ QString stateName(rtc::PeerConnection::State s) {
 struct Sink {
   std::shared_ptr<rtc::Track> video;
   std::shared_ptr<rtc::Track> audio;
+  int tier = 0;  // Quality: the encoder that feeds this viewer's video track (0 = Auto, the adaptive encoder)
 };
 }  // namespace
 
@@ -92,10 +97,10 @@ class EncodeWorker {
 
   EncodeWorker(const SessionHost::Options& options, std::shared_ptr<SinkList> sinks, std::shared_ptr<WorkerStats> stats,
                std::function<void(QString)> onError, std::function<void()> onOpenFailed, std::function<void()> onGpuActive,
-               std::function<void(QString)> onGpuOff)
+               std::function<void(QString)> onGpuOff, std::function<void(int)> onTierFailed)
       : options_(options), targetKbps_(options.videoBitrate / 1000), sinks_(std::move(sinks)), stats_(std::move(stats)), onError_(std::move(onError)),
         onOpenFailed_(std::move(onOpenFailed)), onGpuActive_(std::move(onGpuActive)), onGpuOff_(std::move(onGpuOff)),
-        thread_([this]() { run(); }) {}
+        onTierFailed_(std::move(onTierFailed)), thread_([this]() { run(); }) {}
   ~EncodeWorker() {
     std::deque<Job> doomed;
     {
@@ -112,6 +117,20 @@ class EncodeWorker {
   EncodeWorker& operator=(const EncodeWorker&) = delete;
 
   void requestKeyframe() { keyframe_ = true; }
+  // Keyframe from the encoder of `tier` (a Quality value; 0 = the adaptive encoder).
+  void requestKeyframe(int tier) {
+    if (tier <= 0 || tier >= 4) {
+      keyframe_ = true;
+    } else {
+      fixed_[tier].keyframe = true;
+    }
+  }
+  // Which encoders the host wants (TierManager): bit (1 << tier) per fixed tier, and the adaptive encoder. An encoder that
+  // is no longer wanted is closed before the next video job; a wanted one opens lazily with its first frame.
+  void setTiers(int fixedMask, bool adaptive) {
+    fixedMask_ = fixedMask;
+    adaptiveWanted_ = adaptive;
+  }
   // Bitrate adaptation: picked up before the next frame (runtime change or reopen, see applyTargetBitrate()).
   void setTargetBitrate(int kbps) { targetKbps_ = kbps; }
   // GPU input was switched off by the owner: the worker leaves GPU mode before its next job (any thread).
@@ -216,7 +235,9 @@ class EncodeWorker {
       } else {
         int pending = 0;
         for (const Job& q : queue_) pending += q.video ? 1 : 0;
-        for (auto it = queue_.begin(); pending >= kMaxPendingVideo && it != queue_.end();) {
+        // GPU-direct plus a fixed tier: every frame is two jobs (the CUDA frame and its readback copy).
+        const int limit = fixedMask_.load() != 0 && gpuSeen_.load() ? 2 * kMaxPendingVideo : kMaxPendingVideo;
+        for (auto it = queue_.begin(); pending >= limit && it != queue_.end();) {
           if (it->video) {
             dropped.push_back(std::move(*it));
             it = queue_.erase(it);
@@ -269,6 +290,7 @@ class EncodeWorker {
     }
     encoder_.close();
     gpuEncoder_.close();
+    for (Fixed& f : fixed_) f.enc.close();
     opus_.close();
   }
 
@@ -285,21 +307,85 @@ class EncodeWorker {
     return pts;
   }
 
-  void sendPackets(const std::vector<EncodedVideoPacket>& packets) {
+  // `tier`: only the viewers on that encoder get the packets. Frame counts are the adaptive stream's; the byte count (the
+  // Session's video bitrate) is everything the host sends.
+  void sendPackets(const std::vector<EncodedVideoPacket>& packets, int tier = 0, int fps = 0) {
     const std::vector<Sink> sinks = sinks_->get();
     for (const EncodedVideoPacket& p : packets) {
-      ++stats_->frames;
+      if (tier == 0) ++stats_->frames;
       stats_->videoBytes += static_cast<qint64>(p.data.size());
-      const double seconds = static_cast<double>(p.pts) / std::max(1, options_.fps);
+      const double seconds = static_cast<double>(p.pts) / std::max(1, fps > 0 ? fps : options_.fps);
       for (const Sink& sink : sinks) {
-        send(sink.video, p.data.data(), p.data.size(), seconds, "video");
+        if (sink.tier == tier) send(sink.video, p.data.data(), p.data.size(), seconds, "video");
       }
     }
   }
 
+  // Dropped adaptive encoder (nobody is on Auto any more): free the hardware/software encoder; it reopens with a keyframe.
+  void closeFixed() {
+    for (Fixed& f : fixed_) {
+      if (f.enc.isOpen()) f.enc.close();
+      f.failed = false;
+      f.lastNs = -1;
+    }
+  }
+  void closeAdaptive() {
+    if (encoder_.isOpen()) encoder_.close();
+    if (gpuEncoder_.isOpen()) gpuEncoder_.close();
+  }
+
+  // Fixed tiers (ADR 0033 D5): software encoders on readback frames, 30 fps, fixed bitrate, one per tier in use.
+  void encodeFixedTiers(const Job& j) {
+    const int mask = fixedMask_.load();
+    for (int t = 1; t < 4; ++t) {
+      Fixed& f = fixed_[t];
+      if (!(mask & (1 << t))) {
+        if (f.enc.isOpen()) f.enc.close();
+        f.failed = false;
+        f.lastNs = -1;
+        continue;
+      }
+      if (f.failed) continue;
+      if (f.lastNs >= 0 && j.ns - f.lastNs < kTierFrameGapNs) continue;  // 60 fps core: every 2nd frame
+      if (!f.enc.isOpen() || f.enc.width() != j.width || f.enc.height() != j.height) {
+        f.enc.close();
+        if (!f.enc.open(j.width, j.height, kTierFps, qualityKbps(static_cast<Quality>(t)) * 1000, cpuOrder())) {
+          f.failed = true;
+          onTierFailed_(t);
+          continue;
+        }
+        f.lastPts = -1;
+        std::lock_guard<std::mutex> lock(stats_->mutex);
+        if (stats_->width == 0) {
+          stats_->width = j.width;
+          stats_->height = j.height;
+          stats_->encoderName = f.enc.name();
+        }
+      }
+      if (f.keyframe.exchange(false)) f.enc.requestKeyframe();
+      f.lastNs = j.ns;
+      int64_t pts = static_cast<int64_t>(j.ns * kTierFps / 1'000'000'000.0 + 0.5);
+      pts = std::max<int64_t>(pts, f.lastPts + 1);
+      f.lastPts = pts;
+      std::vector<EncodedVideoPacket> packets;
+      if (!f.enc.encode(j.pixels.data(), j.stride, j.format, pts, packets)) {
+        f.failed = true;
+        onTierFailed_(t);
+        continue;
+      }
+      sendPackets(packets, t, kTierFps);
+    }
+  }
+
   void encodeVideo(const Job& j) {
+    if (!j.gpu && fixedMask_.load() != 0) encodeFixedTiers(j);
+    else if (fixedMask_.load() == 0) closeFixed();
     if (failed_) return;
     if (gpuDisabled_.load() && gpu_ != GpuState::Off) leaveGpu({}, /*notify*/ false);  // the host already knows
+    if (!adaptiveWanted_.load()) {
+      closeAdaptive();
+      return;
+    }
     if (j.gpu) {
       if (gpu_ != GpuState::Off) encodeGpuJob(j);
       return;
@@ -386,6 +472,7 @@ class EncodeWorker {
     recordTiming(true, t0);
     if (gpu_ == GpuState::Untried) {
       gpu_ = GpuState::Active;
+      gpuSeen_ = true;
       encoder_.close();  // only now: a failed GPU open never cost a CPU reopen
       const int w = gpuEncoder_.width(), h = gpuEncoder_.height();
       {
@@ -527,6 +614,10 @@ class EncodeWorker {
   std::function<void()> onOpenFailed_;
   std::function<void()> onGpuActive_;       // worker thread; the owner posts it to its thread with the generation check
   std::function<void(QString)> onGpuOff_;   // ... likewise: the GPU path failed, reason
+  std::function<void(int)> onTierFailed_;   // ... likewise: a fixed tier's encoder does not open or failed (tier)
+  std::atomic<int> fixedMask_{0};
+  std::atomic<bool> adaptiveWanted_{true};
+  std::atomic<bool> gpuSeen_{false};
 
   std::mutex mutex_;
   std::condition_variable cv_;
@@ -545,6 +636,14 @@ class EncodeWorker {
   std::chrono::steady_clock::time_point lastReopen_{};
   VideoEncoder encoder_;     // readback frames
   VideoEncoder gpuEncoder_;  // CUDA frames (h264_nvenc); a second instance next to encoder_ (ADR 0019)
+  struct Fixed {
+    VideoEncoder enc;
+    int64_t lastPts = -1;
+    qint64 lastNs = -1;
+    bool failed = false;
+    std::atomic<bool> keyframe{false};
+  };
+  Fixed fixed_[4];  // [1..3] used: High, Medium, Low
   GpuState gpu_ = GpuState::Untried;
   EncodeTiming timing_[2];   // [0] readback, [1] gpu-direct
   std::chrono::steady_clock::time_point timingStart_{};
@@ -567,6 +666,8 @@ SessionHost::SessionHost(QObject* parent) : QObject(parent), forceRelay_(forceRe
   connect(&statsTimer_, &QTimer::timeout, this, &SessionHost::updateStats);
   clock_.start();
   adaptClock_.start();
+  pingTimer_.setInterval(kPingIntervalMs);
+  connect(&pingTimer_, &QTimer::timeout, this, &SessionHost::sendPings);
 }
 
 SessionHost::~SessionHost() {
@@ -582,6 +683,8 @@ void SessionHost::open(const QString& sessionId, const QStringList& iceServers, 
   relayTcpOnly_ = turnServersTcpOnly(turnServers);
   bitrate_.reset(options_.videoBitrate / 1000);
   targetKbps_ = bitrate_.targetKbps();
+  tiers_.clear();
+  pingTimer_.start();
   encoderFailed_ = false;
   gpuInputOff_ = false;
   gpuInputFailed_ = false;
@@ -605,6 +708,8 @@ void SessionHost::close() {
     dropViewer(id, QStringLiteral("session_closed"));
   }
   stopEncoder();
+  pingTimer_.stop();
+  tiers_.clear();
   hostStateSent_.clear();
   open_ = false;
 }
@@ -656,14 +761,14 @@ void SessionHost::addViewer(const QString& viewerId, const QList<TurnServer>& tu
       packetizer->addToChain(std::make_shared<rtc::RtcpSrReporter>(cfg));
       packetizer->addToChain(std::make_shared<rtc::RtcpNackResponder>());
       if (isVideo) {
-        packetizer->addToChain(std::make_shared<rtc::PliHandler>(guarded("pli", [this, bridge]() {
-          bridge->post([this]() {
+        packetizer->addToChain(std::make_shared<rtc::PliHandler>(guarded("pli", [this, bridge, id]() {
+          bridge->post([this, id]() {
             ++keyframeRequests_;
-            requestKeyframe();
+            requestKeyframeFor(id);
           });
         })));
         // First frame must be an IDR even if the track opens in the middle of a GOP.
-        track->onOpen(guarded("onOpen", [this, bridge]() { bridge->post([this]() { requestKeyframe(); }); }));
+        track->onOpen(guarded("onOpen", [this, bridge, id]() { bridge->post([this, id]() { requestKeyframeFor(id); }); }));
       }
       track->setMediaHandler(packetizer);
       return track;
@@ -680,13 +785,23 @@ void SessionHost::addViewer(const QString& viewerId, const QList<TurnServer>& tu
     v.diag->onMessage(guarded("diag onMessage", [this, bridge, id](rtc::message_variant m) {
       const auto* text = std::get_if<rtc::string>(&m);
       if (text == nullptr) return;
-      const auto report = parseRxReport(QByteArray(text->data(), static_cast<qsizetype>(text->size())));
-      if (!report) return;
-      bridge->post([this, id, r = *report]() { onRxReport(id, r); });
+      const QByteArray raw(text->data(), static_cast<qsizetype>(text->size()));
+      if (const auto report = parseRxReport(raw)) {
+        bridge->post([this, id, r = *report]() { onRxReport(id, r); });
+      } else if (const auto pick = parseQualityPick(raw)) {
+        bridge->post([this, id, q = *pick]() { onQualityPick(id, q); });
+      } else if (const auto ping = parsePingPong(raw)) {
+        bridge->post([this, id, m = *ping]() { onPingPong(id, m); });
+      }  // anything else (unknown type, garbage) is ignored
     }));
 
     // The state signal (paused / running) goes out as soon as the channel is open, for a viewer that joins while paused.
-    v.diag->onOpen(guarded("diag onOpen", [this, bridge, id]() { bridge->post([this, id]() { sendHostState(id); }); }));
+    v.diag->onOpen(guarded("diag onOpen", [this, bridge, id]() {
+      bridge->post([this, id]() {
+        sendHostState(id);
+        sendTier(id, /*force*/ true);
+      });
+    }));
 
     v.pc->onLocalDescription(guarded("onLocalDescription", [this, bridge, id](rtc::Description d) {
       SessionSignal s;
@@ -725,7 +840,8 @@ void SessionHost::addViewer(const QString& viewerId, const QList<TurnServer>& tu
   }
   Viewer& stored = viewers_.insert(viewerId, std::move(v)).value();
   viewerCountAtomic_ = static_cast<int>(viewers_.size());
-  publishSinks();
+  tiers_.addViewer(viewerId, tierNowMs());
+  applyTiers();
   requestKeyframe();
   qCInfo(lcHost) << "Viewer" << viewerId << "added, offering";
   try {
@@ -775,7 +891,9 @@ void SessionHost::dropViewer(const QString& viewerId, const QString& reason) {
   bitrate_.removeViewer(viewerId);
   reports_.remove(viewerId);
   hostStateSent_.remove(viewerId);
-  publishSinks();  // the worker stops sending to this viewer before its PeerConnection closes
+  tiers_.removeViewer(viewerId, tierNowMs());
+  if (viewers_.isEmpty()) tiers_.clear();
+  applyTiers();  // the worker stops sending to this viewer before its PeerConnection closes
   QString finalState = QStringLiteral("closed");
   try {
     v.pc->resetCallbacks();
@@ -850,6 +968,7 @@ void SessionHost::onRxReport(const QString& viewerId, const RxReport& report) {
     return;
   }
   reports_.set(viewerId, report);
+  const bool autoViewer = tiers_.isAuto(viewerId);
   {
     std::lock_guard<std::mutex> lock(statsMutex_);  // visible to viewerLinks() right away, not only after the next stats tick
     for (ViewerLinkStats& l : links_) {
@@ -859,12 +978,115 @@ void SessionHost::onRxReport(const QString& viewerId, const RxReport& report) {
     }
   }
   emit rxReportReceived(viewerId, report.loss, report.kbps);
+  if (!autoViewer) return;  // a fixed tier has a fixed bitrate: only Auto viewers steer the adaptive encoder
   if (const auto target = bitrate_.report(viewerId, report, adaptClock_.elapsed())) {
     qCInfo(lcHost) << "Target bitrate" << *target << "kbit/s (viewer" << viewerId << "loss" << report.loss << ")";
     targetKbps_ = *target;
     if (worker_) {
       worker_->setTargetBitrate(*target);
     }
+    for (const QString& id : viewers_.keys()) {
+      if (tiers_.isAuto(id)) sendTier(id, /*force*/ false);
+    }
+  }
+}
+
+void SessionHost::onQualityPick(const QString& viewerId, Quality pick) {
+  if (!open_ || !viewers_.contains(viewerId)) return;
+  const TierManager::Change ch = tiers_.setPick(viewerId, pick, tierNowMs());
+  qCInfo(lcHost).noquote() << QStringLiteral("Viewer %1 picked %2, served by %3%4")
+                                  .arg(viewerId, qualityLabel(pick), qualityLabel(ch.effective), ch.switched ? QStringLiteral(" (switched)") : QString());
+  applyTiers();
+  sendTier(viewerId, /*force*/ true);  // also answers a pick that changes nothing
+}
+
+void SessionHost::onPingPong(const QString& viewerId, const PingMessage& m) {
+  const auto it = viewers_.find(viewerId);
+  if (!open_ || it == viewers_.end() || !it->diag) return;
+  if (!m.pong) {
+    try {
+      if (it->diag->isOpen()) {
+        const QByteArray msg = makePong(m.n, m.ts);
+        it->diag->send(std::string(msg.constData(), static_cast<size_t>(msg.size())));
+      }
+    } catch (const std::exception& e) {
+      qCWarning(lcHost) << "pong:" << e.what();
+    }
+    return;
+  }
+  if (const auto rtt = rttFromPong(tierNowMs(), m.ts)) {
+    it->latencyMs = *rtt;
+    std::lock_guard<std::mutex> lock(statsMutex_);
+    for (ViewerLinkStats& l : links_) {
+      if (l.viewerId == viewerId) l.latencyMs = *rtt;
+    }
+  }
+}
+
+void SessionHost::sendPings() {
+  const qint64 now = tierNowMs();
+  for (auto it = viewers_.begin(); it != viewers_.end(); ++it) {
+    if (!it->diag) continue;
+    try {
+      if (it->diag->isOpen()) {
+        const QByteArray msg = makePing(++it->pingN, now);
+        it->diag->send(std::string(msg.constData(), static_cast<size_t>(msg.size())));
+      }
+    } catch (const std::exception& e) {
+      qCWarning(lcHost) << "ping:" << e.what();
+    }
+  }
+}
+
+// "tier" message (host to viewer): what this viewer gets. Auto: the adaptive target, resent when it moved by 15 % or more.
+void SessionHost::sendTier(const QString& viewerId, bool force) {
+  const auto it = viewers_.find(viewerId);
+  if (it == viewers_.end() || !it->diag || !tiers_.hasViewer(viewerId)) return;
+  const Quality tier = tiers_.effective(viewerId);
+  const int kbps = tier == Quality::Auto ? autoKbps() : qualityKbps(tier);
+  if (!force && tier == it->sentTier && it->sentKbps > 0 && std::abs(kbps - it->sentKbps) * 100 < it->sentKbps * 15) return;
+  try {
+    if (!it->diag->isOpen()) return;  // sent again when the channel opens
+    const QByteArray msg = makeTier(tier, kbps);
+    it->diag->send(std::string(msg.constData(), static_cast<size_t>(msg.size())));
+    it->sentTier = tier;
+    it->sentKbps = kbps;
+  } catch (const std::exception& e) {
+    qCWarning(lcHost) << "tier:" << e.what();
+  }
+}
+
+void SessionHost::requestKeyframeFor(const QString& viewerId) {
+  if (!tiers_.hasViewer(viewerId)) {
+    requestKeyframe();
+    return;
+  }
+  const int tier = static_cast<int>(tiers_.effective(viewerId));
+  if (tier == 0) {
+    requestKeyframe();
+  } else if (worker_) {
+    worker_->requestKeyframe(tier);
+  }  // no worker yet: the fixed encoder opens with the first frame, which is a keyframe
+}
+
+// Sinks, worker encoders and keyframes after any change of viewers or picks. A viewer that moved to another encoder gets a
+// keyframe from it (its decoder needs a fresh start) and the matching tier message.
+void SessionHost::applyTiers() {
+  for (auto it = viewers_.begin(); it != viewers_.end(); ++it) {
+    const Quality eff = tiers_.effective(it.key());
+    if (eff != it->fedTier) {
+      it->fedTier = eff;
+      requestKeyframeFor(it.key());
+    }
+  }
+  publishSinks();
+  if (worker_) worker_->setTiers(tiers_.fixedMask(), tiers_.adaptiveAlive());
+}
+
+void SessionHost::tickTiers() {
+  if (tiers_.tick(tierNowMs())) {
+    applyTiers();
+    for (const QString& id : viewers_.keys()) sendTier(id, /*force*/ false);
   }
 }
 
@@ -910,7 +1132,7 @@ void SessionHost::handleSignal(const SessionSignal& s) {
 void SessionHost::publishSinks() {
   std::vector<Sink> sinks;
   for (auto it = viewers_.constBegin(); it != viewers_.constEnd(); ++it) {
-    sinks.push_back({it->video, it->audio});
+    sinks.push_back({it->video, it->audio, static_cast<int>(tiers_.effective(it.key()))});
   }
   sinks_->set(std::move(sinks));
 }
@@ -957,9 +1179,24 @@ void SessionHost::startEncoder() {
           if (gen != workerGen_ || !worker_) return;
           disableGpuInput(reason, true);
         });
+      },
+      [this, bridge, gen](int tier) {  // a fixed tier's encoder failed: its viewers go back to Auto
+        bridge->post([this, gen, tier]() {
+          if (gen != workerGen_ || !worker_) return;
+          qCWarning(lcHost) << "Quality tier" << qualityLabel(static_cast<Quality>(tier)) << "failed; its viewers return to Auto";
+          for (const QString& id : viewers_.keys()) {
+            if (static_cast<int>(tiers_.effective(id)) == tier) {
+              tiers_.setPick(id, Quality::Auto, tierNowMs());
+              sendTier(id, true);
+            }
+          }
+          applyTiers();
+        });
       });
+  worker_->setTiers(tiers_.fixedMask(), tiers_.adaptiveAlive());
   keyframePending_ = false;  // a fresh encoder starts with a keyframe anyway
   lastEncodeNs_ = 0;
+  lastCpuEncodeNs_ = 0;
   lastStampNs_ = 0;
   clock_.restart();
   statsClock_.restart();
@@ -1017,21 +1254,28 @@ void SessionHost::pushFrame(const uint8_t* data, int width, int height, int stri
     }
     startEncoder();
   }
+  // GPU-direct and a fixed quality tier at once (ADR 0033 D5): the adaptive encoder takes the CUDA frames, the readback frame
+  // below only feeds the software tier encoders (the worker skips it for the adaptive one). Its own gap clock, because the
+  // GPU frame of the same emulation frame just moved lastEncodeNs_.
+  bool cpuOnlyForTiers = false;
   if (gpuInputActive()) {
     // Trips only when both hold: kGpuWatchdogFrames readback frames and no GPU frame for 1 s on the host clock. A UI
     // stall queues a burst of frame events that is drained in a few ms while the mailbox holds a single capture.
     if (++gpuSkips_ < kGpuWatchdogFrames || clock_.nsecsElapsed() - lastGpuNs_ < 1'000'000'000LL) {
-      return;  // the encoder takes GPU frames; no 10 MB copy
+      if (tiers_.fixedMask() == 0) return;  // the encoder takes GPU frames; no 10 MB copy
+      cpuOnlyForTiers = true;
+    } else {
+      // No GPU frame for kGpuWatchdogFrames frames and a second, whatever the reason: back to readback; this frame is encoded below.
+      disableGpuInput(QStringLiteral("no GPU frames for %1 frames").arg(kGpuWatchdogFrames), true);
     }
-    // No GPU frame for kGpuWatchdogFrames frames and a second, whatever the reason: back to readback; this frame is encoded below.
-    disableGpuInput(QStringLiteral("no GPU frames for %1 frames").arg(kGpuWatchdogFrames), true);
   }
   const qint64 nowNs = clock_.nsecsElapsed();
   const qint64 minGapNs = 1'000'000'000LL / (2 * std::max(1, options_.fps));
-  if (lastEncodeNs_ != 0 && nowNs - lastEncodeNs_ < minGapNs) {
+  qint64& gapClock = cpuOnlyForTiers ? lastCpuEncodeNs_ : lastEncodeNs_;
+  if (gapClock != 0 && nowNs - gapClock < minGapNs) {
     return;  // source faster than 2x the target rate: drop before copying
   }
-  lastEncodeNs_ = nowNs;
+  gapClock = nowNs;
   if (keyframePending_) {
     keyframePending_ = false;
     worker_->requestKeyframe();
@@ -1129,6 +1373,7 @@ QString SessionHost::encoderName() const { return stats().encoderName; }
 // ---------------------------------------------------------------- stats
 
 void SessionHost::updateStats() {
+  tickTiers();
   std::shared_ptr<WorkerStats> ws;
   {
     std::lock_guard<std::mutex> lock(statsMutex_);
@@ -1147,6 +1392,13 @@ void SessionHost::updateStats() {
   s.codec = QStringLiteral("H264 + Opus");
   s.viewers = static_cast<int>(viewers_.size());
   s.keyframeRequests = keyframeRequests_;
+  // Encoders with at least one viewer on them: one still waiting out its 10 s idle time sends nothing.
+  QStringList names;
+  for (const Quality q : tiers_.aliveTiers()) {
+    if (tiers_.users(q) > 0) names << qualityLabel(q);
+  }
+  s.encoders = encoderRunning_ ? static_cast<int>(names.size()) : 0;
+  s.tiersInUse = names.join(QStringLiteral(", "));
   // packet loss is not obtainable on the sending side (RTCP receiver reports are not exposed by libdatachannel)
   QList<ViewerLinkStats> links;
   int rank = -1;
@@ -1154,6 +1406,10 @@ void SessionHost::updateStats() {
     ViewerLinkStats l;
     l.viewerId = it.key();
     l.state = it->state;
+    l.pick = tiers_.pick(it.key());
+    l.tier = tiers_.effective(it.key());
+    l.tierKbps = l.tier == Quality::Auto ? autoKbps() : qualityKbps(l.tier);
+    l.latencyMs = it->latencyMs;
     if (it->connected && it->pc) {
       l.rttMs = rttOf(*it->pc);
       l.connectionType = connectionTypeOf(*it->pc, relayTcpOnly_, forceRelay_);

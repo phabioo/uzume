@@ -5,7 +5,8 @@ import Uzume.App
 
 // People tab of the game panel (board 3g-12): who is in this Session with their role, and the two actions "Ready check…" (the ready check
 // of the scope, also in the ⋯ menu) and "Invite someone…" (the Sharing section of the Session tab). Only the frame of the board: the voice
-// marks, quality received and latency come with the voice and viewer packages.
+// marks come with the voice package. Connection, latency and quality received are on each row (PeopleList); the host sees the line
+// "Sending N streams · X Mbit/s" under the list.
 Flickable {
     id: root
     required property PlayerController player
@@ -28,6 +29,16 @@ Flickable {
             width: parent.width
             people: root.chat.people
             scopeKind: root.chat.scopeKind
+            onQualityPicked: (sessionId, value) => root.player.sessions.setQuality(sessionId, value)
+        }
+        UzLabel {
+            objectName: "peopleSending"
+            visible: text !== ""
+            width: parent.width
+            wrapMode: Text.WordWrap
+            text: root.player.sessions.sendingLine
+            font.pixelSize: Theme.roles.small.size
+            color: Theme.muted
         }
         Flow {
             width: parent.width
