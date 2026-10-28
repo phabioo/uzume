@@ -1,0 +1,42 @@
+name: Feature request
+description: An idea that would make Uzume better
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: Ideas for a single plugin belong in the plugin's own repository (`phabioo/uzume-plugin-<name>`).
+  - type: checkboxes
+    attributes:
+      label: Is there an existing issue for this?
+      description: Search the open and closed issues and the [roadmap](https://github.com/phabioo/uzume/blob/main/docs/roadmap.md) first.
+      options:
+        - label: I have searched the existing issues and the roadmap
+          required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - App
+        - Server
+        - Sessions and sharing
+        - Saves
+        - Runs and randomizer
+        - Plugins and plugin API
+        - Install and updates
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: what-feature
+    attributes:
+      label: What feature are you suggesting?
+    validations:
+      required: true
+  - type: textarea
+    id: why-feature
+    attributes:
+      label: Why would it be useful?
+      description: What you want to do and what stops you today.
+    validations:
+      required: true
