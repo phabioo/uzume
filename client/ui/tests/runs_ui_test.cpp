@@ -1195,6 +1195,7 @@ class RunsUiTest : public QObject {
     publish(QStringLiteral("1.0.0"), {QStringLiteral("run.state")});
     publish(QStringLiteral("1.1.0"), {QStringLiteral("run.state"), QStringLiteral("memory.read")});
     publish(QStringLiteral("2.0.0"), {QStringLiteral("run.state")}, QStringLiteral("1.1.0"));  // takes over only from 1.1.0 on
+    publish(QStringLiteral("1.2.0"), {QStringLiteral("run.state"), QStringLiteral("memory.read")});
     const auto pin = [&](const QString& ver, const QString& prev = QString()) {
       QJsonObject o{{"plugin_id", kPluginId}, {"version", ver}, {"sha256", shas.value(ver)}};
       if (!prev.isEmpty()) o.insert("previous_version", prev);
@@ -1225,7 +1226,7 @@ class RunsUiTest : public QObject {
     pair(h, hub);
     RunsController* runs = h.controller->runs();
     QTRY_VERIFY_WITH_TIMEOUT(runs->loaded(), 8000);
-    QTRY_COMPARE_WITH_TIMEOUT(h.controller->plugins()->hubClient()->plugins().size(), 3, 8000);
+    QTRY_COMPARE_WITH_TIMEOUT(h.controller->plugins()->hubClient()->plugins().size(), 4, 8000);
     const auto changes = [&]() { return runs->detail().value("pluginChanges").toList(); };
 
     // A: the newest version is 2.0.0, which the server refuses from 1.0.0; the server's message shows.
@@ -1299,13 +1300,27 @@ class RunsUiTest : public QObject {
     QVERIFY(runs->consentNeeded(*runs->client()->run(runD)).first().toMap().value("text").toString().contains(QStringLiteral("not known yet")));
     QJsonObject e = hub.makeRun(QStringLiteral("Run E"), {hub.runsMe}, hub.runsMe, pin(QStringLiteral("1.1.0")));  // 1.1.0 asks for memory.read
     const QString runE = e.value("run_id").toString();
-    hub.pushRun(runE);
-    QTRY_VERIFY_WITH_TIMEOUT(runs->client()->run(runE).has_value(), 8000);
-    QVERIFY(runs->consentNeeded(*runs->client()->run(runE)).isEmpty());  // part of the run from the start
     hub.addRunEvent(runE, QStringLiteral("plugins.updated"), QString(), QString(), {}, {}, false);
     hub.runEvents[runE].last().insert("payload", QJsonObject{{"changes", QJsonArray{QJsonObject{{"plugin_id", kPluginId}, {"from", ""}, {"to", "1.1.0"}}}}});
+    hub.pushRun(runE);
+    QTRY_VERIFY_WITH_TIMEOUT(runs->client()->run(runE).has_value(), 8000);
     hub.sendWs(QStringLiteral("run_event"), {{QStringLiteral("run_id"), runE}, {QStringLiteral("event"), hub.runEvents[runE].last()}});
-    QTRY_VERIFY_WITH_TIMEOUT(runs->consentNeeded(*runs->client()->run(runE)).size() == 1, 8000);
+    QTRY_VERIFY_WITH_TIMEOUT(runs->consentNeeded(*runs->client()->run(runE)).size() == 1, 8000);  // appended by an update: asks
+
+    // F: the accepted-permissions baseline decides, not the server's previous pin. The person joined at 1.0.0 (baseline run.state only), declined 1.1.0
+    // (or was offline for it); the creator moves on to 1.2.0 with the same extra permission: 1.1.0 is the previous pin, but it still asks.
+    QJsonObject f = hub.makeRun(QStringLiteral("Run F"), {hub.runsMe}, hub.runsMe, pin(QStringLiteral("1.2.0"), QStringLiteral("1.1.0")));
+    const QString runF = f.value("run_id").toString();
+    h.controller->plugins()->acceptRunPermissions(runF, kPluginId, {QStringLiteral("run.state")});
+    hub.pushRun(runF);
+    QTRY_VERIFY_WITH_TIMEOUT(runs->client()->run(runF).has_value(), 8000);
+    QCOMPARE(runs->consentNeeded(*runs->client()->run(runF)).size(), 1);
+    QCOMPARE(runs->consentNeeded(*runs->client()->run(runF)).first().toMap().value("permissions").toStringList(), QStringList{QStringLiteral("memory.read")});
+    h.controller->plugins()->acceptRunPermissions(runF, kPluginId, {QStringLiteral("memory.read")});
+    QVERIFY(runs->consentNeeded(*runs->client()->run(runF)).isEmpty());  // accepted once: not asked again
+    // A legacy file (accepted versions only) migrates: 1.1.0 accepted covers memory.read.
+    h.controller->plugins()->acceptRunPermissions(QStringLiteral("legacy-run"), kPluginId, {});
+    QVERIFY(h.controller->plugins()->runAcceptedPermissions(QStringLiteral("legacy-run"), kPluginId).has_value());
   }
 
   // A requirement the Hub cannot satisfy blocks the start with a clear error.

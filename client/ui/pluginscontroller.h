@@ -181,10 +181,20 @@ class PluginsController : public QObject {
   // game's plugins once; the same pins restart nothing. When the gate (setRunPinsGate: false = the person has not agreed to the new
   // permissions yet) says no, the run's plugins stay stopped for this game and a notice says so.
   void runPinsChanged(const QList<plugins::RunPluginPin>& pins);
-  void setRunPinsGate(std::function<bool(const QString& runId)> gate) { runPinsGate_ = std::move(gate); }
+  // The one gate at the start boundary: every start of run plugins (game start, restart, rule change, run view) asks it with the exact pins it is about
+  // to start; false = the person has not accepted their permissions (the gate raises the consent request when `raise`), nothing starts.
+  using RunPinsGate = std::function<bool(const QString& runId, const QList<plugins::RunPluginPin>& pins, bool raise)>;
+  void setRunPinsGate(RunPinsGate gate) { runPinsGate_ = std::move(gate); }
+  // Starts the game's run plugins again after the person accepted (no-op when they run already).
+  void retryRunSet() { refreshRunExtras(); }
+  // Counter that every game start, game end and pin change advances; pending pin downloads of an older value are dropped.
+  quint64 pinsGeneration() const { return pinsGen_; }
   // Local consent to the permissions of one plugin version in one run ("" = never asked). Stored in <data>/plugins/run_consent.json.
-  bool runPluginConsent(const QString& runId, const QString& pluginId, const QString& version) const;
-  void setRunPluginConsent(const QString& runId, const QString& pluginId, const QString& version);
+  // Accepted-permissions baseline per run and plugin id: what this person actually agreed to (recorded at join and on each consent).
+  // nullopt = nothing recorded. Legacy files (versions only) are migrated on write; runLegacyVersions reads them.
+  std::optional<QStringList> runAcceptedPermissions(const QString& runId, const QString& pluginId) const;
+  QStringList runLegacyVersions(const QString& runId, const QString& pluginId) const;
+  void acceptRunPermissions(const QString& runId, const QString& pluginId, const QStringList& perms);
   // Permission labels as the lists show them ("Share run progress · ..."), for a list of permission ids.
   static QString permissionLabels(const QStringList& perms);
 
@@ -358,7 +368,7 @@ class PluginsController : public QObject {
   void updateShell();
   void stopGame(bool restartShell);
   plugins::GameResolution resolveGameSet() const;
-  void startGameSet(const plugins::GameResolution& res);
+  bool startGameSet(const plugins::GameResolution& res);  // false: the consent gate stopped it
   void stopGameSet();
   void refreshRunExtras();
   void restartRunSet();
@@ -410,7 +420,7 @@ class PluginsController : public QObject {
   QList<QPair<QString, QString>> pendingPicks_;  // (plugin id, request id) asked and not answered yet, oldest first
   QHash<QString, qint64> pickLimits_;  // "<plugin>/<request id>" -> max_bytes
   QString dataDir_;
-  std::function<bool(const QString&)> runPinsGate_;
+  RunPinsGate runPinsGate_;
   quint64 pinsGen_ = 0;
   HubConnection* conn_ = nullptr;
   PluginEmulationService::GameInfo gameInfo_;

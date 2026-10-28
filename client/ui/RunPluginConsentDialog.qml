@@ -23,6 +23,7 @@ UzDialog {
             else root.close()
         }
     }
+    Component.onCompleted: if ((root.runs.pluginConsent.runId || "") !== "") root.open()  // raised while another screen showed
     onClosed: if ((root.runs.pluginConsent.runId || "") !== "") root.runs.answerPluginConsent(false)
 
     Repeater {

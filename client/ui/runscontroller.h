@@ -201,6 +201,8 @@ class RunsController : public QObject {
   QVariantMap pluginConsent() const { return pluginConsent_; }
   // Pins of the run that ask for permissions the person has not agreed to yet: [{pluginId, name, version, text}].
   QVariantList consentNeeded(const RunInfo& run) const;
+  QVariantList consentNeededFor(const QString& runId, const QList<RunPluginRef>& pins) const;
+  bool permissionsOf(const QString& pluginId, const QString& version, QStringList* out) const;
   Q_INVOKABLE void dismissMessage();
   // The app could not start the game of a run: the reason shows on the run screen (the same text as the game page).
   void showLaunchProblem(const QString& text) { setMessage(text, true); }
