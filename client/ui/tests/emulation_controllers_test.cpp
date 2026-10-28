@@ -788,8 +788,8 @@ class EmulationControllersTest : public QObject {
     QFile f(h.dir.filePath(QStringLiteral("settings/player.json")));
     QVERIFY(f.open(QIODevice::WriteOnly));
     f.write(QJsonDocument(QJsonObject{{"update_auto_install", false},
-                                      {"update_skip", "9.9.9"},
-                                      {"update_paused", QJsonObject{{"from", "9.9.9"}, {"to", "0.0.1"}, {"at", "2026-10-22T10:00:00Z"}, {"prev_auto", true}}}})
+                                      {"update_skip", "99.9.9"},
+                                      {"update_paused", QJsonObject{{"from", "99.9.9"}, {"to", "0.0.1"}, {"at", "2026-10-22T10:00:00Z"}, {"prev_auto", true}}}})
                 .toJson());
     f.close();
     QVERIFY(h.start());
@@ -799,10 +799,10 @@ class EmulationControllersTest : public QObject {
     QQuickTest::qWaitForPolish(h.window);
     UpdatesController* up = h.controller->updates();
     QVERIFY(up->paused());
-    QCOMPARE(up->skippedVersion(), QStringLiteral("9.9.9"));
+    QCOMPARE(up->skippedVersion(), QStringLiteral("99.9.9"));
     QVERIFY(visible(h, "updatesPausedCard"));
     QVERIFY(text(h, "updatesPausedTitle").contains(QStringLiteral("automatic updates paused until you resume them")));
-    QVERIFY(text(h, "updatesPausedDetail").contains(QStringLiteral("You went back from 9.9.9")));
+    QVERIFY(text(h, "updatesPausedDetail").contains(QStringLiteral("You went back from 99.9.9")));
     QVERIFY(visible(h, "earlierEmpty"));  // no index yet: nothing to go back to
     QCOMPARE(up->earlierCount(), 0);
 
@@ -818,7 +818,7 @@ class EmulationControllersTest : public QObject {
     QTest::qWait(60);
     QVERIFY(!up->paused());
     QVERIFY(!visible(h, "updatesPausedCard"));
-    QCOMPARE(up->skippedVersion(), QStringLiteral("9.9.9"));  // the skip stays until the user updates
+    QCOMPARE(up->skippedVersion(), QStringLiteral("99.9.9"));  // the skip stays until the user updates
   }
 
   void settingsHierarchyOnThePage() {

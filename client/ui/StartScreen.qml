@@ -154,7 +154,7 @@ Rectangle {
         openLabel: root.currentPage ? root.currentPage.openLabel : "UZUME"
         grid: true
         helpItems: root.currentPage ? root.currentPage.helpItems : []
-        helpLines: [qsTr("Uzume %1").arg(root.player.playerVersion)]
+        helpLines: [qsTr("Uzume %1").arg(root.player.updates.shown(root.player.playerVersion))]
         hints: root.currentPage ? root.currentPage.hints : []
         contentMaxWidth: root.currentPage ? root.currentPage.maxWidth : 520
         Loader {

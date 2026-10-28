@@ -86,7 +86,7 @@ jobs:
             [ "$(jq -r ".$k" "$player_info_linux")" = "$(jq -r ".$k" "$hub_info")" ] || { echo "::error::server and Linux app disagree on $k"; exit 1; }
           done
           [ "$(jq -r .commit "$player_info_linux")" = "$(jq -r .commit "$hub_info")" ] || { echo "::error::server and Linux app disagree on commit"; exit 1; }
-          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::unexpected version '$version' (plain X.Y.Z expected)"; exit 1; }
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::unexpected version '$version' (plain R.B.0 expected, ADR 0036)"; exit 1; }
           [ "$channel" = beta ] || { echo "::error::main build with channel '$channel'"; exit 1; }
           [ "$commit" = "$HEAD_SHA" ] || { echo "::error::build commit $commit is not the CI run commit $HEAD_SHA"; exit 1; }
           tag="v$version"
@@ -106,6 +106,7 @@ jobs:
           cat "$rel/SHA256SUMS"
           {
             echo "VERSION=$version"
+            echo "SHOWN=${version%.0}"   # display form R.B (ADR 0036); tags, file names and the index keep R.B.0
             echo "CHANNEL=$channel"
             echo "COMMIT=$commit"
             echo "TAG=$tag"
@@ -132,7 +133,7 @@ jobs:
             git rev-parse --verify -q "refs/tags/$base" >/dev/null || git fetch --no-tags origin "refs/tags/$base:refs/tags/$base" || return 1
             {
               python3 -I scripts/changelog.py collect --repo "$GH_REPO" --base "$base" --head "$HEAD_SHA" --format markdown \
-                --title "## Changes since ${base#v}" --compare-url || return 1
+                --title "## Changes since $(v=${base#v}; case $v in 0.*) echo "$v" ;; *) echo "${v%.0}" ;; esac)" --compare-url || return 1
               echo
               echo "Commit: [\`${HEAD_SHA:0:12}\`]($GITHUB_SERVER_URL/$GH_REPO/commit/$HEAD_SHA)"
             } > "$notes.part" || return 1
@@ -155,7 +156,7 @@ jobs:
           set -euo pipefail
           rel="$RUNNER_TEMP/release"
           if ! gh release view "$TAG" >/dev/null 2>&1; then
-            gh release create "$TAG" --verify-tag --title "Uzume $VERSION (beta)" --prerelease --latest=false \
+            gh release create "$TAG" --verify-tag --title "Uzume $SHOWN (beta)" --prerelease --latest=false \
               --notes-file "$RUNNER_TEMP/notes.md"
           else
             gh release edit "$TAG" --notes-file "$RUNNER_TEMP/notes.md"

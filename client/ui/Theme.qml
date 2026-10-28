@@ -207,6 +207,13 @@ QtObject {
         return n + " " + (Number(n) === 1 ? one : many)
     }
 
+    // Version for people (ADR 0036): drops a third field that is exactly 0, "21.1.0" -> "21.1". Same rule as uzume::displayVersion.
+    function shownVersion(v: string): string {
+        const s = String(v ?? "")
+        const m = /^((\d+)\.\d+)\.0(?=$|[-+])/.exec(s)
+        return m && Number(m[2]) >= 21 ? m[1] + s.slice(m[0].length) : s
+    }
+
     function toneColor(tone: string): color {
         switch (tone) {
         case "ok": return ok

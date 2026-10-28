@@ -364,7 +364,7 @@ ColumnLayout {
         switch (id) {
         case "network": return root.isOn(root.netValue("network_sharing")) ? qsTr("Internet") : ""
         case "signin": return root.accounts.require_passwords === true ? qsTr("Password") : ""
-        case "updates": return root.updates.current_version ?? ""
+        case "updates": return Theme.shownVersion(root.updates.current_version)
         case "cheatdb": return root.cheatDbOn === true ? qsTr("ON") : ""
         case "backups": {
             const b = root.backupStatus.settings

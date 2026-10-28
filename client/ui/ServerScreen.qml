@@ -53,7 +53,7 @@ Rectangle {
         if (!root.pcOnly && root.player.hubAddress !== "") parts.push(root.player.hubAddress)
         parts.push(root.player.hubLink === "online" ? qsTr("Online") : root.player.hubLink === "connecting" ? qsTr("Connecting") : qsTr("Offline"))
         const v = root.admin.status.hub_version ?? root.player.hubVersion
-        if (v) parts.push(qsTr("Version %1").arg(v))
+        if (v) parts.push(qsTr("Version %1").arg(Theme.shownVersion(v)))
         return parts.join(" · ")
     }
     readonly property Component pageComponent: {

@@ -132,6 +132,16 @@ func TestSemVerPrecedence(t *testing.T) {
 	}
 }
 
+// ADR 0036: R.B.0 with a running build number B; every 21.x is newer than every 0.20.x, and B compares numerically.
+func TestReleaseLinePrecedence(t *testing.T) {
+	asc := []string{"0.20.3", "0.20.15", "21.0.0-dev.7", "21.1.0", "21.2.0", "21.9.0", "21.10.0", "21.37.0", "22.1.0"}
+	for i := 1; i < len(asc); i++ {
+		if c, err := CompareVersions(asc[i-1], asc[i]); err != nil || c != -1 {
+			t.Fatalf("Compare(%s,%s)=%d,%v want -1", asc[i-1], asc[i], c, err)
+		}
+	}
+}
+
 func TestSelectChannels(t *testing.T) {
 	idx, _ := ParseIndex(indexJSON(t, 1,
 		rel("hub", "stable", "0.3.0"),

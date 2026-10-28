@@ -76,7 +76,7 @@ jobs:
           done
           sha="$(gh api "repos/$GH_REPO/commits/$tag" --jq .sha)"
           [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::cannot resolve the commit of $tag"; exit 1; }
-          { echo "VERSION=$version"; echo "TAG=$tag"; echo "SHA=$sha"; } >> "$GITHUB_ENV"
+          { echo "VERSION=$version"; echo "SHOWN=${version%.0}"; echo "TAG=$tag"; echo "SHA=$sha"; } >> "$GITHUB_ENV"
       - name: Collect the release notes (everything since the previous stable release)
         run: |
           set -euo pipefail
@@ -97,13 +97,13 @@ jobs:
               python3 -I scripts/changelog.py collect --repo "$GH_REPO" --base "$(git rev-list --max-parents=0 "$TAG" | tail -n 1)" --head "$TAG" "$@"
             fi
           }
-          since="the beginning"; [ -z "$prev" ] || since="${prev#v}"
+          since="the beginning"; [ -z "$prev" ] || since="${prev#v}"; case $since in 0.*) ;; *) since="${since%.0}" ;; esac
           compare=()
           [ -z "$prev" ] || compare=(--compare-url)
           highlights=""
           if [ -n "${IN_HIGHLIGHTS//[[:space:]]/}" ]; then highlights="$IN_HIGHLIGHTS"; fi
           {
-            echo "## Uzume $VERSION"
+            echo "## Uzume $SHOWN"
             echo
             [ -z "$highlights" ] || { printf '%s\n' "$highlights"; echo; }
             echo "### Changes since $since"
@@ -112,7 +112,7 @@ jobs:
           } > "$dl/notes.md"
           # Section for CHANGELOG.md: same content, one heading level up.
           {
-            echo "## $VERSION - $date"
+            echo "## $SHOWN - $date"
             echo
             [ -z "$highlights" ] || { printf '%s\n' "$highlights"; echo; }
             collect --format markdown --level 3 "${compare[@]}"
@@ -154,7 +154,7 @@ jobs:
           UZUME_SIGNING_KEY: ${{ secrets.FRAMEBEAM_SIGNING_KEY }}
         run: scripts/update-index.sh "$RUNNER_TEMP/bin/uzume-sign" "$RUNNER_TEMP/promote/hub.json" "$RUNNER_TEMP/promote/player.json"
       - name: Publish the stable release
-        run: gh release edit "$TAG" --prerelease=false --latest --title "Uzume $VERSION" --notes-file "$RUNNER_TEMP/promote/notes.md"
+        run: gh release edit "$TAG" --prerelease=false --latest --title "Uzume $SHOWN" --notes-file "$RUNNER_TEMP/promote/notes.md"
       - name: Log in to ghcr.io
         uses: docker/login-action@v4
         with:
@@ -185,7 +185,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch --no-tags origin main || fail "cannot fetch main"
           git checkout -q -B "$branch" origin/main || fail "cannot create the branch"
-          if grep -q "^## $VERSION - " CHANGELOG.md 2>/dev/null; then fail "CHANGELOG.md already has $VERSION"; fi
+          if grep -q "^## $SHOWN - " CHANGELOG.md 2>/dev/null; then fail "CHANGELOG.md already has $SHOWN"; fi
           python3 -I - "$dl/changelog-section.md" <<'PY' || fail "cannot update CHANGELOG.md"
           import os, sys
           section = open(sys.argv[1], encoding="utf-8").read().rstrip("\n") + "\n"
@@ -197,12 +197,12 @@ jobs:
           open("CHANGELOG.md", "w", encoding="utf-8").write(head.rstrip("\n") + "\n\n" + section + ("\n" + rest if rest else ""))
           PY
           git add CHANGELOG.md
-          git commit -q -m "docs: changelog for $VERSION" || fail "nothing to commit"
+          git commit -q -m "docs: changelog for $SHOWN" || fail "nothing to commit"
           git push --force origin "$branch" || fail "cannot push $branch"
           {
             echo "## Summary"
             echo
-            echo "Archives the release notes of $VERSION in CHANGELOG.md (written by the workflow \"Promote to release\")."
+            echo "Archives the release notes of $SHOWN in CHANGELOG.md (written by the workflow \"Promote to release\")."
             echo
             echo "## Changelog"
             echo
@@ -217,7 +217,7 @@ jobs:
             echo "- [x] I have read [CLA.md](https://github.com/$GH_REPO/blob/main/CLA.md) and agree to its terms"
             echo "- [x] No ROMs, BIOS, firmware or keys are added"
           } > "$dl/pr-body.md"
-          url="$(gh pr create --base main --head "$branch" --title "docs: changelog for $VERSION" --body-file "$dl/pr-body.md")" \
+          url="$(gh pr create --base main --head "$branch" --title "docs: changelog for $SHOWN" --body-file "$dl/pr-body.md")" \
             || fail "cannot create the pull request"
           num="${url##*/}"
           echo "pr=$num" >> "$GITHUB_OUTPUT"
@@ -236,7 +236,7 @@ jobs:
             echo
             echo "- Commit: [\`${SHA:0:12}\`]($GITHUB_SERVER_URL/$GH_REPO/commit/$SHA) (same build as the beta, no rebuild)"
             echo "- Release: [$TAG]($GITHUB_SERVER_URL/$GH_REPO/releases/tag/$TAG)"
-            echo "- Index: hub and player $VERSION added on channel stable (the beta entries stay until they age out)"
+            echo "- Index: hub and player $SHOWN added on channel stable (the beta entries stay until they age out)"
             echo "- Release notes: everything since ${PREV:-the beginning} (all betas in between, deduplicated)"
             if [ -n "${CHANGELOG_PR:-}" ]; then
               echo "- Changelog PR: ${CHANGELOG_URL} (auto-merge on; CI and the Changelog check were dispatched on branch changelog/$TAG)"

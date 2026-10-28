@@ -459,7 +459,7 @@ ColumnLayout {
                     Layout.fillWidth: true
                     wrapMode: Text.Wrap
                     visible: text !== ""
-                    text: root.sel ? [root.sel.contents ?? "", root.sel.hub_version ? qsTr("Server %1").arg(root.sel.hub_version) : ""].filter(t => t !== "").join(" · ") : ""
+                    text: root.sel ? [root.sel.contents ?? "", root.sel.hub_version ? qsTr("Server %1").arg(Theme.shownVersion(root.sel.hub_version)) : ""].filter(t => t !== "").join(" · ") : ""
                 }
                 UzStatusIcon {
                     visible: root.sel !== null && (root.sel.error ?? "") !== ""

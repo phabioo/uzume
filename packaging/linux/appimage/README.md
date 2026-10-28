@@ -15,7 +15,7 @@ scripts/bootstrap-vcpkg.sh && make fetch-deps fetch-sdl3
 (cd client && cmake --preset linux-release -DCMAKE_PREFIX_PATH=$(../scripts/fetch-libdatachannel.sh) -DSDL3_ROOT=$(../scripts/fetch-sdl3.sh) \
   && cmake --build --preset linux-release --target uzume_app uzume_cli)
 make build-hub
-make package-app-appimage APP_VERSION=0.24.0     # client/build/appimage/Uzume-0.24.0-x86_64.AppImage
+make package-app-appimage APP_VERSION=21.1.0     # client/build/appimage/Uzume-21.1.0-x86_64.AppImage
 ```
 
 The tools (linuxdeploy, linuxdeploy-plugin-qt, appimagetool) are pinned in `scripts/appimage-tools.pin` and downloaded by `scripts/fetch-appimage-tools.sh`; they run with `APPIMAGE_EXTRACT_AND_RUN=1`, so FUSE is not needed to build. The build fails when the image would contain an emulator core (`*_libretro.*`, `cores`) or an unresolved library.

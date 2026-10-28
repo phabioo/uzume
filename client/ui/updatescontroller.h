@@ -106,6 +106,8 @@ class UpdatesController : public QObject {
   bool whatsNewPending() const { return whatsNewPending_; }
   QString whatsNewNotes() const { return whatsNewNotes_; }
 
+  // Version for people (ADR 0036): "21.1.0" -> "21.1". Every QML text that shows a version goes through it; comparisons do not.
+  Q_INVOKABLE QString shown(const QString& version) const;
   Q_INVOKABLE void checkNow() { manager_.checkNow(); }
   Q_INVOKABLE void setChannel(const QString& channel);  // "default" | "stable" | "beta"
   Q_INVOKABLE void setAutoInstall(bool on);

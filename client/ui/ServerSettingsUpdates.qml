@@ -24,7 +24,7 @@ ColumnLayout {
     property string rollbackError: ""
     property bool rollbackBusy: false
     readonly property var versionRows: (root.versions ? root.versions.versions : []).map(v => ({
-        version: v.version, channel: v.channel === "beta" ? qsTr("Beta") : qsTr("Stable"),
+        version: Theme.shownVersion(v.version), channel: v.channel === "beta" ? qsTr("Beta") : qsTr("Stable"),
         used: root.usedText(v), data: v.data === "refuse" ? qsTr("Can't go back") : v.data === "restore" ? qsTr("Restores data") : qsTr("Keeps data") }))
     readonly property var vsel: root.versions && root.versionIndex >= 0 && root.versionIndex < root.versions.versions.length ? root.versions.versions[root.versionIndex] : null
     readonly property bool canInstall: root.av !== null && root.u.packaged === true && !root.u.request_pending && !(root.u.staged_version)
@@ -80,7 +80,7 @@ ColumnLayout {
                     checkTimer.restart()
                 } else {
                     root.pane.setBusy("check", false)
-                    root.pane.say(root.av ? qsTr("Server %1 is ready.").arg(root.av.version) : qsTr("The server is up to date."), "done")
+                    root.pane.say(root.av ? qsTr("Server %1 is ready.").arg(Theme.shownVersion(root.av.version)) : qsTr("The server is up to date."), "done")
                 }
             })
         }
@@ -90,7 +90,7 @@ ColumnLayout {
         root.pane.call("POST", "/admin/updates/install", { confirm_breaking: confirmBreaking }, function (ok, data, code, message) {
             root.pane.setBusy("install", false)
             if (ok) {
-                root.pane.say(qsTr("Installing %1. The server restarts in a moment and apps reconnect.").arg(data && data.version ? data.version : ""), "done")
+                root.pane.say(qsTr("Installing %1. The server restarts in a moment and apps reconnect.").arg(data && data.version ? Theme.shownVersion(data.version) : ""), "done")
                 root.reloadSettings()
             } else if (code === "conflict" && !confirmBreaking) {
                 breakingDialog.open()
@@ -127,7 +127,7 @@ ColumnLayout {
             root.rollbackBusy = false
             if (ok) {
                 rollbackDialog.close()
-                root.pane.say(qsTr("Going back to %1. A safety backup is written first; the server restarts in a moment.").arg(v.version), "done")
+                root.pane.say(qsTr("Going back to %1. A safety backup is written first; the server restarts in a moment.").arg(Theme.shownVersion(v.version)), "done")
                 root.reloadSettings()
                 root.loadVersions()
             } else {
@@ -143,9 +143,9 @@ ColumnLayout {
         UzStatusIcon {
             objectName: "updatesDone"
             kind: root.u.last_result && root.u.last_result.ok === false ? "warning" : "done"
-            text: root.av ? qsTr("Server %1 is ready.").arg(root.av.version)
+            text: root.av ? qsTr("Server %1 is ready.").arg(Theme.shownVersion(root.av.version))
                           : root.u.disabled_reason ? root.u.disabled_reason
-                          : qsTr("Server %1 is up to date.").arg(root.u.current_version)
+                          : qsTr("Server %1 is up to date.").arg(Theme.shownVersion(root.u.current_version))
             maxWidth: 640
         }
         UzStatusIcon {
@@ -159,7 +159,7 @@ ColumnLayout {
             visible: root.u.last_result !== undefined && root.u.last_result.ok === false
             kind: "error"
             small: true
-            text: root.u.last_result ? qsTr("The update to %1 failed: %2").arg(root.u.last_result.version).arg(root.u.last_result.message) : ""
+            text: root.u.last_result ? qsTr("The update to %1 failed: %2").arg(Theme.shownVersion(root.u.last_result.version)).arg(root.u.last_result.message) : ""
             maxWidth: 640
         }
         UzMono {
@@ -317,7 +317,7 @@ ColumnLayout {
                 visible: root.vsel !== null
                 width: parent ? parent.width : 0
                 spacing: Theme.space1
-                UzSectionLabel { Layout.fillWidth: true; Layout.topMargin: Theme.space2; text: root.vsel ? root.vsel.version : "" }
+                UzSectionLabel { Layout.fillWidth: true; Layout.topMargin: Theme.space2; text: root.vsel ? Theme.shownVersion(root.vsel.version) : "" }
                 Text {
                     Layout.fillWidth: true
                     wrapMode: Text.Wrap
@@ -353,7 +353,7 @@ ColumnLayout {
         parent: root.pane.overlayParent
         label: qsTr("Updates")
         title: qsTr("Some apps are too old")
-        text: root.av ? qsTr("%1 seen in the last 30 days can't connect to %2 until they are updated. Install it anyway?").arg(Theme.plural(root.av.breaking_count, qsTr("app"), qsTr("apps"))).arg(root.av.version) : ""
+        text: root.av ? qsTr("%1 seen in the last 30 days can't connect to %2 until they are updated. Install it anyway?").arg(Theme.plural(root.av.breaking_count, qsTr("app"), qsTr("apps"))).arg(Theme.shownVersion(root.av.version)) : ""
         actions: [UzButton { text: qsTr("Cancel"); onClicked: breakingDialog.close() }]
         dangerActions: [
             UzButton {
@@ -371,10 +371,10 @@ ColumnLayout {
         parent: root.pane.overlayParent
         size: "lg"
         label: qsTr("Updates")
-        title: root.vsel ? qsTr("Go back to %1?").arg(root.vsel.version) : ""
+        title: root.vsel ? qsTr("Go back to %1?").arg(Theme.shownVersion(root.vsel.version)) : ""
         text: !root.versions || !root.vsel ? ""
             : qsTr("The server writes a safety backup first (into %1), installs %2, pauses automatic updates and restarts. %3 connected now are disconnected for a moment.")
-                .arg(root.versions.backup_folder).arg(root.vsel.version).arg(Theme.plural(root.versions.connected_players, qsTr("app"), qsTr("apps")))
+                .arg(root.versions.backup_folder).arg(Theme.shownVersion(root.vsel.version)).arg(Theme.plural(root.versions.connected_players, qsTr("app"), qsTr("apps")))
         error: root.rollbackError
         busy: root.rollbackBusy
         UzStatusIcon {

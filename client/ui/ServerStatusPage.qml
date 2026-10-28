@@ -33,7 +33,7 @@ AdminPage {
     title: root.hasData ? root.st.hub_name : root.player.hubName
     // The header of the Server screen already shows address, state and version: no toolbar line while the data is fresh.
     label: root.ready ? ""
-         : root.unreachable && root.hasData ? qsTr("Last known · %1").arg(root.st.hub_version)
+         : root.unreachable && root.hasData ? qsTr("Last known · %1").arg(Theme.shownVersion(root.st.hub_version))
          : qsTr("Server")
     area: qsTr("Overview")
     helpItems: root.ready ? root.errorHelp(root.st.errors ?? []) : []
@@ -121,7 +121,7 @@ AdminPage {
         return list.map(s => ({ host: s.owner, game: s.game_title, device: s.device_name, viewers: String(s.viewers ?? 0), since: root.sinceText(s.started_at) }))
     }
     function appsOf(list: var): var {
-        return list.map(p => ({ person: p.user, device: p.device_name, version: p.version, state: root.stateText(p.state),
+        return list.map(p => ({ person: p.user, device: p.device_name, version: Theme.shownVersion(p.version), state: root.stateText(p.state),
                                 note: p.outdated ? qsTr("Update offered") : "" }))
     }
     function errorHelp(errors: var): var {
@@ -244,7 +244,7 @@ AdminPage {
             Layout.fillWidth: true
             kind: "error"
             title: qsTr("Can't reach the server")
-            text: root.hasData ? qsTr("Last known: %1 · up %2.").arg(root.st.hub_version).arg(root.uptimeText(root.st.uptime_seconds))
+            text: root.hasData ? qsTr("Last known: %1 · up %2.").arg(Theme.shownVersion(root.st.hub_version)).arg(root.uptimeText(root.st.uptime_seconds))
                                : qsTr("The status could not be read.")
             action: qsTr("Try again")
             onActionClicked: root.admin.refreshStatus()

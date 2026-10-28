@@ -46,6 +46,10 @@ void UpdatesController::setProviders(std::function<std::optional<update::HubProt
   manager_.setBusyProvider(std::move(busy));
 }
 
+QString UpdatesController::shown(const QString& version) const {
+  return QString::fromStdString(displayVersion(version.toStdString()));
+}
+
 QString UpdatesController::compiledChannel() const {
   return QString::fromUtf8(playerChannel().data(), static_cast<qsizetype>(playerChannel().size()));
 }
