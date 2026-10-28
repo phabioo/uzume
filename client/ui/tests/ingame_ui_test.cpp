@@ -1598,7 +1598,7 @@ class InGameUiTest : public QObject {
     resize(h, 1440, 900);
     SaveHistoryController* hist = h.controller->saveHistory();
     QVERIFY(shown(h, "nowBlock"));
-    QCOMPARE(textOf(visibleItem(h, "panelTabLabel")), QStringLiteral("Game"));
+    QCOMPARE(textOf(visibleItem(h, "panelTabLabel")), QStringLiteral("Session"));
     QVERIFY(visibleItem(h, "panelTab_game")->property("open").toBool());
     QCOMPARE(rectOf(h, "panelTabBar").height(), 48.0);
     for (const char* n : {"nowRow_save", "nowRow_slot", "nowRow_watching"}) QVERIFY2(shown(h, n), n);

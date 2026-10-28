@@ -350,6 +350,34 @@ QVariantList SessionController::participants() const {
   return out;
 }
 
+QVariantList SessionController::sessionPeople(const QString& sessionId) const {
+  QVariantList out;
+  const auto person = [](const QString& userId, const QString& name, const QString& role, bool me, const QString& conn, const QString& tone, int color) {
+    return QVariantMap{{QStringLiteral("userId"), userId}, {QStringLiteral("name"), name}, {QStringLiteral("role"), role}, {QStringLiteral("me"), me},
+                       {QStringLiteral("color"), color}, {QStringLiteral("connection"), conn}, {QStringLiteral("tone"), tone}};
+  };
+  if (shared_ && own_.sessionId == sessionId) {
+    out.append(person(conn_->hubUserId(), own_.owner.displayName.isEmpty() ? conn_->userDisplayName() : own_.owner.displayName, QStringLiteral("HOST"), true, {}, {}, 1));
+    int n = 1;
+    for (const SessionViewerEntry& v : own_.viewers) {
+      const QVariantMap link = linkByViewer_.value(v.viewerId).toMap();
+      out.append(person({}, v.displayName, QStringLiteral("VIEWER"), false, link.value(QStringLiteral("text")).toString(),
+                        link.value(QStringLiteral("tone"), QStringLiteral("neutral")).toString(), 2 + (n++ % 7)));
+    }
+    return out;
+  }
+  if (const Remote* r = remote(sessionId)) {
+    const QVariantMap link = surfaceLinks_.value(sessionId).toMap();
+    QString conn = link.value(QStringLiteral("text")).toString();
+    if (!link.value(QStringLiteral("rtt")).toString().isEmpty()) conn += QStringLiteral(" · ") + link.value(QStringLiteral("rtt")).toString();
+    out.append(person(r->info.owner.userId, r->info.owner.displayName, QStringLiteral("HOST"), false, conn, link.value(QStringLiteral("tone"), QStringLiteral("neutral")).toString(), 1));
+    out.append(person(conn_->hubUserId(), conn_->userDisplayName(), QStringLiteral("VIEWER"), true, {}, {}, 2));
+    // Other viewers are not known to a viewer: only their number (the Hub counts them in viewerCount)
+    for (int i = 1; i < r->info.viewerCount; ++i) out.append(person({}, tr("Another viewer"), QStringLiteral("VIEWER"), false, {}, {}, 3 + (i % 6)));
+  }
+  return out;
+}
+
 void SessionController::applyOwnSession(const SessionInfo& s) {
   own_ = s;
   visibility_ = s.visibility;

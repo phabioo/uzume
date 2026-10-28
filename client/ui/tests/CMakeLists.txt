@@ -299,7 +299,7 @@ target_compile_definitions(test_ui_randomizer PRIVATE FB_TEST_DATA_DIR="${FB_NET
 # that only fit with Linux font metrics (Windows CI renders wider; 18 px letter spacing is about the Windows fallback font).
 # Not on Windows: its fonts are already the wide case, extra spacing there tests something no user sees.
 if(NOT WIN32)
-  foreach(t ui_shell_layout ui_library_saves ui_library_overview ui_game_page ui_ingame ui_plugin_slots ui_settings_row ui_design_system ui_screens ui_plugins ui_connection_check ui_report ui_admin ui_admin_users ui_admin_systems ui_admin_settings ui_admin_library ui_runs ui_randomizer)
+  foreach(t ui_shell_layout ui_library_saves ui_library_overview ui_game_page ui_ingame ui_plugin_slots ui_settings_row ui_design_system ui_screens ui_plugins ui_connection_check ui_report ui_admin ui_admin_users ui_admin_systems ui_admin_settings ui_admin_library ui_runs ui_randomizer ui_chat_ui)
     add_test(NAME ${t}_widefont COMMAND test_${t})
     set_tests_properties(${t}_widefont PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software;UZUME_TEST_WIDE_FONT=18")
   endforeach()
@@ -382,6 +382,15 @@ uzume_add_test(ui_together together_test.cpp LIBS uzume_ui uzume_core uzume_emul
 
 # Together (0.23, D3): TogetherController (scope, ready check, shared pause) without QML.
 uzume_add_test(ui_together_controller togethercontroller_test.cpp LIBS uzume_ui uzume_core uzume_emulation)
+
+# Together (0.23, D4): ChatController (dedupe, pending, history, unread, mentions, emotes, rows) without QML.
+uzume_add_test(ui_chat_controller chatcontroller_test.cpp LIBS uzume_ui uzume_core uzume_emulation)
+
+# Chat and panel tabs (0.23, D4) in the UI against FakeHub.
+uzume_add_test(ui_chat_ui chat_ui_test.cpp ${FB_NETTEST_DIR}/fakehub.cpp ${FB_NETTEST_DIR}/fakehub.h
+  LIBS ${FB_UI_TEST_LIBS})
+target_include_directories(test_ui_chat_ui PRIVATE ${FB_NETTEST_DIR})
+target_compile_definitions(test_ui_chat_ui PRIVATE FB_TEST_DATA_DIR="${FB_NETTEST_DIR}/testdata")
 
 # Together (0.23) in the UI: ONLINE list, bell, toasts, Settings > Notifications against FakeHub.
 uzume_add_test(ui_together_ui together_ui_test.cpp ${FB_NETTEST_DIR}/fakehub.cpp ${FB_NETTEST_DIR}/fakehub.h

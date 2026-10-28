@@ -76,6 +76,7 @@ class TogetherController : public QObject {
   void setFeatureCheck(std::function<bool()> f) { featureFn_ = std::move(f); }  // default: the Hub offers together_v1
 
   bool available() const { return !scope_.kind.isEmpty() && featureOn(); }
+  bool featureAvailable() const { return featureOn(); }  // the Hub offers together_v1
   QString scopeKind() const { return scope_.kind; }
   QString scopeId() const { return scope_.id; }
   bool checkOpen() const { return check_.open; }

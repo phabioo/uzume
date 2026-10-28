@@ -277,6 +277,11 @@ class FakeHub : public QTcpServer {
   int wsConnections = 0;                  // upgrades accepted so far
   int wsOpen() const { return static_cast<int>(wsClients_.size()); }
   void sendWs(const QString& type, const QJsonObject& payload);  // to every open WSS connection
+  // Chat (together_v1): GET /runs/<id>/chat and /sessions/<id>/chat answer from chatLog ("run:<id>" | "session:<id>" -> messages as REST
+  // lists them, oldest first). With chatEchoUser set, a received `chat_send` is stored for that user and answered with `chat_message`
+  // to every WSS connection (a known client_id gets its stored message again).
+  QMap<QString, QJsonArray> chatLog;
+  QString chatEchoUser;
   // GET /sessions/<id> answers are held (body of that moment, visibility optionally overridden) until released:
   // models a request served before a later PATCH whose answer arrives after the PATCH answer.
   bool holdSessionGet = false;

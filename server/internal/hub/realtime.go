@@ -448,6 +448,8 @@ func (c *Client) Handle(data []byte) error {
 		c.readyCheckCancel(env)
 	case "pause_request":
 		c.pauseRequest(env)
+	case "chat_send":
+		c.chatSend(env)
 	default:
 		c.sendError(env.ID, CodeBadRequest, "Unknown message type")
 	}

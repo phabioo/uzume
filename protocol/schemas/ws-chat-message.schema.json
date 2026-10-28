@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://uzume.invalid/schemas/ws-chat-message.schema.json",
+  "title": "ws-chat-message (server to app)",
+  "type": "object",
+  "required": [
+    "type",
+    "payload"
+  ],
+  "properties": {
+    "type": {
+      "const": "chat_message"
+    },
+    "id": {
+      "type": "string"
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "scope",
+        "id",
+        "seq",
+        "user_id",
+        "text",
+        "sent_at",
+        "mentions",
+        "client_id"
+      ],
+      "properties": {
+        "scope": {
+          "enum": [
+            "run",
+            "session"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "description": "Run or Session ID."
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Per run or Session, from 1."
+        },
+        "user_id": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "sent_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "mentions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "User IDs of the members named with @name (case-insensitive display name or user name); unknown names stay plain text."
+        },
+        "client_id": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "description": "Sent to every connected device of every member of the run or Session, the sender included. A resend of a known client_id is answered to the sending device only. Run chat is stored (REST GET /runs/{run_id}/chat), Session chat lives in memory (GET /sessions/{session_id}/chat)."
+}

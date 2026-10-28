@@ -126,7 +126,7 @@ class McpToolsTest : public QObject {
                           "cheats_clear", "store_get", "store_put", "consent_set", "server_sign_in", "states_list", "states_save", "states_load",
                           "states_delete", "rewind", "runs_list", "run_set_rules", "run_events", "plugin_link", "developer_mode", "file_dialog_pick", "settings_set", "saves_history", "toasts_list",
                           "run_recap", "together_state", "notifications_act", "session_share",
-                          "session_stop_sharing", "together_ready_check", "together_pause"})
+                          "session_stop_sharing", "together_ready_check", "together_pause", "chat_send", "chat_history"})
       QVERIFY2(names.contains(QLatin1String(n)), n);
   }
 
@@ -258,6 +258,13 @@ class McpToolsTest : public QObject {
     QVERIFY(call("together_ready_check", {{"action", "dance"}}).isError);
     QCOMPARE(call("together_pause", {{"paused", true}}).content.value(0).text, QStringLiteral("no_scope"));
     QVERIFY(call("together_pause").isError);
+    QCOMPARE(call("chat_send", {{"text", "hello"}}).content.value(0).text, QStringLiteral("no_scope"));
+    QCOMPARE(call("chat_send", {{"text", "   "}}).content.value(0).text, QStringLiteral("bad_text"));
+    QVERIFY(call("chat_send").isError);
+    const QJsonObject hist = jsonOf(call("chat_history")).toObject();
+    QVERIFY(!hist.value("scope").toObject().value("available").toBool());
+    QVERIFY(hist.value("messages").toArray().isEmpty());
+    QCOMPARE(jsonOf(call("together_state")).toObject().value("chat").toObject().value("unread").toInt(), 0);
     const QJsonObject st = jsonOf(call("together_state")).toObject();
     QVERIFY(!st.value("scope").toObject().value("available").toBool());
     QVERIFY(!st.value("ready_check").toObject().value("open").toBool());

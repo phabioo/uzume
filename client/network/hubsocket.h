@@ -11,6 +11,7 @@
 #include <optional>
 #include <utility>
 
+#include "chattypes.h"
 #include "hubconnection.h"
 #include "saveapi.h"
 #include "sessiontypes.h"
@@ -73,6 +74,8 @@ class HubSocket : public QObject {
   void sendReadyCheckAnswer(const QString& checkId, bool ready);
   void sendReadyCheckCancel(const QString& checkId);
   void sendPauseRequest(const QString& scope, const QString& id, bool paused);
+  // Chat (ADR 0033 D4): false = not sent because the link is not open (the caller keeps the text).
+  bool sendChat(const QString& scope, const QString& id, const QString& clientId, const QString& text);
 
   // Timing (tests): ping interval, backoff start/max, hello_ack timeout.
   void setPingIntervalMs(int ms) { pingIntervalMs_ = ms; }
@@ -99,6 +102,7 @@ class HubSocket : public QObject {
   void runEventReceived(const QJsonObject& payload);  // {run_id, event}
   void readyCheckReceived(const uzume::ReadyCheckMessage& check);
   void pauseStateReceived(const uzume::PauseStateMessage& state);
+  void chatReceived(const uzume::ChatMessage& message);  // `chat_message`, also the echo of my own
   void hubError(const QString& code, const QString& message);  // `error` message of the Hub
   void connectionError(const QString& code, const QString& message);  // transport: unreachable, certificate_changed, ...
 

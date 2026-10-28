@@ -34,6 +34,7 @@ target_sources(uzume_core PRIVATE
   screenshotapi.cpp
   screenshotqueue.cpp
   discordpresence.cpp
+  chatapi.cpp
 )
 target_link_libraries(uzume_core PUBLIC Qt6::WebSockets)
 target_include_directories(uzume_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

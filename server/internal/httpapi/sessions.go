@@ -141,3 +141,11 @@ func (s *Server) RemoveSessionViewer(ctx context.Context, req api.RemoveSessionV
 	}
 	return api.RemoveSessionViewer204Response{}, nil
 }
+
+func (s *Server) ListSessionChat(ctx context.Context, req api.ListSessionChatRequestObject) (api.ListSessionChatResponseObject, error) {
+	msgs, err := s.svc.ListSessionChat(ctx, principal(ctx), req.SessionId.String())
+	if err != nil {
+		return nil, err
+	}
+	return api.ListSessionChat200JSONResponse{Messages: toAPIChat(msgs)}, nil
+}

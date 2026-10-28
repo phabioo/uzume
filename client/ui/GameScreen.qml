@@ -83,6 +83,7 @@ Rectangle {
         if (root.screenSheetPlugin !== "") { sheet.takeFocus(); return }
         if (quickMenu.shown) { quickMenu.restoreFocus(); return }
         var v = root.tab === "session" ? view : root.multiLocal
+        if (!v) v = view
         if (v) v.forceActiveFocus()
     }
     // Popovers and dialogs: one at a time. The Add tile popover and the tab menu are Popups (they close themselves on Esc and a
@@ -221,6 +222,10 @@ Rectangle {
                 root.fullscreen = Number(w.visibility) === root.visFullScreen
             }
         }
+    }
+    Connections {
+        target: root.player
+        function onOpenChatRequested() { if (root.panelCollapsed) root.panelCollapsed = false; panel.openTab("chat") }
     }
     // Resumed: the keys go back to the game
     Connections {
@@ -790,6 +795,7 @@ Rectangle {
                 tile: root.multiMode ? root.ctl.selectedSurface : "local"
                 onCollapseToggled: root.panelCollapsed = !root.panelCollapsed
                 onSavesClosed: Qt.callLater(root.focusLocal)
+                onFocusGameRequested: Qt.callLater(root.focusLocal)
                 onSelectLocalRequested: root.ctl.selectSurface("local")
                 overflowOpen: root.popover === "tabs"
                 onOverflowRequested: root.togglePopover("tabs")

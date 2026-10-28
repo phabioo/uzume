@@ -59,7 +59,7 @@ Rectangle {
     readonly property int cheatsOn: player.plugins.cheatsOn
     readonly property string cheatsText: cheatsOn > 0 ? (cheatsOn === 1 ? qsTr("1 cheat on") : qsTr("%1 cheats on").arg(cheatsOn)) : ""
     readonly property string ownSub: {
-        const parts = [shareText]
+        const parts = player.gameRun.id ? [qsTr("Run: %1").arg(player.gameRun.name || ""), shareText] : [shareText]
         if (saveText !== "") parts.push(saveText)
         if (cheatsText !== "") parts.push(cheatsText)
         return parts.join(" · ")

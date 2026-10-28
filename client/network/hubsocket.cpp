@@ -302,6 +302,12 @@ void HubSocket::sendReadyCheckCancel(const QString& checkId) { send(QStringLiter
 void HubSocket::sendPauseRequest(const QString& scope, const QString& id, bool paused) {
   send(QStringLiteral("pause_request"), {{QStringLiteral("scope"), scope}, {QStringLiteral("id"), id}, {QStringLiteral("paused"), paused}});
 }
+bool HubSocket::sendChat(const QString& scope, const QString& id, const QString& clientId, const QString& text) {
+  if (state_ != State::Open) return false;
+  send(QStringLiteral("chat_send"),
+       {{QStringLiteral("scope"), scope}, {QStringLiteral("id"), id}, {QStringLiteral("client_id"), clientId}, {QStringLiteral("text"), text}});
+  return true;
+}
 
 void HubSocket::onTextMessage(const QString& text) {
   lastTrafficMs_ = nowMs();
@@ -371,6 +377,8 @@ void HubSocket::onTextMessage(const QString& text) {
     emit readyCheckReceived(m);
   } else if (type == QLatin1String("pause_state")) {
     emit pauseStateReceived({str(p, "scope"), str(p, "id"), p.value(QStringLiteral("paused")).toBool(), str(p, "by")});
+  } else if (type == QLatin1String("chat_message")) {
+    emit chatReceived(parseChatMessage(p));
   } else if (type == QLatin1String("error")) {
     emit hubError(str(p, "code"), str(p, "message"));
   } else {

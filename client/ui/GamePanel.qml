@@ -3,11 +3,13 @@ import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import Uzume.App
 
-// Side panel of the game view (boards 7-5 and 3r): 320 wide on `ground`, one `rule` line at the left, run tabs on top (Game, the
-// plugin tabs, the Plugin console in Developer mode; 48 px, icon and label, the open tab has the marker-under), collapsible to a
-// 56 px rail that names its tabs vertically (a click opens the panel on that tab). The Game tab of your game: "Now" (save state,
-// slot, who watches, play time), four framed buttons (Snapshot, Screenshot, Share…, Saves…), Sharing, and Quit pinned to the bottom
-// with its sentence. A plugin tab is a 40 px strip with the plugin name and its origin over the plugin's content in a scroll area. In
+// Side panel of the game view (boards 7-5, 3g-7, 3g-12 and 3r): 320 wide on `ground`, one `rule` line at the left, run tabs on top
+// (Session · People · Chat · Saves; in a run Run · Chat · Saves; then the plugin tabs and the Plugin console in Developer mode; 48 px,
+// the open tab has the marker-under), collapsible to a 56 px rail that names its tabs vertically (a click opens the panel on that tab).
+// Chat shows its unread count behind the label when four tabs or fewer are shown, else a dot. The Session tab of your game: "Now"
+// (save state, slot, who watches, play time), four framed buttons (Snapshot, Screenshot, Share…, Saves…), Sharing, and Quit pinned to
+// the bottom with its sentence; in a run the Run tab adds the run and its people on top. People: who is in the Session (ChatController).
+// Saves embeds the saves view of the Library; the states live there. A plugin tab is a 40 px strip with the plugin name and its origin over the plugin's content in a scroll area. In
 // the Multiview the panel follows the selected tile: your tile = the Game tab with a tile header, a remote tile = who, connection,
 // "Audio here", "Remove from multiview". Diagnostics are not a tab: F3 opens the block on the stage (GameScreen).
 Rectangle {
@@ -26,11 +28,29 @@ Rectangle {
     readonly property string hubWord: qsTr("this server")
     readonly property bool quitting: player.quitting
     readonly property string shareText: ctl.shared ? qsTr("Shared · %1 watching").arg(ctl.viewerCount) : qsTr("Not shared")
-    // "Manage saves" opens the saves view (SavesView, the one of the Library) inside the panel; the game keeps running.
-    property bool savesOpen: false
-    // Tabs of the panel: "game" | "plugin:<pluginId>" (panel tab of a plugin, in install order) | "console" (Plugin console,
-    // Developer mode only, last tab).
+    // The Saves tab embeds the saves view (SavesView, the one of the Library); the game keeps running.
+    readonly property bool savesOpen: activeTab === "saves" && root.localTile
+    // Run of the running game ({id, name, status}, empty = not a run game): the first tab is "Run" and People moves into it.
+    readonly property var gameRun: player.gameRun
+    readonly property bool inRun: !!gameRun.id
+    // Tabs of the panel: "game" (Session, or Run in a run) | "people" | "chat" | "saves" | "plugin:<pluginId>" (panel tab of a plugin,
+    // in install order) | "console" (Plugin console, Developer mode only, last tab).
     property string panelTab: "game"
+    // The ids of the tabs that can be open (nothing in it may change by opening a tab: no unread counts, no save state; the saves view
+    // sets the live mode of the save history while it loads, and the open tab must not depend on that)
+    readonly property var tabIds: {
+        var out = ["game"]
+        if (!root.localTile) return ["game", "people", "chat"]   // a watched Session: the tile, its people and the chat
+        if (!root.inRun) out.push("people")
+        out.push("chat")
+        out.push("saves")
+        var t = pluginTabs
+        for (var i = 0; i < t.length; ++i) out.push("plugin:" + t[i].pluginId)
+        if (root.plugins.consoleAvailable) out.push("console")
+        return out
+    }
+    // The open tab; one that does not exist (People in a run, Saves without save slots, a plugin that went away) falls back to "game".
+    readonly property string activeTab: tabIds.indexOf(panelTab) >= 0 ? panelTab : "game"
     readonly property PluginsController plugins: player.plugins
     readonly property var pluginTabs: plugins.panelTabs
     readonly property bool consoleTab: panelTab === "console" && root.localTile && root.player.plugins.consoleAvailable
@@ -41,29 +61,48 @@ Rectangle {
         return null
     }
     readonly property bool pluginTabOpen: pluginTab !== null && root.localTile
-    // Tab model: Game, the plugin tabs, the Plugin console.
+    // Tab model: Session (Run), People, Chat, Saves, the plugin tabs, the Plugin console.
+    readonly property int chatUnread: player.chat.unread
     readonly property var tabEntries: {
-        var out = [{ id: "game", kind: "game", name: root.localTile ? qsTr("Game") : qsTr("Tile"), icon: "", dot: "", origin: "official", mark: "" }]
-        if (!root.localTile) return out   // a remote tile has no plugin tabs
+        var out = [{ id: "game", kind: "game", name: root.localTile ? (root.inRun ? qsTr("Run") : qsTr("Session")) : qsTr("Tile"), icon: "", dot: "", badge: 0, origin: "official", mark: "" }]
+        if (!root.localTile) {   // a remote tile has no plugin tabs and no saves: the tile, the people of the Session and its chat
+            out.push({ id: "people", kind: "people", name: qsTr("People"), icon: "", dot: "", badge: 0, origin: "official", mark: "" })
+            out.push({ id: "chat", kind: "chat", name: qsTr("Chat"), icon: "", dot: "", badge: 0, origin: "official", mark: "" })
+            if (root.chatUnread > 0) out[2].badge = root.chatUnread
+            return out
+        }
+        if (!root.inRun) out.push({ id: "people", kind: "people", name: qsTr("People"), icon: "", dot: "", badge: 0, origin: "official", mark: "" })
+        out.push({ id: "chat", kind: "chat", name: qsTr("Chat"), icon: "", dot: "", badge: 0, origin: "official", mark: "" })
+        if (root.saves.slotsAvailable || root.panelTab === "saves") out.push({ id: "saves", kind: "saves", name: qsTr("Saves"), icon: "", dot: "", badge: 0, origin: "official", mark: "" })
         var t = pluginTabs
         for (var i = 0; i < t.length; ++i)
             out.push({ id: "plugin:" + t[i].pluginId, kind: "plugin", name: t[i].title || t[i].name, pluginName: t[i].name || t[i].title,
-                       icon: t[i].icon || "", dot: t[i].dot || "", origin: t[i].origin || "local", mark: "" })
+                       icon: t[i].icon || "", dot: t[i].dot || "", badge: 0, origin: t[i].origin || "local", mark: "" })
         if (root.plugins.consoleAvailable)
-            out.push({ id: "console", kind: "console", name: qsTr("Plugin console"), icon: "", dot: "", origin: "official", mark: ">_" })
+            out.push({ id: "console", kind: "console", name: qsTr("Plugin console"), icon: "", dot: "", badge: 0, origin: "official", mark: ">_" })
+        // The unread count of Chat: the number with four tabs or fewer, else a dot (five tabs fit only without the count)
+        if (root.chatUnread > 0) {
+            for (var j = 0; j < out.length; ++j) {
+                if (out[j].id !== "chat") continue
+                if (out.length <= 4) out[j].badge = root.chatUnread
+                else out[j].dot = "chat"
+            }
+        }
         return out
     }
-    // Fitting: every tab shows a short label (a Game or plugin tab its icon in front of it; a label never grows past `tabLabelMax`). Game
-    // and the open tab always stay; when the rest does not fit, the last tabs move into the "More" tab menu. In a very wide font
-    // the labels of Session and the open tab elide to a share of the bar.
+    // Fitting: every tab shows a short label (a Game or plugin tab its icon in front of it; a label never grows past `tabLabelMax`). The base tabs (Session/Run, People, Chat, Saves)
+    // always stay; when the rest does not fit, the last plugin tabs and the Plugin console move into the "More" tab menu. In a wide font
+    // the gap shrinks to tabGapMin, Chat shows a dot instead of the count, and as a last resort the labels elide.
     readonly property int tabGap: 18
+    readonly property int tabGapMin: 8   // gap between tabs when the labels do not fit at tabGap
     readonly property int tabLabelMax: 96
     readonly property int tabIconSize: 16
     function tabCap(e) { return root.tabLabelMax }
     readonly property var tabPlan: {
         var all = tabEntries, n = all.length, avail = tabBar.width - 2 * Theme.space3, gapW = root.tabGap
-        function labelW(e) { return Math.min(root.tabCap(e), Math.ceil(tabFm.advanceWidth(e.name))) + (e.dot !== "" ? 10 : 0) }
-        function iconW(e) { return e.kind === "plugin" || e.kind === "game" ? root.tabIconSize + 6 : 0 }
+        function badgeW(e) { return e.badge > 0 ? Math.ceil(tabFm.advanceWidth(String(e.badge))) + 6 : 0 }
+        function labelW(e) { return Math.min(root.tabCap(e), Math.ceil(tabFm.advanceWidth(e.name))) + (e.dot !== "" ? 10 : 0) + badgeW(e) }
+        function iconW(e) { return e.kind === "plugin" ? root.tabIconSize + 6 : 0 }
         // The "More" tab measured with the real font, so a wide font cannot push it out of the bar.
         function overflowW(count) { return count > 0 ? Math.ceil(tabFm.advanceWidth(qsTr("More") + " ▾")) + gapW : 0 }
         var shown = []
@@ -76,66 +115,73 @@ Rectangle {
         var overflow = []
         while (total() + overflowW(overflow.length) > avail && shown.length > 1) {
             var idx = -1
-            for (var m = shown.length - 1; m > 0; --m) if (shown[m].e.id !== root.panelTab) { idx = m; break }
+            // Only plugin tabs and the Plugin console may move into "More"; Session/Run, People, Chat and Saves always stay
+            for (var m = shown.length - 1; m > 0; --m) if (shown[m].e.id !== root.activeTab && (shown[m].e.kind === "plugin" || shown[m].e.kind === "console")) { idx = m; break }
             if (idx < 0) break
             overflow.unshift(shown.splice(idx, 1)[0].e)
         }
+        // Still too wide (wide font): tighter gaps first, then the unread count of Chat becomes a dot, then the labels elide
+        if (total() + overflowW(overflow.length) > avail) gapW = root.tabGapMin
+        if (total() + overflowW(overflow.length) > avail) {
+            for (var c = 0; c < shown.length; ++c) if (shown[c].e.badge > 0) shown[c] = { e: Object.assign({}, shown[c].e, { badge: 0, dot: "chat" }), label: true }
+        }
         var textSum = 0
         for (var q = 0; q < shown.length; ++q) textSum += Math.min(root.tabCap(shown[q].e), Math.ceil(tabFm.advanceWidth(shown[q].e.name)))
-        var fixedW = total() - textSum - (shown.reduce(function (a, s) { return a + (s.e.dot !== "" ? 10 : 0) }, 0)) + overflowW(overflow.length)
+        var fixedW = total() - textSum - (shown.reduce(function (a, s) { return a + (s.e.dot !== "" ? 10 : 0) + badgeW(s.e) }, 0)) + overflowW(overflow.length)
         var textMax = shown.length > 0 && fixedW + textSum > avail ? Math.max(16, Math.floor((avail - fixedW) / shown.length)) : 9999
-        return { shown: shown, overflow: overflow, textMax: textMax }
+        return { shown: shown, overflow: overflow, textMax: textMax, gap: gapW }
     }
     FontMetrics { id: tabFm; font.family: Theme.sans; font.pixelSize: 13 }
     function openTab(id) {
-        root.closeSaves()
+        var was = root.activeTab
         root.panelTab = id
         if (root.collapsed) root.collapseToggled()
+        if (id === "chat" && was !== "chat") Qt.callLater(function () { chatTab.focusComposer() })
     }
-    // Alt+1 ... Alt+9: tab n of the tab bar (Game, the plugin tabs, the Plugin console); false = no such tab.
+    // Alt+1 ... Alt+9: tab n of the tab bar (Session, People, Chat, Saves, the plugin tabs, the Plugin console); false = no such tab.
     function openTabNumber(n) {
         var t = root.tabEntries
-        if (n < 1 || n > t.length || !root.localTile) return false
+        if (n < 1 || n > t.length) return false
         root.openTab(t[n - 1].id)
         return true
     }
     function originMarker(origin) { return root.plugins.originMarker(origin) }
     signal collapseToggled()
     signal savesClosed()
+    signal focusGameRequested()   // Esc in the chat composer: the keys go back to the game
     signal selectLocalRequested()
     // The "+n ▾" popover lives in the game screen (it has to open over the play area, not over the sharing section).
     readonly property Item overflowAnchor: overflowTab
     property bool overflowOpen: false
     signal overflowRequested()
 
-    // "Saves…" and the quick menu's "Manage saves…": the saves view inside the panel (the panel opens if it is a rail).
+    // "Saves…" and the quick menu's "Manage saves…": the Saves tab (the panel opens if it is a rail).
     function openSaves() {
-        root.panelTab = "game"
+        root.panelTab = "saves"
         if (root.collapsed) root.collapseToggled()
-        root.savesOpen = true
     }
     // "Share…": the Game tab scrolled to its Sharing section (the panel opens if it is a rail).
     function showSharing() {
-        root.closeSaves()
         root.panelTab = "game"
         if (root.collapsed) root.collapseToggled()
         Qt.callLater(function () { flick.contentY = Math.max(0, Math.min(flick.contentHeight - flick.height, shareBlock.mapToItem(col, 0, 0).y + col.y - Theme.space2)) })
     }
     function closeSaves() {
         if (!root.savesOpen) return
-        root.savesOpen = false
+        root.panelTab = "game"
         root.savesClosed()
     }
+    // Leaving the Chat tab hands the keys back to the game
+    onActiveTabChanged: if (activeTab !== "chat" && chatTab.composerFocused) root.focusGameRequested()
     Connections {
         target: root.player.plugins
         function onConsoleAvailableChanged() { if (!root.player.plugins.consoleAvailable && root.panelTab === "console") root.panelTab = "game" }
         function onPanelTabsChanged() { if (root.panelTab.indexOf("plugin:") === 0 && root.pluginTab === null) root.panelTab = "game" }
     }
     // Gone with the game, or when another tile is selected.
-    onLocalTileChanged: if (!localTile) root.savesOpen = false
     Connections {
         target: root.gameSession
-        function onStateChanged() { if (!root.gameSession.active) root.savesOpen = false }
+        function onStateChanged() { if (!root.gameSession.active && root.panelTab === "saves") root.panelTab = "game" }
     }
 
     objectName: "gamePanel"
@@ -243,7 +289,7 @@ Rectangle {
                 id: railTab
                 required property var modelData
                 readonly property string marker: root.originMarker(modelData.origin || "local")
-                objectName: modelData.kind === "game" ? "panelRailTab_game" : "panelRailTab_" + String(modelData.id).substring(7)
+                objectName: "panelRailTab_" + (modelData.kind === "plugin" ? String(modelData.id).substring(7) : modelData.id)
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: 32
                 height: Math.min(132, railLabel.implicitWidth) + 2 * Theme.space15
@@ -331,21 +377,21 @@ Rectangle {
             id: tabBar
             objectName: "panelTabBar"
             Layout.fillWidth: true
-            visible: !root.savesOpen && root.localTile
+            visible: true
             implicitHeight: Theme.row48
             Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.rule2 }
             Row {
                 anchors.fill: parent
                 anchors.leftMargin: Theme.space3
                 anchors.rightMargin: Theme.space3
-                spacing: root.tabGap
+                spacing: root.tabPlan.gap
                 Repeater {
                     model: root.tabPlan.shown
                     delegate: Item {
                         id: tabItem
                         required property var modelData
                         readonly property var entry: modelData.e
-                        readonly property bool open: root.panelTab === entry.id
+                        readonly property bool open: root.activeTab === entry.id
                         readonly property string marker: root.originMarker(entry.origin)
                         objectName: "panelTab_" + entry.id
                         height: Theme.row48
@@ -356,7 +402,7 @@ Rectangle {
                         Accessible.description: tabItem.marker
                         Accessible.selected: open
                         Keys.onPressed: (event) => {
-                            if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) { root.panelTab = tabItem.entry.id; event.accepted = true }
+                            if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) { root.openTab(tabItem.entry.id); event.accepted = true }
                         }
                         Row {
                             id: tabRow
@@ -364,7 +410,7 @@ Rectangle {
                             spacing: 6
                             PluginTabIcon {
                                 objectName: "panelTabIcon"
-                                visible: tabItem.entry.kind === "plugin" || tabItem.entry.kind === "game"
+                                visible: tabItem.entry.kind === "plugin"
                                 anchors.verticalCenter: parent.verticalCenter
                                 size: root.tabIconSize
                                 chipRadius: 0
@@ -372,6 +418,7 @@ Rectangle {
                                 icon: tabItem.entry.icon
                             }
                             Text {
+                                id: tabLabel
                                 objectName: "panelTabLabel"
                                 text: tabItem.entry.name
                                 textFormat: Text.PlainText
@@ -384,7 +431,18 @@ Rectangle {
                                 color: tabItem.open || tabHover.hovered ? Theme.ink : Theme.muted
                                 anchors.verticalCenter: parent.verticalCenter
                             }
-                            Rectangle {   // news / paused marker of a plugin tab
+                            Text {   // unread count of the Chat tab (four tabs or fewer)
+                                objectName: "tabBadge"
+                                visible: tabItem.entry.badge > 0
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: String(tabItem.entry.badge)
+                                textFormat: Text.PlainText
+                                font.family: Theme.mono
+                                font.pixelSize: 11
+                                font.weight: Font.Medium
+                                color: Theme.accentText
+                            }
+                            Rectangle {   // news / paused marker of a plugin tab, unread dot of Chat
                                 objectName: "tabDot"
                                 visible: tabItem.entry.dot !== ""
                                 anchors.verticalCenter: parent.verticalCenter
@@ -394,9 +452,10 @@ Rectangle {
                         }
                         Rectangle { visible: tabItem.open; anchors.bottom: parent.bottom; width: parent.width; height: 2; color: Theme.markerNav }
                         UzFocusRing { visible: tabItem.activeFocus }
-                        TapHandler { onTapped: root.panelTab = tabItem.entry.id }
+                        TapHandler { onTapped: root.openTab(tabItem.entry.id) }
                         HoverHandler { id: tabHover; cursorShape: Qt.PointingHandCursor }
-                        ToolTip.visible: tabHover.hovered
+                        // Only plugin tabs (origin marker) explain themselves; the built-in tabs only when their label is elided
+                        ToolTip.visible: tabHover.hovered && (tabItem.entry.kind === "plugin" || tabLabel.truncated)
                         ToolTip.delay: 400
                         ToolTip.text: tabItem.entry.name + (tabItem.marker !== "" ? " · " + tabItem.marker : "")
                     }
@@ -520,7 +579,7 @@ Rectangle {
             id: flick
             Layout.fillWidth: true
             Layout.fillHeight: true
-            visible: root.localTile && !root.savesOpen && !root.consoleTab && !root.pluginTabOpen
+            visible: root.localTile && root.activeTab === "game"
             contentWidth: width
             contentHeight: col.implicitHeight + 2 * Theme.space3
             clip: true
@@ -578,6 +637,32 @@ Rectangle {
                         lineHeightMode: Text.FixedHeight
                         color: root.ctl.messageIsError ? Theme.danger : Theme.ink2
                         text: root.ctl.message
+                    }
+                }
+
+                // The run of the game (Run tab): its name and status over the people who joined
+                Column {
+                    objectName: "runInfoBlock"
+                    width: col.width
+                    visible: root.inRun
+                    spacing: Theme.space1
+                    UzSectionLabel { width: parent.width; text: qsTr("Run"); meta: root.gameRun.status || "" }
+                    Text {
+                        objectName: "runInfoName"
+                        width: parent.width
+                        elide: Text.ElideRight
+                        text: root.gameRun.name || ""
+                        textFormat: Text.PlainText
+                        font.family: Theme.sans
+                        font.pixelSize: Theme.roles.headerTitle.size
+                        font.weight: Theme.roles.headerTitle.weight
+                        color: Theme.ink
+                    }
+                    PeopleList {
+                        objectName: "runPeople"
+                        width: parent.width
+                        people: root.gameRun.people || []
+                        scopeKind: "run"
                     }
                 }
 
@@ -720,7 +805,7 @@ Rectangle {
                         font.pixelSize: Theme.roles.buttonSm.size
                         hPadding: 16
                         text: qsTr("Saves…")
-                        onClicked: root.savesOpen = true
+                        onClicked: root.openSaves()
                     }
                 }
                 Text {
@@ -1004,7 +1089,33 @@ Rectangle {
             }
         }
 
-        // ---- saves view (Manage saves) ----
+        // ---- People tab (board 3g-12) ----
+        PeopleTab {
+            id: peopleTab
+            objectName: "gamePanelPeople"
+            player: root.player
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.minimumWidth: 0
+            visible: root.activeTab === "people"
+            canInvite: root.localTile
+            onInviteRequested: root.showSharing()
+        }
+
+        // ---- Chat tab (board 3g-7) ----
+        ChatTab {
+            id: chatTab
+            objectName: "gamePanelChat"
+            player: root.player
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.minimumWidth: 0
+            visible: root.activeTab === "chat"
+            tabOpen: visible && !root.collapsed
+            onFocusGameRequested: root.focusGameRequested()
+        }
+
+        // ---- Saves tab: the saves view of the Library (Manage saves) ----
         Item {
             id: savesBox
             objectName: "gamePanelSaves"
@@ -1023,7 +1134,7 @@ Rectangle {
                 sourceComponent: SavesView {
                     player: root.player
                     inGame: true
-                    backTitle: qsTr("Game panel")
+                    backTitle: root.inRun ? qsTr("Run") : qsTr("Session")
                     onBack: root.closeSaves()
                     Component.onCompleted: forceActiveFocus()
                 }
@@ -1034,7 +1145,7 @@ Rectangle {
         Item {
             id: quitFooter
             Layout.fillWidth: true
-            visible: root.localTile && !root.consoleTab && !root.pluginTabOpen
+            visible: root.localTile && (root.activeTab === "game" || root.activeTab === "saves")
             implicitHeight: quitBlock.implicitHeight + 2 * Theme.space2
             Rectangle { width: parent.width; height: 1; color: Theme.rule }
             Column {
@@ -1112,13 +1223,20 @@ Rectangle {
             }
         }
 
+        UzHintRow {
+            objectName: "panelChatHintRow"
+            Layout.fillWidth: true
+            visible: chatTab.visible
+            hints: [{ kbd: "Enter", label: qsTr("Send") }, { kbd: "Esc", label: qsTr("Back to game") }]
+        }
+
         // ---- remote tile ----
         Item {
             id: remoteBox
             objectName: "remotePanel"
             Layout.fillWidth: true
             Layout.fillHeight: true
-            visible: !root.localTile
+            visible: !root.localTile && root.activeTab === "game"
             Column {
                 x: Theme.space3
                 y: 20

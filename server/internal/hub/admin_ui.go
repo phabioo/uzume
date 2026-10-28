@@ -300,6 +300,7 @@ type RunExport struct {
 	s     *Service
 	run   Run
 	first []RunEvent
+	chat  []ChatMessage
 	now   time.Time
 }
 
@@ -311,6 +312,9 @@ func (s *Service) OpenRunExport(ctx context.Context, runID string) (*RunExport, 
 		return nil, err
 	}
 	x := &RunExport{s: s, run: run, now: s.Now()}
+	if x.chat, err = loadRunChat(ctx, s.db, run.ID, 0, 1<<30); err != nil { // the run chat travels in the head
+		return nil, err
+	}
 	if run.LastSeq > 0 {
 		if x.first, _, err = s.ListRunEventsAdmin(ctx, run.ID, 0, runExportPage); err != nil {
 			return nil, err
@@ -330,7 +334,7 @@ func (x *RunExport) FileName() string { return "run-" + x.run.ID + "-events.json
 // complete export has no "error" member. The file is valid JSON either way.
 func (x *RunExport) WriteTo(ctx context.Context, w io.Writer) error {
 	run := x.run
-	head, _ := json.Marshal(map[string]any{"run_id": run.ID, "name": run.Name, "status": run.Status, "exported_at": x.now.Format(time.RFC3339), "last_seq": run.LastSeq})
+	head, _ := json.Marshal(map[string]any{"run_id": run.ID, "name": run.Name, "status": run.Status, "exported_at": x.now.Format(time.RFC3339), "last_seq": run.LastSeq, "chat": x.chat})
 	fmt.Fprintf(w, "%s,\"events\":[", head[:len(head)-1])
 	first := true
 	var after int64

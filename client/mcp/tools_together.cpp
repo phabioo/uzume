@@ -6,9 +6,11 @@
 #include <QJsonObject>
 #include <QPointer>
 #include <QTimer>
+#include <algorithm>
 #include <functional>
 #include <memory>
 
+#include "chatcontroller.h"
 #include "hubconnection.h"
 #include "hubhttp.h"
 #include "mcp_tools.h"
@@ -206,6 +208,10 @@ void installTogetherTools(McpToolRegistry& registry, ui::PlayerController& playe
         {QStringLiteral("notifications"), notes},
         {QStringLiteral("unread"), pc->notifications()->unread()},
         {QStringLiteral("scope"), QJsonObject{{QStringLiteral("kind"), tg->scopeKind()}, {QStringLiteral("id"), tg->scopeId()}, {QStringLiteral("available"), tg->available()}}},
+        {QStringLiteral("chat"), QJsonObject{{QStringLiteral("unread"), pc->chat()->unread()},
+                                             {QStringLiteral("messages"), pc->chat()->messageCount()},
+                                             {QStringLiteral("tab_visible"), pc->chat()->panelVisible()},
+                                             {QStringLiteral("header"), pc->chat()->header()}}},
         {QStringLiteral("ready_check"), QJsonObject{{QStringLiteral("open"), tg->checkOpen()},
                                                     {QStringLiteral("title"), tg->checkTitle()},
                                                     {QStringLiteral("seconds_left"), tg->secondsLeft()},
@@ -307,6 +313,55 @@ void installTogetherTools(McpToolRegistry& registry, ui::PlayerController& playe
     reply(ToolResult::json(QJsonObject{{QStringLiteral("ok"), true}}));
   };
   registry.add(std::move(rc));
+
+  // chat_send / chat_history (0.23, ADR 0033 D4): the chat of the scope of the running game, as the Chat tab shows it.
+  ToolDef cs;
+  cs.name = QStringLiteral("chat_send");
+  cs.description = QStringLiteral(
+      "Sends a chat message (1..500 characters, :gg: :wave: :lol: :hype: :sad: :ok: render as emotes) to the chat of the scope of the running game "
+      "(its run, else the shared or watched Session), like the composer of the Chat tab. Answers no_scope, bad_text or not_connected. The echo "
+      "arrives from the Hub; read it with chat_history.");
+  cs.inputSchema = schema({{QStringLiteral("text"), typeStr(QStringLiteral("The message, @name mentions a person."))}}, {QStringLiteral("text")});
+  cs.handler = [pc](const QJsonObject& a, ToolReply reply) {
+    if (!pc) return reply(ToolResult::error(QStringLiteral("app_closing")));
+    const QString text = a.value(QStringLiteral("text")).toString().trimmed();
+    const int n = ui::ChatController::charCount(text);
+    if (n < 1 || n > ui::ChatController::kMaxText) return reply(ToolResult::error(QStringLiteral("bad_text")));
+    ui::ChatController* chat = pc->chat();
+    if (!chat->available()) return reply(ToolResult::error(QStringLiteral("no_scope")));
+    if (!chat->send(text)) return reply(ToolResult::error(QStringLiteral("not_connected")));
+    reply(ToolResult::json(QJsonObject{{QStringLiteral("ok"), true}}));
+  };
+  registry.add(std::move(cs));
+
+  ToolDef ch;
+  ch.name = QStringLiteral("chat_history");
+  ch.description = QStringLiteral(
+      "The last messages of the chat of the current scope, oldest first: seq (0 = not echoed yet), name, user_id, text (as typed), time, pending, "
+      "failed. Also scope, header (\"RUN CHAT · NAME · N PEOPLE\") and unread (messages that arrived while the Chat tab was closed).");
+  ch.inputSchema = schema({{QStringLiteral("limit"), typeInt(QStringLiteral("How many messages, default 50, at most 200."))}});
+  ch.handler = [pc](const QJsonObject& a, ToolReply reply) {
+    if (!pc) return reply(ToolResult::error(QStringLiteral("app_closing")));
+    ui::ChatController* chat = pc->chat();
+    const int limit = std::clamp(a.contains(QStringLiteral("limit")) ? a.value(QStringLiteral("limit")).toInt(50) : 50, 1, 200);
+    QJsonArray msgs;
+    for (const QVariant& v : chat->history(limit)) {
+      const QVariantMap m = v.toMap();
+      msgs.append(QJsonObject{{QStringLiteral("seq"), m.value(QStringLiteral("seq")).toLongLong()},
+                              {QStringLiteral("name"), m.value(QStringLiteral("name")).toString()},
+                              {QStringLiteral("user_id"), m.value(QStringLiteral("userId")).toString()},
+                              {QStringLiteral("text"), m.value(QStringLiteral("text")).toString()},
+                              {QStringLiteral("time"), m.value(QStringLiteral("time")).toString()},
+                              {QStringLiteral("pending"), m.value(QStringLiteral("pending")).toBool()},
+                              {QStringLiteral("failed"), m.value(QStringLiteral("failed")).toBool()}});
+    }
+    reply(ToolResult::json(QJsonObject{{QStringLiteral("scope"), QJsonObject{{QStringLiteral("kind"), chat->scopeKind()}, {QStringLiteral("id"), chat->scopeId()},
+                                                                            {QStringLiteral("available"), chat->available()}}},
+                                       {QStringLiteral("header"), chat->header()},
+                                       {QStringLiteral("unread"), chat->unread()},
+                                       {QStringLiteral("messages"), msgs}}));
+  };
+  registry.add(std::move(ch));
 
   ToolDef tp;
   tp.name = QStringLiteral("together_pause");
