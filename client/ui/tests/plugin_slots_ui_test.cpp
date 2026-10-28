@@ -946,6 +946,7 @@ class PluginSlotsUiTest : public QObject {
                       {"net.test.a|panel", json(R"({"type":"text","text":"panel"})")}};
     const QVariantMap entry{{"pluginId", "net.test.a"}, {"name", "Cheats"}, {"title", "Add cheats"}, {"icon", QString()}, {"badge", 0}, {"origin", "local"}};
     pc()->setPreviewUi({{"panelTabs", QVariantList{tabEntry("net.test.a", "Cheats")}}, {"sidebarEntries", QVariantList{entry}}, {"trees", trees}});
+    openPluginTab(QStringLiteral("net.test.a"));   // it may wait in "More" next to the base tabs
     QTRY_VERIFY(h_.item("panelTab_plugin:net.test.a") != nullptr);
     emit pc()->openRequested(QStringLiteral("net.test.a"), QStringLiteral("screen"));
     QTRY_VERIFY(h_.item("pluginScreenSheet")->isVisible());
