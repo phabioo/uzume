@@ -238,6 +238,8 @@ ApplicationWindow {
         }
     }
 
+    ErrorsPrompt { player: window.player }
+
     // 8c-3a: an invite that arrived while a game runs waits until the game ended; bottom left, over every screen.
     UzToast {
         objectName: "linkWaitingToast"

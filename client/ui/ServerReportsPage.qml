@@ -13,6 +13,10 @@ Item {
     required property PlayerController player
     readonly property AdminController admin: root.player.admin
 
+    // "Reports | Errors" (ADR 0035): Errors only when the server advertises reports_v2.
+    property string section: "Reports"
+    readonly property bool errorsAvailable: root.player.errors.serverSupportsErrors
+    readonly property bool showReports: root.section === "Reports" || !root.errorsAvailable
     property string tab: "All"
     property var reports: []
     property int countAll: 0
@@ -124,8 +128,9 @@ Item {
             else root.detailError = root.errorText(code, message)
         })
     }
-    onVisibleChanged: if (visible) root.reload()
-    Component.onCompleted: root.reload()
+    onVisibleChanged: if (visible) { root.reload(); if (root.errorsAvailable) errorsView.reload() }
+    onErrorsAvailableChanged: if (root.errorsAvailable && root.visible) errorsView.reload()
+    Component.onCompleted: { root.reload(); if (root.errorsAvailable) errorsView.reload() }
 
     // ------------------------------------------------------------ actions
     function markSeen() {
@@ -217,8 +222,31 @@ Item {
             }
         ]
 
+        UzSegmented {
+            objectName: "reportsSections"
+            visible: root.errorsAvailable
+            Layout.alignment: Qt.AlignLeft
+            accessibleName: qsTr("Show")
+            options: [
+                { value: "Reports", label: root.countNew > 0 ? qsTr("Reports · %1 new").arg(root.countNew) : qsTr("Reports"), name: "reportsSectionReports" },
+                { value: "Errors", label: errorsView.countNew > 0 ? qsTr("Errors · %1 new").arg(errorsView.countNew) : qsTr("Errors"), name: "reportsSectionErrors" }
+            ]
+            current: root.showReports ? "Reports" : "Errors"
+            onPicked: (value) => root.section = value
+        }
+        ServerErrorsView {
+            id: errorsView
+            objectName: "serverErrorsView"
+            Layout.fillWidth: true
+            visible: root.errorsAvailable && !root.showReports
+            player: root.player
+            dialogHost: root
+            onSay: (text, kind) => root.say(text, kind)
+        }
+
         UzTabs {
             objectName: "reportsTabs"
+            visible: root.showReports
             items: ["All", "New", "Seen"]
             active: root.tab
             counts: ({ "New": root.countNew })
@@ -227,14 +255,14 @@ Item {
         UzStateBlock {
             objectName: "reportsLoading"
             Layout.fillWidth: true
-            visible: !root.loaded && !root.loadFailed
+            visible: root.showReports && !root.loaded && !root.loadFailed
             kind: "loading"
             title: qsTr("Loading reports")
         }
         UzStateBlock {
             objectName: "reportsError"
             Layout.fillWidth: true
-            visible: root.loadFailed
+            visible: root.showReports && root.loadFailed
             kind: "error"
             title: qsTr("Can't read the reports")
             text: root.loadError
@@ -244,7 +272,7 @@ Item {
         UzStateBlock {
             objectName: "reportsEmpty"
             Layout.fillWidth: true
-            visible: root.loaded && root.reports.length === 0
+            visible: root.showReports && root.loaded && root.reports.length === 0
             kind: "empty"
             title: qsTr("No reports")
             text: qsTr("When someone sends a problem report from their app, it shows up here and Reports gets a count.")
@@ -254,7 +282,7 @@ Item {
             id: table
             objectPrefix: "reportsTable"
             Layout.fillWidth: true
-            visible: root.loaded && root.reports.length > 0
+            visible: root.showReports && root.loaded && root.reports.length > 0
             emptyText: root.tab === "New" ? qsTr("No new reports.") : qsTr("No reports have been seen yet.")
             columns: [
                 { key: "status", title: qsTr("Status"), width: 80, custom: true },

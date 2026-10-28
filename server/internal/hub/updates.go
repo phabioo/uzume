@@ -239,6 +239,9 @@ func (s *Service) UpdateStatus(ctx context.Context) (UpdateStatus, error) {
 	st.Staged, _ = updates.ReadStaged(s.dataDir)
 	st.RequestPending = updates.RequestPending(s.updCfg.requestDir)
 	st.LastResult, _ = updates.ReadResult(s.dataDir)
+	if r := st.LastResult; r != nil && !r.OK {
+		s.recordUpdateFailure(ctx, r.Version, r.Time, r.Message)
+	}
 	st.ActiveSessions = s.countActiveSessions(ctx)
 	if st.Available != nil {
 		st.ManualCommand = manualCommand(s.updCfg.platform, st.Available)

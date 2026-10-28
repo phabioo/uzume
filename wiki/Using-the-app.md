@@ -2,7 +2,7 @@
 
 At a glance: How to install and use the Uzume app: connect and pair, play, share and watch Sessions, run a server on this PC, collect logs and report problems. Administration of the server is in the app (sidebar item "Server", admins only; server settings under Server › Settings). What it does: [features.md](https://github.com/phabioo/uzume/blob/main/docs/features.md).
 
-Contents: [Install](#install), [Play on this PC and share](#play-on-this-pc-and-share), [Set up a server on this PC](#set-up-a-server-on-this-pc), [Connect and pair](#connect-and-pair), [Play](#play), [Randomize a game](#randomize-a-game), [Plugins (developer mode)](#plugins-developer-mode), [Collect logs](#collect-logs), [Connection check](#connection-check), [Claude debugging (MCP)](#claude-debugging-mcp), [Report a problem](#report-a-problem), [Data directory](#data-directory), [Command line and environment](#command-line-and-environment), [Multiview](#multiview).
+Contents: [Install](#install), [Play on this PC and share](#play-on-this-pc-and-share), [Set up a server on this PC](#set-up-a-server-on-this-pc), [Connect and pair](#connect-and-pair), [Play](#play), [Randomize a game](#randomize-a-game), [Plugins (developer mode)](#plugins-developer-mode), [Collect logs](#collect-logs), [Connection check](#connection-check), [Claude debugging (MCP)](#claude-debugging-mcp), [Report a problem](#report-a-problem), [Errors and GitHub issues](#errors-and-github-issues), [Data directory](#data-directory), [Command line and environment](#command-line-and-environment), [Multiview](#multiview).
 
 Uzume (`client/`, the app) connects to a server, keeps your library and saves in sync, runs games locally and shares or watches Sessions. Feature overview: [features.md](https://github.com/phabioo/uzume/blob/main/docs/features.md). Internals: [app-internals.md](https://github.com/phabioo/uzume/blob/main/docs/reference/app-internals.md).
 
@@ -267,6 +267,12 @@ Settings → Diagnostics → "Report a problem…" (and "Report a problem…" in
 "See what is included" lists the file names. Never included: passwords, the server pairing token, ROMs, saves. The server allows 25 MB per report (uncheck the logs when it is larger) and 5 reports per device and hour.
 
 While it uploads, the dialog shows progress and "Cancel" (back to editing, the text is kept). It then shows "Sent. Report #<number>". If the server is offline, the dialog says so and sends the report by itself as soon as the server is reachable again, as long as the dialog stays open; "Save as file…" writes the same zip (`report.txt` with your text, plus the checked files) so you can pass it on yourself. If the upload fails, the text is kept and "Try again" repeats it. A server without the `reports_v1` feature (older than 0.17) cannot receive reports; use "Save as file…" or "Collect logs…".
+
+## Errors and GitHub issues
+
+Besides reports you write, the app can tell your server about errors it notices itself (what is recorded: [features](https://github.com/phabioo/uzume/blob/main/docs/features.md)). The first time, a banner asks "Send automatically" or "Not now"; both are answers and the banner does not return. Change it later in Settings › Help & diagnostics › "Send errors to the server automatically". While it is off, or the server has no `reports_v2`, errors stay on this PC in `<data>/errors-pending.json` and nothing is sent. After an unclean exit the next start records an `app_crash` with the redacted last error line of `logs/player.1.log`; the marker is `<data>/running.marker`.
+
+Admins find the groups in Server › Reports › "Errors". Open a group and choose "Report on GitHub": the app looks for an existing public issue first and offers "Open issue #N" if there is one; otherwise it shows the exact public title and summary, and "Open GitHub" then opens the prefilled new-issue page in your browser, where you review and submit it with your own GitHub account. Attach a log bundle by hand only after checking it. "Link issue…" stores an issue URL you made yourself, "Mark as seen" clears the badge, "Delete…" removes the group. A group whose component has no target repository (a plugin without `issues_url`, a core other than Azahar) shows no GitHub button.
 
 ## Data directory
 

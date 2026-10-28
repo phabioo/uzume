@@ -7,10 +7,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net"
 	"net/http"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -97,6 +99,7 @@ func Register(mux *http.ServeMux, svc *hub.Service, log *slog.Logger, opts ...Op
 					limit = hub.UploadChunkBytes + 1 // one chunk; the service answers 413 for a larger Content-Range
 				}
 				r.Body = http.MaxBytesReader(w, r.Body, limit)
+				defer s.recoverHandler(w, r)
 				if r.Method == http.MethodPost && r.URL.Path == "/api/v1/handshake" {
 					r2, err := s.checkHandshakeBody(r)
 					if err != nil {
@@ -149,7 +152,48 @@ func (m skipRomMux) HandleFunc(pattern string, h func(http.ResponseWriter, *http
 		})
 		return
 	}
+	if pattern == "GET /api/v1/admin/reports/{id}/archive" {
+		// "GET /admin/reports/errors/{fingerprint}" (error groups) would conflict with this pattern: "errors/archive"
+		// matches both and neither is more specific. With a wildcard for the last segment the error route is the more
+		// specific one; the archive route answers 404 for anything but ".../archive".
+		m.ServeMux.HandleFunc("GET /api/v1/admin/reports/{id}/{last}", func(w http.ResponseWriter, r *http.Request) {
+			if r.PathValue("last") != "archive" {
+				writeError(w, http.StatusNotFound, hub.CodeNotFound, "Not found")
+				return
+			}
+			h(w, r)
+		})
+		return
+	}
 	m.ServeMux.HandleFunc(pattern, h)
+}
+
+// routeOf names the matched route ("GET /api/v1/games/{game_id}"), never the concrete path with ids.
+func routeOf(r *http.Request) string {
+	if r.Pattern != "" {
+		return r.Pattern
+	}
+	return r.Method + " (unmatched)"
+}
+
+// recordServerError hands a server-side error to the error groups (ADR 0035 D1); the service limits the rate.
+func (s *Server) recordServerError(r *http.Request, title, message string) {
+	s.svc.RecordServerError(r.Context(), hub.ErrKindServerError, title, message)
+}
+
+// recoverHandler turns a panic of a request handler into a 500 and an error event. http.ErrAbortHandler is passed on.
+func (s *Server) recoverHandler(w http.ResponseWriter, r *http.Request) {
+	v := recover()
+	if v == nil {
+		return
+	}
+	if v == http.ErrAbortHandler {
+		panic(v)
+	}
+	stack := string(debug.Stack())
+	s.log.Error("handler panic", "method", r.Method, "path", r.URL.Path, "panic", fmt.Sprint(v), "stack", stack)
+	s.recordServerError(r, "Panic in "+routeOf(r), fmt.Sprintf("panic in %s: %v\n%s", routeOf(r), v, stack))
+	writeError(w, http.StatusInternalServerError, hub.CodeInternal, "Internal error")
 }
 
 func bearer(r *http.Request) string {
@@ -188,7 +232,7 @@ func (s *Server) authMiddleware(next api.StrictHandlerFunc, op string) api.Stric
 			"GetAdminStatus", "GetAdminStatusLog", "GetAdminStorage", "CleanupAdminStorage", "GetAdminMetrics", "SetAdminMetrics", "CreateAdminMetricsToken",
 			"ListAdminBackups", "StartAdminBackup", "GetAdminBackupStatus", "CancelAdminBackup", "GetAdminBackupSettings", "UpdateAdminBackupSettings",
 			"DismissAdminRestoreResult", "DeleteAdminBackup", "RestoreAdminBackup",
-			"CreateReport", "ListAdminReports", "GetAdminReport", "MarkAdminReportSeen", "DeleteAdminReport", "GetAdminReportFile", "GetAdminReportArchive", "ExportAdminUserSaves",
+			"CreateReport", "CreateErrorEvents", "ListAdminErrorGroups", "GetAdminErrorGroup", "PatchAdminErrorGroup", "DeleteAdminErrorGroup", "ListAdminReports", "GetAdminReport", "MarkAdminReportSeen", "DeleteAdminReport", "GetAdminReportFile", "GetAdminReportArchive", "ExportAdminUserSaves",
 			"GetAdminUpdateVersions", "RollbackAdminUpdate", "ResumeAdminUpdates",
 			"GetAccount", "UpdateAccount", "SetAccountPassword", "RemoveAccountPassword", "ConfirmAccount", "EndAccountConfirmation",
 			"ListAccountDevices", "SignOutAccountDevice", "SignOutAllAccountDevices", "ResetAdminUserPassword",
@@ -343,6 +387,9 @@ func (s *Server) writeErr(w http.ResponseWriter, r *http.Request, err error) {
 			return
 		}
 		s.log.Error("internal error", "method", r.Method, "path", r.URL.Path, "err", err)
+		if !errors.Is(err, context.Canceled) { // a client that went away is not a server error
+			s.recordServerError(r, "Internal error in "+routeOf(r), routeOf(r)+": "+err.Error())
+		}
 		writeError(w, http.StatusInternalServerError, hub.CodeInternal, "Internal error")
 	}
 }

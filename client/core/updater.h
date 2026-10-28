@@ -159,6 +159,9 @@ class UpdateManager : public QObject {
  signals:
   void changed();
   void quitRequested();  // installer started: the Player has to exit now
+  // An update that was downloaded, checked or installed failed (not a failed check for updates: that is mostly "offline"); `reason`
+  // is the technical text (ADR 0035 error events).
+  void failed(const QString& reason);
 
  private:
   void resolveDefaultChannel(const Index& index);
@@ -193,6 +196,7 @@ class UpdateManager : public QObject {
   double progress_ = 0;
   QDateTime lastCheck_;
   QString lastError_;
+  bool quietError_ = false;  // the Error state of a failed check is not an update failure
   bool checkRunning_ = false;
   bool applyAfterDownload_ = false;
   Release dlRelease_;        // what the running download fetches (the selected release, or a rollback target)
