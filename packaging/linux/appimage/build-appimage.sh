@@ -90,6 +90,7 @@ done
 # platform plugins linuxdeploy deploys (usr/plugins/<dir>/x.so -> usr/lib).
 command -v patchelf >/dev/null 2>&1 || { echo "patchelf is required (apt install patchelf)" >&2; exit 1; }
 for d in wayland-shell-integration wayland-decoration-client wayland-graphics-integration-client; do
+  # shellcheck disable=SC2016 # $ORIGIN is for the loader, not the shell
   find "$appdir/usr/plugins/$d" -type f -name '*.so' -exec patchelf --set-rpath '$ORIGIN/../../lib' {} +
 done
 
