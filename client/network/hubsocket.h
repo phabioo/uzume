@@ -42,6 +42,19 @@ struct PauseStateMessage {
   QString by;  // user id, "" when the server cleared the pause
 };
 
+// Voice chat (ADR 0033 D7): one member (device) of a voice room. `mic` is on | off | ptt.
+struct VoiceMember {
+  QString userId;
+  QString deviceId;
+  QString mic;
+  bool mutedByHost = false;
+};
+struct VoiceRoomMessage {
+  QString scope;
+  QString id;
+  QList<VoiceMember> members;  // in join order; empty = the room is closed or I was removed
+};
+
 // WSS client of the Hub (`GET /api/v1/ws`, ADR 0006 D3): Bearer upgrade with the same leaf pinning as HubHttp,
 // `hello` after connect, typed signals for every Hub message, WebSocket ping every 20 s, automatic reconnect
 // with backoff (the token is renewed through HubConnection when the Hub rejects it).
@@ -77,6 +90,14 @@ class HubSocket : public QObject {
   // Chat (ADR 0033 D4): false = not sent because the link is not open (the caller keeps the text).
   bool sendChat(const QString& scope, const QString& id, const QString& clientId, const QString& text);
 
+  // Voice chat (ADR 0033 D7). Sent now or dropped (the VoiceController rejoins after a reconnect).
+  void sendVoiceJoin(const QString& scope, const QString& id, const QString& mic);
+  void sendVoiceLeave(const QString& scope, const QString& id);
+  void sendVoiceState(const QString& scope, const QString& id, const QString& mic);
+  void sendVoiceMute(const QString& id, const QString& userId, bool muted);  // Session owner only
+  // `body` carries kind and the SDP / candidate fields; scope, id and to_device_id are added.
+  void sendVoiceSignal(const QString& scope, const QString& id, const QString& toDeviceId, const QJsonObject& body);
+
   // Timing (tests): ping interval, backoff start/max, hello_ack timeout.
   void setPingIntervalMs(int ms) { pingIntervalMs_ = ms; }
   void setBackoffMs(int initial, int max) {
@@ -103,6 +124,8 @@ class HubSocket : public QObject {
   void readyCheckReceived(const uzume::ReadyCheckMessage& check);
   void pauseStateReceived(const uzume::PauseStateMessage& state);
   void chatReceived(const uzume::ChatMessage& message);  // `chat_message`, also the echo of my own
+  void voiceRoomReceived(const uzume::VoiceRoomMessage& room);
+  void voiceSignalReceived(const QString& scope, const QString& id, const QString& fromDeviceId, const QJsonObject& body);  // kind, sdp, candidate, mid
   void hubError(const QString& code, const QString& message);  // `error` message of the Hub
   void connectionError(const QString& code, const QString& message);  // transport: unreachable, certificate_changed, ...
 
@@ -155,3 +178,4 @@ class HubSocket : public QObject {
 
 Q_DECLARE_METATYPE(uzume::ReadyCheckMessage)
 Q_DECLARE_METATYPE(uzume::PauseStateMessage)
+Q_DECLARE_METATYPE(uzume::VoiceRoomMessage)

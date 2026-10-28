@@ -438,7 +438,13 @@ int AudioMixer::mix(float* out, int frames) {
   }
   if (produced == 0) return frames;  // completely dry: silence for the whole request
   for (size_t i = 0; i < produced; ++i) out[i] = softClip(out[i]);
+  if (tap_) tap_(out, static_cast<int>(produced / 2), rate_);
   return static_cast<int>(produced / 2);
+}
+
+void AudioMixer::setOutputTap(OutputTap tap) {
+  QMutexLocker lock(&mutex_);
+  tap_ = std::move(tap);
 }
 
 QVariantMap AudioMixer::state() const {

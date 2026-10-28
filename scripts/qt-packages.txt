@@ -23,6 +23,7 @@ xvfb
 libavcodec-dev
 libswscale-dev
 libopus-dev
+libspeexdsp-dev
 qt6-websockets-dev
 libssl-dev
 pkg-config

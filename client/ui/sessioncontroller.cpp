@@ -407,9 +407,19 @@ QVariantList SessionController::sessionPeople(const QString& sessionId) const {
     me.insert(QStringLiteral("sessionId"), sessionId);
     out.append(me);
     // Other viewers are not known to a viewer: only their number (the Hub counts them in viewerCount)
-    for (int i = 1; i < r->info.viewerCount; ++i) out.append(person({}, tr("Another viewer"), QStringLiteral("VIEWER"), false, {}, {}, 3 + (i % 6)));
+    for (int i = 1; i < r->info.viewerCount; ++i) {
+      QVariantMap other = person({}, tr("Another viewer"), QStringLiteral("VIEWER"), false, {}, {}, 3 + (i % 6));
+      other.insert(QStringLiteral("placeholder"), true);  // the voice chat may know who it is
+      out.append(other);
+    }
   }
   return out;
+}
+
+QString SessionController::sessionVisibility(const QString& sessionId) const {
+  if (shared_ && own_.sessionId == sessionId) return visibility_;
+  const Remote* r = remote(sessionId);
+  return r ? r->info.visibility : QString();
 }
 
 QString SessionController::role(const QString& sessionId) const {

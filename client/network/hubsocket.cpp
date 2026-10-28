@@ -309,6 +309,27 @@ bool HubSocket::sendChat(const QString& scope, const QString& id, const QString&
   return true;
 }
 
+void HubSocket::sendVoiceJoin(const QString& scope, const QString& id, const QString& mic) {
+  send(QStringLiteral("voice_join"), {{QStringLiteral("scope"), scope}, {QStringLiteral("id"), id}, {QStringLiteral("mic"), mic}});
+}
+void HubSocket::sendVoiceLeave(const QString& scope, const QString& id) {
+  send(QStringLiteral("voice_leave"), {{QStringLiteral("scope"), scope}, {QStringLiteral("id"), id}});
+}
+void HubSocket::sendVoiceState(const QString& scope, const QString& id, const QString& mic) {
+  send(QStringLiteral("voice_state"), {{QStringLiteral("scope"), scope}, {QStringLiteral("id"), id}, {QStringLiteral("mic"), mic}});
+}
+void HubSocket::sendVoiceMute(const QString& id, const QString& userId, bool muted) {
+  send(QStringLiteral("voice_mute"),
+       {{QStringLiteral("scope"), QStringLiteral("session")}, {QStringLiteral("id"), id}, {QStringLiteral("user_id"), userId}, {QStringLiteral("muted"), muted}});
+}
+void HubSocket::sendVoiceSignal(const QString& scope, const QString& id, const QString& toDeviceId, const QJsonObject& body) {
+  QJsonObject p = body;
+  p.insert(QStringLiteral("scope"), scope);
+  p.insert(QStringLiteral("id"), id);
+  p.insert(QStringLiteral("to_device_id"), toDeviceId);
+  send(QStringLiteral("voice_signal"), p);
+}
+
 void HubSocket::onTextMessage(const QString& text) {
   lastTrafficMs_ = nowMs();
   QJsonParseError pe;
@@ -377,6 +398,17 @@ void HubSocket::onTextMessage(const QString& text) {
     emit readyCheckReceived(m);
   } else if (type == QLatin1String("pause_state")) {
     emit pauseStateReceived({str(p, "scope"), str(p, "id"), p.value(QStringLiteral("paused")).toBool(), str(p, "by")});
+  } else if (type == QLatin1String("voice_room")) {
+    VoiceRoomMessage m;
+    m.scope = str(p, "scope");
+    m.id = str(p, "id");
+    for (const QJsonValue& v : p.value(QStringLiteral("members")).toArray()) {
+      const QJsonObject o = v.toObject();
+      m.members.append({str(o, "user_id"), str(o, "device_id"), str(o, "mic"), o.value(QStringLiteral("muted_by_host")).toBool()});
+    }
+    emit voiceRoomReceived(m);
+  } else if (type == QLatin1String("voice_signal")) {
+    emit voiceSignalReceived(str(p, "scope"), str(p, "id"), str(p, "from_device_id"), p);
   } else if (type == QLatin1String("chat_message")) {
     emit chatReceived(parseChatMessage(p));
   } else if (type == QLatin1String("error")) {

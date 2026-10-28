@@ -53,6 +53,9 @@ qt_add_qml_module(uzume_ui
     onlineroster.h onlineroster.cpp
     notificationcenter.h notificationcenter.cpp
     togethercontroller.h togethercontroller.cpp
+    voicecontroller.h voicecontroller.cpp
+    voicecapture.h voicecapture.cpp
+    voicemiclogic.h
     chatcontroller.h chatcontroller.cpp
     personalcontroller.h personalcontroller.cpp
     screenshotcontroller.h screenshotcontroller.cpp
@@ -160,6 +163,7 @@ qt_add_qml_module(uzume_ui
     EmulationContent.qml
     ControllersContent.qml
     HotkeysContent.qml
+    VoiceContent.qml
     TableHeadCell.qml
     BindingText.qml
     PadGlyph.qml

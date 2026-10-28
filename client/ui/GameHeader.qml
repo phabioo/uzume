@@ -37,6 +37,10 @@ Rectangle {
     readonly property Item speedAnchor: speedValueButton
     readonly property bool menuOpen: moreMenu.opened || layoutMenu.opened || speedMenu.opened || soundPopover.opened || mixerPopover.opened
     readonly property var audio: player.audio
+    readonly property VoiceController voice: player.voice
+    // The mic control (board 6w-2) shows while a voice room is possible or joined; "Join voice" before the join, the mic state after it.
+    readonly property bool voiceShown: voice.available || voice.wantJoined
+    readonly property string micValue: voice.wantJoined ? voice.micWord : ""
     readonly property SaveHistoryController saves: player.saveHistory
     signal fullscreenRequested()
     signal resetRequested()
@@ -128,6 +132,8 @@ Rectangle {
     readonly property real wSpeed1: bw("»", speedValue, false)
     readonly property real wSound: bw(qsTr("Sound"), soundValue, true)
     readonly property real wSound3: bw("", soundValue, true)
+    readonly property real wMic0: bw(voice.wantJoined ? qsTr("Mic") : qsTr("Join voice"), micValue, false)
+    readonly property real wMic2: bw(voice.wantJoined ? "" : qsTr("Join voice"), micValue, false) + (voice.selfSpeaking ? 16 : 0)
     readonly property real wScreens0: bw(qsTr("Screens"), screensValue, true)
     readonly property real wScreens1: bw(qsTr("Screens"), "", true)
     readonly property real wPanel0: bw(qsTr("Panel"), panelValue, false)
@@ -149,6 +155,7 @@ Rectangle {
             if (watchingOnly) {
                 if (ctl.tab !== "session" && ctl.surfaceCount >= 1) add(addButton.implicitWidth)
                 if (mixerShown && l < 3) add(wMixer)
+                if (voiceShown) add(l < 2 ? wMic0 : wMic2)
                 add(l < 3 ? wSound : wSound3); add(l < 1 ? wPanel0 : wPanel1); add(leaveButton.implicitWidth)
                 if (l < 2) add(wFullscreen)
                 add(more)
@@ -156,6 +163,7 @@ Rectangle {
                 if (l < 1 && watchers.length > 0) add(watchers.length * 16 + 8 + Theme.space1)
                 if (own) add(l < 1 ? wPause0 : wPause1)
                 if (l < 3 && own && session.fastForwardAvailable) add((l < 1 ? wSpeed0 : wSpeed1) + (l < 2 ? 32 - 1 : 0))
+                if (voiceShown) add(l < 2 ? wMic0 : wMic2)
                 add(l < 3 ? wSound : wSound3)
                 if (l < 2 && layouts.length > 1) add(l < 1 ? wScreens0 : wScreens1)
                 if (!multi && own && l < 3) add(wMulti)
@@ -242,6 +250,10 @@ Rectangle {
         // Together (ADR 0033 D3): one click each, enabled while a run or a Session is the scope of this game
         it.push({ label: qsTr("Ready check…"), name: "readyCheck", disabled: !root.together.available })
         it.push({ label: root.together.paused ? qsTr("Resume for everyone") : qsTr("Pause for everyone"), shortcut: "Shift+Esc", name: "sharedPause", disabled: !root.together.available })
+        it.push({ label: root.voice.wantJoined ? qsTr("Leave voice") : qsTr("Join voice"), name: "voiceToggle",
+                  disabled: !root.voice.available && !root.voice.wantJoined })
+        if (root.voice.wantJoined)
+            it.push({ label: root.voice.micOn ? qsTr("Mic off") : qsTr("Mic on"), shortcut: "Shift+M", name: "micToggle" })
         it.push({ separator: true })
         it.push({ label: root.diag.open ? qsTr("Hide diagnostics") : qsTr("Diagnostics"), shortcut: root.key(root.hotkeys.diagnostics) || "F3", name: "diagnostics" })
         it.push({ label: qsTr("HUD widgets"), shortcut: "F4", name: "hud", disabled: root.player.plugins.hudWidgets.length === 0 })
@@ -258,6 +270,8 @@ Rectangle {
         if (name === "pause") root.session.togglePause()
         else if (name === "readyCheck") root.together.startCheck()
         else if (name === "sharedPause") root.together.togglePause()
+        else if (name === "voiceToggle") root.voice.toggleJoin()
+        else if (name === "micToggle") root.voice.toggleMic()
         else if (name === "speedup") root.session.toggleFastForward()
         else if (name === "panel") root.panelToggled()
         else if (name === "multiview") root.ctl.tab = "multiview"
@@ -650,6 +664,28 @@ Rectangle {
                     ToolTip.text: qsTr("Speed-up speed")
                     onClicked: speedMenu.opened ? speedMenu.close() : speedMenu.openFor(speedValueButton, "below", true)
                 }
+            }
+            UzVoiceBars {
+                objectName: "micSpeakingMark"
+                visible: root.voice.wantJoined && root.voice.selfSpeaking
+                Layout.alignment: Qt.AlignVCenter
+            }
+            UzButton {
+                id: micButton
+                objectName: "micButton"
+                visible: root.voiceShown
+                size: "sm"
+                focusPolicy: Qt.TabFocus
+                text: root.voice.wantJoined ? (root.level < 2 ? qsTr("Mic") : "") : qsTr("Join voice")
+                value: root.micValue
+                // Muted by host and a mic that cannot work are not choices of the person: the look says so (never colour alone: the word does).
+                on: root.voice.wantJoined && root.voice.micState === "live"
+                inverted: on
+                Accessible.name: root.voice.wantJoined ? qsTr("Microphone: %1").arg(root.voice.micWord) : qsTr("Join voice")
+                ToolTip.visible: hovered && !root.menuOpen
+                ToolTip.delay: 500
+                ToolTip.text: root.voice.wantJoined ? root.voice.micDetail + (root.voice.micState === "blocked" ? "" : "  Shift+M") : qsTr("Join the voice chat")
+                onClicked: root.voice.micAction()
             }
             UzButton {
                 id: volumeButton
