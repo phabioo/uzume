@@ -681,6 +681,52 @@ Rectangle {
                                 onClicked: rulesDialog.openFor(detailCol.d.runId, detailCol.d.rules)
                             }
                         }
+
+                        // Plugin updates (run_plugin_updates_v1): "Update available: <plugin> <old> → <new>" with Update, and "Restore <old>", for the creator and admins.
+                        Repeater {
+                            model: detailCol.d.canUpdatePlugins === true ? (detailCol.d.pluginChanges || []) : []
+                            ColumnLayout {
+                                required property var modelData
+                                objectName: "runPluginChangeRow"
+                                Layout.fillWidth: true
+                                spacing: 0
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: Theme.space15
+                                    UzLabel {
+                                        objectName: "runPluginChangeText"
+                                        Layout.fillWidth: true
+                                        text: modelData.text
+                                        elide: Text.ElideRight
+                                        font.pixelSize: Theme.roles.small.size
+                                    }
+                                    UzButton {
+                                        objectName: "runPluginChangeButton"
+                                        kind: "link"
+                                        text: modelData.buttonText
+                                        enabled: !root.runs.pluginUpdateBusy
+                                        onClicked: root.runs.applyPluginChange(detailCol.d.runId, modelData.pluginId, modelData.restore)
+                                    }
+                                }
+                                UzLabel {
+                                    visible: (modelData.permissionsText || "") !== ""
+                                    Layout.fillWidth: true
+                                    text: modelData.permissionsText || ""
+                                    wrapMode: Text.WordWrap
+                                    color: Theme.muted
+                                    font.pixelSize: Theme.roles.small.size
+                                }
+                            }
+                        }
+                        UzLabel {
+                            objectName: "runPluginUpdateError"
+                            visible: root.runs.pluginUpdateError !== ""
+                            Layout.fillWidth: true
+                            text: root.runs.pluginUpdateError
+                            wrapMode: Text.WordWrap
+                            color: Theme.danger
+                            font.pixelSize: Theme.roles.small.size
+                        }
                     }
 
                     // Admins: the admin actions of this run next to the run's own actions.
@@ -960,6 +1006,10 @@ Rectangle {
     }
     RunRulesDialog {
         id: rulesDialog
+        runs: root.runs
+    }
+    RunPluginConsentDialog {
+        id: pluginConsentDialog
         runs: root.runs
     }
     RunStartDialog {

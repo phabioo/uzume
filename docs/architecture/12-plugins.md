@@ -188,7 +188,7 @@ Built in package 3 (Hub) and in the Player's delivery part.
 
 **Player.** "Browse plugins on your Hub" lists the offered plugins; Install downloads the file with the list's SHA-256 as pin (a mismatch installs nothing), validates it as above and stores a Hub copy under `<plugins-root>/hub/<id>/<version>/` with `origin.json`. "Install plugin from file": signed files become `official` without developer mode, unsigned ones `local` (developer mode). The developer mode also reloads a plugin from a folder on change and shows a log console.
 
-**Runs** use exactly the plugin versions the run pins (id, version, SHA-256); a locally installed copy is not enough and never replaces the Hub version a run uses.
+**Runs** use exactly the plugin versions the run pins (id, version, SHA-256); a locally installed copy is not enough and never replaces the Hub version a run uses. The creator or an admin can switch a pinned plugin to another offered version while the run is not over ([ADR 0023](../adr/0023-plugins.md), amendment 2026-10-28; endpoint in [protocol](../reference/protocol.md)); the server remembers the version before the switch (`previous_version`) and keeps both copies until the run ends, the run's state, boards and events stay, and every app restarts the run's plugins on the push.
 
 Official plugin repositories (created 2026-10-11, no code yet, each with its own docs and roadmap): `uzume-plugin-pokemon-core`, `uzume-plugin-soullink`, `uzume-plugin-creature-editor`, `uzume-plugin-cheats`, `uzume-plugin-template`.
 

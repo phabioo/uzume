@@ -37,6 +37,9 @@ const (
 	CodeConfirmationRequired Code = "confirmation_required"
 	CodePasswordRequired     Code = "password_required"
 	CodePasswordNotSet       Code = "password_not_set"
+	// Run plugin updates (run_plugin_updates_v1): 409 answers of PUT /runs/{run_id}/plugins.
+	CodePluginUpdateIncompatible Code = "plugin_update_incompatible"
+	CodePluginRequiresMissing    Code = "plugin_requires_missing"
 )
 
 // Error is a domain error with a spec code. errors.Is compares the code only.

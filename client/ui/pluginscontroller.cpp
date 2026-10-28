@@ -7,7 +7,9 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonArray>
 #include <QJsonDocument>
+#include <QSaveFile>
 #include <QJsonObject>
 #include <QGuiApplication>
 #include <QKeyCombination>
@@ -20,6 +22,7 @@
 #include "gamesession.h"
 #include "hubconnection.h"
 #include "playersettings.h"
+#include "runclient.h"
 #include "runtypes.h"
 #include "system_manifest.h"
 #include "semver.h"
@@ -693,6 +696,7 @@ QVariantMap PluginsController::hubOffer(const QString& pluginId, const QString& 
 void PluginsController::gameStarted(const QString& system, const QString& romPath, const QString& sha256, const QString& title,
                                     const QString& language, const RunLaunch& run) {
   if (inGame_ || running_) stopGame(false);
+  ++pinsGen_;  // pin downloads of an earlier game or run never apply to this one
   inGame_ = true;
   language_ = language.isEmpty() ? resolveLanguage(system) : language;
   if (shellRunning_) {  // the shell set (and the run view) gives way to the game set
@@ -787,7 +791,13 @@ plugins::GameResolution PluginsController::resolveGameSet() const {
   return res;
 }
 
-void PluginsController::startGameSet(const plugins::GameResolution& res) {
+bool PluginsController::startGameSet(const plugins::GameResolution& res) {
+  if (runLaunch_.bridge && runPinsGate_ &&
+      !runPinsGate_(runLaunch_.bridge->current().value(QStringLiteral("id")).toString(), runLaunch_.pins, true)) {
+    runningIds_.clear();
+    running_ = false;
+    return false;
+  }
   runningIds_.clear();
   for (const plugins::PluginInfo& p : res.start) runningIds_ << p.manifest.id;
   loggedStatus_.clear();
@@ -808,6 +818,7 @@ void PluginsController::startGameSet(const plugins::GameResolution& res) {
   setConsoleAvailable(developerMode());
   devConsole_->schedule();
   devConsole_->memoryRefresh();
+  return true;
 }
 
 void PluginsController::stopGameSet() {
@@ -837,10 +848,146 @@ void PluginsController::refreshRunExtras() {
   rebuildUiModels();
 }
 
+void PluginsController::runPinsChanged(const QList<plugins::RunPluginPin>& pins) {
+  if (!inGame_ || !runLaunch_.bridge || delivery_ == nullptr) return;
+  const quint64 gen = ++pinsGen_;  // every call supersedes downloads still running for older pins, also when these pins equal the running set
+  const auto same = [&] {
+    if (pins.size() != runLaunch_.pins.size()) return false;
+    for (const plugins::RunPluginPin& p : pins) {
+      bool found = false;
+      for (const plugins::RunPluginPin& q : std::as_const(runLaunch_.pins))
+        if (q.id == p.id && q.version == p.version && q.sha256 == p.sha256) found = true;
+      if (!found) return false;
+    }
+    return true;
+  };
+  if (same()) return;  // nothing changed: the running plugins keep running
+  auto pending = std::make_shared<QList<plugins::RunPluginPin>>(pins);
+  auto step = std::make_shared<std::function<void()>>();
+  *step = [this, pending, step, pins, gen]() {
+    if (gen != pinsGen_ || !inGame_) return;
+    if (pending->isEmpty()) {
+      runLaunch_.pins = pins;
+      restartRunSet();
+      return;
+    }
+    const plugins::RunPluginPin pin = pending->takeFirst();
+    if (!manager_->hubCopyDir(pin.id, pin.version, pin.sha256).isEmpty()) {
+      (*step)();
+      return;
+    }
+    delivery_->ensureHubCopy(pin.id, pin.version, pin.sha256, [this, step, gen, pin](const plugins::DeliveryResult& res) {
+      if (gen != pinsGen_ || !inGame_) return;
+      if (!res.ok) {
+        qCWarning(lcPlugins) << "run plugin" << pin.id << pin.version << "not fetched:" << res.error;
+        PluginEmulationService::Notice n;
+        n.pluginName = tr("Uzume");
+        n.tone = QStringLiteral("important");
+        n.title = tr("Run plugins");
+        n.text = tr("%1 %2 could not be fetched: %3").arg(pin.id, pin.version, res.error);
+        addAppNotice(n);
+        return;
+      }
+      (*step)();
+    });
+  };
+  (*step)();
+}
+
+// New pins are in place: stop the game's plugins and start the set again, unless the person still has to agree to new permissions.
+void PluginsController::restartRunSet() {
+  if (!inGame_ || !runLaunch_.bridge) return;
+  if (running_) stopGameSet();
+  const plugins::GameResolution res = resolveGameSet();
+  for (auto it = res.problems.begin(); it != res.problems.end(); ++it)
+    qCInfo(lcPlugins) << "plugin" << it.key() << "not started:" << it.value().join(QStringLiteral("; "));
+  if (!res.start.isEmpty() && !startGameSet(res)) {
+    PluginEmulationService::Notice n;
+    n.pluginName = tr("Uzume");
+    n.tone = QStringLiteral("important");
+    n.title = tr("Run plugins");
+    n.text = tr("The run's plugins were updated and ask for new permissions. They stay off until you agree; the Runs screen asks.");
+    addAppNotice(n);
+    rebuildUiModels();
+    return;
+  }
+  rebuildUiModels();
+}
+
+namespace {
+// Run ids are only unique per server and an installation can hold several accounts, so the consent lives in the run cache folder of the
+// server and user (RunClient::scopeDir); older consent in the shared plugins/run_consent.json is not read, the person is asked again.
+// Its subfolder keeps it apart from the run cache's *.json files. No server or user: no path, nothing is recorded.
+QString runConsentPath(const QString& dataDir, const QString& hubId, const QString& userId) {
+  const QString dir = RunClient::scopeDir(dataDir, hubId, userId);
+  return dir.isEmpty() ? QString() : dir + QStringLiteral("/plugin_consent/run_consent.json");
+}
+
+QJsonObject readRunConsent(const QString& dataDir, const QString& hubId, const QString& userId) {
+  const QString path = runConsentPath(dataDir, hubId, userId);
+  if (path.isEmpty()) return {};
+  QFile f(path);
+  if (!f.open(QIODevice::ReadOnly)) return {};
+  return QJsonDocument::fromJson(f.readAll()).object();
+}
+}  // namespace
+
+std::optional<QStringList> PluginsController::runAcceptedPermissions(const QString& runId, const QString& pluginId) const {
+  return runAcceptedPermissionsFor(conn_ ? conn_->hubId() : QString(), conn_ ? conn_->hubUserId() : QString(), runId, pluginId);
+}
+
+QStringList PluginsController::runLegacyVersions(const QString& runId, const QString& pluginId) const {
+  const QJsonValue v = readRunConsent(dataDir_, conn_ ? conn_->hubId() : QString(), conn_ ? conn_->hubUserId() : QString()).value(runId.toLower()).toObject().value(pluginId);
+  QJsonArray arr = v.isArray() ? v.toArray() : v.toObject().value(QStringLiteral("versions")).toArray();
+  QStringList out;
+  for (const QJsonValue& x : arr) out << x.toString();
+  return out;
+}
+
+void PluginsController::acceptRunPermissions(const QString& runId, const QString& pluginId, const QStringList& perms) {
+  acceptRunPermissionsFor(conn_ ? conn_->hubId() : QString(), conn_ ? conn_->hubUserId() : QString(), runId, pluginId, perms);
+}
+
+std::optional<QStringList> PluginsController::runAcceptedPermissionsFor(const QString& hubId, const QString& userId, const QString& runId,
+                                                                        const QString& pluginId) const {
+  const QJsonValue v = readRunConsent(dataDir_, hubId, userId).value(runId.toLower()).toObject().value(pluginId);
+  if (!v.isObject() || !v.toObject().contains(QStringLiteral("permissions"))) return std::nullopt;
+  QStringList out;
+  for (const QJsonValue& p : v.toObject().value(QStringLiteral("permissions")).toArray()) out << p.toString();
+  return out;
+}
+
+void PluginsController::acceptRunPermissionsFor(const QString& hubId, const QString& userId, const QString& runId, const QString& pluginId,
+                                                const QStringList& perms) {
+  const QString path = runConsentPath(dataDir_, hubId, userId);
+  if (path.isEmpty()) return;
+  QJsonObject all = readRunConsent(dataDir_, hubId, userId);
+  QJsonObject run = all.value(runId.toLower()).toObject();
+  const QJsonValue old = run.value(pluginId);
+  QJsonObject entry = old.isObject() ? old.toObject() : QJsonObject();
+  if (old.isArray()) entry.insert(QStringLiteral("versions"), old);  // migrated: the version list stays readable
+  QStringList have;
+  for (const QJsonValue& p : entry.value(QStringLiteral("permissions")).toArray()) have << p.toString();
+  for (const QString& p : perms)
+    if (!have.contains(p)) have << p;
+  entry.insert(QStringLiteral("permissions"), QJsonArray::fromStringList(have));
+  run.insert(pluginId, entry);
+  all.insert(runId.toLower(), run);
+  QDir().mkpath(QFileInfo(path).absolutePath());
+  QSaveFile out(path);
+  if (out.open(QIODevice::WriteOnly)) {
+    out.write(QJsonDocument(all).toJson(QJsonDocument::Compact));
+    out.commit();
+  }
+}
+
+QString PluginsController::permissionLabels(const QStringList& perms) { return permissionsText(perms); }
+
 void PluginsController::gameStopped() { stopGame(true); }
 
 void PluginsController::stopGame(bool restartShell) {
   if (!inGame_ && !running_) return;
+  ++pinsGen_;
   if (running_) {
     emulation_->gameStopped();
     stopGameSet();
@@ -942,6 +1089,7 @@ void PluginsController::updateShell() {
 
 void PluginsController::startRunView(const RunLaunch& run, const QString& runId) {
   if (inGame_ || !run.bridge) return;
+  if (runPinsGate_ && !runPinsGate_(runId, run.pins, false)) return;  // new permissions not accepted: the Runs screen says so
   QStringList sig;
   for (const plugins::RunPluginPin& p : run.pins) sig << p.id + QLatin1Char('@') + p.version + QLatin1Char('@') + p.sha256;
   const QString key = runId.toLower() + QLatin1Char('|') + sig.join(QLatin1Char(','));

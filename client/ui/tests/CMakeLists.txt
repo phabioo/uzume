@@ -8,6 +8,7 @@ uzume_add_test(ui_library_sort library_sort_test.cpp LIBS uzume_ui uzume_core uz
 uzume_add_test(ui_audio audio_test.cpp LIBS uzume_ui uzume_core uzume_emulation)
 uzume_add_test(ui_audiomixer audiomixer_test.cpp LIBS uzume_ui uzume_core uzume_emulation)
 uzume_add_test(ui_run_rules run_rules_test.cpp LIBS uzume_ui uzume_core uzume_emulation)
+uzume_add_test(ui_run_plugin_update run_plugin_update_test.cpp LIBS uzume_ui uzume_core uzume_emulation)
 
 # Live save = full game restart (GameSession::restartWithSave) with the fake libretro core from emulation/tests.
 uzume_add_test(ui_live_restart live_restart_test.cpp LIBS uzume_ui uzume_core uzume_emulation)

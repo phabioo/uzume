@@ -104,6 +104,9 @@ type Manifest struct {
 	Games    []Game   `json:"games"`
 	// RunSettings is the optional manifest field run_settings (validated; entries normalized to the known fields).
 	RunSettings []RunSetting `json:"run_settings,omitempty"`
+	// RunUpdateFrom is the optional manifest field run_update_from (SemVer): the lowest pinned version from which this
+	// version may take over a running run. Empty = any older version.
+	RunUpdateFrom string `json:"run_update_from,omitempty"`
 	// IssuesURL is the optional manifest field issues_url: the GitHub repository for error reports of the plugin
 	// (ADR 0035 D4). Empty when absent or invalid.
 	IssuesURL string `json:"issues_url,omitempty"`
@@ -358,6 +361,12 @@ func ParseManifest(raw []byte) (Manifest, error) {
 	}
 	if m.Description, err = str("description", false); err != nil {
 		return m, err
+	}
+	if m.RunUpdateFrom, err = str("run_update_from", false); err != nil {
+		return m, err
+	}
+	if m.RunUpdateFrom != "" && !updates.ValidSemVer(m.RunUpdateFrom) {
+		return m, invalid("invalid run_update_from %q: use SemVer, e.g. 1.0.0", m.RunUpdateFrom)
 	}
 	typ, err := str("type", false)
 	if err != nil {

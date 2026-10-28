@@ -82,6 +82,10 @@
           "sha256": {
             "type": "string",
             "pattern": "^[0-9a-f]{64}$"
+          },
+          "previous_version": {
+            "type": ["string", "null"],
+            "description": "Version pinned before the last switch (run_plugin_updates_v1); absent or null when never switched"
           }
         }
       }

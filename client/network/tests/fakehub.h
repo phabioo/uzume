@@ -314,6 +314,8 @@ class FakeHub : public QTcpServer {
   QList<QJsonObject> runEventPosts;              // bodies of every event POST (also retried ones)
   int runBoardPuts = 0;
   QList<QJsonObject> runRulesPuts;               // bodies of PUT /runs/{id}/rules (run_rules_v1)
+  QList<QJsonObject> runPluginPuts;              // bodies of PUT /runs/{id}/plugins (run_plugin_updates_v1)
+  bool runPluginsForbidden = false;              // the next plugin PUTs answer 403 forbidden
   bool runRulesForbidden = false;                // the next rules PUTs answer 403 forbidden
   static QString makeUuid();
   // Appends an event (Hub event when userId is empty) and pushes run_event to the WSS clients; returns the seq.
@@ -370,6 +372,7 @@ class FakeHub : public QTcpServer {
   void respond(QSslSocket* sock, int status, const QByteArray& body, const QByteArray& contentType = "application/json",
                const QList<QPair<QByteArray, QByteArray>>& extra = {}, qint64 truncateAt = -1);
   void respondError(QSslSocket* sock, int status, const QString& code);
+  void respondErrorMessage(QSslSocket* sock, int status, const QString& code, const QString& message);
   void handleSaves(QSslSocket* sock, const FakeRequest& req);
   void handleAdmin(QSslSocket* sock, const FakeRequest& req);
   bool handleDirectory(QSslSocket* sock, const FakeRequest& req, const QString& path, const QJsonObject& body);

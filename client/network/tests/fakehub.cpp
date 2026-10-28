@@ -11,12 +11,14 @@
 #include <QUuid>
 #include <QJsonArray>
 #include <QRegularExpression>
+#include <QSet>
 #include <QJsonDocument>
 #include <QSslConfiguration>
 #include <QSslSocket>
 #include <memory>
 
 #include "hubhttp.h"
+#include "semver.h"
 
 const QByteArray FakeHub::kDeviceCredential = "fbd_TEST_DUMMY_CREDENTIAL";
 const QByteArray FakeHub::kPollToken = "fbp_TEST_DUMMY_POLL";
@@ -161,6 +163,12 @@ void FakeHub::respond(QSslSocket* sock, int status, const QByteArray& body, cons
 void FakeHub::respondError(QSslSocket* sock, int status, const QString& code) {
   respond(sock, status,
           QJsonDocument(QJsonObject{{QStringLiteral("error"), QJsonObject{{QStringLiteral("code"), code}, {QStringLiteral("message"), code}}}})
+              .toJson(QJsonDocument::Compact));
+}
+
+void FakeHub::respondErrorMessage(QSslSocket* sock, int status, const QString& code, const QString& message) {
+  respond(sock, status,
+          QJsonDocument(QJsonObject{{QStringLiteral("error"), QJsonObject{{QStringLiteral("code"), code}, {QStringLiteral("message"), message}}}})
               .toJson(QJsonDocument::Compact));
 }
 
@@ -2034,6 +2042,96 @@ void FakeHub::handleRuns(QSslSocket* sock, const FakeRequest& req) {
       QJsonObject& stored = runEvents[runId].last();
       stored.insert(QStringLiteral("payload"), QJsonObject{{QStringLiteral("before"), before}, {QStringLiteral("after"), body},
                                                            {QStringLiteral("by_user_id"), runsMe}, {QStringLiteral("by_user_name"), runsMeName}});
+      sendWs(QStringLiteral("run_event"), {{QStringLiteral("run_id"), runId}, {QStringLiteral("event"), stored}});
+      pushRun(runId);
+    }
+    respond(sock, 200, json(runs.value(runId)));
+  } else if (sub == QLatin1String("plugins") && req.method == "PUT") {
+    // run_plugin_updates_v1: switches pinned plugins (creator only here), keeps previous_version / previous_sha256, writes plugins.updated.
+    lastRunBody = body;
+    runPluginPuts.append(body);
+    const auto cmp = [](const QString& a, const QString& b) { return uzume::update::compareVersions(a, b).value_or(0); };
+    if (runPluginsForbidden || run.value(QStringLiteral("created_by")).toString() != runsMe) {
+      respondErrorMessage(sock, 403, QStringLiteral("forbidden"), QStringLiteral("Only the creator of the run or an admin can update its plugins"));
+      return;
+    }
+    const QString runStatus = run.value(QStringLiteral("status")).toString();
+    if (runStatus == QLatin1String("finished") || runStatus == QLatin1String("abandoned")) {
+      respondError(sock, 409, QStringLiteral("conflict"));
+      return;
+    }
+    const auto offeredEntry = [&](const QString& id, const QString& version) {
+      for (const QJsonValue& v : pluginList)
+        if (v.toObject().value(QStringLiteral("plugin_id")).toString() == id && v.toObject().value(QStringLiteral("version")).toString() == version) return v.toObject();
+      return QJsonObject();
+    };
+    QJsonArray pins = run.value(QStringLiteral("plugins")).toArray();
+    const auto pinIndex = [&](const QString& id) {
+      for (qsizetype i = 0; i < pins.size(); ++i)
+        if (pins.at(i).toObject().value(QStringLiteral("plugin_id")).toString() == id) return i;
+      return qsizetype(-1);
+    };
+    QJsonArray changes;
+    QSet<QString> listed;
+    for (const QJsonValue& v : body.value(QStringLiteral("plugins")).toArray()) {
+      const QString id = v.toObject().value(QStringLiteral("plugin_id")).toString();
+      const QString version = v.toObject().value(QStringLiteral("version")).toString();
+      const QJsonObject entry = offeredEntry(id, version);
+      if (entry.isEmpty() || listed.contains(id)) {
+        respondError(sock, 400, QStringLiteral("bad_request"));
+        return;
+      }
+      listed.insert(id);
+      const qsizetype at = pinIndex(id);
+      QJsonObject pin = at >= 0 ? pins.at(at).toObject() : QJsonObject();
+      const QString from = pin.value(QStringLiteral("version")).toString();
+      if (from == version) continue;
+      if (!from.isEmpty()) {
+        if (cmp(version, from) > 0) {
+          const QString minFrom = entry.value(QStringLiteral("run_update_from")).toString();
+          if (!minFrom.isEmpty() && cmp(from, minFrom) < 0) {
+            respondErrorMessage(sock, 409, QStringLiteral("plugin_update_incompatible"),
+                                QStringLiteral("%1 %2 can only take over from %3 or newer (pinned: %4)").arg(id, version, minFrom, from));
+            return;
+          }
+        } else if (pin.value(QStringLiteral("previous_version")).toString() != version) {
+          respondErrorMessage(sock, 409, QStringLiteral("plugin_update_incompatible"),
+                              QStringLiteral("Only the previous version of %1 can be restored").arg(id));
+          return;
+        }
+      }
+      QJsonObject np{{QStringLiteral("plugin_id"), id}, {QStringLiteral("version"), version}, {QStringLiteral("sha256"), entry.value(QStringLiteral("sha256")).toString()}};
+      if (!from.isEmpty()) np.insert(QStringLiteral("previous_version"), from);
+      if (at >= 0) pins.replace(at, np);
+      else pins.append(np);
+      changes.append(QJsonObject{{QStringLiteral("plugin_id"), id}, {QStringLiteral("from"), from}, {QStringLiteral("to"), version}});
+    }
+    // requires: every required id must be in the resulting set at a version in range (^M.N, >=V, exact or *).
+    for (const QJsonValue& pv : pins) {
+      const QJsonObject pin = pv.toObject();
+      const QJsonObject entry = offeredEntry(pin.value(QStringLiteral("plugin_id")).toString(), pin.value(QStringLiteral("version")).toString());
+      const QJsonObject req2 = entry.value(QStringLiteral("requires")).toObject();
+      for (auto it = req2.begin(); it != req2.end(); ++it) {
+        const qsizetype at = pinIndex(it.key());
+        const QString have = at >= 0 ? pins.at(at).toObject().value(QStringLiteral("version")).toString() : QString();
+        const QString range = it.value().toString();
+        bool ok = !have.isEmpty();
+        if (ok && range.startsWith(QLatin1Char('^'))) ok = cmp(have, range.mid(1)) >= 0 && have.section(QLatin1Char('.'), 0, 0) == range.mid(1).section(QLatin1Char('.'), 0, 0);
+        else if (ok && range.startsWith(QStringLiteral(">="))) ok = cmp(have, range.mid(2)) >= 0;
+        else if (ok && range != QLatin1String("*")) ok = cmp(have, range) == 0;
+        if (!ok) {
+          respondErrorMessage(sock, 409, QStringLiteral("plugin_requires_missing"),
+                              QStringLiteral("%1 needs %2 %3").arg(pin.value(QStringLiteral("plugin_id")).toString(), it.key(), range));
+          return;
+        }
+      }
+    }
+    if (!changes.isEmpty()) {
+      run.insert(QStringLiteral("plugins"), pins);
+      runs.insert(runId, run);
+      addRunEvent(runId, QStringLiteral("plugins.updated"), QString(), QString(), {}, {}, false);
+      QJsonObject& stored = runEvents[runId].last();
+      stored.insert(QStringLiteral("payload"), QJsonObject{{QStringLiteral("changes"), changes}, {QStringLiteral("by_user_id"), runsMe}, {QStringLiteral("by_user_name"), runsMeName}});
       sendWs(QStringLiteral("run_event"), {{QStringLiteral("run_id"), runId}, {QStringLiteral("event"), stored}});
       pushRun(runId);
     }

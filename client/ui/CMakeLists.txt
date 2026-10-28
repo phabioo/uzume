@@ -50,6 +50,7 @@ qt_add_qml_module(uzume_ui
     keyedrowsmodel.h keyedrowsmodel.cpp
     runscontroller.h runscontroller.cpp
     runrules.h runrules.cpp
+    runpluginupdate.h runpluginupdate.cpp
     runrecapcontroller.h runrecapcontroller.cpp
     onlineroster.h onlineroster.cpp
     notificationcenter.h notificationcenter.cpp
@@ -200,6 +201,7 @@ qt_add_qml_module(uzume_ui
     ConnectionCheckDialog.qml
     RunStartDialog.qml
     RunRulesDialog.qml
+    RunPluginConsentDialog.qml
     DialogsProbe.qml
     DialogsGate.qml
     PluginPickPathDialog.qml

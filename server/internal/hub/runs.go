@@ -49,6 +49,10 @@ func RunSaveSlot(runID string) string {
 // the run event rules.changed) and for the optional cheats_used marker on save uploads and history versions.
 const FeatureRunRulesV1 = "run_rules_v1"
 
+// FeatureRunPluginUpdatesV1 is the handshake feature flag for switching a run's pinned plugin versions
+// (PUT /runs/{run_id}/plugins, `previous_version` on the run plugin, run event plugins.updated).
+const FeatureRunPluginUpdatesV1 = "run_plugin_updates_v1"
+
 // Values of the run rules cheats and memory_write.
 const (
 	RuleOff    = "off"
@@ -162,6 +166,10 @@ type RunPlugin struct {
 	PluginID string `json:"plugin_id"`
 	Version  string `json:"version"`
 	SHA256   string `json:"sha256"`
+	// PreviousVersion is the version pinned before the last switch (run_plugin_updates_v1), "" if never switched.
+	PreviousVersion string `json:"previous_version,omitempty"`
+	// PreviousSHA256 is the file hash of PreviousVersion (internal).
+	PreviousSHA256 string `json:"-"`
 }
 
 // RunPluginRef is a plugin version requested at creation.
@@ -333,12 +341,13 @@ func (s *Service) OfferedPlugin(ctx context.Context, id, version string) (string
 	return p.SHA256, true, nil
 }
 
-// RunsUsingPluginVersion reports whether a run that is not finished or abandoned uses the plugin version
+// RunsUsingPluginVersion reports whether a run that is not finished or abandoned uses the plugin version, as pinned
+// version or as previous_version (restorable)
 // (the plugin store refuses to remove such a version).
 func (s *Service) RunsUsingPluginVersion(ctx context.Context, id, version string) (bool, error) {
 	var n int
 	err := s.db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM run_plugins p JOIN runs r ON r.id = p.run_id
-		WHERE p.plugin_id = ? AND p.version = ? AND r.status NOT IN ('finished','abandoned'))`, id, version).Scan(&n)
+		WHERE p.plugin_id = ? AND (p.version = ? OR p.previous_version = ?) AND r.status NOT IN ('finished','abandoned'))`, id, version, version).Scan(&n)
 	if err != nil {
 		return false, internal(err)
 	}
@@ -493,14 +502,14 @@ func loadRunsChunked(ctx context.Context, q dbq, ids []string, withState bool, b
 		return nil
 	}
 
-	rows, err = q.QueryContext(ctx, `SELECT run_id, plugin_id, version, sha256 FROM run_plugins WHERE run_id IN `+in+` ORDER BY run_id, position`, args...)
+	rows, err = q.QueryContext(ctx, `SELECT run_id, plugin_id, version, sha256, COALESCE(previous_version, ''), COALESCE(previous_sha256, '') FROM run_plugins WHERE run_id IN `+in+` ORDER BY run_id, position`, args...)
 	if err != nil {
 		return internal(err)
 	}
 	for rows.Next() {
 		var rid string
 		var p RunPlugin
-		if err := rows.Scan(&rid, &p.PluginID, &p.Version, &p.SHA256); err != nil {
+		if err := rows.Scan(&rid, &p.PluginID, &p.Version, &p.SHA256, &p.PreviousVersion, &p.PreviousSHA256); err != nil {
 			rows.Close()
 			return internal(err)
 		}

@@ -324,6 +324,39 @@ class PluginsRuntimeUiTest : public QObject {
     QCOMPARE(m_pc->shellPluginIds(), (QStringList{"net.test.both", "net.test.shell"}));
   }
 
+  // One consent gate at the start boundary: a run launch whose pins the person has not accepted starts no plugin and raises the request; once
+  // accepted the plugins start. Game start and end advance the pin generation, so a pending pin download of an earlier run is dropped.
+  void runPinsGateBlocksStartUntilAccepted() {
+    QString sha;
+    installHubCopy("net.test.gated", "1.0.0", QJsonObject{}, {"run.state"}, "uz.log.info('gated')", &sha);
+    auto bridge = std::make_shared<RulesRunBridge>();
+    RunLaunch launch;
+    launch.bridge = bridge;
+    launch.pins = {{"net.test.gated", "1.0.0", sha}};
+    bool accepted = false;
+    int raised = 0;
+    QList<uzume::plugins::RunPluginPin> seen;
+    m_pc->setRunPinsGate([&](const QString&, const QList<uzume::plugins::RunPluginPin>& pins, bool raise) {
+      seen = pins;
+      if (!accepted && raise) ++raised;
+      return accepted;
+    });
+    const quint64 g0 = m_pc->pinsGeneration();
+    m_pc->gameStarted("nds", m_src.path() + "/missing.nds", "abc", "Homebrew", QString(), launch);
+    QVERIFY(m_pc->pinsGeneration() > g0);
+    QTest::qWait(500);
+    QVERIFY(m_pc->host()->pluginIds().isEmpty());  // not started without the agreement
+    QCOMPARE(raised, 1);
+    QCOMPARE(seen.size(), 1);  // the gate saw the exact pins about to start
+    accepted = true;
+    m_pc->retryRunSet();
+    QTRY_VERIFY_WITH_TIMEOUT(m_pc->host()->pluginIds().contains("net.test.gated"), 10000);
+    const quint64 g1 = m_pc->pinsGeneration();
+    m_pc->gameStopped();
+    QVERIFY(m_pc->pinsGeneration() > g1);
+    m_pc->setRunPinsGate({});
+  }
+
   // 0.20 final live check, P1: in a run the plugins pinned to the run start, plus the person's own enabled plugins that change the
   // game (cheats / memory.write) while the run's rules allow that; they stop again when the rule goes back to off.
   void runGameStartsCheatsPluginByRules() {

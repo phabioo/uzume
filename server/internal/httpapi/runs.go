@@ -297,6 +297,26 @@ func (s *Server) SetRunRules(ctx context.Context, req api.SetRunRulesRequestObje
 	return api.SetRunRules200JSONResponse(ar), nil
 }
 
+func (s *Server) SetRunPlugins(ctx context.Context, req api.SetRunPluginsRequestObject) (api.SetRunPluginsResponseObject, error) {
+	if req.Body == nil {
+		return nil, hub.ErrBadRequest
+	}
+	p := principal(ctx)
+	refs := make([]hub.RunPluginRef, 0, len(req.Body.Plugins))
+	for _, x := range req.Body.Plugins {
+		refs = append(refs, hub.RunPluginRef{PluginID: x.PluginId, Version: x.Version})
+	}
+	run, err := s.svc.SetRunPlugins(ctx, p.User.ID, req.RunId.String(), refs, p.User.Role == hub.RoleAdmin)
+	if err != nil {
+		return nil, err
+	}
+	ar, err := toAPIRun(run)
+	if err != nil {
+		return nil, err
+	}
+	return api.SetRunPlugins200JSONResponse(ar), nil
+}
+
 func toAPIChat(ms []hub.ChatMessage) []api.ChatMessage {
 	out := make([]api.ChatMessage, 0, len(ms))
 	for _, m := range ms {

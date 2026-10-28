@@ -244,7 +244,7 @@ func (s *Server) authMiddleware(next api.StrictHandlerFunc, op string) api.Stric
 			"GetAdminFirmwareFile", "PutAdminFirmwareFile", "PinAdminFirmwareFile", "RemoveAdminFirmwareFile",
 			"ListAdminPlugins", "StageAdminPlugin", "OfferAdminPlugin", "DiscardAdminPlugin", "RemoveAdminPlugin", "RefreshAdminPluginIndex", "InstallAdminIndexPlugin",
 			"CreateAdminDiagnosticsBundle", "DeleteAdminGame", "RenameAdminGame", "GetAdminLibraryRescan", "StartAdminLibraryRescan", "ListAdminRuns", "DeleteAdminRun", "GetAdminRun", "ArchiveAdminRun", "ExportAdminRun", "FinishAdminRun", "RemoveAdminRunInvite", "ResendAdminRunInvite", "PauseAdminRun", "ResendAdminRunInvites", "ResumeAdminRun", "StartAdminRun", "UnarchiveAdminRun", "ListAdminSaves", "RenewAdminCertificate", "GetAdminSettings", "UpdateAdminSettings", "DeleteAdminExternalTurn", "SaveAdminExternalTurn", "ResetAdminExternalTurn", "RestartAdminServer", "ResetAdminNetSetting", "SetAdminNetSetting", "CheckAdminUpdates", "InstallAdminUpdate", "DeleteAdminSaveSlot", "GetAdminSaveSlot", "ResolveAdminSaveConflict", "DownloadAdminSaveContent", "ListAdminSaveHistory", "DeleteAdminSaveVersion", "DownloadAdminSaveHistoryContent", "RestoreAdminSaveVersion", "RenameAdminSaveSlot", "CreateAdminSaveSlot", "CreateAdminSaveSnapshot", "UploadAdminSaveFile",
-			"ListSaveStates", "DownloadSaveState", "PutSaveState", "DeleteSaveState", "DownloadSaveStatePreview", "SetRunRules",
+			"ListSaveStates", "DownloadSaveState", "PutSaveState", "DeleteSaveState", "DownloadSaveStatePreview", "SetRunRules", "SetRunPlugins",
 			"ListPluginStore", "GetPluginStoreValue", "PutPluginStoreValue", "DeletePluginStoreValue", "GetGameCheats", "GetAdminCheatDb", "UpdateAdminCheatDb", "RefreshAdminCheatDb",
 			"UploadScreenshot", "ListScreenshots", "ListRunScreenshots", "DownloadScreenshotContent", "DeleteScreenshot",
 			"AddFavorite", "RemoveFavorite", "ListCollections", "CreateCollection", "RenameCollection", "DeleteCollection", "AddCollectionGame", "RemoveCollectionGame",
@@ -332,7 +332,7 @@ func httpStatus(c hub.Code) int {
 	case hub.CodeToolInUse, hub.CodeToolHashMismatch, hub.CodeNameTaken, hub.CodeOwnVariantMismatch, hub.CodeOwnVariantsOff,
 		hub.CodeConflict, hub.CodeChildMode, hub.CodePairingExpired, hub.CodeSaveConflict, hub.CodeSaveConflictStale,
 		hub.CodeSessionFull, hub.CodeCapabilityMissing, hub.CodeDisplayNameTaken,
-		hub.CodeSaveSlotExists, hub.CodeSessionRunning, hub.CodeSaveSlotProtected, hub.CodePasswordNotSet, hub.CodeAlreadySetUp:
+		hub.CodePluginUpdateIncompatible, hub.CodePluginRequiresMissing, hub.CodeSaveSlotExists, hub.CodeSessionRunning, hub.CodeSaveSlotProtected, hub.CodePasswordNotSet, hub.CodeAlreadySetUp:
 		return http.StatusConflict
 	case hub.CodePayloadTooLarge, hub.CodeStateQuotaExceeded, hub.CodeStoreQuotaExceeded:
 		return http.StatusRequestEntityTooLarge

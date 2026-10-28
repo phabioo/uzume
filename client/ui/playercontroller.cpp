@@ -545,6 +545,14 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
     if (routed_.runId.isEmpty() || !runs_->messageIsError() || runs_->message().isEmpty()) return;
     launchProblem(runs_->message());
   });
+  // The consent sheet of "Play run" lives on the Runs screen. A routed Play from the game page cannot answer it there, so the start stops and
+  // the game page says what is pending and where to agree; "Play run" on the Runs screen asks again.
+  connect(runs_.get(), &RunsController::pluginConsentChanged, this, [this] {
+    if (routed_.runId.isEmpty() || runs_->pluginConsent().isEmpty() || page_ == QLatin1String("runs")) return;
+    const QVariantList items = runs_->pluginConsent().value(QStringLiteral("items")).toList();
+    const QString what = items.isEmpty() ? QString() : items.first().toMap().value(QStringLiteral("text")).toString();
+    runs_->dismissPluginConsent(tr("The game was not started. %1. Open the run on the Runs screen and press Play run to review and agree.").arg(what));
+  });
   connect(runs_.get(), &RunsController::ownVariantJoined, this, [this](const QString& runId, const QString& variantId) {
     if (variants_) variants_->setRunOwnVariant(runId, variantId);
   });
@@ -1455,6 +1463,15 @@ void PlayerController::setupStates() {
   });
   connect(runClient_.get(), &RunClient::runChanged, this, [this](const QString& runId) {
     if (runId == stateRunId_) updateDiscord();
+  });
+  // run_plugin_updates_v1: another pinned version in the run of the running game restarts its plugins once (the same pins restart nothing).
+  connect(runClient_.get(), &RunClient::runChanged, this, [this](const QString& runId) {
+    if (runId != stateRunId_ || !plugins_) return;
+    const auto run = runClient_->run(runId);
+    if (!run) return;
+    QList<plugins::RunPluginPin> pins;
+    for (const RunPluginRef& p : run->plugins) pins.append({p.pluginId, p.version, p.sha256});
+    plugins_->runPinsChanged(pins);
   });
   connect(runClient_.get(), &RunClient::runChanged, states_.get(), [this](const QString& runId) {
     if (runId == stateRunId_) states_->rulesChanged();

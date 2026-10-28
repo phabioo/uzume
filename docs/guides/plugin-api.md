@@ -55,6 +55,7 @@ A plugin is a folder with a `manifest.json`, a Lua entry file and optional `i18n
 | `assets` | Relative paths of bundled files or folders. |
 | `run_settings` | Optional run rules form, see [Run settings](#run-settings). |
 | `recap` | Optional run recap mapping, see [Run recap](#run-recap). |
+| `run_update_from` | Optional SemVer: the lowest version a running run may be pinned to when it switches to this version; a run pinned lower is refused with "update incompatible". Absent = any older version. An invalid value is a manifest error. See [Updating plugins in a run](#updating-plugins-in-a-run). |
 | `settings` | Kept as raw JSON; the schema is not defined yet. |
 
 ## Permissions
@@ -386,7 +387,7 @@ Needs the permission `ui` and the matching manifest field `ui`. A plugin ships n
 #### When plugins run
 
 - In a game: as before, the plugins for the game start with it.
-- **In a run game:** the run's pinned plugins (the exact server copies) start. In addition the person's own installed, enabled plugins that fit the game and declare the permission `cheats` start while the run's rule `rules.cheats` is `logged`, and those with `memory.write` while `rules.memory_write` is `logged` (plus what they require; a pinned copy with the same id wins). When the rule goes back to `off` (live, on `run_updated`) they stop again and the app has already cleared their cheats; when it is switched on they start. A rule change that alters the set restarts the game's plugins once; one that does not leaves them running.
+- **In a run game:** the run's pinned plugins (the exact server copies) start. In addition the person's own installed, enabled plugins that fit the game and declare the permission `cheats` start while the run's rule `rules.cheats` is `logged`, and those with `memory.write` while `rules.memory_write` is `logged` (plus what they require; a pinned copy with the same id wins). When the rule goes back to `off` (live, on `run_updated`) they stop again and the app has already cleared their cheats; when it is switched on they start. A rule change that alters the set restarts the game's plugins once; one that does not leaves them running. The same holds when the creator or an admin switches a pinned plugin to another version ([Updating plugins in a run](#updating-plugins-in-a-run)): the run's plugins restart once with the new copies, in a game and in the run view, and a participant first agrees again to permissions the new version added.
 - **Shell context:** while no game runs, every enabled plugin that declares `ui.screen` or `ui.detail` runs with an empty game: `uz.game` has no `language` and its other fields are empty, memory reads return `nil`, `uz.rom.*` returns `nil`. Plugins it requires run too. Starting a game stops the shell set and starts the game set; ending the game restarts the shell set. Turning a plugin or Developer mode on or off re-evaluates the shell set.
 - **Run view:** while a run is open in the detail of the Runs screen, the user is its creator or has joined, and no game runs, the run's plugins that declare `ui.run` or `ui.screen` (plus the plugins they require) run in the shell context as the exact server copies pinned by the run; missing copies are fetched like for "Play run". They get a read-only `uz.run` for that run (see [Run state](#run-state)). A plugin that is in both the shell set and the run view set runs once, as the run view instance. Opening or closing the run view restarts the shell plugins; while it is open, the other shell plugins with `run.state` also see that read-only `uz.run`. Starting a game stops the run view set; it comes back when the game ends and the detail is still open.
 - A paused plugin keeps its last trees, shown dimmed.
@@ -616,6 +617,15 @@ Manifest field `recap` (optional, at most 32 entries, 0.22) tells the run recap 
 - The app reads the mapping from the plugin copy of the version the run is pinned to (else the installed one). A plugin that is not on this PC contributes nothing to the recap.
 - Not mapped by the plugin: run screenshots are drawn as `screenshot` and the core events `rules.changed`, `cheat.enabled`, `cheat.disabled`, `memory.write` and `state.loaded` as `note`; none of them counts.
 - An invalid entry (not an object, bad `type`, unknown `glyph`, a type mapped twice, more than 32 entries) is a manifest warning and is ignored; the plugin still loads. A `recap` that is not a list is ignored as a whole.
+
+### Updating plugins in a run
+
+The creator of a run or an admin can switch a pinned plugin to another version the server offers while the run is not over ([ADR 0023](../adr/0023-plugins.md), amendment 2026-10-28). Run state, boards, settings and events stay, keyed by plugin id, so the new code reads what the old code wrote.
+
+- Keep a `state_version` number in your run state, board data and `uz.store` values, and migrate older shapes when you load them.
+- Ignore fields you do not know and keep them when you write the state back. The creator can restore the previous version once, and that version then reads data written by the newer one.
+- Use `run_update_from` when a version cannot take over data older than some version.
+- The recap uses the `recap` mapping of the version pinned now, for all events of the run.
 
 ## Installing plugins and origins
 

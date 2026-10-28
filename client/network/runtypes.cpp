@@ -72,7 +72,7 @@ std::optional<RunInfo> parseRun(const QJsonObject& o) {
   r.playSeconds = qMax<qint64>(0, static_cast<qint64>(o.value(QLatin1String("play_seconds")).toDouble(0)));
   for (const QJsonValue& v : o.value(QLatin1String("plugins")).toArray()) {
     const QJsonObject p = v.toObject();
-    RunPluginRef ref{str(p, "plugin_id"), str(p, "version"), str(p, "sha256").toLower()};
+    RunPluginRef ref{str(p, "plugin_id"), str(p, "version"), str(p, "sha256").toLower(), str(p, "previous_version")};
     if (!ref.pluginId.isEmpty() && !ref.version.isEmpty()) r.plugins.append(ref);
   }
   for (const QJsonValue& v : o.value(QLatin1String("participants")).toArray()) {
@@ -122,8 +122,11 @@ QJsonObject participantToJson(const RunParticipant& p) {
 
 QJsonObject runToJson(const RunInfo& r) {
   QJsonArray plugins;
-  for (const RunPluginRef& p : r.plugins)
-    plugins.append(QJsonObject{{QStringLiteral("plugin_id"), p.pluginId}, {QStringLiteral("version"), p.version}, {QStringLiteral("sha256"), p.sha256}});
+  for (const RunPluginRef& p : r.plugins) {
+    QJsonObject o{{QStringLiteral("plugin_id"), p.pluginId}, {QStringLiteral("version"), p.version}, {QStringLiteral("sha256"), p.sha256}};
+    if (!p.previousVersion.isEmpty()) o.insert(QStringLiteral("previous_version"), p.previousVersion);
+    plugins.append(o);
+  }
   QJsonArray parts;
   for (const RunParticipant& p : r.participants) parts.append(participantToJson(p));
   return {{QStringLiteral("run_id"), r.runId},

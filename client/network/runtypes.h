@@ -15,6 +15,7 @@ struct RunPluginRef {
   QString pluginId;
   QString version;
   QString sha256;  // lowercase hex of the .uzplugin the Hub offered when the run was created
+  QString previousVersion;  // run_plugin_updates_v1: the version pinned before the last switch ("" = none); restorable while the run is not over
 };
 
 // One plugin's state object of one participant, with its own revision (addendum: per-plugin run state).

@@ -966,60 +966,62 @@ func (e CorePlatform) Valid() bool {
 
 // Defines values for ErrorCode.
 const (
-	ErrorCodeAlreadySetUp         ErrorCode = "already_set_up"
-	ErrorCodeBadRequest           ErrorCode = "bad_request"
-	ErrorCodeCapabilityMissing    ErrorCode = "capability_missing"
-	ErrorCodeChildMode            ErrorCode = "child_mode"
-	ErrorCodeConfirmationRequired ErrorCode = "confirmation_required"
-	ErrorCodeConflict             ErrorCode = "conflict"
-	ErrorCodeCoreFileNotAvailable ErrorCode = "core_file_not_available"
-	ErrorCodeCoreMissing          ErrorCode = "core_missing"
-	ErrorCodeCorePackageNotFound  ErrorCode = "core_package_not_found"
-	ErrorCodeCoreVersionMismatch  ErrorCode = "core_version_mismatch"
-	ErrorCodeDeviceRevoked        ErrorCode = "device_revoked"
-	ErrorCodeDisplayNameTaken     ErrorCode = "display_name_taken"
-	ErrorCodeForbidden            ErrorCode = "forbidden"
-	ErrorCodeHubTooOld            ErrorCode = "hub_too_old"
-	ErrorCodeImportDirUnreadable  ErrorCode = "import_dir_unreadable"
-	ErrorCodeInternal             ErrorCode = "internal"
-	ErrorCodeInvalidCredentials   ErrorCode = "invalid_credentials"
-	ErrorCodeInvalidImage         ErrorCode = "invalid_image"
-	ErrorCodeInvalidSetupCode     ErrorCode = "invalid_setup_code"
-	ErrorCodeInviteInvalid        ErrorCode = "invite_invalid"
-	ErrorCodeNameTaken            ErrorCode = "name_taken"
-	ErrorCodeNotFound             ErrorCode = "not_found"
-	ErrorCodeOwnVariantMismatch   ErrorCode = "own_variant_mismatch"
-	ErrorCodeOwnVariantsOff       ErrorCode = "own_variants_off"
-	ErrorCodePairingDenied        ErrorCode = "pairing_denied"
-	ErrorCodePairingExpired       ErrorCode = "pairing_expired"
-	ErrorCodePairingPending       ErrorCode = "pairing_pending"
-	ErrorCodePasswordNotSet       ErrorCode = "password_not_set"
-	ErrorCodePasswordRequired     ErrorCode = "password_required"
-	ErrorCodePayloadTooLarge      ErrorCode = "payload_too_large"
-	ErrorCodePlayerTooOld         ErrorCode = "player_too_old"
-	ErrorCodeRateLimited          ErrorCode = "rate_limited"
-	ErrorCodeRunNotActive         ErrorCode = "run_not_active"
-	ErrorCodeSaveConflict         ErrorCode = "save_conflict"
-	ErrorCodeSaveConflictStale    ErrorCode = "save_conflict_stale"
-	ErrorCodeSaveNotSnapshot      ErrorCode = "save_not_snapshot"
-	ErrorCodeSaveSlotExists       ErrorCode = "save_slot_exists"
-	ErrorCodeSaveSlotProtected    ErrorCode = "save_slot_protected"
-	ErrorCodeSessionEnded         ErrorCode = "session_ended"
-	ErrorCodeSessionForbidden     ErrorCode = "session_forbidden"
-	ErrorCodeSessionFull          ErrorCode = "session_full"
-	ErrorCodeSessionNotFound      ErrorCode = "session_not_found"
-	ErrorCodeSessionRunning       ErrorCode = "session_running"
-	ErrorCodeSetupCodeExpired     ErrorCode = "setup_code_expired"
-	ErrorCodeStateConflict        ErrorCode = "state_conflict"
-	ErrorCodeStateQuotaExceeded   ErrorCode = "state_quota_exceeded"
-	ErrorCodeStoreConflict        ErrorCode = "store_conflict"
-	ErrorCodeStoreQuotaExceeded   ErrorCode = "store_quota_exceeded"
-	ErrorCodeTooLarge             ErrorCode = "too_large"
-	ErrorCodeToolHashMismatch     ErrorCode = "tool_hash_mismatch"
-	ErrorCodeToolInUse            ErrorCode = "tool_in_use"
-	ErrorCodeUnauthorized         ErrorCode = "unauthorized"
-	ErrorCodeUploadsDisabled      ErrorCode = "uploads_disabled"
-	ErrorCodeUserDisabled         ErrorCode = "user_disabled"
+	ErrorCodeAlreadySetUp             ErrorCode = "already_set_up"
+	ErrorCodeBadRequest               ErrorCode = "bad_request"
+	ErrorCodeCapabilityMissing        ErrorCode = "capability_missing"
+	ErrorCodeChildMode                ErrorCode = "child_mode"
+	ErrorCodeConfirmationRequired     ErrorCode = "confirmation_required"
+	ErrorCodeConflict                 ErrorCode = "conflict"
+	ErrorCodeCoreFileNotAvailable     ErrorCode = "core_file_not_available"
+	ErrorCodeCoreMissing              ErrorCode = "core_missing"
+	ErrorCodeCorePackageNotFound      ErrorCode = "core_package_not_found"
+	ErrorCodeCoreVersionMismatch      ErrorCode = "core_version_mismatch"
+	ErrorCodeDeviceRevoked            ErrorCode = "device_revoked"
+	ErrorCodeDisplayNameTaken         ErrorCode = "display_name_taken"
+	ErrorCodeForbidden                ErrorCode = "forbidden"
+	ErrorCodeHubTooOld                ErrorCode = "hub_too_old"
+	ErrorCodeImportDirUnreadable      ErrorCode = "import_dir_unreadable"
+	ErrorCodeInternal                 ErrorCode = "internal"
+	ErrorCodeInvalidCredentials       ErrorCode = "invalid_credentials"
+	ErrorCodeInvalidImage             ErrorCode = "invalid_image"
+	ErrorCodeInvalidSetupCode         ErrorCode = "invalid_setup_code"
+	ErrorCodeInviteInvalid            ErrorCode = "invite_invalid"
+	ErrorCodeNameTaken                ErrorCode = "name_taken"
+	ErrorCodeNotFound                 ErrorCode = "not_found"
+	ErrorCodeOwnVariantMismatch       ErrorCode = "own_variant_mismatch"
+	ErrorCodeOwnVariantsOff           ErrorCode = "own_variants_off"
+	ErrorCodePairingDenied            ErrorCode = "pairing_denied"
+	ErrorCodePairingExpired           ErrorCode = "pairing_expired"
+	ErrorCodePairingPending           ErrorCode = "pairing_pending"
+	ErrorCodePasswordNotSet           ErrorCode = "password_not_set"
+	ErrorCodePasswordRequired         ErrorCode = "password_required"
+	ErrorCodePayloadTooLarge          ErrorCode = "payload_too_large"
+	ErrorCodePlayerTooOld             ErrorCode = "player_too_old"
+	ErrorCodePluginRequiresMissing    ErrorCode = "plugin_requires_missing"
+	ErrorCodePluginUpdateIncompatible ErrorCode = "plugin_update_incompatible"
+	ErrorCodeRateLimited              ErrorCode = "rate_limited"
+	ErrorCodeRunNotActive             ErrorCode = "run_not_active"
+	ErrorCodeSaveConflict             ErrorCode = "save_conflict"
+	ErrorCodeSaveConflictStale        ErrorCode = "save_conflict_stale"
+	ErrorCodeSaveNotSnapshot          ErrorCode = "save_not_snapshot"
+	ErrorCodeSaveSlotExists           ErrorCode = "save_slot_exists"
+	ErrorCodeSaveSlotProtected        ErrorCode = "save_slot_protected"
+	ErrorCodeSessionEnded             ErrorCode = "session_ended"
+	ErrorCodeSessionForbidden         ErrorCode = "session_forbidden"
+	ErrorCodeSessionFull              ErrorCode = "session_full"
+	ErrorCodeSessionNotFound          ErrorCode = "session_not_found"
+	ErrorCodeSessionRunning           ErrorCode = "session_running"
+	ErrorCodeSetupCodeExpired         ErrorCode = "setup_code_expired"
+	ErrorCodeStateConflict            ErrorCode = "state_conflict"
+	ErrorCodeStateQuotaExceeded       ErrorCode = "state_quota_exceeded"
+	ErrorCodeStoreConflict            ErrorCode = "store_conflict"
+	ErrorCodeStoreQuotaExceeded       ErrorCode = "store_quota_exceeded"
+	ErrorCodeTooLarge                 ErrorCode = "too_large"
+	ErrorCodeToolHashMismatch         ErrorCode = "tool_hash_mismatch"
+	ErrorCodeToolInUse                ErrorCode = "tool_in_use"
+	ErrorCodeUnauthorized             ErrorCode = "unauthorized"
+	ErrorCodeUploadsDisabled          ErrorCode = "uploads_disabled"
+	ErrorCodeUserDisabled             ErrorCode = "user_disabled"
 )
 
 // Valid indicates whether the value is a known member of the ErrorCode enum.
@@ -1086,6 +1088,10 @@ func (e ErrorCode) Valid() bool {
 	case ErrorCodePayloadTooLarge:
 		return true
 	case ErrorCodePlayerTooOld:
+		return true
+	case ErrorCodePluginRequiresMissing:
+		return true
+	case ErrorCodePluginUpdateIncompatible:
 		return true
 	case ErrorCodeRateLimited:
 		return true
@@ -3999,7 +4005,7 @@ type HandshakeRequest_Video struct {
 type HandshakeResponse struct {
 	Compatible bool `json:"compatible"`
 
-	// Features Optional server feature flags (additive, protocol_version unchanged). `saves_v1` = save sync API, `sessions_v1` = Sessions API and WSS endpoint, `users_v1` = invite redemption (`POST /invites/redeem`) and user management, `uploads_v1` = the calling user may upload ROMs (`POST /games`; advertised per caller), `firmware_v1` = systems registry and firmware download, `cores_v1` = signed core packages served by the server (`/api/v1/cores/...`, `core_package_version` in `SystemInfo`), `turn_v1` = at least one relay provider is on (the embedded TURN server and/or Cloudflare TURN; `turn_servers` in `hello_ack`, `ice_update` and the join response), `saves_v2` = save restore, manual snapshots, history labels and the `save_updated` WSS message, `saves_v3` = deleting manual snapshots (`DELETE /games/{game_id}/saves/{slot}/history/{version}`), `saves_v4` = uploading a save file into a slot (`POST /games/{game_id}/saves/{slot}/upload`), `saves_v5` = renaming a slot (`POST /games/{game_id}/saves/{slot}/rename`), deleting a slot (`DELETE /games/{game_id}/saves/{slot}`), `save_updated` reasons `renamed` and `deleted`, and 409 `session_running` on `saves_v4` uploads while a Session of the game runs, `saves_v6` = deleting any history version (before it only manual snapshots) and the main slot `default` (before it only other slots; renaming `default` stays refused), `cores_v2` = several cores per system (`default_core_id` and `cores` in `SystemInfo`; core ids follow `^[a-z0-9][a-z0-9_-]{0,63}$`), `ice_update_v1` = the server pushes the WSS message `ice_update` whenever its effective ICE configuration changes, `plugins_v1` = plugin list and download (`GET /plugins`, `GET /plugins/{plugin_id}/{version}/file`), `runs_v1` = runs, `runs_v2` = runs without plugins (`plugins` may be empty) and the run field `save_slot`, `local_roms_v1` = local-only games and resumable uploads (`POST /games/register`, `DELETE /games/{game_id}/registration`, `/uploads`; `stored`, `on_hub`, `roms`, `game_version`; `GET /roms/{sha256}` serves stored files only), `reports_v1` = problem reports (`POST /reports`; the admin endpoints under `/admin/reports`), `accounts_v1` = server accounts (`POST /auth/sign-in`, `/account` with password, confirmation and own devices, `/admin/users/{user_id}/password-reset`, `/admin/accounts/settings`; the error codes `confirmation_required`, `password_required` and `password_not_set`), `admin_v1` = the admin API under `/admin/...` (advertised only to admin users), `tools_v1` = the tools catalog (`GET /tools`, `GET /tools/{tool_id}/packages/{version}/{platform}`, `/admin/tools`), `variants_v1` = game variants and runs with a randomizer recipe (`/variants`, `/games/{game_id}/variants`, `randomizer` in the run object and in `POST /runs`, `variant` in `POST /runs/{run_id}/join`, `GET /runs/{run_id}/variant`, `POST /runs/{run_id}/variant-state`, `variant_kind` and `variant_state` per participant), `reports_v2` = error events and error groups (`POST /reports/errors`; the admin endpoints under `/admin/reports/errors`). `cores_index_v1` (signed core index) existed in 0.4 to 0.7 and was removed in 0.8.
+	// Features Optional server feature flags (additive, protocol_version unchanged). `saves_v1` = save sync API, `sessions_v1` = Sessions API and WSS endpoint, `users_v1` = invite redemption (`POST /invites/redeem`) and user management, `uploads_v1` = the calling user may upload ROMs (`POST /games`; advertised per caller), `firmware_v1` = systems registry and firmware download, `cores_v1` = signed core packages served by the server (`/api/v1/cores/...`, `core_package_version` in `SystemInfo`), `turn_v1` = at least one relay provider is on (the embedded TURN server and/or Cloudflare TURN; `turn_servers` in `hello_ack`, `ice_update` and the join response), `saves_v2` = save restore, manual snapshots, history labels and the `save_updated` WSS message, `saves_v3` = deleting manual snapshots (`DELETE /games/{game_id}/saves/{slot}/history/{version}`), `saves_v4` = uploading a save file into a slot (`POST /games/{game_id}/saves/{slot}/upload`), `saves_v5` = renaming a slot (`POST /games/{game_id}/saves/{slot}/rename`), deleting a slot (`DELETE /games/{game_id}/saves/{slot}`), `save_updated` reasons `renamed` and `deleted`, and 409 `session_running` on `saves_v4` uploads while a Session of the game runs, `saves_v6` = deleting any history version (before it only manual snapshots) and the main slot `default` (before it only other slots; renaming `default` stays refused), `cores_v2` = several cores per system (`default_core_id` and `cores` in `SystemInfo`; core ids follow `^[a-z0-9][a-z0-9_-]{0,63}$`), `ice_update_v1` = the server pushes the WSS message `ice_update` whenever its effective ICE configuration changes, `plugins_v1` = plugin list and download (`GET /plugins`, `GET /plugins/{plugin_id}/{version}/file`), `runs_v1` = runs, `runs_v2` = runs without plugins (`plugins` may be empty) and the run field `save_slot`, `local_roms_v1` = local-only games and resumable uploads (`POST /games/register`, `DELETE /games/{game_id}/registration`, `/uploads`; `stored`, `on_hub`, `roms`, `game_version`; `GET /roms/{sha256}` serves stored files only), `reports_v1` = problem reports (`POST /reports`; the admin endpoints under `/admin/reports`), `accounts_v1` = server accounts (`POST /auth/sign-in`, `/account` with password, confirmation and own devices, `/admin/users/{user_id}/password-reset`, `/admin/accounts/settings`; the error codes `confirmation_required`, `password_required` and `password_not_set`), `admin_v1` = the admin API under `/admin/...` (advertised only to admin users), `tools_v1` = the tools catalog (`GET /tools`, `GET /tools/{tool_id}/packages/{version}/{platform}`, `/admin/tools`), `variants_v1` = game variants and runs with a randomizer recipe (`/variants`, `/games/{game_id}/variants`, `randomizer` in the run object and in `POST /runs`, `variant` in `POST /runs/{run_id}/join`, `GET /runs/{run_id}/variant`, `POST /runs/{run_id}/variant-state`, `variant_kind` and `variant_state` per participant), `reports_v2` = error events and error groups (`POST /reports/errors`; the admin endpoints under `/admin/reports/errors`), `run_plugin_updates_v1` = updating a run's plugins in a running run (`PUT /runs/{run_id}/plugins`, `previous_version` per run plugin, the run event `plugins.updated`). `cores_index_v1` (signed core index) existed in 0.4 to 0.7 and was removed in 0.8.
 	Features           *[]string          `json:"features,omitempty"`
 	HubVersion         string             `json:"hub_version"`
 	MinProtocolVersion int                `json:"min_protocol_version"`
@@ -4421,7 +4427,7 @@ type RunEvent struct {
 	Source RunEventSource `json:"source"`
 	Text   string         `json:"text"`
 
-	// Type server events: `run.created`, `run.joined`, `run.declined`, `run.invited`, `run.left`, `run.status`, `rules.changed`; app events: `cheat.enabled`, `cheat.disabled`, `memory.write`, `state.loaded`
+	// Type server events: `run.created`, `run.joined`, `run.declined`, `run.invited`, `run.left`, `run.status`, `rules.changed`, `plugins.updated`; app events: `cheat.enabled`, `cheat.disabled`, `memory.write`, `state.loaded`
 	Type string `json:"type"`
 
 	// UserId null for server events (who it is about is in the payload)
@@ -4532,7 +4538,10 @@ type RunParticipantVariantState string
 type RunPlugin struct {
 	PluginId string `json:"plugin_id"`
 
-	// Sha256 SHA-256 of the .uzplugin the server offered when the run was created
+	// PreviousVersion `run_plugin_updates_v1`. The version pinned before the last switch of this plugin through `setRunPlugins`; the only older version the plugin can be switched back to while the run is not over. Absent or null when the plugin was never switched.
+	PreviousVersion *string `json:"previous_version,omitempty"`
+
+	// Sha256 SHA-256 of the .uzplugin the server offered when the run was created (of the pinned `version` after a switch)
 	Sha256  string `json:"sha256"`
 	Version string `json:"version"`
 }
@@ -4967,6 +4976,12 @@ type SessionViewerInfo struct {
 // SessionVisibility `private`: only devices of the owner user. `hub_users`: every authenticated device of this server.
 // `invite_only`: devices of the owner user plus invited users who have not declined.
 type SessionVisibility string
+
+// SetRunPluginsRequest defines model for SetRunPluginsRequest.
+type SetRunPluginsRequest struct {
+	// Plugins Plugins to switch (`run_plugin_updates_v1`), each id once; at most as many as a run may have
+	Plugins []RunPluginRef `json:"plugins"`
+}
 
 // SetupRequest defines model for SetupRequest.
 type SetupRequest struct {
@@ -5747,6 +5762,9 @@ type InviteRunJSONRequestBody = RunInviteRequest
 
 // JoinRunJSONRequestBody defines body for JoinRun for application/json ContentType.
 type JoinRunJSONRequestBody = RunJoinRequest
+
+// SetRunPluginsJSONRequestBody defines body for SetRunPlugins for application/json ContentType.
+type SetRunPluginsJSONRequestBody = SetRunPluginsRequest
 
 // SetRunRulesJSONRequestBody defines body for SetRunRules for application/json ContentType.
 type SetRunRulesJSONRequestBody = RunRules
@@ -6847,6 +6865,9 @@ type ServerInterface interface {
 	// Leave a run the caller joined (leaving again is a no-op); colour and state stay
 	// (POST /api/v1/runs/{run_id}/leave)
 	LeaveRun(w http.ResponseWriter, r *http.Request, runId RunId)
+	// Switch pinned plugin versions of a run (`run_plugin_updates_v1`)
+	// (PUT /api/v1/runs/{run_id}/plugins)
+	SetRunPlugins(w http.ResponseWriter, r *http.Request, runId RunId)
 	// Replace the core rules of a run (`run_rules_v1`)
 	// (PUT /api/v1/runs/{run_id}/rules)
 	SetRunRules(w http.ResponseWriter, r *http.Request, runId RunId)
@@ -13571,6 +13592,38 @@ func (siw *ServerInterfaceWrapper) LeaveRun(w http.ResponseWriter, r *http.Reque
 	handler.ServeHTTP(w, r)
 }
 
+// SetRunPlugins operation middleware
+func (siw *ServerInterfaceWrapper) SetRunPlugins(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "run_id" -------------
+	var runId RunId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "run_id", r.PathValue("run_id"), &runId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "run_id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SetRunPlugins(w, r, runId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // SetRunRules operation middleware
 func (siw *ServerInterfaceWrapper) SetRunRules(w http.ResponseWriter, r *http.Request) {
 
@@ -15002,6 +15055,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/runs/{run_id}/invite", wrapper.InviteRun)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/runs/{run_id}/join", wrapper.JoinRun)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/runs/{run_id}/leave", wrapper.LeaveRun)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/api/v1/runs/{run_id}/plugins", wrapper.SetRunPlugins)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/api/v1/runs/{run_id}/rules", wrapper.SetRunRules)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/runs/{run_id}/screenshots", wrapper.ListRunScreenshots)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/api/v1/runs/{run_id}/state/{plugin_id}", wrapper.PutRunState)
@@ -29080,6 +29134,99 @@ func (response LeaveRun409JSONResponse) VisitLeaveRunResponse(w http.ResponseWri
 	return err
 }
 
+type SetRunPluginsRequestObject struct {
+	RunId RunId `json:"run_id"`
+	Body  *SetRunPluginsJSONRequestBody
+}
+
+type SetRunPluginsResponseObject interface {
+	VisitSetRunPluginsResponse(w http.ResponseWriter) error
+}
+
+type SetRunPlugins200JSONResponse Run
+
+func (response SetRunPlugins200JSONResponse) VisitSetRunPluginsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetRunPlugins400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response SetRunPlugins400JSONResponse) VisitSetRunPluginsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetRunPlugins401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response SetRunPlugins401JSONResponse) VisitSetRunPluginsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetRunPlugins403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response SetRunPlugins403JSONResponse) VisitSetRunPluginsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetRunPlugins404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response SetRunPlugins404JSONResponse) VisitSetRunPluginsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetRunPlugins409JSONResponse Error
+
+func (response SetRunPlugins409JSONResponse) VisitSetRunPluginsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type SetRunRulesRequestObject struct {
 	RunId RunId `json:"run_id"`
 	Body  *SetRunRulesJSONRequestBody
@@ -32144,6 +32291,9 @@ type StrictServerInterface interface {
 	// Leave a run the caller joined (leaving again is a no-op); colour and state stay
 	// (POST /api/v1/runs/{run_id}/leave)
 	LeaveRun(ctx context.Context, request LeaveRunRequestObject) (LeaveRunResponseObject, error)
+	// Switch pinned plugin versions of a run (`run_plugin_updates_v1`)
+	// (PUT /api/v1/runs/{run_id}/plugins)
+	SetRunPlugins(ctx context.Context, request SetRunPluginsRequestObject) (SetRunPluginsResponseObject, error)
 	// Replace the core rules of a run (`run_rules_v1`)
 	// (PUT /api/v1/runs/{run_id}/rules)
 	SetRunRules(ctx context.Context, request SetRunRulesRequestObject) (SetRunRulesResponseObject, error)
@@ -37845,6 +37995,39 @@ func (sh *strictHandler) LeaveRun(w http.ResponseWriter, r *http.Request, runId 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(LeaveRunResponseObject); ok {
 		if err := validResponse.VisitLeaveRunResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SetRunPlugins operation middleware
+func (sh *strictHandler) SetRunPlugins(w http.ResponseWriter, r *http.Request, runId RunId) {
+	var request SetRunPluginsRequestObject
+
+	request.RunId = runId
+
+	var body SetRunPluginsJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SetRunPlugins(ctx, request.(SetRunPluginsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SetRunPlugins")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SetRunPluginsResponseObject); ok {
+		if err := validResponse.VisitSetRunPluginsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
