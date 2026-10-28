@@ -229,8 +229,10 @@ class LocalHubController : public QObject {
   bool startServerProcess();
   QString effectiveDataDir() const;
   QString hiddenTarget() const;
-  std::optional<HiddenAdmin> hiddenAdmin() const;
-  void storeHiddenAdmin(const HiddenAdmin& a);
+  // `readFailed` (optional) is set when the credential store itself failed (locked, dismissed, timed out), which
+  // is not the same as nothing stored.
+  std::optional<HiddenAdmin> hiddenAdmin(bool* readFailed = nullptr) const;
+  bool storeHiddenAdmin(const HiddenAdmin& a);
   void clearHiddenAdmin();
   static QString osUserName();
   static QString randomPassword();

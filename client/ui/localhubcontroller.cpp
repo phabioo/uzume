@@ -408,19 +408,21 @@ QString LocalHubController::hiddenTarget() const {
   return QStringLiteral("uzume:local-server-admin:") + QString::fromLatin1(h);
 }
 
-std::optional<LocalHubController::HiddenAdmin> LocalHubController::hiddenAdmin() const {
+std::optional<LocalHubController::HiddenAdmin> LocalHubController::hiddenAdmin(bool* readFailed) const {
+  if (readFailed != nullptr) *readFailed = false;
   if (deps_.credentials == nullptr) return std::nullopt;
-  const auto raw = deps_.credentials->read(hiddenTarget());
-  if (!raw) return std::nullopt;
-  const QJsonObject o = QJsonDocument::fromJson(raw->toUtf8()).object();
+  const CredentialRead raw = deps_.credentials->readChecked(hiddenTarget());
+  if (raw.status == CredentialRead::Status::Error && readFailed != nullptr) *readFailed = true;
+  if (raw.status != CredentialRead::Status::Ok) return std::nullopt;
+  const QJsonObject o = QJsonDocument::fromJson(raw.secret.toUtf8()).object();
   HiddenAdmin h{o.value(QStringLiteral("u")).toString(), o.value(QStringLiteral("p")).toString()};
   if (h.username.isEmpty() || h.password.isEmpty()) return std::nullopt;
   return h;
 }
 
-void LocalHubController::storeHiddenAdmin(const HiddenAdmin& a) {
-  if (deps_.credentials == nullptr) return;
-  deps_.credentials->write(hiddenTarget(), QString::fromUtf8(QJsonDocument(QJsonObject{{QStringLiteral("u"), a.username},
+bool LocalHubController::storeHiddenAdmin(const HiddenAdmin& a) {
+  if (deps_.credentials == nullptr) return false;
+  return deps_.credentials->write(hiddenTarget(), QString::fromUtf8(QJsonDocument(QJsonObject{{QStringLiteral("u"), a.username},
                                                                                        {QStringLiteral("p"), a.password}})
                                                                  .toJson(QJsonDocument::Compact)));
 }
@@ -636,13 +638,22 @@ void LocalHubController::pairChild() {
                                                    : tr("This server cannot be set up from Uzume. Update Uzume or reinstall it."));
       return;
     }
-    auto hidden = hiddenAdmin();
+    bool readFailed = false;
+    auto hidden = hiddenAdmin(&readFailed);
+    if (readFailed) {
+      failChild(tr("The credential store did not answer. Unlock it and try again."));
+      return;
+    }
     if (!st.value(QStringLiteral("admin_exists")).toBool()) {
       if (!hidden) {
         QString name = osUserName();
         if (deps_.settings != nullptr && !deps_.settings->displayName().isEmpty()) name = sanitizeUsername(deps_.settings->displayName());
         hidden = HiddenAdmin{name, randomPassword()};
-        storeHiddenAdmin(*hidden);  // before the call: a lost answer must not lose the password
+        // before the call: a lost answer must not lose the password; a password that was not stored is never used
+        if (!storeHiddenAdmin(*hidden)) {
+          failChild(tr("The admin password could not be stored in the credential store."));
+          return;
+        }
       }
       setupForm_ = true;
       deps_.conn->localSetup(hidden->username, hidden->password);

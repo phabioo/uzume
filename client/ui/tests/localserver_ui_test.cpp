@@ -37,6 +37,19 @@ cat >/dev/null
 echo stopped >> "$DATA/stops"
 )SH";
 
+// Memory store with switchable failures (locked or dismissed Secret Service).
+class FaultyStore final : public MemoryCredentialStore {
+ public:
+  bool failWrites = false;
+  bool failReads = false;
+  bool write(const QString& t, const QString& s) override { return !failWrites && MemoryCredentialStore::write(t, s); }
+  std::optional<QString> read(const QString& t) const override { return failReads ? std::nullopt : MemoryCredentialStore::read(t); }
+  CredentialRead readChecked(const QString& t) const override {
+    if (failReads) return {CredentialRead::Status::Error, {}};
+    return MemoryCredentialStore::readChecked(t);
+  }
+};
+
 int freePort() {
   QTcpServer s;
   return s.listen(QHostAddress::Any, 0) ? s.serverPort() : 0;
@@ -164,6 +177,45 @@ class LocalServerUiTest : public QObject {
     QVERIFY(!lh->onThisPcOnly());
     r.close();
     QCOMPARE(countLines(r.serverDir() + "/stops"), 1);  // quitting closed the child's stdin
+  }
+
+  void anUnstoredAdminPasswordAbortsTheSetup() {
+    FakeHub hub(QStringLiteral("a"));
+    QVERIFY(hub.start());
+    Rig r;
+    const auto faulty = std::make_shared<FaultyStore>();
+    faulty->failWrites = true;
+    r.creds = faulty;
+    r.writePort(portOf(hub));
+    r.open();
+    r.lh()->startChild();
+    QTRY_COMPARE_WITH_TIMEOUT(r.lh()->phase(), QStringLiteral("error"), 8000);
+    QCOMPARE(hub.localSetupCalls, 0);  // the server never got a password nobody could read back
+    QVERIFY(!r.lh()->error().isEmpty());
+  }
+
+  void anUnreadableCredentialStoreIsNotTreatedAsAbsent() {
+    FakeHub hub(QStringLiteral("a"));
+    QVERIFY(hub.start());
+    Rig r;
+    const auto faulty = std::make_shared<FaultyStore>();
+    r.creds = faulty;
+    r.writePort(portOf(hub));
+    r.open();
+    r.lh()->startChild();
+    waitConnected(r);
+    r.close();
+    // Restart with a credential store that does not answer: no pairing, no new admin, the reference stays.
+    faulty->failReads = true;
+    r.open();
+    r.pc->startup();
+    QTRY_COMPARE_WITH_TIMEOUT(r.pc->connection()->state(), S::Unreachable, 15000);
+    QCOMPARE(r.pc->connection()->errorCode(), QStringLiteral("credential_store_unavailable"));
+    QCOMPARE(hub.localSetupCalls, 1);
+    QCOMPARE(hub.localPairCalls, 0);
+    const auto p = r.pc->profileStore()->profile(hub.hubId);
+    QVERIFY(p.has_value());
+    QVERIFY(!p->credentialRef.isEmpty());
   }
 
   void anExistingAdminIsPairedWithTheStoredPassword() {

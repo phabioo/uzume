@@ -428,7 +428,16 @@ void HubConnection::trusted() {
     setState(State::NeedsPairing);
     return;
   }
-  if (!p.credentialRef.isEmpty() && readCredential(*credentials_, p.credentialRef).has_value()) {
+  if (p.credentialRef.isEmpty()) {
+    setState(State::NeedsPairing);
+    return;
+  }
+  const CredentialRead stored = readCredentialChecked(*credentials_, p.credentialRef);
+  if (stored.status == CredentialRead::Status::Error) {
+    // Locked, dismissed or timed out: the credential may still exist, so the person is not sent to pairing.
+    fail(State::Unreachable, QStringLiteral("credential_store_unavailable"),
+         QStringLiteral("The credential store did not answer. Unlock it and retry."));
+  } else if (stored.status == CredentialRead::Status::Ok) {
     authenticate();
   } else {
     setState(State::NeedsPairing);
@@ -702,13 +711,18 @@ void HubConnection::onPairingApproved(const QJsonObject& obj, bool passwordProof
 void HubConnection::authenticate() {
   setState(State::Authenticating);
   refreshInFlight_ = true;
-  const auto secret = readCredential(*credentials_, profile_->credentialRef);
-  if (!secret) {
+  const CredentialRead secret = readCredentialChecked(*credentials_, profile_->credentialRef);
+  if (secret.status != CredentialRead::Status::Ok) {
     refreshInFlight_ = false;
-    setState(State::NeedsPairing);
+    if (secret.status == CredentialRead::Status::Error) {
+      fail(State::Unreachable, QStringLiteral("credential_store_unavailable"),
+           QStringLiteral("The credential store did not answer. Unlock it and retry."));
+    } else {
+      setState(State::NeedsPairing);
+    }
     return;
   }
-  const QJsonObject body{{QStringLiteral("device_id"), profile_->deviceId}, {QStringLiteral("device_credential"), *secret}};
+  const QJsonObject body{{QStringLiteral("device_id"), profile_->deviceId}, {QStringLiteral("device_credential"), secret.secret}};
   QNetworkReply* reply = http_->postJson(apiPath(QStringLiteral("/auth/token")), body);
   track(reply, [this](const HttpResult& r) { onTokenResult(r, true); });
 }
@@ -717,13 +731,19 @@ void HubConnection::refreshToken() {
   if (state_ != State::Connected || refreshInFlight_ || !profile_) {
     return;
   }
-  const auto secret = readCredential(*credentials_, profile_->credentialRef);
-  if (!secret) {
+  const CredentialRead secret = readCredentialChecked(*credentials_, profile_->credentialRef);
+  if (secret.status == CredentialRead::Status::Error) {
+    // The credential may still exist: keep the session and try again later instead of dropping the credential.
+    qCWarning(lcHub) << "credential store did not answer for the token refresh, retrying";
+    refreshTimer_.start(30000);
+    return;
+  }
+  if (secret.status != CredentialRead::Status::Ok) {
     onCredentialInvalid(QStringLiteral("invalid_credentials"), QStringLiteral("Credential no longer available"));
     return;
   }
   refreshInFlight_ = true;
-  const QJsonObject body{{QStringLiteral("device_id"), profile_->deviceId}, {QStringLiteral("device_credential"), *secret}};
+  const QJsonObject body{{QStringLiteral("device_id"), profile_->deviceId}, {QStringLiteral("device_credential"), secret.secret}};
   QNetworkReply* reply = http_->postJson(apiPath(QStringLiteral("/auth/token")), body);
   track(reply, [this](const HttpResult& r) { onTokenResult(r, false); });
 }

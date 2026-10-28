@@ -9,6 +9,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QScopeGuard>
 #include <QTcpServer>
 #include <QTemporaryDir>
 #include <QtTest>
@@ -65,6 +66,17 @@ QByteArray pngOfColor(QRgb c) {
   img.save(&b, "PNG");
   return out;
 }
+
+// A store whose reads can be made to fail like a locked or dismissed Secret Service.
+class FlakyStore final : public MemoryCredentialStore {
+ public:
+  bool failReads = false;
+  std::optional<QString> read(const QString& t) const override { return failReads ? std::nullopt : MemoryCredentialStore::read(t); }
+  CredentialRead readChecked(const QString& t) const override {
+    if (failReads) return {CredentialRead::Status::Error, {}};
+    return MemoryCredentialStore::readChecked(t);
+  }
+};
 
 }  // namespace
 
@@ -329,6 +341,24 @@ class McpToolsTest : public QObject {
     // Neither the token nor the port reached the credential store or the settings.
     QVERIFY(!creds->read(QString::fromLatin1(ui::McpController::kTokenTarget)).has_value());
     qunsetenv("UZUME_MCP_TOKEN");
+  }
+
+  void unreadableCredentialStoreNeverReplacesTheStoredToken() {
+    const auto flaky = std::make_shared<FlakyStore>();
+    const QString target = QString::fromLatin1(ui::McpController::kTokenTarget);
+    const QString stored = QString(43, QLatin1Char('s'));
+    QVERIFY(flaky->write(target, stored));
+    flaky->failReads = true;
+    const auto saved = creds;
+    auto restore = qScopeGuard([&] { creds = saved; });
+    creds = flaky;
+    pc = std::make_unique<ui::PlayerController>(options(QStringLiteral("flaky")));
+    pc->mcp()->setPort(freePort());
+    pc->mcp()->setEnabled(true);
+    QVERIFY(!pc->mcp()->listening());
+    QVERIFY(!pc->mcp()->error().isEmpty());
+    flaky->failReads = false;
+    QCOMPARE(flaky->read(target).value_or(QString()), stored);  // not overwritten by a fresh token
   }
 
   void switchPersistsAndTokenStaysOutOfTheLog() {
