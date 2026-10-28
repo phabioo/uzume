@@ -2,7 +2,7 @@
 
 ## How to contribute
 
-- Open an issue to discuss a bug or an idea before larger changes.
+- Open an issue to discuss a bug or an idea before larger changes. Security problems go privately through [SECURITY.md](SECURITY.md), never in a public issue.
 - Send a pull request: one topic per PR. Run `make check` before pushing. Build, test and CI details: [docs/development.md](docs/development.md).
 - Language: everything is English (code, comments, UI, docs, commit messages, PRs).
 
