@@ -35,7 +35,7 @@
 namespace uzume::ui {
 
 // Role of this app in a Session (ADR 0033 D5/D8): the host emulates and shares; a viewer watches, chats and talks but never sends
-// input or host commands; a player is a viewer with a granted controller (the hand-over package; no code path yet).
+// input or host commands; a player is a viewer with a granted controller (ADR 0033 D8: ControlController).
 enum class SessionRole { Host, Viewer, Player };
 inline QString sessionRoleToken(SessionRole r) {
   return r == SessionRole::Host ? QStringLiteral("host") : (r == SessionRole::Player ? QStringLiteral("player") : QStringLiteral("viewer"));
@@ -235,6 +235,13 @@ class SessionController : public QObject {
   QString sessionVisibility(const QString& sessionId) const;
   // My role in a Session: "host" for my shared Session, "viewer" for a watched one, "" otherwise.
   Q_INVOKABLE QString role(const QString& sessionId) const;
+  // Controller hand-over (ADR 0033 D8). The People row actions: "p1" (Take over P1), "p2" (Play as P2), "cancel" and "stop" on my own row of a
+  // watched Session (sessionId), "takeback" on the row of a player of my own Session (viewerId).
+  Q_INVOKABLE void controlAction(const QString& sessionId, const QString& viewerId, const QString& key);
+  // Name of a viewer of my own Session ("" when unknown).
+  QString viewerName(const QString& viewerId) const;
+  // Who the controller of a viewer is, for MCP and tests: port held by that viewer of my own Session, -1 none.
+  int viewerControlPort(const QString& viewerId) const { return host_.controlPortOf(viewerId); }
   // Quality of a watched Session: the pick token, "" if the Session is not watched. setQuality sends it to the host and keeps it as the
   // default of this PC for new Sessions.
   Q_INVOKABLE QString quality(const QString& sessionId) const;
@@ -289,6 +296,7 @@ class SessionController : public QObject {
   void remoteFrameChanged(const QString& sessionId);
   void surfaceLinksChanged();
   void selectionChanged();
+  void controlChanged();  // a hand-over ask, hold or the ports a host offers changed (People rows, roles)
 
  private:
   void onConnectionState(HubConnection::State s);
@@ -381,6 +389,7 @@ class SessionController : public QObject {
   SessionInfo joinInfo_;
   QList<SessionSignal> earlySignals_;
   QHash<QString, qint64> fedFrames_;
+  QHash<QString, int> lastAskedPort_;  // sessionId -> port of the last hand-over ask (for "P2 is taken")
 
   QString tab_ = QStringLiteral("session");
   QString mode_ = QStringLiteral("pip");  // chosen layout: "pip" | "row" | "grid"

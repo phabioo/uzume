@@ -242,6 +242,13 @@ class GameSession : public QObject {
   void setInputBlocked(bool blocked);
   bool inputBlocked() const { return inputBlocked_; }
   void setPointer(const QPointF& frameNormalized, bool pressed);
+  // Controller hand-over (ADR 0033 D8). A port taken by a viewer: while `controlled`, port 0 no longer follows the local keyboard,
+  // gamepad, debug pad and pointer (host hotkeys keep working: they never reach the core), and the mask of the remote player is
+  // injected instead. Port 1 only ever carries remote input. `touch` is normalized over the whole frame; used for port 0 only.
+  void setRemoteControlled(int port, bool controlled);
+  void setRemoteInput(int port, quint32 mask, bool touching, const QPointF& touch);
+  bool remoteControlled(int port) const { return port >= 0 && port < 2 && remoteControlled_[port]; }
+  quint32 remoteMask(int port) const { return port >= 0 && port < 2 ? remoteMask_[port] : 0; }
   // Multiview: exactly one surface is audible. A muted session keeps running, its audio is dropped.
   void setAudioMuted(bool muted);
   bool audioMuted() const { return audioMuted_; }
@@ -288,6 +295,8 @@ class GameSession : public QObject {
   QSet<int> reservedCombos_;
   quint32 pad_ = 0;
   quint32 debugPad_ = 0;
+  bool remoteControlled_[2] = {false, false};
+  quint32 remoteMask_[2] = {0, 0};
   bool inputBlocked_ = false;
   emu::DisplayProfile display_;
   QHash<const QObject*, QSize> viewSizes_;

@@ -350,6 +350,7 @@ Item {
                 RemoteView {
                     objectName: "remoteView"
                     controller: root.ctl
+                    control: root.player.control
                     surfaceId: tile.modelData
                     layout: root.ctl.screenLayout
                     swap: root.ctl.screenSwap

@@ -45,7 +45,7 @@ add_dependencies(test_ui_save uzume_test_rom)
 # game need the core (they QSKIP without it, the rest runs).
 uzume_add_test(ui_sessions sessions_ui_test.cpp ${FB_NETTEST_DIR}/fakehub.cpp ${FB_NETTEST_DIR}/fakehub.h
   LIBS ${FB_UI_TEST_LIBS} NEEDS_CORE)
-target_include_directories(test_ui_sessions PRIVATE ${FB_NETTEST_DIR})
+target_include_directories(test_ui_sessions PRIVATE ${FB_NETTEST_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/../../emulation/tests)
 target_compile_definitions(test_ui_sessions PRIVATE FB_TEST_DATA_DIR="${FB_NETTEST_DIR}/testdata"
   FB_TEST_ROM_PATH="${FB_ROM_DIR}/uzume_test.nds")
 add_dependencies(test_ui_sessions uzume_test_rom)
@@ -232,7 +232,7 @@ foreach(t IN ITEMS game save sessions emulation_controllers)
   endif()
   uzume_add_test(ui_${t}_testcore ${src} ${FB_NETTEST_DIR}/fakehub.cpp ${FB_NETTEST_DIR}/fakehub.h
     LIBS ${FB_UI_TEST_LIBS} ${extra_libs} TEST_CORE)
-  target_include_directories(test_ui_${t}_testcore PRIVATE ${FB_NETTEST_DIR})
+  target_include_directories(test_ui_${t}_testcore PRIVATE ${FB_NETTEST_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/../../emulation/tests)
   target_compile_definitions(test_ui_${t}_testcore PRIVATE FB_TEST_DATA_DIR="${FB_NETTEST_DIR}/testdata")
   if(NOT t STREQUAL "emulation_controllers")
     target_compile_definitions(test_ui_${t}_testcore PRIVATE FB_TEST_ROM_PATH="${FB_ROM_DIR}/uzume_test.nds")
@@ -408,3 +408,9 @@ uzume_add_test(ui_together_ui together_ui_test.cpp ${FB_NETTEST_DIR}/fakehub.cpp
   LIBS ${FB_UI_TEST_LIBS})
 target_include_directories(test_ui_together_ui PRIVATE ${FB_NETTEST_DIR})
 target_compile_definitions(test_ui_together_ui PRIVATE FB_TEST_DATA_DIR="${FB_NETTEST_DIR}/testdata")
+
+# Controller hand-over (0.23 package 8) in the UI against FakeHub: the confirm card, People rows and tags, take-over and Esc twice.
+uzume_add_test(ui_control_ui control_ui_test.cpp ${FB_NETTEST_DIR}/fakehub.cpp ${FB_NETTEST_DIR}/fakehub.h
+  LIBS ${FB_UI_TEST_LIBS})
+target_include_directories(test_ui_control_ui PRIVATE ${FB_NETTEST_DIR})
+target_compile_definitions(test_ui_control_ui PRIVATE FB_TEST_DATA_DIR="${FB_NETTEST_DIR}/testdata")

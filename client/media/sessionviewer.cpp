@@ -3,6 +3,7 @@
 #include <QLoggingCategory>
 #include <QMutexLocker>
 #include <algorithm>
+#include <cmath>
 #include <condition_variable>
 #include <cstring>
 #include <deque>
@@ -89,6 +90,12 @@ SessionViewer::SessionViewer(QObject* parent) : QObject(parent), forceRelay_(for
   pingTimer_.setInterval(2000);
   connect(&pingTimer_, &QTimer::timeout, this, &SessionViewer::sendPing);
   pingClock_.start();
+  inputClock_.start();
+  inputKeepAlive_.setInterval(kInputKeepAliveMs);
+  connect(&inputKeepAlive_, &QTimer::timeout, this, &SessionViewer::sendInputFrame);
+  inputCoalesce_.setSingleShot(true);
+  inputCoalesce_.setInterval(16);
+  connect(&inputCoalesce_, &QTimer::timeout, this, &SessionViewer::sendInputFrame);
 }
 
 SessionViewer::~SessionViewer() {
@@ -157,6 +164,87 @@ void SessionViewer::setQuality(Quality pick) {
   emit qualityChanged();
 }
 
+bool SessionViewer::requestControl(int port) {
+  if (port < 0 || port > 1 || port >= hostPorts_ || controlState_ != ControlState::Idle || !diag_ || !diag_->isOpen()) return false;
+  controlState_ = ControlState::Asking;
+  controlPort_ = port;
+  controlReason_.clear();
+  sendDiag(makeControlRequest(port));
+  emit controlChanged();
+  return true;
+}
+
+void SessionViewer::releaseControl() {
+  if (controlState_ == ControlState::Idle) return;
+  sendDiag(makeControlRelease());
+  resetControl(QStringLiteral("viewer"));
+}
+
+void SessionViewer::resetControl(const QString& reason) {
+  inputKeepAlive_.stop();
+  inputCoalesce_.stop();
+  inputState_ = InputFrame();
+  if (controlState_ == ControlState::Idle) return;
+  controlState_ = ControlState::Idle;
+  controlPort_ = -1;
+  controlReason_ = reason;
+  emit controlChanged();
+}
+
+void SessionViewer::onControlAnswer(const ControlAnswer& a) {
+  if (controlState_ != ControlState::Asking || a.port != controlPort_) return;
+  if (!a.granted) {
+    resetControl(a.reason.isEmpty() ? QStringLiteral("denied") : a.reason);
+    return;
+  }
+  controlState_ = ControlState::Granted;
+  controlReason_.clear();
+  inputState_ = InputFrame();
+  inputState_.port = static_cast<quint8>(a.port);
+  inputKeepAlive_.start();
+  sendInputFrame();  // the first frame tells the host the channel works
+  emit controlChanged();
+}
+
+void SessionViewer::onControlEnd(const ControlEnd& e) {
+  if (controlState_ == ControlState::Idle || e.port != controlPort_) return;
+  resetControl(e.reason);
+}
+
+void SessionViewer::setControlInput(quint16 buttons, const qint16 axes[4], bool touching, double touchX, double touchY) {
+  if (controlState_ != ControlState::Granted) return;
+  InputFrame next = inputState_;
+  next.buttons = buttons;
+  for (int i = 0; i < 4; ++i) next.axes[i] = axes[i];
+  next.touching = touching;
+  const auto q = [](double v) { return static_cast<qint16>(std::lround(std::clamp(v, 0.0, 1.0) * kTouchMax)); };
+  next.touchX = touching ? q(touchX) : inputState_.touchX;
+  next.touchY = touching ? q(touchY) : inputState_.touchY;
+  if (next.sameInput(inputState_)) return;
+  inputState_ = next;
+  // At most one frame per emulated frame: a change right after a send waits for the coalescing timer.
+  if (inputClock_.elapsed() - lastInputSendMs_ >= 16) sendInputFrame();
+  else if (!inputCoalesce_.isActive()) inputCoalesce_.start();
+}
+
+void SessionViewer::sendInputFrame() {
+  if (controlState_ != ControlState::Granted || !input_) return;
+  InputFrame f = inputState_;
+  f.seq = ++inputSeq_;
+  f.tsMs = static_cast<quint16>(inputClock_.elapsed() & 0xFFFF);
+  lastInputSendMs_ = inputClock_.elapsed();
+  inputCoalesce_.stop();
+  try {
+    if (input_->isOpen()) {
+      const QByteArray b = encodeInputFrame(f);
+      input_->send(reinterpret_cast<const std::byte*>(b.constData()), static_cast<size_t>(b.size()));
+      ++inputFramesSent_;
+    }
+  } catch (const std::exception& e) {
+    qCWarning(lcViewer) << "input send:" << e.what();
+  }
+}
+
 void SessionViewer::sendPing() { sendDiag(makePing(++pingN_, pingClock_.elapsed())); }
 
 void SessionViewer::onPingPong(const PingMessage& m) {
@@ -187,6 +275,11 @@ void SessionViewer::teardown() {
   }  // invalidates queued frames of this connection before the codecs are closed
   statsTimer_.stop();
   pingTimer_.stop();
+  resetControl(QStringLiteral("left"));
+  if (hostPorts_ != 0) {
+    hostPorts_ = 0;
+    emit controlChanged();
+  }
   if (hasTier_ || latencyMs_) {
     hasTier_ = false;
     servedTier_ = Quality::Auto;
@@ -200,6 +293,7 @@ void SessionViewer::teardown() {
       if (video_) video_->resetCallbacks();
       if (audio_) audio_->resetCallbacks();
       if (diag_) diag_->resetCallbacks();
+      if (input_) input_->resetCallbacks();
       pc_->close();
     } catch (const std::exception& e) {
       qCWarning(lcViewer) << "Closing PeerConnection:" << e.what();
@@ -208,6 +302,7 @@ void SessionViewer::teardown() {
   video_.reset();
   audio_.reset();
   diag_.reset();
+  input_.reset();
   videoSession_.reset();
   pc_.reset();
   if (pipe_) {  // the producers are gone; the worker finishes its current picture and ends before the codecs are closed
@@ -382,8 +477,25 @@ void SessionViewer::handleSignal(const SessionSignal& s) {
           bridge->post([this, t = *tier]() { onTier(t); });
         } else if (const auto ping = parsePingPong(raw)) {
           bridge->post([this, p = *ping]() { onPingPong(p); });
+        } else if (const auto caps = parseControlCaps(raw)) {
+          bridge->post([this, ports = *caps]() {
+            if (ports == hostPorts_) return;
+            hostPorts_ = ports;
+            emit controlChanged();
+          });
+        } else if (const auto answer = parseControlAnswer(raw)) {
+          bridge->post([this, a = *answer]() { onControlAnswer(a); });
+        } else if (const auto end = parseControlEnd(raw)) {
+          bridge->post([this, e = *end]() { onControlEnd(e); });
         }  // anything else is ignored
       }));
+      // Controller input frames (ADR 0033 D8): the host's twin of this channel; an old host has none and never grants.
+      rtc::DataChannelInit inputInit;
+      inputInit.negotiated = true;
+      inputInit.id = kInputChannelId;
+      inputInit.reliability.unordered = true;
+      inputInit.reliability.maxRetransmits = 0;
+      input_ = pc_->createDataChannel("fb-input", inputInit);
       // Pick (when not the default) and the first ping go out as soon as the channel is open.
       diag_->onOpen(guarded("diag onOpen", [this, bridge]() {
         bridge->post([this]() {
