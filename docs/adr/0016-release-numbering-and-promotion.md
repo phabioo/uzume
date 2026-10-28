@@ -1,5 +1,8 @@
 # ADR 0016: Release numbering and promotion
 
+> Amendment 2026-10-28: the numbering of D1/D2 (plain `X.Y.Z` per beta, `VERSION` as floor) is replaced by `R.B` builds in [ADR 0036](0036-issues-milestones-wiki-and-numbering.md) D4. Promotion without rebuild stays.
+
+
 - Status: Accepted (Fabio, 2026-10-08)
 - Date: 2026-10-08
 - Deciders: Fabio

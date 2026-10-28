@@ -61,6 +61,8 @@ class GpuCapture {
     void* ntHandle = nullptr;
     int width = 0;
     int height = 0;
+    bool luidValid = false;       // the adapter the capture's own D3D11 device lives on (memory order low, high)
+    unsigned char luid[8] = {};
   };
   virtual Status attachShared(int width, int height, const unsigned char* luid, unsigned vendorId, SharedImage* out) {
     Q_UNUSED(width);

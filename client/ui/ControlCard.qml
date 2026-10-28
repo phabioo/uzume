@@ -4,7 +4,7 @@ import Uzume.App
 
 // Controller hand-over card (ADR 0033 D8, boards 3g-12 / 3r): on the host's stage, one flat line. A request reads "max wants to play as P2"
 // with Allow (key 1) and Deny (key 2) and the seconds left (it is denied after 20 s); while somebody plays it reads "max plays P1" with
-// "Take back" (Esc twice does the same). The buttons never take the focus from the game.
+// "Take back" (Esc twice does the same for P1). The buttons never take the focus from the game.
 Rectangle {
     id: root
     required property ControlController control

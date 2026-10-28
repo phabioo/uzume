@@ -94,6 +94,8 @@ Acq acquireSync(IDXGIKeyedMutex* mtx, UINT64 key, HRESULT* hrOut = nullptr) {
 
 }  // namespace
 
+constexpr int kMaxBusyFrames = 30;  // consecutive Busy answers of the consumer before the ring is given up
+
 // One generation: 3 shared textures of one size. The NT handles stay valid until the last owner dropped the object.
 struct RingGen {
   quint64 id = 0;
@@ -497,7 +499,7 @@ void D3d11DisplayProducer::abort() {
   }
   const int slot = d.writing;
   d.writing = -1;
-  if (d.vulkan()) {  // nothing was submitted for this slot: its keys are untouched
+  if (d.vulkan()) {  // also called after a failed submit: no key is touched here, the submit took or released them (or not) by itself
     d.side.gen->table.abortWrite(slot);
     return;
   }
@@ -578,6 +580,7 @@ struct D3d11DisplayConsumer::Impl {
   int prev = -1;
   bool inFrame = false;
   bool closed = false;
+  int busyFrames = 0;  // consecutive frames whose newest slot was still held by the producer's side
   ConsumerFrame cached;
 
   std::shared_ptr<ConsGen> open(const std::shared_ptr<RingGen>& g, QString* why) {
@@ -674,6 +677,7 @@ bool D3d11DisplayConsumer::frame(void* qtD3d11Device, ConsumerFrame* out, QStrin
         return false;
       }
       if (a == Acq::Got) {
+        d.busyFrames = 0;
         // Superseded pending slots: acquire and give back with key 0 at once.
         for (int s : latest->table.readyOlderThan(newest.sequence)) {
           if (acquireSync(cg->mtx[s].Get(), 1) == Acq::Got) {
@@ -690,7 +694,13 @@ bool D3d11DisplayConsumer::frame(void* qtD3d11Device, ConsumerFrame* out, QStrin
         d.shownH = newest.height;
         d.shownSeq = newest.sequence;
       }
-      // Busy: keep showing the old slot, ask again next frame.
+      // Busy: keep showing the old slot, ask again next frame. A key 1 that is never released (a failed Vulkan submit after
+      // the slot was marked ready) would freeze the view for good: after kMaxBusyFrames the ring fails and readback takes over.
+      if (a == Acq::Busy && ++d.busyFrames >= kMaxBusyFrames) {
+        sh.fail(QStringLiteral("a display slot stayed busy for %1 frames").arg(kMaxBusyFrames));
+        *error = sh.failure();
+        return false;
+      }
     }
   }
 

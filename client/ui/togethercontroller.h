@@ -21,6 +21,7 @@ class TogetherController : public QObject {
   QML_UNCREATABLE("Provided by the PlayerController")
 
   Q_PROPERTY(bool available READ available NOTIFY scopeChanged)    // a scope exists and the Hub offers together_v1
+  Q_PROPERTY(bool canControl READ canControl NOTIFY scopeChanged)   // may start a ready check and pause: run members and the Session host (not viewers, ADR 0033 D5)
   Q_PROPERTY(QString scopeKind READ scopeKind NOTIFY scopeChanged)  // "run" | "session" | ""
   Q_PROPERTY(QString scopeId READ scopeId NOTIFY scopeChanged)
   // Ready check
@@ -76,6 +77,7 @@ class TogetherController : public QObject {
   void setFeatureCheck(std::function<bool()> f) { featureFn_ = std::move(f); }  // default: the Hub offers together_v1
 
   bool available() const { return !scope_.kind.isEmpty() && featureOn(); }
+  bool canControl() const { return available() && (scope_.kind == QLatin1String("run") || scope_.hostsGame); }
   bool featureAvailable() const { return featureOn(); }  // the Hub offers together_v1
   QString scopeKind() const { return scope_.kind; }
   QString scopeId() const { return scope_.id; }
@@ -102,6 +104,7 @@ class TogetherController : public QObject {
 
   // The scope may have changed (game, Session, run, Hub link): recomputes it and drops what belongs to a scope that is gone.
   void refresh();
+  void holdAndPause();
   // The local game was paused or resumed by someone else than the shared pause.
   void noteLocalPauseChanged();
   void tick();  // 250 ms timer; tests call it

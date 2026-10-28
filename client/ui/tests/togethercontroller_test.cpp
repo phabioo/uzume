@@ -85,6 +85,32 @@ class TogetherControllerTest : public QObject {
     QCOMPARE(spy.size(), 1);
   }
 
+  // ADR 0033 D5: in a Session only the host starts a check and pauses; viewers still see the state and answer.
+  void onlyTheSessionHostControls() {
+    Fixture f;
+    QVERIFY(f.tc.canControl());  // run member
+    f.scope = {QStringLiteral("session"), QStringLiteral("s1"), true};  // host
+    f.tc.refresh();
+    QVERIFY(f.tc.available() && f.tc.canControl());
+    f.scope = {QStringLiteral("session"), QStringLiteral("s1"), false};  // viewer
+    QSignalSpy spy(&f.tc, &TogetherController::scopeChanged);
+    f.tc.refresh();
+    QVERIFY(f.tc.available());
+    QVERIFY(!f.tc.canControl());
+    QVERIFY(spy.size() >= 1);
+    f.tc.startCheck();  // refused locally (the Hub refuses it as well)
+    f.tc.setPaused(true);
+    ReadyCheckMessage m = check(QStringLiteral("open"), QStringLiteral("s1"));
+    m.scope = QStringLiteral("session");
+    f.socket.readyCheckReceived(m);
+    QVERIFY(f.tc.awaitsAnswer());  // a viewer sees the card and answers
+    f.tc.answer(true);
+    QCOMPARE(f.tc.myState(), QStringLiteral("ready"));
+    f.scope = {};
+    f.tc.refresh();
+    QVERIFY(!f.tc.canControl());
+  }
+
   void checkOpensAnswersAndCloses() {
     Fixture f;
     QSignalSpy changed(&f.tc, &TogetherController::checkChanged);
@@ -190,6 +216,20 @@ class TogetherControllerTest : public QObject {
     f.socket.pauseStateReceived(pauseState(false, QString()));
     QVERIFY(f.gamePaused);
     QCOMPARE(f.resumes, 1);
+  }
+
+  void gameStartingInAPausedScopeIsPaused() {
+    Fixture f;
+    f.scope.hostsGame = false;  // watching the run: no game of mine yet
+    f.tc.refresh();
+    f.socket.pauseStateReceived(pauseState(true));
+    QCOMPARE(f.pauses, 0);
+    f.scope.hostsGame = true;  // my game starts inside the same run
+    f.tc.refresh();
+    QCOMPARE(f.pauses, 1);
+    QVERIFY(f.gamePaused);
+    f.socket.pauseStateReceived(pauseState(false, QString()));
+    QVERIFY(!f.gamePaused);
   }
 
   void ownPauseTextAndManualResumeReleasesTheHold() {

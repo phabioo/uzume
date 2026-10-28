@@ -91,7 +91,8 @@ class HubSocket : public QObject {
   bool sendChat(const QString& scope, const QString& id, const QString& clientId, const QString& text);
 
   // Voice chat (ADR 0033 D7). Sent now or dropped (the VoiceController rejoins after a reconnect).
-  void sendVoiceJoin(const QString& scope, const QString& id, const QString& mic);
+  // sendVoiceJoin returns the envelope id the Hub echoes in an `error` answering this join (hubErrorReply).
+  QString sendVoiceJoin(const QString& scope, const QString& id, const QString& mic);
   void sendVoiceLeave(const QString& scope, const QString& id);
   void sendVoiceState(const QString& scope, const QString& id, const QString& mic);
   void sendVoiceMute(const QString& id, const QString& userId, bool muted);  // Session owner only
@@ -127,6 +128,7 @@ class HubSocket : public QObject {
   void voiceRoomReceived(const uzume::VoiceRoomMessage& room);
   void voiceSignalReceived(const QString& scope, const QString& id, const QString& fromDeviceId, const QJsonObject& body);  // kind, sdp, candidate, mid
   void hubError(const QString& code, const QString& message);  // `error` message of the Hub
+  void hubErrorReply(const QString& requestId, const QString& code, const QString& message);  // the same, when it answers a request that carried an id
   void connectionError(const QString& code, const QString& message);  // transport: unreachable, certificate_changed, ...
 
  private:
@@ -134,7 +136,7 @@ class HubSocket : public QObject {
   void teardown();
   void scheduleReconnect();
   void setState(State s);
-  void send(const QString& type, const QJsonObject& payload);
+  void send(const QString& type, const QJsonObject& payload, const QString& id = {});
   void queueOrSend(const QString& type, const QJsonObject& payload);
   void flushQueued();
   void onTextMessage(const QString& text);
@@ -162,6 +164,7 @@ class HubSocket : public QObject {
   int upgradeRejects_ = 0;      // consecutive upgrade failures after reaching the Hub
   qint64 lastTrafficMs_ = 0;
   quint64 generation_ = 0;
+  quint64 requestSeq_ = 0;
   // Signalling and presence produced while the socket is not open (reconnect, PN-15): bounded, flushed after the next hello_ack.
   struct Queued {
     QString type;

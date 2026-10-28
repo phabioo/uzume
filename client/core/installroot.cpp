@@ -204,9 +204,9 @@ bool replaceAppImage(const QString& staged, const QString& appImage, const QStri
       return failPart(QStringLiteral("staged update does not match the signed index"));
     }
   }
-  const QFile::Permissions exec = QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner | QFileDevice::ReadGroup |
-                                  QFileDevice::ExeGroup | QFileDevice::ReadOther | QFileDevice::ExeOther;
-  if (!QFile::setPermissions(part, exec)) return failPart(QStringLiteral("update file could not be made executable"));
+  // The new image keeps the permission bits of the old one (a user may have restricted them); owner-executable is a must.
+  const QFile::Permissions perms = target.permissions() | QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner;
+  if (!QFile::setPermissions(part, perms)) return failPart(QStringLiteral("update file could not be made executable"));
   const QString prev = appImagePreviousPath(appImage);
   QFile::remove(prev);
   const QByteArray appBytes = QFile::encodeName(appImage);
@@ -231,16 +231,17 @@ bool replaceAppImage(const QString& staged, const QString& appImage, const QStri
 InstallerCommand appImageRelaunchCommand(const QString& appImage, qint64 oldPid, const QStringList& args) {
   static const char* kWatcher =
       "app=$1; prev=$2; marker=$3; oldpid=$4; shift 4\n"
-      "i=0; while kill -0 \"$oldpid\" 2>/dev/null && [ \"$i\" -lt 300 ]; do sleep 0.2; i=$((i+1)); done\n"
+      "i=0; while kill -0 \"$oldpid\" 2>/dev/null && [ \"$i\" -lt 1500 ]; do sleep 0.2; i=$((i+1)); done\n"
       "unset APPDIR ARGV0 OWD APPIMAGE\n"
       ": > \"$marker\"\n"
       "\"$app\" \"$@\" &\n"
       "pid=$!\n"
       "wait \"$pid\"; rc=$?\n"
-      "if [ -e \"$marker\" ]; then\n"
+      "if [ \"$rc\" -ne 0 ] && [ -e \"$marker\" ]; then\n"  // crashed or failed before confirming: roll back
       "  rm -f \"$marker\"\n"
       "  if [ -f \"$prev\" ] && mv -f \"$prev\" \"$app\"; then exec \"$app\" \"$@\"; fi\n"
       "fi\n"
+      "rm -f \"$marker\"\n"
       "exit \"$rc\"\n";
   InstallerCommand c;
   c.program = QStringLiteral("/bin/sh");

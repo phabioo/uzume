@@ -41,3 +41,4 @@ New ADR: `docs/adr/NNNN-title.md` with status, date, deciders, context, decision
 | [0033](0033-together.md) | Together (0.23): presence, notifications, ready check, chat, viewer quality, mixer, voice chat, controller hand-over | Accepted for implementation |
 | [0034](0034-linux-app-and-vulkan.md) | Platforms (0.24): Linux AppImage with self-update, Secret Service, Vulkan path | Accepted |
 | [0035](0035-error-groups-and-github-issues.md) | Error groups and GitHub issues: grouped errors on the own server, one-click prefilled issue, issue templates | Accepted |
+| [0036](0036-issues-milestones-wiki-and-numbering.md) | Issues, milestones, wiki and release numbering: work in GitHub issues, `R.B` builds, wiki mirrored from `wiki/` | Accepted |

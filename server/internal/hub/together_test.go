@@ -104,6 +104,9 @@ func newTogetherFx(t *testing.T, mod func(*hub.Options)) *togetherFx {
 	f := &togetherFx{svc: svc, clk: clk, admin: admin, anna: anna, bob: bob, run: run}
 	f.pAdmin, f.pAnna, f.pB = principal(t, svc, admin.ID, "Desktop"), principal(t, svc, anna.ID, "Anna-PC"), principal(t, svc, bob.ID, "Bob-PC")
 	f.cAdmin, f.cAnna, f.cBob = connect(t, svc, f.pAdmin), connect(t, svc, f.pAnna), connect(t, svc, f.pB)
+	if _, err := svc.SetRunStatus(ctx, admin.ID, run.ID, hub.RunActive); err != nil { // ready checks and pauses need an active run
+		t.Fatal(err)
+	}
 	got(f.cAdmin)
 	got(f.cAnna)
 	got(f.cBob)
@@ -331,14 +334,34 @@ func TestSessionReadyCheckPauseAndEnd(t *testing.T) {
 	if _, _, errs := got(cb); len(errs) != 1 || errs[0] != "forbidden" {
 		t.Fatalf("non-member session start: %v", errs)
 	}
+	// a viewer neither starts a check nor pauses (ADR 0033 D5)
 	send(t, ca, "ready_check_start", fmt.Sprintf(`{"scope":"session","id":%q}`, s.SessionID))
+	send(t, ca, "pause_request", fmt.Sprintf(`{"scope":"session","id":%q,"paused":true}`, s.SessionID))
+	if cs, ps, errs := got(ca); len(errs) != 2 || errs[0] != "forbidden" || errs[1] != "forbidden" || len(cs) != 0 || len(ps) != 0 {
+		t.Fatalf("viewer control: %+v %+v %v", cs, ps, errs)
+	}
+	if cs, ps, _ := got(co); len(cs) != 0 || len(ps) != 0 {
+		t.Fatalf("host saw a refused viewer request: %+v %+v", cs, ps)
+	}
+	send(t, co, "ready_check_start", fmt.Sprintf(`{"scope":"session","id":%q}`, s.SessionID))
 	cs := got2(co)
-	if len(cs) != 1 || cs[0].Scope != "session" || len(cs[0].Members) != 2 || cs[0].By != anna.ID {
+	if len(cs) != 1 || cs[0].Scope != "session" || len(cs[0].Members) != 2 || cs[0].By != admin.ID {
 		t.Fatalf("session check: %+v", cs)
 	}
-	send(t, ca, "pause_request", fmt.Sprintf(`{"scope":"session","id":%q,"paused":true}`, s.SessionID))
+	// viewers still answer
+	send(t, ca, "ready_check_answer", fmt.Sprintf(`{"check_id":%q,"ready":false}`, cs[0].CheckID))
+	if cs := got2(co); len(cs) != 1 || cs[0].Status != "open" || cs[0].state(anna.ID) != "not_ready" {
+		t.Fatalf("viewer answer: %+v", cs)
+	}
+	send(t, co, "pause_request", fmt.Sprintf(`{"scope":"session","id":%q,"paused":true}`, s.SessionID))
 	if _, ps, _ := got(co); len(ps) != 1 || ps[0]["paused"] != true {
 		t.Fatalf("session pause: %+v", ps)
+	}
+	// a viewer cannot lift it, and still receives the state
+	got(ca)
+	send(t, ca, "pause_request", fmt.Sprintf(`{"scope":"session","id":%q,"paused":false}`, s.SessionID))
+	if _, ps, errs := got(ca); len(errs) != 1 || errs[0] != "forbidden" || len(ps) != 0 {
+		t.Fatalf("viewer resume: %+v %v", ps, errs)
 	}
 	got(ca)
 	if err := svc.EndSession(ctx, po, s.SessionID); err != nil {
@@ -361,9 +384,6 @@ func TestRunLeavingActiveStateEndsCheckAndPause(t *testing.T) {
 	for _, to := range []string{hub.RunPaused, hub.RunFinished} {
 		t.Run(to, func(t *testing.T) {
 			f := newTogetherFx(t, nil)
-			if _, err := f.svc.SetRunStatus(ctx, f.admin.ID, f.run.ID, hub.RunActive); err != nil {
-				t.Fatal(err)
-			}
 			f.start(t, f.cAdmin)
 			send(t, f.cAnna, "pause_request", fmt.Sprintf(`{"scope":"run","id":%q,"paused":true}`, f.run.ID))
 			got(f.cAdmin)

@@ -679,7 +679,54 @@ class UpdateTest : public QObject {
     QCOMPARE(readAll(image), QByteArray("new-image"));
     QCOMPARE(readAll(image + ".previous"), QByteArray("old"));
     QVERIFY(!QFileInfo::exists(tmp.filePath(".Uzume.AppImage.part")));
-    QCOMPARE(QFileInfo(image).permissions() & 0x7077, kMode755);
+    // The old image was 0644 (writeBytes): its bits are kept and the owner can execute.
+    QCOMPARE(QFileInfo(image).permissions() & 0x7077, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner |
+                                                      QFileDevice::ReadGroup | QFileDevice::ReadOther);
+  }
+  void replaceAppImageKeepsPermissionBits() {
+    QTemporaryDir tmp;
+    const QString image = tmp.filePath("Uzume.AppImage");
+    const QString staged = tmp.filePath("staged.bin");
+    QVERIFY(writeBytes(image, "old"));
+    QVERIFY(writeBytes(staged, "new-image"));
+    const QFileDevice::Permissions mode = QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner | QFileDevice::ReadGroup |
+                                          QFileDevice::ExeGroup;  // 0750
+    QVERIFY(QFile::setPermissions(image, mode));
+    const QString sha = QString::fromLatin1(QCryptographicHash::hash("new-image", QCryptographicHash::Sha256).toHex());
+    QString why;
+    QVERIFY(replaceAppImage(staged, image, sha, 9, &why));
+    QCOMPARE(QFileInfo(image).permissions() & 0x7077, mode);
+  }
+  // Runs the real watcher script with a fake "AppImage" shell script as the new image.
+  void relaunchWatcherRestoresOnlyAfterFailure() {
+    for (const int rc : {0, 3}) {
+      QTemporaryDir tmp;
+      const QString app = tmp.filePath("Uzume.AppImage");
+      const QString runs = tmp.filePath("runs");
+      const auto script = [&](const QByteArray& body) {
+        QVERIFY(writeBytes(app, "#!/bin/sh\n" + body));
+        QVERIFY(QFile::setPermissions(app, kMode755));
+      };
+      // The new image appends to `runs` and exits with rc; the restored previous one exits 0.
+      script("echo new >> '" + runs.toLocal8Bit() + "'; exit " + QByteArray::number(rc) + "\n");
+      const QString prev = appImagePreviousPath(app);
+      QVERIFY(writeBytes(prev, "#!/bin/sh\necho prev >> '" + runs.toLocal8Bit() + "'; exit 0\n"));
+      QVERIFY(QFile::setPermissions(prev, kMode755));
+      const InstallerCommand cmd = appImageRelaunchCommand(app, 999999999, {});
+      QProcess p;
+      p.start(cmd.program, cmd.args);
+      QVERIFY(p.waitForFinished(20000));
+      const QByteArray log = readAll(runs);
+      if (rc == 0) {  // a quick clean exit of the new image is not a failed start
+        QCOMPARE(log, QByteArray("new\n"));
+        QVERIFY(QFileInfo::exists(prev));
+        QCOMPARE(p.exitCode(), 0);
+      } else {
+        QCOMPARE(log, QByteArray("new\nprev\n"));
+        QVERIFY(!QFileInfo::exists(prev));
+      }
+      QVERIFY(!QFileInfo::exists(appImageStartMarker(app)));
+    }
   }
   void managerReplacesAppImage() {
     QTemporaryDir imgDir;
@@ -705,7 +752,7 @@ class UpdateTest : public QObject {
     QCOMPARE(quit.count(), 1);
     QCOMPARE(readAll(image), data);
     QCOMPARE(readAll(image + ".previous"), QByteArray("old-image"));
-    QCOMPARE(QFileInfo(image).permissions() & 0x7077, kMode755);
+    QVERIFY(QFileInfo(image).permissions() & QFileDevice::ExeOwner);
     QVERIFY(QDir(imgDir.path()).entryList({"*.part"}, QDir::Files | QDir::Hidden).isEmpty());
     QCOMPARE(launched.value(0), QString("/bin/sh"));
     QVERIFY(launched.value(1).contains(image));  // watcher args: image, previous, marker, old pid, original args

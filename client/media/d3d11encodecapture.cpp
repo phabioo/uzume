@@ -93,6 +93,7 @@ constexpr unsigned kGlScissorTest = 0x0C11;
 
 // Frames the AMF pool holds: mailbox 1 + queue 2 + encoding 1 + AMF's own clone until the packet is dequeued + capturing 1,
 // with headroom. The pool is one array texture (D3D11VA static pool); exhaustion is a capture failure, not a wait.
+// Vulkan mode adds one: repeat() pins the last surface (a clone) next to those.
 constexpr int kAmfPoolFrames = 8;
 constexpr size_t kMaxCachedViews = 32;  // QSV output views, one per pool texture
 
@@ -404,7 +405,7 @@ D3d11EncodeCapture::Status D3d11EncodeCapture::Impl::createFrames(int w, int h) 
     fc->width = w;
     fc->height = h;
     // NVENC (Vulkan mode) registers single textures: a dynamic pool like QSV's, not the AMF array texture.
-    fc->initial_pool_size = kind.load() == Kind::Nvenc ? 0 : kAmfPoolFrames;
+    fc->initial_pool_size = kind.load() == Kind::Nvenc ? 0 : kAmfPoolFrames + (vulkanMode ? 1 : 0);
     fh->BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
     if (kind.load() == Kind::Nvenc) {
       fc->user_opaque = const_cast<void*>(VideoEncoder::nvencD3d11Marker());  // BGRA D3D11 frames -> h264_nvenc, not h264_amf
@@ -588,18 +589,19 @@ std::shared_ptr<AVFrame> D3d11EncodeCapture::Impl::capture() {
 }
 
 // Vulkan mode: the Vulkan submit has completed (fence) and released key 1; take it, run the usual copy, give key 0 back.
-// The whole sequence runs under the FFmpeg device lock: the encoder thread shares the immediate context.
+// The key is taken first, without the FFmpeg device lock (it can wait up to 100 ms and the encoder thread needs the lock for
+// its own work); the copy and the release run under the lock: the encoder thread shares the immediate context.
 std::shared_ptr<AVFrame> D3d11EncodeCapture::Impl::captureShared() {
   if (!interop || !framesRef || !keyedMutex || !lockBox) {
     fail("register", QStringLiteral("capture without a shared texture"));
     return nullptr;
   }
-  const std::lock_guard<std::recursive_mutex> lock(lockBox->mutex);
   const HRESULT acq = keyedMutex->AcquireSync(1, 100);
   if (acq != S_OK) {  // WAIT_TIMEOUT is a success code that did not acquire
     fail("keyed mutex", acq == static_cast<HRESULT>(WAIT_TIMEOUT) ? QStringLiteral("timed out waiting for the Vulkan frame") : hresultText(acq));
     return nullptr;
   }
+  const std::lock_guard<std::recursive_mutex> lock(lockBox->mutex);
   std::shared_ptr<AVFrame> frame = kind.load() == Kind::Qsv ? frameQsv() : frameAmf();  // Nvenc: the same BGRA copy as AMF
   const HRESULT rel = keyedMutex->ReleaseSync(0);  // queued behind the copy on this device: the next Vulkan frame may write
   if (FAILED(rel)) {
@@ -639,7 +641,7 @@ D3d11EncodeCapture::Status D3d11EncodeCapture::Impl::createVulkanDevice(const un
   if (SUCCEEDED(device.As(&mt))) {
     mt->SetMultithreadProtected(TRUE);
   }
-  std::memcpy(luidBytes, luid, 8);
+  std::memcpy(luidBytes, &desc.AdapterLuid, 8);  // what the adapter reports (LUID memory order: low part, high part)
   luidKnown = true;
   {
     const std::lock_guard<std::mutex> lock(mutex);

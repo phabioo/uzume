@@ -318,6 +318,41 @@ class SecretServiceStoreTest : public QObject {
     QVERIFY(!ss.write(QStringLiteral("Uzume/h/d"), QStringLiteral("x")));
     QVERIFY(!ss.read(QStringLiteral("Uzume/h/d")).has_value());
   }
+  void registeredButSilentServiceFallsBackToMemory() {
+    // The name is owned but nothing answers behind it (no objects): not available, so the memory store is used.
+    QDBusConnection silent = QDBusConnection::connectToBus(QDBusConnection::SessionBus, QStringLiteral("silent-secrets"));
+    QVERIFY(silent.registerService(QStringLiteral("org.freedesktop.secrets")));
+    const bool available = SecretServiceCredentialStore::isAvailable();
+    const auto store = createDefaultCredentialStore();
+    silent.unregisterService(QStringLiteral("org.freedesktop.secrets"));
+    silent = QDBusConnection(QStringLiteral("silent-unconnected"));
+    QDBusConnection::disconnectFromBus(QStringLiteral("silent-secrets"));
+    QVERIFY(!available);
+    QCOMPARE(store->backendName(), QStringLiteral("memory"));
+  }
+  void readCheckedTellsErrorFromNotFound() {
+    startFake();
+    using Status = CredentialRead::Status;
+    SecretServiceCredentialStore store(300);
+    QCOMPARE(store.readChecked(QStringLiteral("Uzume/a")).status, Status::NotFound);
+    QVERIFY(store.write(QStringLiteral("Uzume/a"), QStringLiteral("v")));
+    const CredentialRead ok = store.readChecked(QStringLiteral("Uzume/a"));
+    QCOMPARE(ok.status, Status::Ok);
+    QCOMPARE(ok.secret, QStringLiteral("v"));
+    fake_->set([](Fake& f) {
+      f.locked = true;
+      f.promptMode = Fake::Dismiss;
+    });
+    QCOMPARE(store.readChecked(QStringLiteral("Uzume/a")).status, Status::Error);  // dismissed, the entry still exists
+    fake_->set([](Fake& f) { f.promptMode = Fake::Never; });
+    QCOMPARE(store.readChecked(QStringLiteral("Uzume/a")).status, Status::Error);  // timed out
+    QCOMPARE(readCredentialChecked(store, QString()).status, Status::NotFound);
+    // The memory store never fails.
+    MemoryCredentialStore mem;
+    QCOMPARE(mem.readChecked(QStringLiteral("x")).status, Status::NotFound);
+    QVERIFY(mem.write(QStringLiteral("x"), QStringLiteral("y")));
+    QCOMPARE(mem.readChecked(QStringLiteral("x")).secret, QStringLiteral("y"));
+  }
   void withoutSessionBusFallsBackToMemory() {
     const QByteArray saved = qgetenv("DBUS_SESSION_BUS_ADDRESS");
     qputenv("DBUS_SESSION_BUS_ADDRESS", "unix:path=/nonexistent/uzume-no-bus");

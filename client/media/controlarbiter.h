@@ -5,7 +5,8 @@
 //  - one holder per port, one port per viewer; a request for a held port is denied with the reason "busy";
 //  - an unanswered request is denied after kControlAskTimeoutMs;
 //  - frames are dropped when out of order (16-bit sequence), from a viewer that holds nothing, or stale (they arrive more than
-//    kInputStaleMs later than the fastest frame of this grant, judged by the sender's timestamp);
+//    kInputStaleMs later than the fastest frame of the current path, judged by the sender's timestamp; when every frame stays stale
+//    for kInputRebaseMs the path got slower for good and the reference moves to the fastest frame of that run);
 //  - a port without a frame for kInputNeutralMs is neutral (all up) until the next frame; the grant stays.
 
 #include <QHash>
@@ -44,8 +45,9 @@ class ControlArbiter {
   };
   enum class Verdict { Applied, NoGrant, WrongPort, OutOfOrder, Stale };
 
-  // Ports the host's system offers (1 or 2); 0 = no hand-over. Lowering it ends holders and drops requests above it.
-  QList<End> setPortCount(int ports);
+  // Ports the host's system offers (1 or 2); 0 = no hand-over. Lowering it ends holders and drops requests above it; those
+  // requests are reported in `dropped` so the caller can deny them.
+  QList<End> setPortCount(int ports, QList<Pending>* dropped = nullptr);
   int portCount() const { return ports_; }
 
   Request request(const QString& viewerId, int port, qint64 nowMs);
@@ -81,6 +83,8 @@ class ControlArbiter {
     quint16 lastSeq = 0;
     bool haveBase = false;
     int base = 0;  // smallest (arrival - sender ts) seen, mod 65536 as a signed 16-bit offset
+    qint64 staleSinceMs = -1;  // start of the current run of stale frames, -1: none
+    int staleMinDelta = 0;     // smallest delta (to base) within that run
     qint64 lastFrameMs = 0;
     bool neutral = true;
   };

@@ -427,11 +427,14 @@ int AudioMixer::mix(float* out, int frames) {
     produced = std::max(produced, avail);
   }
   if (!gens_.empty()) {
+    // Generators never lengthen a buffer the routed inputs cut short (that would pad the game with silence mid-buffer);
+    // they fill at most what the inputs provided, or the whole request when nothing else plays.
+    const int genFrames = produced > 0 ? static_cast<int>(produced / 2) : frames;
     genBuf_.assign(want, 0.0f);
     const float g = muted_ ? 0.0f : static_cast<float>(master_ * channelGain_[Plugin]);
     for (const Gen& gen : gens_) {
       std::fill(genBuf_.begin(), genBuf_.end(), 0.0f);
-      const int n = std::clamp(gen.fn(genBuf_.data(), frames, rate_), 0, frames);
+      const int n = std::clamp(gen.fn(genBuf_.data(), genFrames, rate_), 0, genFrames);
       for (int i = 0; i < n * 2; ++i) out[i] += genBuf_[static_cast<size_t>(i)] * g;
       produced = std::max(produced, static_cast<size_t>(n) * 2);
     }

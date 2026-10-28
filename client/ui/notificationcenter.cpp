@@ -1,10 +1,6 @@
 #include "notificationcenter.h"
 
-#include <QAudioFormat>
-#include <QAudioSink>
-#include <QBuffer>
 #include <QDateTime>
-#include <QMediaDevices>
 #include <QtMath>
 #include <algorithm>
 
@@ -118,8 +114,7 @@ void NotificationCenter::promoteToasts() {
     shown = true;
   }
   if (shown && settings_->notifySound()) {
-    if (soundHook_) soundHook_();
-    else playTone();
+    if (soundHook_) soundHook_();  // silent without a hook
   }
   rearm();
 }
@@ -187,33 +182,21 @@ void NotificationCenter::reset() {
   emit toastsChanged();
 }
 
-// A short two-note chime (A5, E6) through the default output device; silent when there is none.
-void NotificationCenter::playTone() {
+// A short two-note chime (A5, E6) as a clip for the plugin sound bus, so it follows the mixer (mute, volume, chosen device).
+std::shared_ptr<const plugins::SoundClip> NotificationCenter::chime() {
   static constexpr int kRate = 44100;
-  QAudioFormat fmt;
-  fmt.setSampleRate(kRate);
-  fmt.setChannelCount(1);
-  fmt.setSampleFormat(QAudioFormat::Int16);
-  const QAudioDevice dev = QMediaDevices::defaultAudioOutput();
-  if (dev.isNull() || !dev.isFormatSupported(fmt)) return;
-  QByteArray pcm;
   const int n = kRate * 22 / 100;
-  pcm.resize(n * 2);
-  auto* out = reinterpret_cast<qint16*>(pcm.data());
+  auto clip = std::make_shared<plugins::SoundClip>();
+  clip->sampleRate = kRate;
+  clip->pcm16.resize(n * 4);
+  auto* out = reinterpret_cast<qint16*>(clip->pcm16.data());
   for (int i = 0; i < n; ++i) {
     const double f = i < n / 2 ? 880.0 : 1318.5;
     const double env = qMin(1.0, (n - i) / double(kRate / 25)) * qMin(1.0, i / 200.0);
-    out[i] = static_cast<qint16>(qSin(2 * M_PI * f * i / kRate) * 0.18 * 32767 * env);
+    const auto v = static_cast<qint16>(qSin(2 * M_PI * f * i / kRate) * 0.18 * 32767 * env);
+    out[2 * i] = out[2 * i + 1] = v;
   }
-  auto* buf = new QBuffer;
-  buf->setData(pcm);
-  buf->open(QIODevice::ReadOnly);
-  auto* sink = new QAudioSink(dev, fmt);
-  buf->setParent(sink);
-  QObject::connect(sink, &QAudioSink::stateChanged, sink, [sink](QAudio::State s) {
-    if (s == QAudio::IdleState || s == QAudio::StoppedState) sink->deleteLater();
-  });
-  sink->start(buf);
+  return clip;
 }
 
 }  // namespace uzume::ui

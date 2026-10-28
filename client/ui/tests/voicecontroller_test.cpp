@@ -268,13 +268,48 @@ class VoiceControllerTest : public QObject {
   void hubErrorsOfAJoinAreExplained() {
     Fixture f;
     f.vc.join();
-    emit f.socket.hubError(QStringLiteral("conflict"), QStringLiteral("room full"));
+    // An error that answers some other request is not about the join
+    emit f.socket.hubErrorReply(QStringLiteral("other-1"), QStringLiteral("forbidden"), QStringLiteral("Not a member of this run"));
+    emit f.socket.hubErrorReply(QString(), QStringLiteral("forbidden"), QStringLiteral("no id"));
+    QVERIFY(f.vc.wantJoined());
+    emit f.socket.hubErrorReply(f.vc.joinRequestIdForTests(), QStringLiteral("conflict"), QStringLiteral("room full"));
     QVERIFY(!f.vc.wantJoined());
     QVERIFY(f.vc.notice().contains(QStringLiteral("full")));
     // An error while I am in the room (some other feature) leaves it alone
     f.inRoom();
-    emit f.socket.hubError(QStringLiteral("conflict"), QStringLiteral("something else"));
+    emit f.socket.hubErrorReply(f.vc.joinRequestIdForTests(), QStringLiteral("conflict"), QStringLiteral("something else"));
     QVERIFY(f.vc.wantJoined());
+  }
+
+  void hostMutedVoiceIsNotMixed() {
+    Fixture f;
+    f.inRoom();
+    emit f.vc.engine()->pcmDecoded(QStringLiteral("dev-lena"), QByteArray(960 * 2, '\x10'));
+    QCOMPARE(f.mixer.state().value("inputs").toList().size(), 1);
+    emit f.socket.voiceRoomReceived(room("session", "s1", {member("u_max", "dev-max"), member("u_lena", "dev-lena", "ptt", true)}));
+    const qint64 queued = f.mixer.state().value("inputs").toList().first().toMap().value("queued_frames").toLongLong();
+    emit f.vc.engine()->pcmDecoded(QStringLiteral("dev-lena"), QByteArray(960 * 2, '\x10'));
+    QCOMPARE(f.mixer.state().value("inputs").toList().first().toMap().value("queued_frames").toLongLong(), queued);
+    // A muted newcomer never gets a mixer input
+    emit f.socket.voiceRoomReceived(room("session", "s1", {member("u_max", "dev-max"), member("u_sam", "dev-sam", "ptt", true)}));
+    emit f.vc.engine()->pcmDecoded(QStringLiteral("dev-sam"), QByteArray(960 * 2, '\x10'));
+    QCOMPARE(f.mixer.state().value("inputs").toList().size(), 0);
+  }
+
+  void reconnectRebuildsThePeers() {
+    Fixture f;
+    f.inRoom();
+    QVERIFY(f.vc.joined());
+    QCOMPARE(f.vc.engine()->peerDevices(), QStringList{QStringLiteral("dev-lena")});
+    emit f.socket.stateChanged(HubSocket::State::Connecting);  // the link drops: the Hub no longer lists me
+    QVERIFY(!f.vc.joined() && f.vc.wantJoined());
+    const QString oldJoinId = f.vc.joinRequestIdForTests();
+    emit f.socket.stateChanged(HubSocket::State::Open);
+    QVERIFY(f.vc.engine()->peerDevices().isEmpty());  // closed; the answering voice_room builds them again
+    QVERIFY(f.vc.joinRequestIdForTests() != oldJoinId);
+    emit f.socket.voiceRoomReceived(room("session", "s1", {member("u_max", "dev-max"), member("u_lena", "dev-lena")}));
+    QVERIFY(f.vc.joined());
+    QCOMPARE(f.vc.engine()->peerDevices(), QStringList{QStringLiteral("dev-lena")});
   }
 
   void settingsPage() {

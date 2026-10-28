@@ -104,6 +104,11 @@ class VkRenderTest : public QObject {
     QVERIFY(!VkRenderContext::apiSatisfied(v13, v11));
     QVERIFY(!VkRenderContext::apiSatisfied(2, v13));  // plain major 2
     QVERIFY(VkRenderContext::apiSatisfied(1, v11));
+    const unsigned v10p18 = v10 | 18u;  // VK_MAKE_VERSION(1, 0, 18): the patch bits never count
+    QCOMPARE(VkRenderContext::normalizeApiVersion(v10p18), v10);
+    QVERIFY(VkRenderContext::apiSatisfied(v10p18, v10));
+    QVERIFY(VkRenderContext::apiSatisfied(v11 | 5u, v11));
+    QVERIFY(!VkRenderContext::apiSatisfied(v11 | 5u, v10));
     QVERIFY(VkRenderContext::apiSatisfied(v13, 0));  // unknown highest never refuses
     VkRenderContext::setHighestApiForTest(v11);
     QCOMPARE(VkRenderContext::highestUsableApi(), v11);
@@ -215,6 +220,27 @@ class VkRenderTest : public QObject {
     const RunnerResult r2 = runViaRunner();
     QVERIFY2(r2.started, qPrintable(r2.error));
     QCOMPARE(g_retries.load(), 0);
+  }
+
+  void coreRetryingWithOpenGlThenFailingLoadIsNotRetried() {
+    if (!glUsable()) QSKIP("no OpenGL context here");
+    EnvGuard g("FB_TEST_CORE_VK_VERSION", "1.99");  // Vulkan refused, the core takes OpenGL itself ...
+    EnvGuard g2("FB_TEST_CORE_VK_RETRY_GL", "1");
+    EnvGuard g3("FB_TEST_CORE_FAIL_LOAD_AFTER_HW", "1");  // ... and then refuses the game for another reason
+    g_retries = 0;
+    const RunnerResult r = runViaRunner();
+    QVERIFY(!r.started);
+    QCOMPARE(g_retries.load(), 0);  // Vulkan was not the cause: no second load, no remembered failure
+  }
+
+  void negotiationSupportQuery() {
+    EnvGuard g("FB_TEST_CORE_VK_NEG", "none");
+    LibretroBackend be;
+    QString err;
+    QVERIFY2(start(be, QStringLiteral("vulkan"), &err), qPrintable(err));
+    QCOMPARE(coreState(5), 2);  // the frontend's maximum for Vulkan, whatever the core announced
+    QCOMPARE(coreState(6), 0);  // an unknown type: answered, version 0
+    be.unloadCore();
   }
 
   void usableVulkanVersionStillUsesVulkan() {

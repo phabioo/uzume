@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -135,6 +136,9 @@ func TestVoiceOneRoomPerDevice(t *testing.T) {
 	}
 	run, err := svc.CreateRun(ctx, hub.CreateRunInput{UserID: admin.ID, Name: "Run", GameID: g.ID})
 	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.SetRunStatus(ctx, admin.ID, run.ID, hub.RunActive); err != nil {
 		t.Fatal(err)
 	}
 	po, po2 := principal(t, svc, admin.ID, "Desktop"), principal(t, svc, admin.ID, "Laptop")
@@ -273,4 +277,72 @@ func TestVoiceSessionMuteAndEnd(t *testing.T) {
 	}
 	vj(t, co, "session", s.SessionID)
 	wantErr(t, "join ended session", co, "forbidden")
+}
+
+func TestVoiceJoinNeedsActiveRun(t *testing.T) {
+	f := newTogetherFx(t, nil)
+	if _, err := f.svc.SetRunStatus(ctx, f.admin.ID, f.run.ID, hub.RunPaused); err != nil {
+		t.Fatal(err)
+	}
+	got(f.cAdmin)
+	vj(t, f.cAdmin, "run", f.run.ID)
+	wantErr(t, "paused run", f.cAdmin, "conflict")
+	if _, err := f.svc.SetRunStatus(ctx, f.admin.ID, f.run.ID, hub.RunActive); err != nil {
+		t.Fatal(err)
+	}
+	got(f.cAdmin)
+	vj(t, f.cAdmin, "run", f.run.ID)
+	if r := lastRoom(t, f.cAdmin); len(r.Members) != 1 {
+		t.Fatalf("active run: %+v", r)
+	}
+	// pausing the run closes the room
+	if _, err := f.svc.SetRunStatus(ctx, f.admin.ID, f.run.ID, hub.RunPaused); err != nil {
+		t.Fatal(err)
+	}
+	if r := lastRoom(t, f.cAdmin); len(r.Members) != 0 {
+		t.Fatalf("pause must close the room: %+v", r)
+	}
+}
+
+func TestVoiceSignalRateLimit(t *testing.T) {
+	f := newTogetherFx(t, nil)
+	vj(t, f.cAdmin, "run", f.run.ID)
+	vj(t, f.cAnna, "run", f.run.ID)
+	voiceGot(f.cAdmin)
+	voiceGot(f.cAnna)
+	body := fmt.Sprintf(`{"scope":"run","id":%q,"to_device_id":%q,"kind":"candidate","candidate":"x"}`, f.run.ID, f.pAnna.Device.ID)
+	for i := 0; i < 260; i++ {
+		send(t, f.cAdmin, "voice_signal", body)
+	}
+	_, _, errs := voiceGot(f.cAdmin)
+	if len(errs) == 0 || errs[0] != "rate_limited" {
+		t.Fatalf("flood must be limited: %v", errs)
+	}
+	f.clk.Advance(2 * time.Second)
+	send(t, f.cAdmin, "voice_signal", body)
+	if _, _, errs := voiceGot(f.cAdmin); len(errs) != 0 {
+		t.Fatalf("budget must refill: %v", errs)
+	}
+}
+
+// A join racing with the member leaving the run must not leave a ghost in the room.
+func TestVoiceJoinRacesMembershipChange(t *testing.T) {
+	for i := 0; i < 6; i++ {
+		f := newTogetherFx(t, nil)
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() { defer wg.Done(); vj(t, f.cAnna, "run", f.run.ID) }()
+		go func() {
+			defer wg.Done()
+			if _, err := f.svc.LeaveRun(ctx, f.anna.ID, f.run.ID); err != nil {
+				t.Error(err)
+			}
+		}()
+		wg.Wait()
+		got(f.cAdmin)
+		vj(t, f.cAdmin, "run", f.run.ID)
+		if r := lastRoom(t, f.cAdmin); len(r.Members) != 1 {
+			t.Fatalf("round %d: ghost in the room: %+v", i, r)
+		}
+	}
 }

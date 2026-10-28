@@ -64,11 +64,11 @@ unsigned VkRenderContext::highestUsableApi() {
 }
 unsigned VkRenderContext::normalizeApiVersion(unsigned versionMajor) {
   constexpr unsigned kVulkan10 = 1u << 22;
-  if (versionMajor >= kVulkan10) return versionMajor;
+  if (versionMajor >= kVulkan10) return versionMajor & ~0xfffu;  // major.minor only: a core's patch level never refuses a driver
   return std::max(1u, versionMajor) << 22;
 }
 bool VkRenderContext::apiSatisfied(unsigned versionMajor, unsigned highest) {
-  return highest == 0 || normalizeApiVersion(versionMajor) <= highest;
+  return highest == 0 || normalizeApiVersion(versionMajor) <= (highest & ~0xfffu);
 }
 
 QString VkRenderContext::describeApi(unsigned apiVersion) {
@@ -418,7 +418,14 @@ struct VkRenderContext::Impl {
     wrapperInstance = VK_NULL_HANDLE;
     if (hasNeg && neg.interface_version >= 2 && neg.create_instance) {
       instance = neg.create_instance(gipa, &app, &Impl::createInstanceWrapper, this);
-      if (instance == VK_NULL_HANDLE) qCInfo(lcVk) << "core create_instance failed; creating the instance ourselves";
+      if (instance == VK_NULL_HANDLE) {
+        qCInfo(lcVk) << "core create_instance failed; creating the instance ourselves";
+        if (wrapperInstance != VK_NULL_HANDLE) {  // our wrapper created one before the core gave up: not ours to keep
+          auto destroy = reinterpret_cast<PFN_vkDestroyInstance>(gipa(wrapperInstance, "vkDestroyInstance"));
+          if (destroy) destroy(wrapperInstance, nullptr);
+          wrapperInstance = VK_NULL_HANDLE;
+        }
+      }
     }
     if (instance == VK_NULL_HANDLE) {
       VkInstanceCreateInfo ci{};
@@ -576,6 +583,7 @@ struct VkRenderContext::Impl {
         if (ctx.gpu != VK_NULL_HANDLE && ctx.gpu != gpu) {
           gpu = ctx.gpu;
           vkGetPhysicalDeviceProperties(gpu, &props);
+          planExternal();  // the LUID and the extension support described the GPU we picked, not the core's
         }
         return true;
       }
@@ -1303,7 +1311,12 @@ struct VkRenderContext::Impl {
     const bool useEnc = enc && enc->active && hasImage;
     const bool coreCmdMode = !coreCmds.empty();
     std::vector<VkCommandBuffer> cmds = coreCmds;
-    if (useCopy || useDisp || useEnc) {
+    // The core released the fresh image to our queue family (set_image's src_queue_family): the acquire (and the release back)
+    // is owed even when nothing is copied this frame.
+    const bool transfer = hasImage && srcFamily != VK_QUEUE_FAMILY_IGNORED && srcFamily != family;
+    const bool ownBatch = useCopy || useDisp || useEnc || (transfer && imageFresh);
+    std::vector<VkCommandBuffer> mine;  // our own command buffer: runs in a submit of its own after the core's work
+    if (ownBatch) {
       VkCommandBufferBeginInfo bi{};
       bi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
       bi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
@@ -1312,7 +1325,6 @@ struct VkRenderContext::Impl {
       const VkImage img = image.create_info.image;
       const VkImageLayout layout = image.image_layout;
       const bool general = layout == VK_IMAGE_LAYOUT_GENERAL;
-      const bool transfer = srcFamily != VK_QUEUE_FAMILY_IGNORED && srcFamily != family;
       VkImageSubresourceRange sr{};
       sr.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
       sr.baseMipLevel = image.create_info.subresourceRange.baseMipLevel;
@@ -1358,12 +1370,16 @@ struct VkRenderContext::Impl {
                            nullptr, useCopy ? 1 : 0, useCopy ? &hb : nullptr, 1, &back);
       (void)copyBytes;
       if (vkEndCommandBuffer(cmd) != VK_SUCCESS) return false;
-      cmds.push_back(cmd);
+      mine.push_back(cmd);
     }
     // Semaphores of set_image are ignored when the core uses set_command_buffers (libretro_vulkan.h).
     std::vector<VkSemaphore> waits;
     if (!coreCmdMode) waits = imageSemaphores;
     std::vector<VkPipelineStageFlags> stages(waits.size(), VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+    // Two batches: the core's work (waits, its command buffers) and ours (acquire, copy, blits, release, keyed mutex). A failing
+    // keyed mutex acquire then only drops our batch, never the core's work. The core's signal semaphore means it may reuse the
+    // image (libretro_vulkan.h), so with own work it is signalled by our batch, after our last read of the image. If our batch is
+    // rejected, an empty batch signals it so the core is never left waiting.
     VkSubmitInfo si{};
     si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     si.waitSemaphoreCount = static_cast<uint32_t>(waits.size());
@@ -1372,8 +1388,17 @@ struct VkRenderContext::Impl {
     si.commandBufferCount = static_cast<uint32_t>(cmds.size());
     si.pCommandBuffers = cmds.empty() ? nullptr : cmds.data();
     VkSemaphore sig = signalSemaphore;
-    si.signalSemaphoreCount = sig != VK_NULL_HANDLE ? 1 : 0;
-    si.pSignalSemaphores = sig != VK_NULL_HANDLE ? &sig : nullptr;
+    const bool ownSig = !mine.empty() && sig != VK_NULL_HANDLE;
+    if (!ownSig) {
+      si.signalSemaphoreCount = sig != VK_NULL_HANDLE ? 1 : 0;
+      si.pSignalSemaphores = sig != VK_NULL_HANDLE ? &sig : nullptr;
+    }
+    VkSubmitInfo si2{};
+    si2.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    si2.signalSemaphoreCount = ownSig ? 1 : 0;
+    si2.pSignalSemaphores = ownSig ? &sig : nullptr;
+    si2.commandBufferCount = static_cast<uint32_t>(mine.size());
+    si2.pCommandBuffers = mine.empty() ? nullptr : mine.data();
 #ifdef _WIN32
     // The keyed mutex of a D3D11 texture is taken and given on by the submit itself: key 0 (the producer's side) in, key 1
     // (the consumer's side) out, as the ring's (display) and the encode capture's consumer protocol expect. The display slot
@@ -1401,31 +1426,55 @@ struct VkRenderContext::Impl {
       km.releaseCount = kmCount;
       km.pReleaseSyncs = kmMem;
       km.pReleaseKeys = kmRel;
-      si.pNext = &km;
+      si2.pNext = &km;
     }
 #endif
-    const bool nothing = cmds.empty() && waits.empty() && sig == VK_NULL_HANDLE;
+    const bool coreWork = !cmds.empty() || !waits.empty() || sig != VK_NULL_HANDLE;
+    const bool ownWork = !mine.empty();
     coreCmds.clear();
     imageSemaphores.clear();  // waited for once
     signalSemaphore = VK_NULL_HANDLE;
-    if (nothing) return true;
+    if (!coreWork && !ownWork) return true;
     VkResult r;
+    bool secondFailed = false;
     {
       std::lock_guard<std::mutex> lock(queueMutex);
-      r = vkQueueSubmit(queue, 1, &si, fence);
+      r = vkQueueSubmit(queue, 1, &si, ownWork ? VK_NULL_HANDLE : fence);  // an empty batch is valid and keeps the order
+      if (r == VK_SUCCESS && ownWork) {
+        r = vkQueueSubmit(queue, 1, &si2, fence);
+        secondFailed = r != VK_SUCCESS;
+        if (secondFailed && ownSig) {
+          // Our batch was rejected: signal the core's semaphore (and carry the fence) with an empty batch.
+          VkSubmitInfo sf{};
+          sf.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+          sf.signalSemaphoreCount = 1;
+          sf.pSignalSemaphores = &sig;
+          if (vkQueueSubmit(queue, 1, &sf, fence) == VK_SUCCESS) {
+            if (vkWaitForFences(device, 1, &fence, VK_TRUE, 5000000000ull) == VK_SUCCESS) vkResetFences(device, 1, &fence);
+          }
+        }
+      }
     }
     if (r != VK_SUCCESS) {
       lost = r == VK_ERROR_DEVICE_LOST;
       qCWarning(lcVk) << "vkQueueSubmit failed" << static_cast<int>(r);
+      // One batch was rejected: drain what did get in, so the next frame starts from an idle queue.
+      if (!lost && vkDeviceWaitIdle) vkDeviceWaitIdle(device);
       return false;
     }
     r = vkWaitForFences(device, 1, &fence, VK_TRUE, 5000000000ull);
-    vkResetFences(device, 1, &fence);
+    if (r == VK_TIMEOUT) {  // the fence is still pending: it must not be reset; wait for the device instead
+      qCWarning(lcVk) << "the Vulkan frame takes longer than 5 s; waiting for the device";
+      const VkResult idle = vkDeviceWaitIdle ? vkDeviceWaitIdle(device) : VK_ERROR_DEVICE_LOST;
+      r = idle == VK_SUCCESS ? vkWaitForFences(device, 1, &fence, VK_TRUE, 0) : idle;
+    }
     if (r != VK_SUCCESS) {
-      lost = true;
-      qCWarning(lcVk) << "waiting for the Vulkan frame failed" << static_cast<int>(r);
+      lost = r == VK_ERROR_DEVICE_LOST;
+      if (lost) qCWarning(lcVk) << "the Vulkan device was lost while waiting for the frame";
+      else qCWarning(lcVk) << "waiting for the Vulkan frame failed" << static_cast<int>(r);
       return false;
     }
+    vkResetFences(device, 1, &fence);  // only a signaled fence
     return true;
   }
 };

@@ -43,11 +43,12 @@ summary() {
 }
 
 cmd_down() {
-  local f p i
+  local f p
   if [ -d "$PIDS" ]; then
-    local files=("$PIDS"/*)
-    for ((i = ${#files[@]} - 1; i >= 0; i--)); do
-      f=${files[i]}
+    # Apps first, then the server, Xvfb last: an app must not lose its display while it shuts down.
+    local files=("$PIDS"/app*.pid "$PIDS/server.pid" "$PIDS/xvfb.pid")
+    for f in "${files[@]}"; do
+      [ -f "$f" ] || continue
       p=$(cat "$f" 2>/dev/null) || continue
       kill "$p" 2>/dev/null
       wait_for 5 bash -c "! kill -0 $p 2>/dev/null" || kill -9 "$p" 2>/dev/null
@@ -131,8 +132,10 @@ PY
   head -c 4096 /dev/zero | tr '\0' 'U' >"$STATE/live-dummy.nds"  # dummy bytes, not a ROM
   [ "$(upload_game "$STATE/live-dummy.nds" "Live Dummy Game")" = "201" ] || { cmd_down >/dev/null; die "dummy game upload failed"; }
   local u pw code body
+  rm -f "$ENVF"
+  (umask 077; : >"$ENVF")  # passwords and tokens: owner-only from the first byte
   { echo "LIVE_SERVER_URL=https://$addr"; echo "LIVE_SERVER_ADDR=$addr"; echo "LIVE_FINGERPRINT=$fp"
-    echo "LIVE_ADMIN_PASSWORD=$admin_pw"; echo "LIVE_APPS=$apps"; } >"$ENVF"
+    echo "LIVE_ADMIN_PASSWORD=$admin_pw"; echo "LIVE_APPS=$apps"; } >>"$ENVF"
   for u in "${USERS[@]}"; do
     pw="Pw-$(openssl rand -hex 8)"
     body=$(python3 -I -c '
@@ -154,9 +157,12 @@ print(json.dumps({"code": sys.argv[1], "display_name": sys.argv[2], "password": 
   echo "LIVE_DISPLAY=:$d" >>"$ENVF"
 
   # --- apps
-  local i mport tok
+  local i mport tok used=" $port "
   for i in $(seq 1 "$apps"); do
-    mport=$((47615 + i)); tok=$(rand_token)
+    mport=$(free_port)
+    while [ "${used#* $mport }" != "$used" ]; do mport=$(free_port); done  # never the same port twice
+    used="$used$mport "
+    tok=$(rand_token)
     mkdir -p "$STATE/app$i/xdg"
     DISPLAY=":$d" QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1 QT_QUICK_BACKEND=software XDG_CONFIG_HOME="$STATE/app$i/xdg" \
       UZUME_MCP_TOKEN="$tok" "$bin" --data-dir "$STATE/app$i" --mcp --mcp-port "$mport" >"$STATE/logs/app$i.log" 2>&1 &

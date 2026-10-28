@@ -45,7 +45,7 @@ VoiceController::VoiceController(HubSocket* socket, AudioMixer* mixer, PlayerSet
     connect(socket_, &HubSocket::voiceRoomReceived, this, &VoiceController::onVoiceRoom);
     connect(socket_, &HubSocket::voiceSignalReceived, this, &VoiceController::onVoiceSignal);
     connect(socket_, &HubSocket::stateChanged, this, &VoiceController::onSocketState);
-    connect(socket_, &HubSocket::hubError, this, &VoiceController::onHubError);
+    connect(socket_, &HubSocket::hubErrorReply, this, &VoiceController::onHubError);
     connect(socket_, &HubSocket::iceUpdated, this, [this](const HelloAck& ack) { engine_.setIceServers(ack.iceServers, ack.turnServers); });
   }
   configureDsp();
@@ -510,10 +510,14 @@ void VoiceController::join() {
   if (mixer_ && !mixerHeld_) mixerHeld_ = mixer_->acquire(uzume::kVoiceRate);
   updateTap();
   startCaptureIfNeeded();
-  lastWireMode_ = micMode();
-  if (socket_) socket_->sendVoiceJoin(roomKind_, roomId_, lastWireMode_);
+  sendJoin();
   emit stateChanged();
   emit micChanged();
+}
+
+void VoiceController::sendJoin() {
+  lastWireMode_ = micMode();
+  if (socket_) joinRequestId_ = socket_->sendVoiceJoin(roomKind_, roomId_, lastWireMode_);
 }
 
 void VoiceController::leave() { leaveRoom(true); }
@@ -555,19 +559,24 @@ void VoiceController::refresh() {
 }
 
 void VoiceController::onSocketState(HubSocket::State s) {
+  if (s != HubSocket::State::Open && want_) {  // the Hub no longer lists me; the next voice_room says when it does again
+    joined_ = false;
+    firstRoomSeen_ = false;
+  }
   if (s == HubSocket::State::Open && want_) {
-    // The Hub drops a device from its rooms when the link goes: join again; the peers that are still connected carry on.
+    // The Hub drops a device from its rooms when the link goes, and the others rebuild their peers for the rejoined device: close
+    // mine too, so the voice_room that answers the join builds them again (an offerer would never re-offer on an old connection).
+    engine_.close();
     engine_.setIceServers(socket_->helloAck().iceServers, socket_->helloAck().turnServers);
-    lastWireMode_ = micMode();
-    socket_->sendVoiceJoin(roomKind_, roomId_, lastWireMode_);
+    sendJoin();
   }
   if (s == HubSocket::State::Open) refresh();
   emit stateChanged();
 }
 
-void VoiceController::onHubError(const QString& code, const QString& message) {
+void VoiceController::onHubError(const QString& requestId, const QString& code, const QString& message) {
   Q_UNUSED(message);
-  if (!want_ || joined_) return;
+  if (!want_ || joined_ || requestId.isEmpty() || requestId != joinRequestId_) return;
   if (code == QLatin1String("conflict")) {
     showNotice(tr("The voice room is full."));
   } else if (code == QLatin1String("forbidden") || code == QLatin1String("not_found") || code == QLatin1String("bad_request")) {
@@ -651,6 +660,10 @@ void VoiceController::dropInputs() {
 
 void VoiceController::onPcm(const QString& deviceId, const QByteArray& mono16) {
   if (!mixer_) return;
+  // The host's mute is enforced here on receive: the sender's app may be modified or not know about it yet.
+  for (const Member& m : std::as_const(members_)) {
+    if (m.deviceId == deviceId && m.mutedByHost) return;
+  }
   auto it = voiceIn_.find(deviceId);
   if (it == voiceIn_.end()) it = voiceIn_.insert(deviceId, VoiceIn());
   VoiceIn& v = it.value();

@@ -2,14 +2,20 @@
 
 namespace uzume {
 
-QList<ControlArbiter::End> ControlArbiter::setPortCount(int ports) {
+namespace {
+constexpr qint64 kInputRebaseMs = 3000;  // stale for this long: the path is slower for good (clock drift, a longer route)
+}
+
+QList<ControlArbiter::End> ControlArbiter::setPortCount(int ports, QList<Pending>* dropped) {
   ports_ = ports < 0 ? 0 : (ports > 2 ? 2 : ports);
   QList<End> ended;
   for (int p = ports_; p < 2; ++p) {
     if (const auto e = releasePort(p, QStringLiteral("host"))) ended.append(*e);
   }
   for (int i = pending_.size() - 1; i >= 0; --i) {
-    if (pending_.at(i).port >= ports_) pending_.removeAt(i);
+    if (pending_.at(i).port < ports_) continue;
+    if (dropped) dropped->prepend(pending_.at(i));
+    pending_.removeAt(i);
   }
   return ended;
 }
@@ -130,7 +136,20 @@ ControlArbiter::Verdict ControlArbiter::accept(const QString& viewerId, const In
     h.base = offset;
     delta = 0;
   }
-  if (delta > kInputStaleMs) return Verdict::Stale;
+  if (delta > kInputStaleMs) {
+    if (h.staleSinceMs < 0) {
+      h.staleSinceMs = nowMs;
+      h.staleMinDelta = delta;
+    } else if (delta < h.staleMinDelta) {
+      h.staleMinDelta = delta;
+    }
+    if (nowMs - h.staleSinceMs < kInputRebaseMs) return Verdict::Stale;
+    h.base = static_cast<qint16>(static_cast<quint16>(h.base + h.staleMinDelta));  // the delay grew for good: judge by the new floor
+    delta = static_cast<qint16>(static_cast<quint16>(offset - h.base));
+    if (delta < 0) delta = 0;
+    if (delta > kInputStaleMs) return Verdict::Stale;
+  }
+  h.staleSinceMs = -1;
   h.haveSeq = true;
   h.lastSeq = f.seq;
   h.state = f;
