@@ -33,6 +33,10 @@ class AudioMixer : public QObject {
   enum Channel { Game = 0, Tiles = 1, Voice = 2, Plugin = 3 };
   static constexpr int kChannels = 4;
   using InputId = int;  // > 0; 0 = none
+  // Voice chat echo reference (package 7): called from mix() with what the sink is about to play (interleaved stereo float, frames, rate),
+  // under the mixer lock (it must not call back into the mixer). One tap; an empty function removes it.
+  using OutputTap = std::function<void(const float* stereo, int frames, int rate)>;
+  void setOutputTap(OutputTap tap);
   // Plugin sound bus: adds up to `frames` frames of stereo float at `outRate` into `acc` (zeroed by the mixer) and returns how
   // many it wrote (0 = idle). Called from the audio thread under the mixer lock: it must not call back into the mixer.
   using Generator = std::function<int(float* acc, int frames, int outRate)>;
@@ -138,6 +142,7 @@ class AudioMixer : public QObject {
   mutable QMutex mutex_;
   std::vector<std::unique_ptr<Input>> inputs_;
   std::vector<Gen> gens_;
+  OutputTap tap_;
   InputId nextId_ = 1;
   int nextGen_ = 1;
   double master_ = 1.0;

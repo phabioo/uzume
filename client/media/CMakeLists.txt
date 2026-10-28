@@ -1,7 +1,7 @@
 # uzume_media_deps: INTERFACE target with the media dependencies on both platforms
-# (LibDataChannel, FFmpeg avcodec/swscale/avutil, Opus).
+# (LibDataChannel, FFmpeg avcodec/swscale/avutil, Opus, speexdsp).
 #  Linux:   libdatachannel from scripts/fetch-libdatachannel.sh (CMAKE_PREFIX_PATH / LibDataChannel_ROOT),
-#           FFmpeg and Opus from apt via pkg-config.
+#           FFmpeg, Opus and speexdsp from apt via pkg-config.
 #  Windows: everything from vcpkg (client/vcpkg.json).
 add_library(uzume_media_deps INTERFACE)
 
@@ -22,6 +22,11 @@ if(WIN32)
     list(APPEND FB_FFMPEG_WIN_LIBS ${FB_FFMPEG_${_comp}_LIB})
   endforeach()
   find_package(Opus CONFIG REQUIRED)
+  # speexdsp (voice chat DSP, ADR 0033 D7): the vcpkg port ships a pkg-config file only, no CMake config.
+  find_path(FB_SPEEXDSP_INCLUDE speex/speex_preprocess.h REQUIRED)
+  find_library(FB_SPEEXDSP_LIB NAMES speexdsp libspeexdsp REQUIRED)
+  target_include_directories(uzume_media_deps INTERFACE ${FB_SPEEXDSP_INCLUDE})
+  target_link_libraries(uzume_media_deps INTERFACE ${FB_SPEEXDSP_LIB})
   target_include_directories(uzume_media_deps INTERFACE ${FFMPEG_INCLUDE_DIRS})
   target_link_directories(uzume_media_deps INTERFACE ${FFMPEG_LIBRARY_DIRS})
   target_link_libraries(uzume_media_deps INTERFACE ${FB_FFMPEG_WIN_LIBS} Opus::opus)
@@ -29,7 +34,8 @@ else()
   find_package(PkgConfig REQUIRED)
   pkg_check_modules(FB_FFMPEG REQUIRED IMPORTED_TARGET libavcodec libswscale libavutil)
   pkg_check_modules(FB_OPUS REQUIRED IMPORTED_TARGET opus)
-  target_link_libraries(uzume_media_deps INTERFACE PkgConfig::FB_FFMPEG PkgConfig::FB_OPUS)
+  pkg_check_modules(FB_SPEEXDSP REQUIRED IMPORTED_TARGET speexdsp)
+  target_link_libraries(uzume_media_deps INTERFACE PkgConfig::FB_FFMPEG PkgConfig::FB_OPUS PkgConfig::FB_SPEEXDSP)
 endif()
 
 uzume_add_test(media_deps tests/media_deps_test.cpp LIBS uzume_media_deps)
@@ -55,6 +61,9 @@ add_library(uzume_media STATIC
   d3d11displayring.cpp
   opuscodec.cpp
   opusdepacketizer.cpp
+  voicedsp.cpp
+  voicecodec.cpp
+  voiceengine.cpp
   mediacaps.cpp
   sessionhost.cpp
   sessionviewer.cpp
@@ -71,6 +80,8 @@ uzume_warnings(uzume_media)
 
 uzume_add_test(media_viewer_reports tests/viewerreports_test.cpp LIBS uzume_media)
 uzume_add_test(media_opus_depacketizer tests/opusdepacketizer_test.cpp LIBS uzume_media)
+uzume_add_test(media_voice_dsp tests/voicedsp_test.cpp LIBS uzume_media)
+uzume_add_test(media_voice_engine tests/voiceengine_test.cpp LIBS uzume_media)
 uzume_add_test(media_loopback tests/loopback_test.cpp LIBS uzume_media)
 if(BUILD_TESTING)
   # Real-time encode and WebRTC timing (frame watchdog): alone under ctest -j, an oversubscribed CPU made it miss its deadlines.

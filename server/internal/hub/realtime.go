@@ -450,6 +450,16 @@ func (c *Client) Handle(data []byte) error {
 		c.pauseRequest(env)
 	case "chat_send":
 		c.chatSend(env)
+	case "voice_join":
+		c.voiceJoin(env)
+	case "voice_leave":
+		c.voiceLeave(env)
+	case "voice_state":
+		c.voiceStateMsg(env)
+	case "voice_mute":
+		c.voiceMute(env)
+	case "voice_signal":
+		c.voiceSignal(env)
 	default:
 		c.sendError(env.ID, CodeBadRequest, "Unknown message type")
 	}
@@ -772,6 +782,7 @@ func (c *Client) Disconnect() {
 	if !current { // replaced by a newer connection: the device stays online
 		return
 	}
+	s.voiceDeviceGone(c.deviceID)
 	s.Publish(TopicClients)
 	ctx := context.Background()
 	s.sess.mu.Lock()

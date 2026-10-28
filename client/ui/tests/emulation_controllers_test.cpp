@@ -1535,7 +1535,7 @@ class EmulationControllersTest : public QObject {
     QVERIFY(!rowOf(QStringLiteral("hud")).isEmpty());
     QVERIFY(store->setPadHotkey(QStringLiteral("layout"), QStringLiteral("pad:a")));
     QCOMPARE(rowOf(QStringLiteral("layout")).value(QStringLiteral("key")).toString(), QStringLiteral("A"));
-    QVERIFY(store->setPadHotkey(QStringLiteral("snapshot"), QStringLiteral("solo:pad:dpleft")));  // a lone button is not a combo
+    QVERIFY(store->setPadHotkey(QStringLiteral("snapshot"), QStringLiteral("solo:pad:paddle1")));  // a lone button is not a combo
     QVERIFY(rowOf(QStringLiteral("snapshot")).isEmpty());
   }
 
@@ -1932,7 +1932,7 @@ class EmulationControllersTest : public QObject {
     QCOMPARE(h.controller->screen(), QStringLiteral("settings"));
     QTRY_VERIFY(visible(h, "hotkeysInfo"));
     QCOMPARE(text(h, "hotkeysInfo"), QStringLiteral("Uzume hotkeys work on the keyboard and on a gamepad (hold the hotkey button, then press another one) and are never sent to the game."));
-    QCOMPARE(c->hotkeyRows().size(), 13);  // twelve actions + the fixed Esc row
+    QCOMPARE(c->hotkeyRows().size(), 14);  // thirteen actions + the fixed Esc row
     QCOMPARE(text(h, "hotkeyText_fullscreen"), QStringLiteral("F11"));
     QCOMPARE(text(h, "hotkeyText_diagnostics"), QStringLiteral("F3"));
     QCOMPARE(text(h, "hotkeyText_snapshot"), QStringLiteral("F5"));
@@ -1940,7 +1940,7 @@ class EmulationControllersTest : public QObject {
     QCOMPARE(text(h, "hotkeyText_screenshot"), QStringLiteral("F12"));
     QCOMPARE(text(h, "hotkeyPadText_screenshot"), QStringLiteral("Select+Y"));
     QCOMPARE(text(h, "hotkeyPadText_fullscreen"), QStringLiteral("Select+B"));  // Uzume hotkeys get gamepad defaults (P36, design 9b-1)
-    QCOMPARE(text(h, "hotkeyPadText_diagnostics"), QStringLiteral("Select+R3"));
+    QCOMPARE(text(h, "hotkeyPadText_diagnostics"), QStringLiteral("Select+D-Pad ◀"));
     QCOMPARE(text(h, "hotkeyPadText_loadState"), QStringLiteral("Select+LB"));
     QCOMPARE(text(h, "hotkeyPadText_saveState"), QStringLiteral("Select+RB"));
     QCOMPARE(text(h, "hotkeyPadText_speedup"), QStringLiteral("Select+RT"));
@@ -2093,7 +2093,7 @@ class EmulationControllersTest : public QObject {
     QVERIFY(h.click("hotkeyPadField_diagnostics"));
     QTest::keyClick(h.window, Qt::Key_Escape);
     QVERIFY(c->padHotkeyListening().isEmpty());
-    QCOMPARE(rowPad(QStringLiteral("diagnostics")), QStringLiteral("Select+R3"));
+    QCOMPARE(rowPad(QStringLiteral("diagnostics")), QStringLiteral("Select+D-Pad ◀"));
     QVERIFY(h.click("hotkeyPadField_diagnostics"));
     pad.button(Start, true);
     poll();
@@ -2104,7 +2104,7 @@ class EmulationControllersTest : public QObject {
     QVERIFY(h.click("hotkeyPadClear_diagnostics"));
     QCOMPARE(text(h, "hotkeyPadText_diagnostics"), QStringLiteral("not set"));
     QVERIFY(h.click("hotkeyReset_diagnostics"));
-    QCOMPARE(text(h, "hotkeyPadText_diagnostics"), QStringLiteral("Select+R3"));
+    QCOMPARE(text(h, "hotkeyPadText_diagnostics"), QStringLiteral("Select+D-Pad ◀"));
     {
       ControllerProfiles reread(h.controller->profileStore()->baseDir());
       QCOMPARE(reread.padHotkey(QStringLiteral("fullscreen")), QStringLiteral("pad:a"));

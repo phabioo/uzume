@@ -19,6 +19,7 @@ Bundled libraries:
 - libdatachannel, MPL-2.0, https://github.com/paullouisageneau/libdatachannel (with libjuice MPL-2.0, libsrtp BSD-3-Clause,
   usrsctp BSD-3-Clause, plog MIT)
 - Opus, BSD-3-Clause, https://opus-codec.org/
+- speexdsp (voice chat), BSD-3-Clause, Copyright (C) 2002-2008 Jean-Marc Valin, Xiph.Org Foundation and contributors, https://www.speex.org/
 - SDL3 (gamepad input only), zlib, https://libsdl.org/
 - Lua 5.4 (plugin runtime), MIT, https://www.lua.org/
 - IBM Plex fonts, SIL OFL-1.1, https://github.com/IBM/plex

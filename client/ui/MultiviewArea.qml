@@ -203,6 +203,8 @@ Item {
             readonly property bool loading: !isLocal && info.loading === true && !remotePaused
             readonly property real lane: stripLoader.active ? 24 : 0     // row above the picture for the plugin strip
             readonly property string who: isLocal ? root.ownWho : (info.who || "")
+            // Voice mark of the person of this tile (speaking bars, mic off, muted by host)
+            readonly property string voiceMark: root.player.voice.marks[isLocal ? root.player.voice.selfUserId : (info.userId || "")] || ""
             readonly property color personColor: Theme.playerColor(slot + 1, Theme.dark)
             // Right side of the bar: YOU, PAUSED BY <NAME>, CONNECTING, RELAYED (the AUDIO tag follows it)
             readonly property string status: remotePaused ? qsTr("Paused by %1").arg(info.pausedBy || info.who || "")
@@ -480,6 +482,11 @@ Item {
                         font.pixelSize: Theme.roles.itemTitleSm.size
                         font.weight: Font.Medium
                         color: Theme.ink
+                    }
+                    UzVoiceMark {
+                        objectName: "tileVoice_" + tile.modelData
+                        voice: tile.voiceMark
+                        word: false
                     }
                     UzSystemChip {
                         visible: tile.isLocal && root.localSystem !== ""

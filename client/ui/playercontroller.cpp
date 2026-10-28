@@ -887,6 +887,7 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
   wireNotifications();
   wireTogether();
   wireChat();
+  wireVoice();
 }
 
 // Scope of the running game or the open run board. `chat`: a run that is starting or paused counts too (the Hub allows chat in any run that
@@ -999,6 +1000,109 @@ void PlayerController::wireChat() {
   });
 }
 
+// ---------------------------------------------------------------- Together: voice chat (0.23 package 7, ADR 0033 D7)
+
+void PlayerController::wireVoice() {
+  voice_ = std::make_unique<VoiceController>(sessions_->socket(), &mixer_, settings_.get());
+  voice_->setScopeProvider([this]() { return currentScope(true); });
+  voice_->setSelf([this]() { return conn_->hubUserId(); }, [this]() { return conn_->deviceId(); });
+  voice_->setNameResolver([this](const QString& userId) {
+    const QString n = hubUserName(userId);
+    if (!n.isEmpty()) return n;
+    const QString rid = together_->scopeKind() == QLatin1String("run") ? together_->scopeId() : QString();
+    if (!rid.isEmpty()) {
+      if (const auto run = runClient_->run(rid)) {
+        if (const RunParticipant* part = run->participant(userId)) return part->userName;
+      }
+    }
+    return QString();
+  });
+  voice_->setServerName([this]() { return hubName(); });
+  voice_->setOwnerCheck([this](const QString& sessionId) { return !sessionId.isEmpty() && sessions_->ownSessionId() == sessionId; });
+  // Runs join by themselves while I play them; Sessions only when invite-only (a small circle that expects to talk).
+  voice_->setAutoJoinCheck([this](const TogetherController::Scope& s) {
+    if (s.kind == QLatin1String("run")) return s.hostsGame;
+    return s.kind == QLatin1String("session") && sessions_->sessionVisibility(s.id) == QLatin1String("invite_only");
+  });
+  const auto refresh = [this]() { voice_->refresh(); };
+  connect(sessions_.get(), &SessionController::shareChanged, voice_.get(), refresh);
+  connect(sessions_.get(), &SessionController::gameChanged, voice_.get(), refresh);
+  connect(sessions_.get(), &SessionController::watchChanged, voice_.get(), refresh);
+  connect(sessions_.get(), &SessionController::surfacesChanged, voice_.get(), refresh);
+  connect(runClient_.get(), &RunClient::runsChanged, voice_.get(), refresh);
+  connect(runs_.get(), &RunsController::detailChanged, voice_.get(), refresh);
+  connect(this, &PlayerController::screenChanged, voice_.get(), refresh);
+  connect(this, &PlayerController::hubChanged, voice_.get(), refresh);
+  connect(&session_, &GameSession::stateChanged, voice_.get(), refresh);
+  // The People tab shows the voice marks of the rows.
+  connect(voice_.get(), &VoiceController::membersChanged, chat_.get(), &ChatController::peopleChanged);
+  connect(voice_.get(), &VoiceController::stateChanged, chat_.get(), &ChatController::peopleChanged);
+  connect(voice_.get(), &VoiceController::memberJoined, notifications_.get(), [this](const QString& name) {
+    notifications_->notify(QStringLiteral("voice"), tr("%1 joined voice").arg(name), {}, {}, true);
+  });
+  // The hint of the push-to-talk key follows the Hotkeys settings (keyboard or gamepad).
+  const auto pttLabel = [this]() {
+    const QString l = controllers_->hotkeyLabels().value(QStringLiteral("talk")).toString();
+    voice_->setPttKeyLabel(l.isEmpty() ? QStringLiteral("V") : l);
+  };
+  connect(controllers_.get(), &ControllersController::hotkeysChanged, voice_.get(), pttLabel);
+  pttLabel();
+}
+
+// The rows of the People tab get the voice marks, the volume of the person and the host's mute; people in the voice room that the list does
+// not show yet (other viewers of a Session are only counted) take the place of the "Another viewer" rows or are added.
+QVariantList PlayerController::withVoice(const QString& kind, const QString& id, QVariantList rows) const {
+  if (!voice_ || !voice_->joined() || voice_->roomScope() != kind || voice_->roomId() != id) return rows;
+  const QVariantMap info = voice_->memberInfo();
+  const bool canMute = voice_->canMuteOthers();
+  QSet<QString> used;
+  const auto attach = [&](QVariantMap& row, const QVariantMap& m) {
+    const QString uid = m.value(QStringLiteral("userId")).toString();
+    used.insert(uid);
+    row.insert(QStringLiteral("userId"), uid);
+    row.insert(QStringLiteral("inVoice"), true);
+    row.insert(QStringLiteral("voice"), m.value(QStringLiteral("voice")));
+    row.insert(QStringLiteral("voiceGain"), m.value(QStringLiteral("gain")));
+    row.insert(QStringLiteral("mutedByHost"), m.value(QStringLiteral("mutedByHost")));
+    row.insert(QStringLiteral("canMute"), canMute && !row.value(QStringLiteral("me")).toBool());
+  };
+  for (int i = 0; i < rows.size(); ++i) {  // by person
+    QVariantMap row = rows[i].toMap();
+    const QString uid = row.value(QStringLiteral("userId")).toString();
+    if (!uid.isEmpty() && info.contains(uid)) {
+      attach(row, info.value(uid).toMap());
+      rows[i] = row;
+    }
+  }
+  for (int i = 0; i < rows.size(); ++i) {  // rows without a user id (the viewers a host sees): by name
+    QVariantMap row = rows[i].toMap();
+    if (!row.value(QStringLiteral("userId")).toString().isEmpty() || row.value(QStringLiteral("placeholder")).toBool()) continue;
+    for (auto it = info.cbegin(); it != info.cend(); ++it) {
+      const QVariantMap m = it.value().toMap();
+      if (used.contains(it.key()) || m.value(QStringLiteral("name")).toString() != row.value(QStringLiteral("name")).toString()) continue;
+      attach(row, m);
+      rows[i] = row;
+      break;
+    }
+  }
+  for (auto it = info.cbegin(); it != info.cend(); ++it) {  // everyone else in the room
+    if (used.contains(it.key())) continue;
+    const QVariantMap m = it.value().toMap();
+    int at = -1;
+    for (int i = 0; i < rows.size() && at < 0; ++i) {
+      if (rows[i].toMap().value(QStringLiteral("placeholder")).toBool()) at = i;
+    }
+    QVariantMap row = at >= 0 ? rows[at].toMap() : QVariantMap{{QStringLiteral("role"), kind == QLatin1String("session") ? QStringLiteral("VIEWER") : QString()},
+                                                               {QStringLiteral("me"), false}, {QStringLiteral("color"), OnlineRoster::colorOf(it.key())}};
+    row.insert(QStringLiteral("name"), m.value(QStringLiteral("name")));
+    row.remove(QStringLiteral("placeholder"));
+    attach(row, m);
+    if (at >= 0) rows[at] = row;
+    else rows.append(row);
+  }
+  return rows;
+}
+
 QVariantMap PlayerController::gameRun() const {
   if (!sessions_ || !runClient_) return {};
   const QString id = sessions_->localRunId();
@@ -1020,9 +1124,9 @@ QVariantList PlayerController::scopePeople(const QString& kind, const QString& i
       out.append(QVariantMap{{QStringLiteral("userId"), p.userId}, {QStringLiteral("name"), p.userName}, {QStringLiteral("role"), QString()},
                              {QStringLiteral("me"), p.userId == conn_->hubUserId()}, {QStringLiteral("color"), OnlineRoster::colorOf(p.userId)}});
     }
-    return out;
+    return withVoice(kind, id, out);
   }
-  return sessions_->sessionPeople(id);
+  return withVoice(kind, id, sessions_->sessionPeople(id));
 }
 
 // ---------------------------------------------------------------- Together: ready check and shared pause (0.23, ADR 0033 D3)

@@ -266,6 +266,8 @@ Rectangle {
         else if (action === "nextState") { if (root.session.active) root.player.states.nextSlot() }
         else if (action === "loadState") { if (root.session.active) root.player.states.loadSlot() }
         else if (action === "rewind") { if (root.session.active) root.player.states.rewindKey(true) }
+        else if (action === "talk") root.player.voice.talkKey(true)
+        else if (action === "mic") root.player.voice.toggleMic()
         else return false
         return true
     }
@@ -279,7 +281,10 @@ Rectangle {
         target: root.player.controllers
         // Gamepad hotkeys (P1): the buttons are already kept away from the core by the GamepadService.
         function onPadHotkeyTriggered(action) { if (root.visible) root.runHotkey(action === "layout" ? "nextLayout" : action) }
-        function onPadHotkeyReleased(action) { if (action === "rewind") root.player.states.rewindKey(false) }
+        function onPadHotkeyReleased(action) {
+            if (action === "rewind") root.player.states.rewindKey(false)
+            else if (action === "talk") root.player.voice.talkKey(false)
+        }
     }
     // A text field of a plugin panel has the focus: plugin keys, Alt+n and F4 are typing, not hotkeys.
     function textFieldFocused() {
@@ -317,6 +322,7 @@ Rectangle {
         var action = root.player.controllers.hotkeyAction(e.key)
         if (action === "layout" && (e.modifiers & Qt.ShiftModifier)) action = "swap"
         if (action === "saveState" && (e.modifiers & Qt.ShiftModifier)) action = "nextState"
+        if (action === "mute" && (e.modifiers & Qt.ShiftModifier)) action = "mic"
         if (action !== "" && action !== "fullscreen" && root.runHotkey(action)) e.accepted = true
         else if (e.key === Qt.Key_Escape && root.session.active) {
             if (!hudLayer.closeMenu()) root.session.togglePause()
@@ -332,6 +338,7 @@ Rectangle {
             // Shift + the layout key swaps the screens directly
             if (action === "layout" && (e.modifiers & Qt.ShiftModifier)) action = "swap"
             if (action === "saveState" && (e.modifiers & Qt.ShiftModifier)) action = "nextState"
+            if (action === "mute" && (e.modifiers & Qt.ShiftModifier)) action = "mic"
             if (!e.isAutoRepeat || action === "volumeUp" || action === "volumeDown") root.runHotkey(action)
             e.accepted = true   // the key never reaches the core (GameSession::isReservedKey)
         } else if (e.key === Qt.Key_Escape) {
@@ -346,7 +353,15 @@ Rectangle {
 
     // Rewind is a hold: letting go of its key stops it
     Keys.onReleased: (e) => {
-        if (!e.isAutoRepeat && root.player.controllers.hotkeyAction(e.key) === "rewind") root.player.states.rewindKey(false)
+        if (e.isAutoRepeat) return
+        const released = root.player.controllers.hotkeyAction(e.key)
+        if (released === "rewind") root.player.states.rewindKey(false)
+        else if (released === "talk") root.player.voice.talkKey(false)
+    }
+    // A key held while the window loses the focus never gets its release: push-to-talk lets go.
+    Connections {
+        target: root.Window
+        function onActiveChanged() { if (!root.Window.active) root.player.voice.talkKey(false) }
     }
 
     Timer { id: hintTimer; interval: 6000 }
