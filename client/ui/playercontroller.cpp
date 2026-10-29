@@ -407,6 +407,7 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
   sessions_ = std::make_unique<SessionController>(conn_.get(), profiles_.get(), &session_);
   // Master volume and mute: one software gain for the local game and one for watched sessions (the share is unaffected).
   audio_ = std::make_unique<AudioController>(settings_.get());
+  video_ = std::make_unique<VideoController>(settings_.get());
   const auto syncAudio = [this]() {
     // One mixer: master volume and mute for everything, the background mute for the local game only, Voice and Plugin sounds
     // as channel gains (the Game and Tiles channels stay at 1; watched tiles have their own per-person gains).

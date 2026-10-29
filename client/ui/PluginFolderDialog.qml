@@ -11,7 +11,7 @@ FolderDialog {
     onAccepted: {
         if (dialog.plugins === null) return
         const path = dialog.selectedFolder.toString()
-        if (dialog.mode === "link") dialog.plugins.loadUnpacked(path)
+        if (dialog.mode === "link") dialog.plugins.prepareUnpacked(path)
         else dialog.plugins.installFromFolder(path)
     }
 }

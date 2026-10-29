@@ -74,6 +74,8 @@ constexpr const char* kAudioShowVolumeKey = "audio_show_volume";
 constexpr const char* kMcpEnabledKey = "mcp_enabled";
 constexpr const char* kMcpPortKey = "mcp_port";
 constexpr const char* kAudioDeviceKey = "audio_output_device";
+constexpr const char* kVideoFullscreenScreenKey = "video_fullscreen_screen";
+constexpr const char* kVideoVsyncKey = "video_vsync";
 constexpr const char* kAudioVoiceGainKey = "audio_voice_gain";
 constexpr const char* kAudioPluginGainKey = "audio_plugin_gain";
 constexpr const char* kAudioMixAllKey = "audio_mix_all_tiles";
@@ -141,6 +143,8 @@ PlayerSettings::PlayerSettings(const QString& baseDir)
     mcpPort_ = port >= 1024 && port <= 65535 ? port : kDefaultMcpPort;
   }
   audioOutputDevice_ = raw_.value(QLatin1String(kAudioDeviceKey)).toString();
+  videoFullscreenScreen_ = raw_.value(QLatin1String(kVideoFullscreenScreenKey)).toString();
+  videoVsync_ = raw_.value(QLatin1String(kVideoVsyncKey)).toBool(true);
   audioVoiceGain_ = std::clamp(raw_.value(QLatin1String(kAudioVoiceGainKey)).toInt(100), 0, 100);
   audioPluginGain_ = std::clamp(raw_.value(QLatin1String(kAudioPluginGainKey)).toInt(100), 0, 100);
   audioMixAll_ = raw_.value(QLatin1String(kAudioMixAllKey)).toBool(false);
@@ -349,6 +353,22 @@ bool PlayerSettings::setAudioVolumeStep(int percent) {
 bool PlayerSettings::setAudioShowVolume(bool on) {
   audioShowVolume_ = on;
   raw_.insert(QLatin1String(kAudioShowVolumeKey), on);
+  return save();
+}
+
+bool PlayerSettings::setVideoFullscreenScreen(const QString& name) {
+  videoFullscreenScreen_ = name;
+  if (name.isEmpty()) {
+    raw_.remove(QLatin1String(kVideoFullscreenScreenKey));
+  } else {
+    raw_.insert(QLatin1String(kVideoFullscreenScreenKey), name);
+  }
+  return save();
+}
+
+bool PlayerSettings::setVideoVsync(bool on) {
+  videoVsync_ = on;
+  raw_.insert(QLatin1String(kVideoVsyncKey), on);
   return save();
 }
 

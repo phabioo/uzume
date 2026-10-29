@@ -16,6 +16,7 @@ qt_add_qml_module(uzume_ui
     diagnosticsmodel.h diagnosticsmodel.cpp
     emulationcontroller.h emulationcontroller.cpp
     audiocontroller.h audiocontroller.cpp
+    videocontroller.h videocontroller.cpp
     controllerscontroller.h controllerscontroller.cpp
     controllersglyphs.h controllersglyphs.cpp
     audiooutput.h audiooutput.cpp

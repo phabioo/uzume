@@ -3,11 +3,13 @@
 #include <cstring>
 
 #include <QSignalSpy>
+#include <QSurfaceFormat>
 #include <QTemporaryDir>
 
 #include "audiocontroller.h"
 #include "audiooutput.h"
 #include "playersettings.h"
+#include "videocontroller.h"
 
 using namespace uzume::ui;
 
@@ -47,6 +49,35 @@ class AudioTest : public QObject {
     QCOMPARE(out.volume(), 0.25);
     out.push(pcm({1, 2}));  // no device: nothing happens
     QCOMPARE(out.droppedBytes(), qint64(0));
+  }
+
+  void videoControllerPersistsAndAppliesVsync() {
+    QTemporaryDir dir;
+    {
+      uzume::PlayerSettings settings(dir.path());
+      VideoController v(&settings);
+      QVERIFY(v.vsync());
+      QCOMPARE(v.fullscreenScreen(), QString());
+      QVERIFY(v.targetScreen() == nullptr);                // no choice: the window stays where it is
+      QCOMPARE(v.screens().first().toMap().value("value").toString(), QString());
+      v.setVsync(false);
+      v.setFullscreenScreen(QStringLiteral("no-such-monitor"));
+      QVERIFY(v.targetScreen() == nullptr);                // a monitor that is gone: fullscreen where the window is
+      QCOMPARE(v.screens().last().toMap().value("value").toString(), QStringLiteral("no-such-monitor"));  // but the row keeps the choice
+      QCOMPARE(VideoController::swapIntervalFor(true), 1);
+      QCOMPARE(VideoController::swapIntervalFor(false), 0);
+    }
+    uzume::PlayerSettings settings(dir.path());
+    VideoController v(&settings);
+    QVERIFY(!v.vsync());
+    QCOMPARE(v.fullscreenScreen(), QStringLiteral("no-such-monitor"));
+    const QSurfaceFormat before = QSurfaceFormat::defaultFormat();
+    v.applyStartupFormat();
+    QCOMPARE(QSurfaceFormat::defaultFormat().swapInterval(), 0);
+    v.setVsync(true);
+    v.applyStartupFormat();
+    QCOMPARE(QSurfaceFormat::defaultFormat().swapInterval(), 1);
+    QSurfaceFormat::setDefaultFormat(before);
   }
 
   void controllerStepsMuteAndNotices() {

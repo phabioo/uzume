@@ -271,7 +271,26 @@ class PlayerSettingsTest : public QObject {
     QCOMPARE(s.romCacheLimitBytes(), qint64(0));
   }
 
-  void audioSettingsDefaultAndPersist() {  // 0.19
+  void videoSettingsDefaultAndPersist() {
+    QTemporaryDir dir;
+    {
+      PlayerSettings s(dir.path());
+      QCOMPARE(s.videoFullscreenScreen(), QString());
+      QVERIFY(s.videoVsync());
+      QVERIFY(s.setVideoFullscreenScreen(QStringLiteral("DP-2")));
+      QVERIFY(s.setVideoVsync(false));
+    }
+    {
+      PlayerSettings s(dir.path());
+      QCOMPARE(s.videoFullscreenScreen(), QStringLiteral("DP-2"));
+      QVERIFY(!s.videoVsync());
+      QVERIFY(s.setVideoFullscreenScreen(QString()));
+    }
+    PlayerSettings s(dir.path());
+    QCOMPARE(s.videoFullscreenScreen(), QString());
+  }
+
+  void audioSettingsDefaultAndPersist() {  // 0.19  // 0.19
     QTemporaryDir dir;
     {
       PlayerSettings s(dir.path());
