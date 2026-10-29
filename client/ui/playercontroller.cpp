@@ -100,8 +100,8 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
         if (QFileInfo(f).isDir()) folderScanned_.insert(f, now);   // an unplugged drive keeps its old time
       saveFolderScans();
     }
+    emit libraryFolderInfoChanged();  // the count first: a page watching "scanning" -> result must not see the stale count
     emit libraryScanChanged();
-    emit libraryFolderInfoChanged();
     if (cancelled) return;
     ignoredRoms_.intersect([this]() {
       QSet<QString> present;

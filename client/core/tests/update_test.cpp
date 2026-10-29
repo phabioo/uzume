@@ -16,7 +16,9 @@
 
 #include <openssl/evp.h>
 
+#ifdef Q_OS_UNIX
 #include <unistd.h>
+#endif
 #include "installroot.h"
 #include "playersettings.h"
 #include "semver.h"
@@ -732,6 +734,9 @@ class UpdateTest : public QObject {
   }
   // #343: the detached watcher must not inherit non-close-on-exec descriptors of the parent.
   void detachedStartClosesInheritedFds() {
+#ifndef Q_OS_LINUX
+    QSKIP("Linux only: reads /proc/self/fd");
+#else
     QTemporaryDir tmp;
     const QString out = tmp.filePath("fds");
     QFile leak(tmp.filePath("leak"));
@@ -744,6 +749,7 @@ class UpdateTest : public QObject {
     const QString listing = QString::fromLatin1(readAll(out));  // `ls -l` shows each descriptor's target
     QVERIFY2(!listing.contains("/leak"), qPrintable(listing));
     QVERIFY(listing.contains(" 0 ->") && listing.contains(" 1 ->") && listing.contains(" 2 ->"));
+#endif
   }
   void managerReplacesAppImage() {
     QTemporaryDir imgDir;
@@ -1179,6 +1185,46 @@ class UpdateTest : public QObject {
     QVERIFY(!m3p->updatesPaused());
     QVERIFY(m3p->skippedVersion().isEmpty());
   }
+  // The background AppImage install is still Applying when applyRollback returns; a failure that arrives later must
+  // put the pause, skip and auto-install settings back, and a success must keep them.
+  void managerRollbackAppImageAsyncFailureRestoresSettings() {
+    for (const bool launcherWorks : {false, true}) {
+      QTemporaryDir imgDir;
+      const QString image = imgDir.filePath("Uzume.AppImage");
+      QVERIFY(writeBytes(image, "old-image"));
+      qputenv("APPIMAGE", image.toLocal8Bit());
+      auto unset = qScopeGuard([]() { qunsetenv("APPIMAGE"); });
+      Env env;
+      env.appImage = true;
+      env.publishReleases({{"0.2.0", "beta", false}, {"0.3.0", "beta", false}});
+      uzume::PlayerSettings settings(env.dir.filePath("data"));
+      settings.setUpdateChannel("beta");
+      settings.setUpdateAutoInstall(true);
+      auto mp = env.manager(settings, "beta", "0.3.0");
+      UpdateManager& m = *mp;
+      m.setLauncher([&](const QString&, const QStringList&) { return launcherWorks; });
+      QSignalSpy quit(&m, &UpdateManager::quitRequested);
+      m.checkNow();
+      QTRY_COMPARE_WITH_TIMEOUT(m.state(), UpdateManager::State::UpToDate, 5000);
+      QCOMPARE(m.rollbackOptions().size(), 1);
+      m.rollbackTo("0.2.0");
+      if (launcherWorks) {
+        QTRY_COMPARE_WITH_TIMEOUT(quit.count(), 1, 5000);
+        QVERIFY(!settings.updatePause().isEmpty());
+        QCOMPARE(settings.updateSkip(), QString("0.3.0"));
+        QCOMPARE(*settings.updateAutoInstall(), false);
+        continue;
+      }
+      // The download is asynchronous; wait until the install started and failed (the launcher refuses).
+      QTRY_VERIFY_WITH_TIMEOUT(m.state() == UpdateManager::State::Error && m.statusText().contains("could not be restarted"), 5000);
+      QCOMPARE(quit.count(), 0);
+      QVERIFY(!m.updatesPaused());
+      QVERIFY(settings.updatePause().isEmpty());
+      QVERIFY(settings.updateSkip().isEmpty());
+      QVERIFY(settings.updateAutoInstall().has_value());
+      QCOMPARE(*settings.updateAutoInstall(), true);
+    }
+  }
   void managerRollbackPauseEndsByItselfWhenReached() {
     Env env;
     env.publishReleases({{"0.2.0", "beta", true}, {"0.3.0", "beta", true}});
@@ -1342,11 +1388,12 @@ class UpdateTest : public QObject {
       QJsonArray arr;
       for (const Rel& r : rels) {
         const QByteArray data = "installer-bytes-" + r.version.toUtf8();
-        const QString name = "uzume-" + r.version + "-windows-x64.msi";
+        const QString name = appImage ? "Uzume-" + r.version + "-x86_64.AppImage" : "uzume-" + r.version + "-windows-x64.msi";
         QVERIFY(writeBytes(dir.filePath(name), data));
         installers[r.version] = data;
-        QJsonObject o = release("player", r.channel, r.version, QJsonArray{artifact(name, data, QUrl::fromLocalFile(dir.filePath(name)).toString())},
-                                r.proto, r.minProto);
+        QJsonObject art = artifact(name, data, QUrl::fromLocalFile(dir.filePath(name)).toString(), appImage ? "appimage" : "msi");
+        if (appImage) art["platform"] = "linux-x64";
+        QJsonObject o = release("player", r.channel, r.version, QJsonArray{art}, r.proto, r.minProto);
         if (r.downgrade) o["msi_downgrade"] = true;
         arr.append(o);
       }

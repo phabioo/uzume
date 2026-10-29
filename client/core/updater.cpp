@@ -380,6 +380,7 @@ void UpdateManager::applyRollback(const StagedUpdate& staged) {
   const QJsonObject oldPause = settings_->updatePause();
   const QString oldSkip = settings_->updateSkip();
   const std::optional<bool> oldAuto = settings_->updateAutoInstall();
+  rollbackRestore_.reset();
   Pause p = pause();
   if (!updatesPaused()) {
     p.prevAuto = oldAuto ? (*oldAuto ? 1 : 0) : -1;  // an already running pause keeps the setting from before it began
@@ -392,15 +393,24 @@ void UpdateManager::applyRollback(const StagedUpdate& staged) {
     lastError_ = QStringLiteral("settings could not be written");
     setState(State::Error, tr("Going back was stopped: the settings could not be saved."));
   } else {
+    rollbackRestore_ = RollbackRestore{oldPause, oldSkip, oldAuto};
     apply(staged);
   }
-  if (state_ != State::Applying) {  // nothing was started: leave the settings as they were
-    settings_->setUpdatePause(oldPause);
-    settings_->setUpdateSkip(oldSkip);
-    if (oldAuto) settings_->setUpdateAutoInstall(*oldAuto);
-    else settings_->clearUpdateAutoInstall();
-    emit changed();
-  }
+  // Nothing was started: leave the settings as they were. An asynchronous AppImage install is Applying here; its
+  // completion (finishAppImageApply) restores them when it fails.
+  if (state_ != State::Applying) restoreRollbackSettings();
+  else if (!appImageKind()) rollbackRestore_.reset();  // the installer was started: nothing completes later
+}
+
+void UpdateManager::restoreRollbackSettings() {
+  if (!rollbackRestore_) return;
+  const RollbackRestore r = *rollbackRestore_;
+  rollbackRestore_.reset();
+  settings_->setUpdatePause(r.pause);
+  settings_->setUpdateSkip(r.skip);
+  if (r.autoInstall) settings_->setUpdateAutoInstall(*r.autoInstall);
+  else settings_->clearUpdateAutoInstall();
+  emit changed();
 }
 
 Channel UpdateManager::effectiveChannel() const {
@@ -802,6 +812,7 @@ void UpdateManager::finishAppImageApply(const StagedUpdate& staged, const QStrin
     lastError_ = why;
     qCWarning(lcUpdate) << "AppImage update failed:" << why;
     setState(State::Error, tr("The update could not be installed: %1").arg(why));
+    restoreRollbackSettings();
     return;
   }
   const InstallerCommand cmd =
@@ -810,8 +821,10 @@ void UpdateManager::finishAppImageApply(const StagedUpdate& staged, const QStrin
   if (!launcher_(cmd.program, cmd.args)) {
     lastError_ = QStringLiteral("the new AppImage could not be started");
     setState(State::Error, tr("Uzume %1 is installed but could not be restarted. Start Uzume again.").arg(staged.version));
+    restoreRollbackSettings();
     return;
   }
+  rollbackRestore_.reset();  // installed: the pause and skip stay for the older version
   setState(State::Applying, tr("Installing Uzume %1…").arg(staged.version));
   emit quitRequested();
 }

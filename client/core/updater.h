@@ -4,6 +4,7 @@
 
 #include <QByteArray>
 #include <QDateTime>
+#include <QJsonObject>
 #include <QNetworkAccessManager>
 #include <QObject>
 #include <QPointer>
@@ -175,6 +176,7 @@ class UpdateManager : public QObject {
   void finishAppImageApply(const StagedUpdate& staged, const QString& image, bool replaced, const QString& why);
   bool appImageKind() const { return kind_ == QLatin1String(kKindAppImage); }
   void applyRollback(const StagedUpdate& staged);
+  void restoreRollbackSettings();  // puts back what applyRollback changed (once); no-op when nothing is pending
   void recordRunning();
   void settle();
   void endPause(const Pause& p);
@@ -203,6 +205,12 @@ class UpdateManager : public QObject {
   Release dlRelease_;        // what the running download fetches (the selected release, or a rollback target)
   Artifact dlArtifact_;
   bool dlRollback_ = false;
+  struct RollbackRestore {  // settings from before applyRollback; restored when the install fails, also after an async AppImage failure
+    QJsonObject pause;
+    QString skip;
+    std::optional<bool> autoInstall;
+  };
+  std::optional<RollbackRestore> rollbackRestore_;
   QPointer<QNetworkReply> download_;
   std::function<std::optional<HubProtocol>()> hubProtocol_;
   std::function<bool()> busy_;
