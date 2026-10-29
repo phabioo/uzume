@@ -450,6 +450,12 @@ void LibraryModel::setVariantBadges(const QVariantMap& byGameId) {
   emit continueChanged();
 }
 
+void LibraryModel::setSaveMeta(const QHash<QString, QString>& byGameId) {
+  if (byGameId == saveMeta_) return;
+  saveMeta_ = byGameId;
+  emit continueChanged();
+}
+
 QVariantList LibraryModel::continueEntriesAt(const QDate& today) const {
   QList<QPair<qint64, const Item*>> played;
   for (const Item& it : items_) {
@@ -463,7 +469,8 @@ QVariantList LibraryModel::continueEntriesAt(const QDate& today) const {
   for (int i = 0; i < played.size() && i < 3; ++i) {
     const Item& it = *played.at(i).second;
     const QString sys = it.game.system.toUpper();
-    // The save slot / version is not known to the model: the meta is the system only.
+    // The meta is the system, plus the newest save (slot, revision, device) once the player has listed the slots.
+    const QString saveText = saveMeta_.value(it.game.id);
     // The variant played last resumes with the game (10g-1): "<game> · <variant>" and its slot in the meta line.
     const QVariantMap badge = variantBadge(it.game.id);
     const qint64 variantMs = static_cast<qint64>(badge.value(QStringLiteral("lastPlayedMs")).toDouble());
@@ -472,7 +479,7 @@ QVariantList LibraryModel::continueEntriesAt(const QDate& today) const {
     out.append(QVariantMap{{QStringLiteral("gameId"), it.game.id},
                            {QStringLiteral("title"), variant ? tr("%1 · %2").arg(it.game.title, variantName) : it.game.title},
                            {QStringLiteral("system"), sys},
-                           {QStringLiteral("meta"), variant ? tr("%1 · variant slot %2").arg(sys, variantName) : sys},
+                           {QStringLiteral("meta"), variant ? tr("%1 · variant slot %2").arg(sys, variantName) : (saveText.isEmpty() ? sys : tr("%1 · %2").arg(sys, saveText))},
                            {QStringLiteral("variantId"), variant ? badge.value(QStringLiteral("lastId")).toString() : QString()},
                            {QStringLiteral("variantName"), variantName},
                            {QStringLiteral("dateText"), playedDateText(played.at(i).first, today)}});

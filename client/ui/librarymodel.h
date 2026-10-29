@@ -161,6 +161,8 @@ class LibraryModel : public QAbstractListModel {
   // Variants of the games (0.21 Randomizer, 10g-1): gameId -> {count, buildPercent (-1 none), buildName, lastId, lastName, lastPlayedMs}.
   // The status of a ready game shows the count; a running build shows "Building n %"; Continue resumes the variant played last.
   void setVariantBadges(const QVariantMap& byGameId);
+  // The newest save of each game (gameId -> "Main r14 · Desktop-LivingRoom"): the Continue meta line appends it to the system.
+  void setSaveMeta(const QHash<QString, QString>& byGameId);
   QVariantList continueEntries() const { return continueEntriesAt(QDate::currentDate()); }
   QVariantList continueEntriesAt(const QDate& today) const;
   // "TODAY" | "YESTERDAY" | "16 OCT" (uppercase, for the Mono meta line).
@@ -234,6 +236,7 @@ class LibraryModel : public QAbstractListModel {
   QString sortKey_ = QStringLiteral("played");
   bool readyFirst_ = false;
   QHash<QString, qint64> lastPlayed_;
+  QHash<QString, QString> saveMeta_;
   QVariantMap variantBadges_;
   QString systemLabel_;
   QCollator collator_;

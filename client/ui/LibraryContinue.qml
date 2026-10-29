@@ -97,7 +97,7 @@ ColumnLayout {
                         UzLabel {
                             objectName: index === 0 ? "continueMeta" : ""
                             Layout.fillWidth: true
-                            text: (card.modelData.variantName ? card.modelData.meta : card.modelData.system) + " · " + card.modelData.dateText
+                            text: card.modelData.meta + " · " + card.modelData.dateText
                             font.family: Theme.mono
                             font.pixelSize: Theme.roles.meta11.size
                             font.capitalization: Font.AllUppercase

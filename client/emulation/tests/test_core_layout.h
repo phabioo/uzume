@@ -41,6 +41,10 @@ enum DataIndex : int {
   DataBitmask,       // 1 when the joypad was read as one RETRO_DEVICE_ID_JOYPAD_MASK word, 0 per button
   DataVarUpdates,    // GET_VARIABLE_UPDATE answered true this many times
   DataUnknownVar,    // GET_VARIABLE of an unknown key with a stale value pointer: 1 = miss reported and value reset to NULL, 2 = not
+  DataAnalogLeftX,   // port 0 RETRO_DEVICE_ANALOG left stick x + 0x8000 (then left y, right x, right y)
+  DataAnalogLeftY,
+  DataAnalogRightX,
+  DataAnalogRightY,
   DataCount
 };
 

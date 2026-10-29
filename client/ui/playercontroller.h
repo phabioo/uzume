@@ -566,6 +566,7 @@ class PlayerController : public QObject {
   void refreshHubLink();
   void onLibraryLoaded();
   void applyCachedSyncKinds();
+  void refreshContinueSaves();  // slot, revision and device of each game's newest save for the Continue meta line
   void onRomStatus(const QString& sha, const RomStatus& st);
   void updateScreen();
   void prepareGameCore(const QString& gameId);
@@ -595,6 +596,7 @@ class PlayerController : public QObject {
   std::unique_ptr<RomCache> cache_;
   std::unique_ptr<RomDownloader> downloader_;
   std::unique_ptr<SaveSync> saves_;
+  quint64 continueSavesGen_ = 0;
   std::unique_ptr<PlayerSettings> settings_;
   std::unique_ptr<DiscordPresence> discord_;  // Rich Presence; fed by updateDiscord()
   std::unique_ptr<FirmwareCache> fwCache_;

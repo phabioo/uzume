@@ -197,6 +197,36 @@ class TestCoreTest : public QObject {
     be.unloadCore();
   }
 
+  void analogSticksReachTheCoreAsValues() {
+    LibretroBackend be;
+    QString err;
+    QVERIFY2(start(be, dummyGame(), &err), qPrintable(err));
+    const auto axis = [](const QImage& img, int i) { return int(dataPx(img, tc::DataAnalogLeftX + i)) - 0x8000; };
+    // Digital bits only: full deflection (circle pad = bits 20..23: up down left right).
+    be.setJoypadState(0, (1u << 23) | (1u << 20));
+    QVERIFY(run(be, 2));
+    QImage img = be.videoFrame();
+    QCOMPARE(axis(img, 0), 0x7fff);
+    QCOMPARE(axis(img, 1), -0x7fff);
+    // A real stick position wins over the digital bits (hand-over frames).
+    const qint16 axes[4] = {12000, -20000, -300, 32767};
+    be.setAnalogState(0, axes);
+    QVERIFY(run(be, 2));
+    img = be.videoFrame();
+    QCOMPARE(axis(img, 0), 12000);
+    QCOMPARE(axis(img, 1), -20000);
+    QCOMPARE(axis(img, 2), -300);
+    QCOMPARE(axis(img, 3), 32767);
+    // Neutral again: back to the digital fallback, then to zero.
+    const qint16 none[4] = {0, 0, 0, 0};
+    be.setAnalogState(0, none);
+    be.setJoypadState(0, 0);
+    QVERIFY(run(be, 2));
+    img = be.videoFrame();
+    for (int i = 0; i < 4; ++i) QCOMPARE(axis(img, i), 0);
+    be.unloadCore();
+  }
+
   void resetAndFastForwardQuery() {
     LibretroBackend be;
     QString err;

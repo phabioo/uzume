@@ -292,8 +292,10 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
     startError_ = msg;  // shown with the game (detail pane); the save itself stays untouched
     emit selectedGameChanged();
   });
+  connect(saves_.get(), &SaveSync::uploaded, this, [this](const QString&, int) { refreshContinueSaves(); });
   connect(saves_.get(), &SaveSync::kindsRefreshed, this, [this](const QStringList& changed) {
     applyCachedSyncKinds();
+    refreshContinueSaves();
     if (changed.contains(selectedId_)) {
       emit selectedGameChanged();
     }
@@ -2930,6 +2932,30 @@ void PlayerController::applyCachedSyncKinds() {
   model_.setSyncKinds(kinds);
 }
 
+void PlayerController::refreshContinueSaves() {
+  if (!saves_ || !saves_->available() || !saves_->hubSupportsSavesV2()) return;
+  const quint64 gen = ++continueSavesGen_;
+  QPointer<PlayerController> self(this);
+  saves_->api()->listSlots([self, gen](const SaveApiResult& r) {
+    if (!self || gen != self->continueSavesGen_ || !r.ok()) return;
+    QHash<QString, QPair<QDateTime, QString>> best;  // per game: when and text of the newest slot
+    for (const SaveSlotInfo& s : r.slotList) {
+      if (s.current.revision <= 0) continue;
+      const QString runName = self->runs_ ? self->runs_->slotDisplayName(s.slot) : QString();
+      if (self->variants_ && !self->variants_->slotDisplayName(s.slot).isEmpty()) continue;  // variants have their own meta
+      const QString label = s.slot == QLatin1String("default") ? tr("Main") : (runName.isEmpty() ? s.slot : runName);
+      QString text = tr("%1 r%2").arg(label).arg(s.current.revision);
+      if (!s.current.deviceName.isEmpty()) text += QStringLiteral(" · ") + s.current.deviceName;
+      const QDateTime at = QDateTime::fromString(s.current.createdAt, Qt::ISODate);
+      const auto it = best.constFind(s.gameId);
+      if (it == best.constEnd() || at > it->first) best.insert(s.gameId, {at, text});
+    }
+    QHash<QString, QString> out;
+    for (auto it = best.cbegin(); it != best.cend(); ++it) out.insert(it.key(), it->second);
+    self->model_.setSaveMeta(out);
+  });
+}
+
 void PlayerController::onLibraryLoaded() {
   quietRefresh_ = false;
   if (!scanRequested_) {
@@ -2940,6 +2966,7 @@ void PlayerController::onLibraryLoaded() {
     registerLocalFiles();  // e.g. the Hub connection came back after the scan
   }
   model_.setLastPlayed(settings_->lastPlayedAll(conn_->hubInfo().hubId));
+  refreshContinueSaves();
   model_.setGames(library_->games(), [this](const GameEntry& g) { return romStatusOf(g); });
   if (personal_) personal_->refresh();  // collections of the person (3c-0)
   {
