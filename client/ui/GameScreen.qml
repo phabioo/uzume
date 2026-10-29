@@ -37,7 +37,6 @@ Rectangle {
     readonly property int visWindowed: 2
     property int windowedVisibility: 2
     property bool enteredHere: false
-    property var windowedScreen: null   // the monitor the window was on before F11 moved it to the chosen one
 
     // The popover or dialog that is open: "" | "reset" (dialog) | "picker" (Add tile) | "tabs" (panel tab overflow).
     property string popover: ""
@@ -140,14 +139,12 @@ Rectangle {
         if (on && w && root.applyToWindow) {
             root.windowedVisibility = w.visibility === root.visFullScreen ? root.visWindowed : w.visibility
             root.enteredHere = true
-            root.windowedScreen = w.screen
             root.player.video.moveToFullscreenScreen(w)   // Settings > Audio & video > Fullscreen on
             w.visibility = root.visFullScreen
         } else if (!on && w && root.applyToWindow && root.enteredHere) {
             root.enteredHere = false
             w.visibility = root.windowedVisibility
-            if (root.windowedScreen !== null && w.screen !== root.windowedScreen) w.screen = root.windowedScreen
-            root.windowedScreen = null
+            root.player.video.restoreWindowedPosition(w)
         }
         root.fullscreen = on
         if (on) hintTimer.restart()

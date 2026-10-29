@@ -361,21 +361,18 @@ ApplicationWindow {
     // Emulation > Uzume > "Fullscreen on start": the window goes fullscreen while a game is shown and returns afterwards.
     property int visibilityBeforeGame: Window.Windowed
     property bool fullscreenApplied: false
-    property var screenBeforeGame: null
     Connections {
         target: window.player
         function onScreenChanged() {
             if (window.player.screen === "game" && window.player.fullscreenOnStart && !window.fullscreenApplied) {
                 window.visibilityBeforeGame = window.visibility
                 window.fullscreenApplied = true
-                window.screenBeforeGame = window.screen
                 window.player.video.moveToFullscreenScreen(window)   // Settings > Audio & video > Fullscreen on
                 window.visibility = Window.FullScreen
             } else if (window.player.screen !== "game" && window.fullscreenApplied) {
                 window.fullscreenApplied = false
                 window.visibility = window.visibilityBeforeGame === Window.FullScreen ? Window.Windowed : window.visibilityBeforeGame
-                if (window.screenBeforeGame !== null && window.screen !== window.screenBeforeGame) window.screen = window.screenBeforeGame
-                window.screenBeforeGame = null
+                window.player.video.restoreWindowedPosition(window)
             }
         }
     }

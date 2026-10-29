@@ -3,7 +3,10 @@
 #include <cstring>
 
 #include <QSignalSpy>
+#include <QGuiApplication>
+#include <QScreen>
 #include <QSurfaceFormat>
+#include <QWindow>
 #include <QTemporaryDir>
 
 #include "audiocontroller.h"
@@ -78,6 +81,30 @@ class AudioTest : public QObject {
     v.applyStartupFormat();
     QCOMPARE(QSurfaceFormat::defaultFormat().swapInterval(), 1);
     QSurfaceFormat::setDefaultFormat(before);
+  }
+
+  void windowedPositionIsRestoredAfterFullscreenMove() {
+    QTemporaryDir dir;
+    uzume::PlayerSettings settings(dir.path());
+    VideoController v(&settings);
+    QScreen* screen = QGuiApplication::primaryScreen();
+    QVERIFY(screen);
+    QWindow w;
+    w.setScreen(screen);
+    const QRect windowed(screen->geometry().left() + 120, screen->geometry().top() + 80, 640, 480);
+    w.setGeometry(windowed);
+    v.setFullscreenScreen(screen->name().isEmpty() ? QStringLiteral("screen-1") : screen->name());
+    QVERIFY(v.targetScreen() != nullptr);
+    v.moveToFullscreenScreen(&w);
+    QCOMPARE(w.position(), screen->geometry().topLeft());   // moved to the chosen monitor's origin
+    w.setGeometry(screen->geometry());                      // as fullscreen would
+    v.moveToFullscreenScreen(&w);                            // a second call must not overwrite the saved geometry
+    v.restoreWindowedPosition(&w);
+    QCOMPARE(w.geometry(), windowed);
+    QCOMPARE(w.screen(), screen);
+    w.setGeometry(QRect(10, 10, 300, 200));
+    v.restoreWindowedPosition(&w);                           // nothing saved any more: no-op
+    QCOMPARE(w.geometry(), QRect(10, 10, 300, 200));
   }
 
   void controllerStepsMuteAndNotices() {
@@ -313,5 +340,5 @@ class AudioTest : public QObject {
   }
 };
 
-QTEST_GUILESS_MAIN(AudioTest)
+QTEST_MAIN(AudioTest)
 #include "audio_test.moc"

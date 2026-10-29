@@ -69,11 +69,24 @@ QScreen* VideoController::targetScreen() const {
   return nullptr;
 }
 
-void VideoController::moveToFullscreenScreen(QWindow* window) const {
+void VideoController::moveToFullscreenScreen(QWindow* window) {
   QScreen* target = targetScreen();
-  if (!window || !target || window->screen() == target) return;
-  window->setScreen(target);
+  if (!window || !target) return;
+  if (!saved_) {
+    savedScreen_ = window->screen();
+    savedGeometry_ = window->geometry();
+    saved_ = true;
+  }
+  if (window->screen() != target) window->setScreen(target);
   window->setPosition(target->geometry().topLeft());  // setScreen alone can keep the old coordinates on some platforms
+}
+
+void VideoController::restoreWindowedPosition(QWindow* window) {
+  if (!saved_) return;
+  saved_ = false;
+  if (!window) return;
+  if (savedScreen_ && window->screen() != savedScreen_) window->setScreen(savedScreen_);
+  window->setGeometry(savedGeometry_);   // on a virtual desktop the coordinates are what moves the window back
 }
 
 void VideoController::applyStartupFormat() const {

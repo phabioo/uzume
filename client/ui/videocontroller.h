@@ -5,6 +5,8 @@
 // (applyStartupFormat), so a change takes effect after a restart.
 
 #include <QObject>
+#include <QPointer>
+#include <QRect>
 #include <QScreen>
 #include <QWindow>
 #include <QString>
@@ -39,7 +41,11 @@ class VideoController : public QObject {
   // The chosen monitor if it is connected, else nullptr (the window stays where it is).
   QScreen* targetScreen() const;
   // Moves `window` to the chosen monitor before it goes fullscreen; no-op without a choice or when the monitor is gone.
-  Q_INVOKABLE void moveToFullscreenScreen(QWindow* window) const;
+  // The monitor and the windowed geometry from before the move are remembered once.
+  Q_INVOKABLE void moveToFullscreenScreen(QWindow* window);
+  // Puts the window back on its monitor and at its windowed geometry after a move (call after it left fullscreen). setScreen
+  // alone does not move a window between monitors of a virtual desktop. No-op when nothing was moved.
+  Q_INVOKABLE void restoreWindowedPosition(QWindow* window);
 
   // Sets the default surface format's swap interval from the stored choice; call before the first window is created.
   void applyStartupFormat() const;
@@ -50,6 +56,9 @@ class VideoController : public QObject {
   void screensChanged();
 
  private:
+  QPointer<QScreen> savedScreen_;
+  QRect savedGeometry_;
+  bool saved_ = false;
   PlayerSettings* settings_;
   QString screen_;
   bool vsync_ = true;
