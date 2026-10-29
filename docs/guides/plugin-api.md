@@ -614,7 +614,7 @@ Manifest field `recap` (optional, at most 32 entries, 0.22) tells the run recap 
 | `glyph` | `catch` (■), `lost` (✕), `badge` (◆), `note` (□) or `screenshot` (▣). |
 
 - The recap counts `catch`, `lost` and `badge` per person (tiles CATCHES, LOST, BADGES) and draws every mapped event on the lane of the person who posted it, by day. `note` and `screenshot` are drawn, not counted. Events of the plugin without an entry are not shown.
-- The app reads the mapping from the plugin copy of the version the run is pinned to (else the installed one). A plugin that is not on this PC contributes nothing to the recap.
+- The app reads the mapping from the plugin copy of the version the run is pinned to when that copy declares a non-empty `recap`; otherwise (no copy on this PC, or a version from before the `recap` block) the installed manifest of the plugin applies. A plugin that is not on this PC contributes nothing to the recap.
 - Not mapped by the plugin: run screenshots are drawn as `screenshot` and the core events `rules.changed`, `cheat.enabled`, `cheat.disabled`, `memory.write` and `state.loaded` as `note`; none of them counts.
 - An invalid entry (not an object, bad `type`, unknown `glyph`, a type mapped twice, more than 32 entries) is a manifest warning and is ignored; the plugin still loads. A `recap` that is not a list is ignored as a whole.
 
