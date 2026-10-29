@@ -1447,6 +1447,23 @@ class RunsUiTest : public QObject {
     runs->playRun(runC);
     QTRY_COMPARE_WITH_TIMEOUT(launched.count(), 2, 8000);  // remembered per run + plugin + version: no second question
     QVERIFY(runs->pluginConsent().isEmpty());
+    // A Play that arrives while another operation holds busy is not lost: it starts once busy ends, exactly once (latest wins).
+    {
+      QJsonObject o = hub.makeRun(QStringLiteral("Run J4"), {hub.runsMe, QStringLiteral("u_lena")}, QStringLiteral("u_lena"), pin(QStringLiteral("1.0.0")));
+      const QString runJ4 = o.value("run_id").toString();
+      hub.pushRun(runJ4);
+      QTRY_VERIFY_WITH_TIMEOUT(runs->client()->run(runJ4).has_value(), 8000);
+      runs->prepareGames(runJ4);
+      runs->joinRun(runJ4, kGameId);
+      QVERIFY(runs->busy());  // the join answer is still pending
+      runs->playRun(runC);
+      runs->playRun(runC);
+      QCOMPARE(launched.count(), 2);
+      QTRY_COMPARE_WITH_TIMEOUT(launched.count(), 3, 8000);
+      QTest::qWait(300);
+      QCOMPARE(launched.count(), 3);
+      QTRY_VERIFY_WITH_TIMEOUT(!runs->busy(), 8000);
+    }
 
     // D: a pin the catalog does not list (stale) counts as unresolved and asks; E: a plugin an update appended (no previous_version, "from"
     // empty in plugins.updated) asks for its permissions although the person joined without it.

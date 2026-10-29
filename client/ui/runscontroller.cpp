@@ -73,6 +73,7 @@ RunsController::RunsController(RunClient* client, PluginsController* plugins, Hu
   // A reset drops the answers of in-flight requests without calling back: forget their join marks and busy holds, or they would stay forever.
   connect(client, &RunClient::connectionReset, this, [this]() {
     joining_.clear();
+    pendingPlay_.clear();
     if (clientBusy_ > 0) {
       busyCount_ = std::max(0, busyCount_ - clientBusy_);
       clientBusy_ = 0;
@@ -572,6 +573,12 @@ void RunsController::endBusy() {
   if (busyCount_ == 0) busyText_.clear();
   emit busyChanged();
   scheduleRebuild();
+  if (busyCount_ == 0 && !pendingPlay_.isEmpty()) {  // a Play that arrived while busy starts now (queued: the caller may still be mid-operation)
+    QTimer::singleShot(0, this, [this]() {
+      const QString id = std::exchange(pendingPlay_, {});
+      if (!id.isEmpty()) playRun(id);
+    });
+  }
 }
 
 void RunsController::setBusyText(const QString& text) {
@@ -1041,7 +1048,11 @@ void RunsController::applyPluginChange(const QString& runId, const QString& plug
 }
 
 void RunsController::playRun(const QString& runId) {
-  if (busyCount_ > 0) return;
+  if (busyCount_ > 0) {  // not dropped: the latest Play starts once the running operation has ended
+    pendingPlay_ = runId;
+    return;
+  }
+  pendingPlay_.clear();
   const auto run = client_->run(runId.toLower());
   const RunParticipant* mine = run ? run->participant(client_->myUserId()) : nullptr;
   if (!run || mine == nullptr || mine->status != QLatin1String("joined") || run->isOver()) {
