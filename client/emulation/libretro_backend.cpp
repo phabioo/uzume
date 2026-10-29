@@ -18,6 +18,7 @@
 #include <cstdio>
 #include <cstring>
 
+#include "host_language.h"
 #include "hw_render.h"
 #include "vk_render.h"
 #include "third_party/libretro/libretro.h"
@@ -1218,7 +1219,7 @@ bool LibretroBackend::handleEnvironment(unsigned rawCmd, void* data) {
       if (data) *static_cast<int*>(data) = m_videoWanted.load() ? 3 : 2;
       return true;
     case RETRO_ENVIRONMENT_GET_TARGET_REFRESH_RATE & ~RETRO_ENVIRONMENT_EXPERIMENTAL: *static_cast<float*>(data) = static_cast<float>(m_av.fps > 1.0 ? m_av.fps : 60.0); return true;
-    case RETRO_ENVIRONMENT_GET_LANGUAGE: *static_cast<unsigned*>(data) = RETRO_LANGUAGE_ENGLISH; return true;
+    case RETRO_ENVIRONMENT_GET_LANGUAGE: *static_cast<unsigned*>(data) = retroLanguageFor(QLocale::system()); return true;  // system locale, see host_language.h
     case RETRO_ENVIRONMENT_SET_GEOMETRY: {
       const auto* g = static_cast<const retro_game_geometry*>(data);
       m_av.width = static_cast<int>(g->base_width);

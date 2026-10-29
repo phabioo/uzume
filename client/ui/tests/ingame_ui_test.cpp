@@ -15,6 +15,7 @@
 #include "gameview.h"
 #include "savestore.h"
 #include "savesync.h"
+#include "statescontroller.h"
 #include "testsupport.h"
 
 using namespace uzume;
@@ -1362,6 +1363,10 @@ class InGameUiTest : public QObject {
       QVERIFY(shown(h, "gameHeader") && shown(h, "gamePanel"));
       QCOMPARE(textOf(visibleItem(h, "pauseButton")), QStringLiteral("▶ Resume"));   // the header reads Resume as well
     }
+    // A loaded state (hotkey, MCP) keeps a game the person paused paused (#373); only the menu's own "Load state" continues
+    emit h.controller->states()->stateLoaded(1);
+    QTest::qWait(100);
+    QVERIFY(gs->isPaused() && shown(h, "quickMenu"));
     QTest::keyClick(h.window, Qt::Key_Escape);
     QTRY_VERIFY(!gs->isPaused());
     QTRY_VERIFY(!shown(h, "quickMenu"));

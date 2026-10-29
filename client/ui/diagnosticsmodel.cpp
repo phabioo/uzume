@@ -208,7 +208,9 @@ QVariantMap DiagnosticsModel::emulationMap(const EmulationDiagnostics& d) {
     audio = d.underruns == 1 ? tr("Buffer %1 ms · 1 underrun").arg(qRound(d.audioBufferMs))
                              : tr("Buffer %1 ms · %2 underruns").arg(qRound(d.audioBufferMs)).arg(d.underruns);
     if (d.underruns > 0) {
-      audioSub = tr("the audio output ran dry · check the CPU load");
+      // Full speed (fps within 2 % of the target, frame time well below the frame period): the CPU is not the cause
+      const bool fullSpeed = running && d.targetFps > 0 && d.fps >= d.targetFps * 0.98 && d.frameMs < 0.8 * 1000.0 / d.targetFps;
+      audioSub = fullSpeed ? tr("the audio output ran dry · the core delivers sound unevenly") : tr("the audio output ran dry · check the CPU load");
     }
   }
   m.insert(QStringLiteral("audio"), audio);
