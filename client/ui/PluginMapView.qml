@@ -485,10 +485,12 @@ Item {
                 anchors.fill: parent
                 anchors.margins: 12
                 spacing: 8
-                Repeater {
-                    model: root.popoverRows
+                PluginPool {
+                    count: root.popoverRows.length
                     delegate: RowLayout {
-                        required property var modelData
+                        required property int index
+                        readonly property var modelData: root.popoverRows[index] || ({})
+                        visible: index < root.popoverRows.length   // pooled (PluginPool)
                         Layout.fillWidth: true
                         spacing: 8
                         Rectangle {

@@ -1880,10 +1880,11 @@ bool PluginsController::triggerHotkeyKey(int qtKey, int modifiers) {
   return true;
 }
 
-void PluginsController::setDetailGame(const QString& system, const QString& code, const QString& sha256, const QString& title) {
+void PluginsController::setDetailGame(const QString& system, const QString& code, const QString& sha256, const QString& title,
+                                     const QString& id) {
   QVariantMap g;
   if (!system.isEmpty())
-    g = QVariantMap{{QStringLiteral("system"), system}, {QStringLiteral("code"), code}, {QStringLiteral("sha256"), sha256}, {QStringLiteral("title"), title}};
+    g = QVariantMap{{QStringLiteral("system"), system}, {QStringLiteral("code"), code}, {QStringLiteral("sha256"), sha256}, {QStringLiteral("title"), title}, {QStringLiteral("id"), id}};
   if (g == detailGame_) return;
   detailGame_ = g;
   host_->clearSlot(QStringLiteral("detail"));  // the host clears the section; the plugin sets a new one on the event

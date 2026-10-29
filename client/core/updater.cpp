@@ -7,6 +7,8 @@
 #include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
+#include <QFutureWatcher>
+#include <QtConcurrent>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLoggingCategory>
@@ -267,7 +269,7 @@ UpdateManager::UpdateManager(const Config& config, PlayerSettings* settings, QOb
   platform_ = config.platform.isEmpty() ? QLatin1String(playerPlatform()) : config.platform;
   kind_ = config.kind.isEmpty() ? QLatin1String(playerKind()) : config.kind;
   timer_.setSingleShot(true);
-  launcher_ = [](const QString& program, const QStringList& args) { return QProcess::startDetached(program, args); };
+  launcher_ = [](const QString& program, const QStringList& args) { return startDetachedWithoutInheritedFds(program, args); };
   connect(&timer_, &QTimer::timeout, this, [this]() {
     if (effectiveChannel() != Channel::Off && !busy()) checkNow();
     else scheduleNext();
@@ -378,6 +380,7 @@ void UpdateManager::applyRollback(const StagedUpdate& staged) {
   const QJsonObject oldPause = settings_->updatePause();
   const QString oldSkip = settings_->updateSkip();
   const std::optional<bool> oldAuto = settings_->updateAutoInstall();
+  rollbackRestore_.reset();
   Pause p = pause();
   if (!updatesPaused()) {
     p.prevAuto = oldAuto ? (*oldAuto ? 1 : 0) : -1;  // an already running pause keeps the setting from before it began
@@ -390,15 +393,24 @@ void UpdateManager::applyRollback(const StagedUpdate& staged) {
     lastError_ = QStringLiteral("settings could not be written");
     setState(State::Error, tr("Going back was stopped: the settings could not be saved."));
   } else {
+    rollbackRestore_ = RollbackRestore{oldPause, oldSkip, oldAuto};
     apply(staged);
   }
-  if (state_ != State::Applying) {  // nothing was started: leave the settings as they were
-    settings_->setUpdatePause(oldPause);
-    settings_->setUpdateSkip(oldSkip);
-    if (oldAuto) settings_->setUpdateAutoInstall(*oldAuto);
-    else settings_->clearUpdateAutoInstall();
-    emit changed();
-  }
+  // Nothing was started: leave the settings as they were. An asynchronous AppImage install is Applying here; its
+  // completion (finishAppImageApply) restores them when it fails.
+  if (state_ != State::Applying) restoreRollbackSettings();
+  else if (!appImageKind()) rollbackRestore_.reset();  // the installer was started: nothing completes later
+}
+
+void UpdateManager::restoreRollbackSettings() {
+  if (!rollbackRestore_) return;
+  const RollbackRestore r = *rollbackRestore_;
+  rollbackRestore_.reset();
+  settings_->setUpdatePause(r.pause);
+  settings_->setUpdateSkip(r.skip);
+  if (r.autoInstall) settings_->setUpdateAutoInstall(*r.autoInstall);
+  else settings_->clearUpdateAutoInstall();
+  emit changed();
 }
 
 Channel UpdateManager::effectiveChannel() const {
@@ -705,7 +717,7 @@ bool UpdateManager::applyStagedAtStart() {
                                .arg(staged->version));
     return false;
   }
-  apply(*staged);
+  apply(*staged, false);  // no event loop yet and no window to freeze: finish synchronously
   return state_ == State::Applying;
 }
 
@@ -722,13 +734,13 @@ void UpdateManager::recordAttempt(const StagedUpdate& staged) {
   }
 }
 
-void UpdateManager::apply(const StagedUpdate& staged) {
+void UpdateManager::apply(const StagedUpdate& staged, bool background) {
   if (busy()) {
     setState(state_, tr("A game or Session is running. Finish it first, then install the update."));
     return;
   }
   if (appImageKind()) {
-    applyAppImage(staged);
+    applyAppImage(staged, background);
     return;
   }
   if (!isMsiFile(staged.installerPath)) {
@@ -762,7 +774,7 @@ void UpdateManager::apply(const StagedUpdate& staged) {
 
 // Linux AppImage: the verified file replaces the running image (kept as .previous), then a watcher starts it and quits
 // this Player the same way the MSI path does, so the owner of quitRequested syncs saves and shuts down first.
-void UpdateManager::applyAppImage(const StagedUpdate& staged) {
+void UpdateManager::applyAppImage(const StagedUpdate& staged, bool background) {
   const QString image = appImagePath();
   const QString reason = appImageUnsupportedReason(image);
   if (!reason.isEmpty()) {
@@ -771,11 +783,36 @@ void UpdateManager::applyAppImage(const StagedUpdate& staged) {
     return;
   }
   recordAttempt(staged);
-  QString why;
-  if (!replaceAppImage(staged.installerPath, image, staged.sha256, staged.size, &why)) {
+  if (!background) {
+    QString why;
+    const bool ok = replaceAppImage(staged.installerPath, image, staged.sha256, staged.size, &why);
+    finishAppImageApply(staged, image, ok, why);
+    return;
+  }
+  // Copying, hashing and fsyncing an image of 100 MB or more must not block the GUI thread: show "Installing" first and
+  // let a worker do the file work; the watcher start and the quit request follow on this thread.
+  setState(State::Applying, tr("Installing Uzume %1…").arg(staged.version));
+  auto* watcher = new QFutureWatcher<QString>(this);
+  connect(watcher, &QFutureWatcher<QString>::finished, this, [this, watcher, staged, image]() {
+    const QString failure = watcher->result();
+    watcher->deleteLater();
+    finishAppImageApply(staged, image, failure.isNull(), failure);
+  });
+  const QString src = staged.installerPath, sha = staged.sha256;
+  const qint64 size = staged.size;
+  watcher->setFuture(QtConcurrent::run([src, image, sha, size]() -> QString {
+    QString why;
+    if (replaceAppImage(src, image, sha, size, &why)) return QString();
+    return why.isEmpty() ? QStringLiteral("unknown error") : why;
+  }));
+}
+
+void UpdateManager::finishAppImageApply(const StagedUpdate& staged, const QString& image, bool replaced, const QString& why) {
+  if (!replaced) {
     lastError_ = why;
     qCWarning(lcUpdate) << "AppImage update failed:" << why;
     setState(State::Error, tr("The update could not be installed: %1").arg(why));
+    restoreRollbackSettings();
     return;
   }
   const InstallerCommand cmd =
@@ -784,8 +821,10 @@ void UpdateManager::applyAppImage(const StagedUpdate& staged) {
   if (!launcher_(cmd.program, cmd.args)) {
     lastError_ = QStringLiteral("the new AppImage could not be started");
     setState(State::Error, tr("Uzume %1 is installed but could not be restarted. Start Uzume again.").arg(staged.version));
+    restoreRollbackSettings();
     return;
   }
+  rollbackRestore_.reset();  // installed: the pause and skip stay for the older version
   setState(State::Applying, tr("Installing Uzume %1…").arg(staged.version));
   emit quitRequested();
 }

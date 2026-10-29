@@ -22,7 +22,8 @@ ControlController::ControlController(SessionController* sessions, GameSession* g
   connect(host, &SessionHost::controlInput, this, [this](int port, const InputFrame& f, bool neutral) {
     if (!game_) return;
     const quint32 mask = neutral ? 0 : inputFrameMask(f);
-    game_->setRemoteInput(port, mask, !neutral && f.touching, QPointF(f.touchX / double(kTouchMax), f.touchY / double(kTouchMax)));
+    const qint16 none[4] = {0, 0, 0, 0};
+    game_->setRemoteInput(port, mask, !neutral && f.touching, QPointF(f.touchX / double(kTouchMax), f.touchY / double(kTouchMax)), neutral ? none : f.axes);
   });
   connect(host, &SessionHost::controlEnded, this, [this](const QString& viewerId, int port, const QString& reason) {
     const QString name = sessions_->viewerName(viewerId);

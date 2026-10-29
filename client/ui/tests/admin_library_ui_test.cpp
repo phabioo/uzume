@@ -463,7 +463,7 @@ class AdminLibraryUiTest : public QObject {
   }
 
   void whatsNewIsShownOncePerVersionAndHidesServerItemsFromMembers() {
-    const QString notes = QStringLiteral("### Added\n- App: One\n- Server: Two\n- Both: Three\n- Plain\n### Fixed\n- App: Four\n");
+    const QString notes = QStringLiteral("### Added\n- App: One `uz.*`\n- Server: Two\n- Both: Three\n- Plain\n### Fixed\n- App: Four\n");
     for (const bool admin : {false, true}) {
       FakeHub hub(QStringLiteral("a"));
       adminHub(hub, admin);
@@ -481,6 +481,7 @@ class AdminLibraryUiTest : public QObject {
       QTRY_VERIFY(shown(h, "whatsNewDialog"));
       QCOMPARE(text(h.item("dialogTitle")), QStringLiteral("Uzume %1").arg(up->shown(up->currentVersion())));
       QVERIFY(shown(h, "whatsNewItem_0_0"));
+      QVERIFY(!text(h.item("whatsNewItem_0_0")).contains(QLatin1Char('`')));
       QVERIFY(shown(h, "whatsNewItem_0_2"));
       QCOMPARE(shown(h, "whatsNewItem_0_3"), admin);   // the Server item is for admins only
       QVERIFY(shown(h, "whatsNewGroup_1"));

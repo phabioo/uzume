@@ -112,6 +112,7 @@ class LibretroBackend final : public EmulatorBackend {
   }
 
   void setJoypadState(unsigned port, quint32 buttonMask) override;
+  void setAnalogState(unsigned port, const qint16 axes[4]) override;
   void setPointer(double x, double y, bool pressed) override;
 
   QList<CoreOption> coreOptions() const override;
@@ -125,6 +126,7 @@ class LibretroBackend final : public EmulatorBackend {
   struct Api;
   struct InputState {
     quint32 joypad[2] = {0, 0};
+    qint16 analog[2][4] = {{0, 0, 0, 0}, {0, 0, 0, 0}};
     double px = 0.0;
     double py = 0.0;
     bool pressed = false;

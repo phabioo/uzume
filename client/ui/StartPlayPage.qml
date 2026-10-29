@@ -16,6 +16,13 @@ StartPage {
     property bool added: false          // a folder was added on this page
     property bool noAccess: false
     readonly property string view: noAccess ? "noaccess" : !added ? "pick" : scanning ? "scanning" : games > 0 ? "found" : "empty"
+    // A typed path that was not confirmed with Enter yet: Start playing takes it.
+    readonly property bool pendingPath: view === "pick" && folderField.text.trim() !== ""
+    property bool finishWhenFound: false
+    onViewChanged: {
+        if (finishWhenFound && view === "found") { finishWhenFound = false; ob.finishPlayOnThisPc() }
+        else if (view === "empty" || view === "noaccess") finishWhenFound = false
+    }
     screenLabel: qsTr("Play on this PC")
     openLabel: qsTr("UZUME · PLAY ON THIS PC")
     initialFocus: folderField.field
@@ -66,7 +73,8 @@ StartPage {
                 label: qsTr("Game folder")
                 mono: true
                 error: root.noAccess ? qsTr("Uzume can't read this folder. Pick another one or check its permissions.") : ""
-                placeholder: qsTr("Folder path, e.g. D:\\Games\\ROMs")
+                placeholder: Qt.platform.os === "windows" ? qsTr("Folder path, e.g. D:\\Games\\ROMs")
+                                                       : qsTr("Folder path, e.g. ~/Games/ROMs")
                 Layout.fillWidth: true
                 onAccepted: if (text.trim() !== "") root.useFolder(text.trim())
             }
@@ -140,8 +148,12 @@ StartPage {
             objectName: "playStart"
             kind: "primary"
             text: qsTr("Start playing")
-            enabled: root.view === "found"
-            onClicked: root.ob.finishPlayOnThisPc()
+            enabled: root.view === "found" || root.pendingPath
+            onClicked: {
+                if (root.view === "found") { root.ob.finishPlayOnThisPc(); return }
+                root.finishWhenFound = true
+                root.useFolder(folderField.text.trim())
+            }
         }
         UzButton {
             objectName: "playLater"

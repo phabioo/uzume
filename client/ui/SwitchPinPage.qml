@@ -48,6 +48,14 @@ StartPage {
                                          : qsTr("Wrong PIN. %1 tries left, then your password is needed.").arg(root.ac.pinTriesLeft)
         maxWidth: 380
     }
+    UzStatusIcon {
+        objectName: "pinUnavailable"
+        visible: root.ac.pinError === "unavailable"
+        kind: "error"
+        small: true
+        text: qsTr("The PIN could not be checked because the system keyring is locked. Unlock it and try again, or use your password.")
+        maxWidth: 380
+    }
     UzButton {
         objectName: "pinUsePassword"
         kind: "link"

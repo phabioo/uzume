@@ -18,6 +18,8 @@ Popup {
         for (let i = 0; i < l.length; ++i) if (l[i].id === root.pluginId) return l[i]
         return null
     }
+    readonly property var permRows: info && info.permissionRows ? info.permissionRows : []
+    readonly property var needsLines: info && info.needsLines ? info.needsLines : []
     property bool confirmUninstall: false
     signal enableRequested(string id)
 
@@ -222,11 +224,13 @@ Popup {
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: Theme.space05
-                Repeater {
-                    model: root.info ? root.info.permissionRows : []
+                PluginPool {
+                    count: root.permRows.length
                     delegate: RowLayout {
                         id: permRow
-                        required property var modelData
+                        required property int index
+                        readonly property var modelData: root.permRows[index] || ({})
+                        visible: index < root.permRows.length   // pooled (PluginPool)
                         Layout.fillWidth: true
                         spacing: Theme.space1
                         UzLabel {
@@ -269,11 +273,13 @@ Popup {
                 text: qsTr("Relations")
                 Layout.topMargin: Theme.space05
             }
-            Repeater {
-                model: root.info ? root.info.needsLines : []
+            PluginPool {
+                count: root.needsLines.length
                 delegate: UzLabel {
                     textFormat: Text.PlainText
-                    required property string modelData
+                    required property int index
+                    readonly property string modelData: root.needsLines[index] || ""
+                    visible: index < root.needsLines.length   // pooled (PluginPool)
                     Layout.fillWidth: true
                     text: modelData
                     font.pixelSize: Theme.roles.input.size

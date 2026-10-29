@@ -4,10 +4,16 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QCryptographicHash>
+#include <QList>
+#include <QProcess>
+#include <QVector>
 #include <QUuid>
 
 #ifdef Q_OS_UNIX
 #include <fcntl.h>
+#include <sys/resource.h>
+#include <sys/wait.h>
+#include <cerrno>
 #include <unistd.h>
 #endif
 
@@ -249,6 +255,67 @@ InstallerCommand appImageRelaunchCommand(const QString& appImage, qint64 oldPid,
             appImageStartMarker(appImage), QString::number(oldPid)};
   c.args += args;
   return c;
+}
+
+bool startDetachedWithoutInheritedFds(const QString& program, const QStringList& args) {
+#ifdef Q_OS_UNIX
+  // Own fork/exec: QProcess::startDetached ignores setChildProcessModifier in Qt 6.4.
+  QList<QByteArray> storage;
+  storage << QFile::encodeName(program);
+  for (const QString& a : args) storage << a.toLocal8Bit();
+  QVector<char*> argv;
+  for (QByteArray& b : storage) argv.append(b.data());
+  argv.append(nullptr);
+  long maxFd = 1024;
+  struct rlimit rl {};
+  if (::getrlimit(RLIMIT_NOFILE, &rl) == 0 && rl.rlim_cur != RLIM_INFINITY) maxFd = static_cast<long>(rl.rlim_cur);
+  else maxFd = 65536;
+  if (maxFd > 65536) maxFd = 65536;
+
+  int errPipe[2];
+  if (::pipe2(errPipe, O_CLOEXEC) != 0) return false;
+  const pid_t first = ::fork();
+  if (first < 0) {
+    ::close(errPipe[0]);
+    ::close(errPipe[1]);
+    return false;
+  }
+  if (first == 0) {  // child: async-signal-safe calls only
+    const pid_t second = ::fork();  // double fork: the watcher is reparented, no zombie for us to reap
+    if (second != 0) ::_exit(second < 0 ? 1 : 0);
+    ::setsid();
+    const int devnull = ::open("/dev/null", O_RDWR);
+    if (devnull >= 0) {
+      ::dup2(devnull, 0);
+      ::dup2(devnull, 1);
+      ::dup2(devnull, 2);
+      if (devnull > 2) ::close(devnull);
+    }
+    // Close-on-exec descriptors (the error pipe among them) vanish on exec anyway.
+    for (int fd = 3; fd < maxFd; ++fd) {
+      const int flags = ::fcntl(fd, F_GETFD);
+      if (flags >= 0 && !(flags & FD_CLOEXEC)) ::close(fd);
+    }
+    ::execvp(argv[0], argv.data());
+    const char c = 1;
+    const ssize_t ignored = ::write(errPipe[1], &c, 1);
+    (void)ignored;
+    ::_exit(127);
+  }
+  ::close(errPipe[1]);
+  int status = 0;
+  while (::waitpid(first, &status, 0) < 0 && errno == EINTR) {
+  }
+  char c = 0;
+  ssize_t n;
+  do {
+    n = ::read(errPipe[0], &c, 1);
+  } while (n < 0 && errno == EINTR);
+  ::close(errPipe[0]);
+  return n == 0 && WIFEXITED(status) && WEXITSTATUS(status) == 0;
+#else
+  return QProcess::startDetached(program, args);
+#endif
 }
 
 }  // namespace uzume::update

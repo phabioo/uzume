@@ -39,7 +39,7 @@ const char* kShellLua = R"LUA(
   uz.ui.set('hud', {type='text', text='hud'})
   uz.ui.on_action(function(a, v, slot) uz.ui.set('screen', {type='text', text=a .. ':' .. tostring(v) .. ':' .. slot}) end)
   uz.events.on('fb', 'detail.game', function(g)
-    if g then uz.ui.set('detail', {type='text', text=g.title}) else uz.ui.clear('detail') end
+    if g then uz.ui.set('detail', {type='text', text=g.title .. ':' .. g.id}) else uz.ui.clear('detail') end
   end)
   uz.events.on('fb', 'hud.visible', function(v) uz.ui.set('hud', {type='text', text='visible=' .. tostring(v)}) end)
   uz.events.on('fb', 'tiles', function(t) uz.ui.set('tile:' .. t[1].id, {type='text', text=t[1].player}) end)
@@ -177,9 +177,9 @@ class PluginsRuntimeUiTest : public QObject {
     QCOMPARE(m_pc->hudWidgets().at(0).toMap().value("corner").toString(), QStringLiteral("bottom-left"));
 
     // Detail game: event in, section out; changing the game clears the section first.
-    m_pc->setDetailGame("nds", "ABCD", "ff", "Homebrew");
+    m_pc->setDetailGame("nds", "ABCD", "ff", "Homebrew", "g1");
     QTRY_COMPARE(m_pc->detailSections().size(), 1);
-    QCOMPARE(m_pc->slotTree("net.test.shell", "detail").value("text").toString(), QStringLiteral("Homebrew"));
+    QCOMPARE(m_pc->slotTree("net.test.shell", "detail").value("text").toString(), QStringLiteral("Homebrew:g1"));
     m_pc->setDetailGame(QString(), QString(), QString(), QString());
     QTRY_COMPARE(m_pc->detailSections().size(), 0);
 

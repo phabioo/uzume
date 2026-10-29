@@ -352,6 +352,9 @@ void AccountsController::enterPin(const QString& pin) {
     case LocalPin::Status::Locked:
       pinError_ = QStringLiteral("locked");
       break;
+    case LocalPin::Status::Unavailable:
+      pinError_ = QStringLiteral("unavailable");
+      break;
   }
   emit changed();
 }

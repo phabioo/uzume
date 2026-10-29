@@ -566,6 +566,7 @@ class PlayerController : public QObject {
   void refreshHubLink();
   void onLibraryLoaded();
   void applyCachedSyncKinds();
+  void refreshContinueSaves();  // slot, revision and device of each game's newest save for the Continue meta line
   void onRomStatus(const QString& sha, const RomStatus& st);
   void updateScreen();
   void prepareGameCore(const QString& gameId);
@@ -574,6 +575,7 @@ class PlayerController : public QObject {
   void adoptUploadedRom(const QString& srcPath, const QString& sha256, const QString& romFilename);  // off-thread copy into the cache
   void trimRomCache();  // applies the size limit (LRU); called at start, after a ROM became ready, when a game ends
   void applyUzumeOptions();
+  void applyScreenViewOptions(bool force);
   void onUploadFinished(const UploadResult& result, const QString& srcPath);
   void startLibraryScan();
   void registerLocalFiles();      // files of the folders the Hub does not know yet
@@ -594,6 +596,7 @@ class PlayerController : public QObject {
   std::unique_ptr<RomCache> cache_;
   std::unique_ptr<RomDownloader> downloader_;
   std::unique_ptr<SaveSync> saves_;
+  quint64 continueSavesGen_ = 0;
   std::unique_ptr<PlayerSettings> settings_;
   std::unique_ptr<DiscordPresence> discord_;  // Rich Presence; fed by updateDiscord()
   std::unique_ptr<FirmwareCache> fwCache_;
@@ -761,6 +764,7 @@ class PlayerController : public QObject {
   bool gamePageOpen_ = false;
   QString gamePageTab_ = QStringLiteral("overview");
   bool gameActive_ = false;
+  QString appliedLayoutOpt_, appliedSwapOpt_, appliedBottomOpt_;  // stored values last applied to the running game
   bool background_ = false;      // gameActive_ and paused behind the Library (input blocked)
   QString backgroundId_;
   QString backgroundTitle_;

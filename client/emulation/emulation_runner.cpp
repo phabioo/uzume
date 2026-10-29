@@ -758,6 +758,7 @@ qint64 EmulationRunner::monotonicMs() {
 }
 
 void EmulationRunner::setJoypadState(unsigned port, quint32 mask) { m_backend->setJoypadState(port, mask); }
+void EmulationRunner::setAnalogState(unsigned port, const qint16 axes[4]) { m_backend->setAnalogState(port, axes); }
 void EmulationRunner::setPointer(double x, double y, bool pressed) { m_backend->setPointer(x, y, pressed); }
 bool EmulationRunner::setCoreOption(const QString& key, const QString& value) { return m_backend->setCoreOption(key, value); }
 QList<CoreOption> EmulationRunner::coreOptions() const { return m_backend->coreOptions(); }

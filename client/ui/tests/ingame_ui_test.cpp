@@ -1730,6 +1730,35 @@ class InGameUiTest : public QObject {
     delete content;
   }
 
+  // #294: layout, swap and the bottom-screen window set in the settings apply to the running game at once; an unrelated option
+  // change keeps what the player switched in the game.
+  void screenOptionsApplyToTheRunningGame() {
+    FakeHub hub(QStringLiteral("a"));
+    Harness h;
+    pair(hub, h, false);
+    startPreview(h, true);
+    SessionController* ctl = h.controller->sessions();
+    EmulationController* emu = h.controller->emulation();
+    const QString layout = QString::fromLatin1(EmulationController::kScreenLayoutKey);
+    const QString swap = QString::fromLatin1(EmulationController::kScreenSwapKey);
+    const QString window = QString::fromLatin1(EmulationController::kBottomWindowKey);
+    // The preview game is not in the library, so only the global level applies to it.
+    QCOMPARE(ctl->screenLayout(), QStringLiteral("stacked"));
+    QVERIFY(!ctl->screenSwap());
+    QVERIFY(emu->setUzumeOption(layout, QStringLiteral("large"), QString(), QString()).isEmpty());
+    QCOMPARE(ctl->screenLayout(), QStringLiteral("large"));
+    QVERIFY(emu->setUzumeOption(swap, QStringLiteral("on"), QString(), QString()).isEmpty());
+    QVERIFY(ctl->screenSwap());
+    // The player switches the layout in the game; changing another option does not undo that.
+    ctl->chooseScreenLayout(QStringLiteral("side"));
+    QVERIFY(emu->setUzumeOption(QString::fromLatin1(EmulationController::kIntegerScaleKey), QStringLiteral("on"), QString(), QString()).isEmpty());
+    QCOMPARE(ctl->screenLayout(), QStringLiteral("side"));
+    QVERIFY(emu->setUzumeOption(swap, QStringLiteral("off"), QString(), QString()).isEmpty());
+    QVERIFY(!ctl->screenSwap());
+    QVERIFY(emu->setUzumeOption(window, QStringLiteral("on"), QString(), QString()).isEmpty());
+    QVERIFY(ctl->bottomWindow());
+  }
+
   // 0.19 package 6: F7 opens the layout menu (layouts, Swap screens, Bottom screen in its own window), Shift+F7 swaps, Select + Right
   // cycles; every change toasts; the bottom-screen window is a second top-level window that closes with the game.
   void layoutMenuHotkeysAndBottomWindow() {

@@ -53,11 +53,13 @@ class AudioMixer : public QObject {
   bool acquire(int rateHint = 48000);
   void release();
   bool isOpen() const { return refs_ > 0 && (sink_ != nullptr || headless_); }
-  // Output device id (QAudioDevice::id()); empty or gone = system default. Applies when the sink is opened next.
-  void setDeviceId(const QByteArray& id) { deviceId_ = id; }
+  // Output device id (QAudioDevice::id()); empty or gone = system default. While the sink is open it is reopened on the
+  // new device at once (audio queued so far is dropped; outputChanged() follows, the rate may differ).
+  void setDeviceId(const QByteArray& id);
   QByteArray deviceId() const { return deviceId_; }
   // Tests: no sink, the mixer is read by hand with mix(). Counts as a reference.
   void openHeadless(int rate);
+  void setHeadlessRate(int rate);  // tests: like a device switch to another rate (emits outputChanged)
   int outputRate() const { return rate_; }
   QAudioFormat outputFormat() const { return fmt_; }
   double sinkBufferedMs() const;  // what the sink still holds
@@ -113,6 +115,7 @@ class AudioMixer : public QObject {
 
  signals:
   void routingChanged();  // focus, mix-all or a gain changed
+  void outputChanged();   // the sink was reopened on another device: outputRate() and outputFormat() may have changed
 
  private:
   struct Input {

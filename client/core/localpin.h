@@ -28,6 +28,7 @@ class LocalPin {
     Wrong,   // wrong PIN, triesLeft tries remain
     Locked,  // locked: three wrong PINs in a row (or the stored hash is gone); a password sign-in unlocks
     NoPin,   // the account has no PIN (or does not exist)
+    Unavailable,  // the credential store could not be read (locked keyring, dismissed prompt); nothing was counted or changed
   };
   struct Result {
     Status status = Status::NoPin;

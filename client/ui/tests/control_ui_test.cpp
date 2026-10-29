@@ -130,6 +130,14 @@ class ControlUiTest : public QObject {
     QVERIFY(gs->remoteControlled(1) && !gs->remoteControlled(0));
     lena.viewer.setControlButtons(0x0020);
     QTRY_COMPARE_WITH_TIMEOUT(gs->remoteMask(1), 0x0020u, 10000);
+    // the stick position travels as a value, not only as digital directions (issue 306)
+    const qint16 sticks[4] = {12000, -20000, -300, 32767};
+    lena.viewer.setControlInput(0x0020, sticks, false, 0, 0);
+    QTRY_COMPARE_WITH_TIMEOUT(gs->remoteAxis(1, 0), qint16(12000), 10000);
+    QCOMPARE(gs->remoteAxis(1, 1), qint16(-20000));
+    QCOMPARE(gs->remoteAxis(1, 2), qint16(-300));
+    QCOMPARE(gs->remoteAxis(1, 3), qint16(32767));
+    QCOMPARE(gs->remoteAxis(0, 0), qint16(0));
     // a second viewer cannot take the held port (not connected here: the arbiter refuses it)
     QVERIFY(host->controlPending().isEmpty());
     // People tab: PLAYER tag and the Take back button on the row

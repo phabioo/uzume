@@ -702,6 +702,13 @@ void writeDataRow() {
     py = g_input(0, RETRO_DEVICE_POINTER, 0, RETRO_DEVICE_ID_POINTER_Y);
     down = g_input(0, RETRO_DEVICE_POINTER, 0, RETRO_DEVICE_ID_POINTER_PRESSED);
   }
+  if (g_input) {
+    for (int stick = 0; stick < 2; ++stick)
+      for (int axis = 0; axis < 2; ++axis) {
+        const int16_t v = g_input(0, RETRO_DEVICE_ANALOG, static_cast<unsigned>(stick), static_cast<unsigned>(axis));
+        row[tc::DataAnalogLeftX + stick * 2 + axis] = tc::pixel(static_cast<uint32_t>(v + 0x8000));
+      }
+  }
   row[tc::DataFrame] = tc::pixel(static_cast<uint32_t>(g_frames));
   row[tc::DataPointerX] = tc::pixel(static_cast<uint32_t>(px + 0x8000));
   row[tc::DataPointerY] = tc::pixel(static_cast<uint32_t>(py + 0x8000));

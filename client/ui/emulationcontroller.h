@@ -5,6 +5,7 @@
 // from a small fixed list ("uzume.*"). Options that Uzume controls (manifest-locked, firmware) are not offered.
 // Changes are applied at the next launch.
 
+#include <QJsonObject>
 #include <QAbstractListModel>
 #include <QHash>
 #include <QObject>
@@ -154,6 +155,9 @@ class EmulationController : public QObject {
 
   // Effective value of an Uzume option for a system (and game): game > system > global > default.
   QString uzumeValue(const QString& key, const QString& systemId, const QString& gameId = QString()) const;
+  // For the debug MCP `settings_get`: {uzume: effective global value of every "uzume.*" option, global: explicit global values,
+  // systems: {<system id>: explicit values}}. Explicit values are core options too; nothing here is secret.
+  QJsonObject settingsSummary() const;
   // Explicit user values for the launch (merged game > system > global).
   QMap<QString, QString> launchOverrides(const QString& systemId, const QString& gameId) const;
   // The core the game starts with (its own choice when served, else the system's core).

@@ -165,6 +165,7 @@ class EmulationRunner : public QObject {
 
   // thread-safe, take effect on the next frame
   void setJoypadState(unsigned port, quint32 buttonMask);
+  void setAnalogState(unsigned port, const qint16 axes[4]);
   void setPointer(double x, double y, bool pressed);
   // Largest frame size the consumers need (pixels); hardware frames are downscaled on the GPU to it before readback.
   // Empty = no limit. See EmulatorBackend::setReadbackLimit.

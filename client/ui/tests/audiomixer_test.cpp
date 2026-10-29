@@ -5,6 +5,7 @@
 #include <cstring>
 
 #include "audiomixer.h"
+#include "audiooutput.h"
 
 using namespace uzume::ui;
 
@@ -222,6 +223,29 @@ class AudioMixerTest : public QObject {
     QCOMPARE(in.value("key").toString(), QStringLiteral("u1"));
     QCOMPARE(in.value("gain").toDouble(), 0.5);
     QVERIFY(in.value("audible").toBool());
+  }
+  // #292: a device switch while the sink is open reopens it; users of the mixer follow a changed output rate.
+  void deviceSwitchKeepsOutputsInStep() {
+    AudioMixer m;
+    m.openHeadless(48000);
+    m.setMixAll(true);
+    QSignalSpy changed(&m, &AudioMixer::outputChanged);
+    AudioOutput out;
+    out.setMixer(&m, AudioMixer::Game);
+    QVERIFY(out.start(32000));
+    QCOMPARE(out.outputRate(), 48000);
+    m.setDeviceId("some-device");  // headless: nothing to reopen, the id applies with the next real open
+    QCOMPARE(m.deviceId(), QByteArray("some-device"));
+    QCOMPARE(changed.count(), 0);
+    m.setHeadlessRate(44100);  // what a reopen on a 44.1 kHz device looks like
+    QCOMPARE(changed.count(), 1);
+    QCOMPARE(out.outputRate(), 44100);
+    out.push(constant(1000, 3200));  // 100 ms at the core rate
+    const qint64 queued = m.queuedFrames(out.mixerInput());
+    QVERIFY2(queued > 4300 && queued < 4500, qPrintable(QString::number(queued)));  // resampled to 44.1 kHz, not 48 kHz
+    out.stop();
+    m.setHeadlessRate(48000);  // no longer connected
+    QCOMPARE(out.outputRate(), 44100);
   }
 };
 

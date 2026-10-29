@@ -274,6 +274,7 @@ class VoiceController : public QObject {
     AudioMixer::InputId input = 0;
     QString userId;
     ui::LinearResampler resampler;
+    int resamplerRate = 0;  // output rate the resampler was set for (the mixer's rate can change with the device)
     bool speaking = false;
   };
   QHash<QString, VoiceIn> voiceIn_;  // by device id

@@ -117,6 +117,38 @@ class StartScreensUiTest : public QObject {
     QTRY_VERIFY(h.controller->screen() != QStringLiteral("start"));
   }
 
+  // 8a-3: a typed path without Enter is taken by Start playing, which ends the step once the scan found games.
+  void playOnThisPcStartTakesTypedPath() {
+    QTemporaryDir games;
+    QVERIFY(games.isValid());
+    QFile f(QDir(games.path()).filePath(QStringLiteral("dummy.gb")));
+    QVERIFY(f.open(QIODevice::WriteOnly));
+    f.write(QByteArray(0x8000, '\0'));
+    f.close();
+    Harness h;
+    QVERIFY(h.start());
+    CLICK("startPlay");
+    SHOWN("playFolderField");
+    QVERIFY(!h.item("playStart")->isEnabled());
+    // The page derives "found" / "empty" from the scan state and the count: when the scan reports it is done, the count
+    // must already be the new one, or the page passes through "empty" and drops the pending finish.
+    bool staleCountAtScanEnd = false;
+    bool scanEnded = false;
+    QObject::connect(h.controller.get(), &PlayerController::libraryScanChanged, h.controller.get(), [&]() {
+      if (h.controller->libraryScan().value(QStringLiteral("active")).toBool()) return;
+      if (h.controller->libraryScan().value(QStringLiteral("text")).toString().isEmpty()) return;  // not a scan result
+      scanEnded = true;
+      if (h.controller->libraryGameCount() == 0) staleCountAtScanEnd = true;
+    });
+    setText(h, "playFolderField", games.path());
+    QTRY_VERIFY(h.item("playStart")->isEnabled());  // no Enter needed
+    CLICK("playStart");
+    QTRY_VERIFY(!h.controller->onboarding()->firstStart());
+    QTRY_VERIFY(scanEnded);
+    QVERIFY(!staleCountAtScanEnd);
+    QVERIFY(h.controller->libraryFolders().size() == 1);  // the typed path was added
+  }
+
   // 8a-3: nothing found in the folder, and Add later.
   void playOnThisPcNothingFoundAndAddLater() {
     QTemporaryDir empty;

@@ -99,6 +99,7 @@ bool AudioOutput::start(int coreSampleRate) {
     levelLogged_ = false;
     mixer_->clearInput(input_);
     mixer_->setUnderrunCounting(input_, counting_ && volume_ > 0.0);
+    outputChangedConn_ = connect(mixer_, &AudioMixer::outputChanged, this, &AudioOutput::onMixerOutputChanged);
     return true;
   }
   QAudioDevice device;
@@ -244,7 +245,22 @@ void AudioOutput::setVolume(double gain) {
   }
 }
 
+// The shared sink moved to another device: follow its format and rate (the resampler targets the output rate).
+void AudioOutput::onMixerOutputChanged() {
+  if (!acquired_ || !mixer_) return;
+  fmt_ = mixer_->outputFormat();
+  if (mixer_->outputRate() > 0 && mixer_->outputRate() != outRate_) {
+    outRate_ = mixer_->outputRate();
+    resampler_.reset();
+    resampler_.setRates(coreRate_, outRate_);
+  }
+}
+
 void AudioOutput::stop() {
+  if (outputChangedConn_) {
+    disconnect(outputChangedConn_);
+    outputChangedConn_ = QMetaObject::Connection();
+  }
   if (acquired_) {
     underruns_ = mixer_->underruns(input_);
     mixer_->clearInput(input_);

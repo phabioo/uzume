@@ -122,6 +122,24 @@ void AudioMixer::openHeadless(int rate) {
   ++refs_;
 }
 
+void AudioMixer::setHeadlessRate(int rate) {
+  if (!headless_ || rate <= 0 || rate == rate_) return;
+  rate_ = rate;
+  fmt_.setSampleRate(rate);
+  emit outputChanged();
+}
+
+void AudioMixer::setDeviceId(const QByteArray& id) {
+  if (id == deviceId_) return;
+  deviceId_ = id;
+  if (refs_ <= 0 || headless_) return;  // not open: the next acquire() uses it
+  qCInfo(lcAudio) << "output device changed; reopening the mixer sink";
+  const int hint = rate_;
+  closeSink();
+  openSink(hint);
+  emit outputChanged();
+}
+
 void AudioMixer::openSink(int rateHint) {
   if (rateHint <= 0) rateHint = kFallbackRate;
   QAudioDevice device;

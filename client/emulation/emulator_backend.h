@@ -208,6 +208,9 @@ class EmulatorBackend {
 
   // thread-safe: input state, picked up on the next runFrame.
   virtual void setJoypadState(unsigned port, quint32 buttonMask) = 0;
+  // Analog sticks of a port (left x, left y, right x, right y; libretro range -0x8000..0x7fff), for controller hand-over. A
+  // non-zero axis is served to RETRO_DEVICE_ANALOG as is; a zero axis falls back to the digital direction bits of the mask.
+  virtual void setAnalogState(unsigned port, const qint16 axes[4]) { Q_UNUSED(port); Q_UNUSED(axes); }
   // Pointer/touch in normalized coordinates (0..1) relative to the whole video frame.
   virtual void setPointer(double x, double y, bool pressed) = 0;
 

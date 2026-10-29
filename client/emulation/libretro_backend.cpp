@@ -678,6 +678,12 @@ void LibretroBackend::setJoypadState(unsigned port, quint32 mask) {
   m_input.joypad[port] = mask;
 }
 
+void LibretroBackend::setAnalogState(unsigned port, const qint16 axes[4]) {
+  if (port > 1) return;
+  QMutexLocker l(&m_inputMutex);
+  for (int i = 0; i < 4; ++i) m_input.analog[port][i] = axes[i];
+}
+
 void LibretroBackend::setPointer(double x, double y, bool pressed) {
   QMutexLocker l(&m_inputMutex);
   m_input.px = std::clamp(x, 0.0, 1.0);
@@ -1008,8 +1014,10 @@ int16_t LibretroBackend::inputStateCb(unsigned port, unsigned device, unsigned i
     }
     case RETRO_DEVICE_ANALOG: {
       // Circle pad (left, mask bits 20..23) and C-stick (right, bits 16..19) of the "3ds" input profile: digital
-      // directions served as full deflection. Cores that read the D-pad as digital only never ask for this.
+      // directions served as full deflection when no analog value was set. Cores that read the D-pad as digital only never ask for this.
       if (port > 1 || index > RETRO_DEVICE_INDEX_ANALOG_RIGHT || id > RETRO_DEVICE_ID_ANALOG_Y) return 0;
+      // A hand-over frame carries the real stick position: served as is (left = axes 0/1, right = axes 2/3).
+      if (const qint16 a = in.analog[port][index * 2 + id]; a != 0) return a;
       const quint32 m = in.joypad[port] >> (index == RETRO_DEVICE_INDEX_ANALOG_LEFT ? 20 : 16);
       const int neg = id == RETRO_DEVICE_ID_ANALOG_X ? 2 : 0;  // left / up
       const int pos = id == RETRO_DEVICE_ID_ANALOG_X ? 3 : 1;  // right / down  (bit order: up down left right)

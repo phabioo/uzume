@@ -204,7 +204,8 @@ void GameSession::launch(const LaunchConfig& config, bool restart) {
 void GameSession::teardown() {
   debugPad_ = 0;
   remoteControlled_[0] = remoteControlled_[1] = false;
-  remoteMask_[0] = remoteMask_[1] = 0;  // a debug button press never outlives the game
+  remoteMask_[0] = remoteMask_[1] = 0;
+  for (auto& a : remoteAxes_) std::fill(std::begin(a), std::end(a), qint16(0));  // a debug button press never outlives the game
   ++runnerGen_;  // queued events of the runner that is stopped now must not reach the session any more
   if (!captureWaiters_.isEmpty()) {  // plugin captures waiting for a frame fail with the game
     auto waiters = std::move(captureWaiters_);
@@ -391,6 +392,9 @@ void GameSession::applyJoypad() {
   if (runner_) {
     runner_->setJoypadState(0, remoteControlled_[0] ? remoteMask_[0] : joypadMask());
     runner_->setJoypadState(1, remoteControlled_[1] ? remoteMask_[1] : 0);
+    static const qint16 kNeutral[4] = {0, 0, 0, 0};
+    runner_->setAnalogState(0, remoteControlled_[0] ? remoteAxes_[0] : kNeutral);
+    runner_->setAnalogState(1, remoteControlled_[1] ? remoteAxes_[1] : kNeutral);
   }
 }
 
@@ -398,14 +402,21 @@ void GameSession::setRemoteControlled(int port, bool controlled) {
   if (port < 0 || port > 1 || remoteControlled_[port] == controlled) return;
   remoteControlled_[port] = controlled;
   remoteMask_[port] = 0;
+  std::fill(std::begin(remoteAxes_[port]), std::end(remoteAxes_[port]), qint16(0));
   if (port == 0 && runner_) runner_->setPointer(0.0, 0.0, false);  // a local touch never continues as a remote one, or the other way
   applyJoypad();
 }
 
-void GameSession::setRemoteInput(int port, quint32 mask, bool touching, const QPointF& touch) {
+void GameSession::setRemoteInput(int port, quint32 mask, bool touching, const QPointF& touch, const qint16 axes[4]) {
   if (port < 0 || port > 1 || !remoteControlled_[port]) return;
   if (port == 0 && runner_) runner_->setPointer(touch.x(), touch.y(), touching);
-  if (mask == remoteMask_[port]) return;
+  bool axesChanged = false;
+  for (int i = 0; i < 4; ++i) {
+    const qint16 a = axes ? axes[i] : qint16(0);
+    if (a != remoteAxes_[port][i]) axesChanged = true;
+    remoteAxes_[port][i] = a;
+  }
+  if (mask == remoteMask_[port] && !axesChanged) return;
   remoteMask_[port] = mask;
   applyJoypad();
 }

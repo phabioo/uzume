@@ -13,7 +13,7 @@
 //   idle            nothing open
 //   people          8d-1: the list of people (`people`), switchTo(), addPerson(), removeFromThisPc()
 //   quit_game       8d-5: a game runs -> confirmQuitAndSwitch() saves, uploads and quits it, then switches; keepPlaying()
-//   pin             8d-2/8d-3: enterPin(pin); `pinTriesLeft`, `pinError` ("" | "wrong" | "locked"); usePasswordInstead()
+//   pin             8d-2/8d-3: enterPin(pin); `pinTriesLeft`, `pinError` ("" | "wrong" | "locked" | "unavailable"); usePasswordInstead()
 //   password        8d-7c/8d-7e: signInWithPassword(name, password) for `targetUserId` (session expired or PIN locked);
 //                   `forgotPassword` has the 8g texts; keepPlaying()/close() leaves
 //   switching       connecting as the chosen person
@@ -65,7 +65,7 @@ class AccountsController : public QObject {
   Q_PROPERTY(QString targetUserId READ targetUserId NOTIFY changed)  // the person being switched to / signed in / removed
   Q_PROPERTY(QString targetName READ targetName NOTIFY changed)
   Q_PROPERTY(int pinTriesLeft READ pinTriesLeft NOTIFY changed)
-  Q_PROPERTY(QString pinError READ pinError NOTIFY changed)           // "" | "wrong" | "locked"
+  Q_PROPERTY(QString pinError READ pinError NOTIFY changed)           // "" | "wrong" | "locked" | "unavailable"
   Q_PROPERTY(int pendingCount READ pendingCount NOTIFY changed)       // saves of targetUserId not uploaded yet
   // Add person (phase add)
   Q_PROPERTY(QString addView READ addView NOTIFY changed)             // "sign_in" | "invite"

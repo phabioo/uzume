@@ -126,11 +126,15 @@ ColumnLayout {
             spacing: 0
             // The model is the row count: rows are updated in place, not rebuilt on every refresh (a rebuilt Repeater
             // inside a Qt 6.4 layout can leave the layout with a deleted item).
-            Repeater {
-                model: root.list.length
+            PluginPool {
+                count: root.list.length
                 delegate: Item {
                     id: row
-                    readonly property var modelData: root.list[index] || ({})
+                    visible: index < root.list.length   // pooled (PluginPool)
+                    // A pooled row that outlives its plugin keeps the last data (hidden), so no binding sees undefined fields.
+                    readonly property var current: root.list[index]
+                    property var modelData: current || ({})
+                    onCurrentChanged: if (current) modelData = current
                     required property int index
                     objectName: "pluginRow_" + (modelData.id || "")
                     Layout.fillWidth: true
@@ -437,15 +441,18 @@ ColumnLayout {
             }
             // The full offer list; rows that are installed stay hidden (the list keeps its identity, so the rows are not
             // rebuilt on every refresh of the installed plugins).
-            Repeater {
-                model: root.ctl.hubPlugins.length
+            PluginPool {
+                count: root.ctl.hubPlugins.length
                 delegate: Item {
                     id: hrow
-                    readonly property var modelData: root.ctl.hubPlugins[index] || ({})
+                    // A pooled row that outlives its plugin keeps the last data (hidden), so no binding sees undefined fields.
+                    readonly property var current: root.ctl.hubPlugins[index]
+                    property var modelData: current || ({})
+                    onCurrentChanged: if (current) modelData = current
                     required property int index
                     readonly property bool shown: modelData.installedVersion === ""
                     objectName: shown ? "hubPluginRow_" + modelData.id : ""
-                    visible: shown
+                    visible: shown && index < root.ctl.hubPlugins.length   // pooled (PluginPool)
                     Layout.fillWidth: true
                     Layout.preferredHeight: shown ? Theme.row48 + Theme.space1 : 0
                     implicitHeight: Theme.row48 + Theme.space1

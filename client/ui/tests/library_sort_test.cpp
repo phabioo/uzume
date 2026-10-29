@@ -274,6 +274,14 @@ class LibrarySortTest : public QObject {
     QCOMPARE(e[2].toMap().value(QStringLiteral("dateText")).toString(), QStringLiteral("16 OCT"));
     QCOMPARE(e[0].toMap().value(QStringLiteral("dateText")).toString(), QStringLiteral("TODAY"));
 
+    // The newest save of a game joins the system in the meta line (issue 291); a game without one keeps the system only.
+    m.setSaveMeta({{QStringLiteral("a5"), QStringLiteral("Main r14 · Desktop-LivingRoom")}});
+    QVERIFY(changed.count() >= 1);
+    e = m.continueEntriesAt(today);
+    QCOMPARE(e[0].toMap().value(QStringLiteral("meta")).toString(), QStringLiteral("GBA · Main r14 · Desktop-LivingRoom"));
+    QCOMPARE(e[1].toMap().value(QStringLiteral("meta")).toString(), e[1].toMap().value(QStringLiteral("system")).toString());
+    m.setSaveMeta({});
+
     // Launching a game moves it to the front.
     m.noteLastPlayed(QStringLiteral("a3"), at(2026, 10, 23) + 5000);
     QVERIFY(changed.count() >= 1);
