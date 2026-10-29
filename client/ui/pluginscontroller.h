@@ -262,6 +262,9 @@ class PluginsController : public QObject {
   // Installs the missing required plugins the Hub offers first, then the plugin itself ("Install both").
   Q_INVOKABLE void installHubPluginWithDependencies(const QString& id, const QString& version);
   Q_INVOKABLE void linkDevFolder(const QString& pathOrUrl);
+  // Drops only the link of a linked developer folder (the folder is kept); the installed or server copy of the id is active afterwards.
+  // Does nothing for a plugin that is not dev-linked.
+  Q_INVOKABLE void unlinkDevFolder(const QString& id);
   // "Load unpacked...": checks manifest.json of the folder, links it as a development plugin and turns it on; on a manifest problem
   // nothing is installed and unpackedResult says why. Returns the result (debug MCP).
   Q_INVOKABLE QVariantMap loadUnpacked(const QString& pathOrUrl);

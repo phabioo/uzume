@@ -125,6 +125,7 @@ struct PluginInfo {
   QString cacheDir;                          // per-plugin cache directory (created on demand)
   bool enabled = false;
   bool devLinked = false;                    // runs straight from a linked developer folder
+  QString overridesVersion;                  // devLinked: version of the installed / server copy of the same id that the folder shadows (empty: none)
   QStringList problems;                      // why it cannot start (manifest or dependency problems)
 };
 

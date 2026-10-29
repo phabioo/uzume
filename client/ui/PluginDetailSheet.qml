@@ -356,6 +356,29 @@ Popup {
             }
 
             RowLayout {
+                visible: root.info !== null && root.info.overrideText !== ""
+                Layout.fillWidth: true
+                Layout.topMargin: Theme.space1
+                spacing: Theme.space1
+                UzLabel {
+                    textFormat: Text.PlainText  // plugin- and peer-supplied strings are never HTML
+                    objectName: "pluginDetailOverride"
+                    Layout.fillWidth: true
+                    text: root.info ? root.info.overrideText : ""
+                    wrapMode: Text.WordWrap
+                    color: Theme.muted
+                    font.pixelSize: Theme.roles.small.size
+                }
+                UzButton {
+                    textFormat: Text.PlainText
+                    objectName: "pluginDetailUnlink"
+                    size: "sm"
+                    text: qsTr("Unlink developer folder")
+                    onClicked: { const id = root.pluginId; root.close(); root.ctl.unlinkDevFolder(id) }
+                }
+            }
+
+            RowLayout {
                 visible: root.info !== null && root.info.updateVersion !== ""
                 Layout.fillWidth: true
                 Layout.topMargin: Theme.space1

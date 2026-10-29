@@ -394,6 +394,8 @@ void PluginsController::onDelivered(const plugins::DeliveryResult& r) {
     if (!r.signatureNote.isEmpty()) text += QLatin1Char(' ') + tr("Its signature is not valid, so it is not treated as Official.");
     if (!r.addedPermissions.isEmpty())
       text += QLatin1Char(' ') + tr("It asks for new permissions (%1) and was turned off.").arg(permissionsText(r.addedPermissions));
+    if (info && info->devLinked)
+      text += QLatin1Char(' ') + tr("The linked developer folder (version %1) still overrides it. Unlink the folder to use the installed version.").arg(info->manifest.version.toString());
     setMessage(text, false);
   } else {
     setMessage(r.error, true);
@@ -536,6 +538,19 @@ void PluginsController::uninstall(const QString& id) {
   refreshPlugins();
 }
 
+void PluginsController::unlinkDevFolder(const QString& id) {
+  const auto info = manager_->info(id);
+  if (!info || !info->devLinked) return;  // never removes an installed copy
+  const QString name = info->manifest.name;
+  manager_->uninstall(id);  // for a linked folder this only drops the link; the folder is kept
+  refreshPlugins();
+  rebuildHubPlugins();
+  const auto now = manager_->info(id);
+  setMessage(now ? tr("Unlinked the developer folder of %1. Version %2 is active now.").arg(name, now->manifest.version.toString())
+                 : tr("Unlinked the developer folder of %1.").arg(name),
+             false);
+}
+
 void PluginsController::setPluginEnabled(const QString& id, bool enabled) {
   // A plugin and the plugins it needs turn on together, so the toggles and the log agree (P20): without this the
   // dependency was started for the dependent while its own toggle still showed off.
@@ -614,7 +629,11 @@ void PluginsController::refreshPlugins() {
       subtitle = subtitle.isEmpty() ? perms : subtitle + QStringLiteral(" · ") + perms;
     }
     QString updateVersion;
-    if (hubClient_ != nullptr && hubClient_->supported()) {
+    // A linked developer folder always wins over an installed or server copy, so an update would change nothing: no update offer.
+    QString overrideText;
+    if (p.devLinked && !p.overridesVersion.isEmpty())
+      overrideText = tr("Developer folder linked: %1 (version %2) overrides the installed version %3.").arg(p.path, p.manifest.version.toString(), p.overridesVersion);
+    if (!p.devLinked && hubClient_ != nullptr && hubClient_->supported()) {
       if (const HubPluginInfo* offer = newestOffer(p.manifest.id); offer != nullptr && compareVersionText(offer->version, p.manifest.version.toString()) > 0) {
         updateVersion = offer->version;
         ++updates;
@@ -628,6 +647,8 @@ void PluginsController::refreshPlugins() {
         {QStringLiteral("originText"), originText(p.origin)},
         {QStringLiteral("devLinked"), p.devLinked},
         {QStringLiteral("hubCopy"), p.hubCopy},
+        {QStringLiteral("overrideText"), overrideText},
+        {QStringLiteral("devPath"), p.devLinked ? p.path : QString()},
         {QStringLiteral("enabled"), p.enabled},
         {QStringLiteral("hasProblems"), hasProblems},
         {QStringLiteral("problemsText"), problemsText},

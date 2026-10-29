@@ -249,6 +249,16 @@ ColumnLayout {
                             }
                             UzLabel {
                                 textFormat: Text.PlainText  // plugin- and peer-supplied strings are never HTML
+                                objectName: "pluginOverride"
+                                visible: row.modelData.overrideText !== ""
+                                Layout.fillWidth: true
+                                text: row.modelData.overrideText
+                                color: Theme.muted
+                                font.pixelSize: Theme.roles.small.size
+                                wrapMode: Text.WordWrap
+                            }
+                            UzLabel {
+                                textFormat: Text.PlainText  // plugin- and peer-supplied strings are never HTML
                                 objectName: "pluginSubtitle"
                                 Layout.fillWidth: true
                                 text: row.modelData.subtitle
@@ -256,6 +266,15 @@ ColumnLayout {
                                 font.pixelSize: Theme.roles.small.size
                                 elide: Text.ElideRight
                             }
+                        }
+                        UzButton {
+                            textFormat: Text.PlainText
+                            objectName: "pluginUnlink"
+                            visible: row.modelData.overrideText !== ""
+                            Layout.alignment: Qt.AlignVCenter
+                            size: "sm"
+                            text: qsTr("Unlink developer folder")
+                            onClicked: root.ctl.unlinkDevFolder(row.modelData.id)
                         }
                         UzButton {
                             textFormat: Text.PlainText

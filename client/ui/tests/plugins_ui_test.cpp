@@ -687,6 +687,78 @@ class PluginsUiTest : public QObject {
     QCOMPARE(pc->plugins().size(), 3);
     shot(h, QStringLiteral("4a-plugins-origins"));
   }
+
+  // A linked developer folder overrides an installed plugin of the same id (#363): the row says so and offers to unlink
+  // instead of "Update to ...", an installed update says the folder still wins, and unlinking activates the installed copy.
+  void devFolderOverridesInstalledUpdate() {
+    FakeHub hub(QStringLiteral("a"));
+    hub.hubId = QStringLiteral("hub-pl363");
+    hub.name = QStringLiteral("Home");
+    hub.decision = FakeHub::Decision::Approve;
+    hub.features = {QStringLiteral("saves_v1"), QStringLiteral("plugins_v1")};
+    for (const char* v : {"1.0.0", "2.0.0"}) {
+      FbSpec spec;
+      spec.id = "net.example.shadow";
+      spec.name = "Shadowed";
+      spec.version = v;
+      const QByteArray file = makeUzPlugin(spec);
+      hub.pluginList.append(QJsonObject{{"plugin_id", spec.id}, {"version", spec.version}, {"name", spec.name}, {"description", "x"}, {"api", 1},
+                                        {"origin", "unverified"}, {"sha256", sha256Hex(file)}, {"size", file.size()},
+                                        {"permissions", QJsonArray::fromStringList(spec.permissions)}, {"created_at", "2026-10-12T10:00:00Z"}});
+      hub.pluginFiles.insert(spec.id + "/" + spec.version, file);
+    }
+    QVERIFY(hub.start());
+    Harness h;
+    QVERIFY(h.start());
+    pair(h, hub);
+    PluginsController* pc = h.controller->plugins();
+    QTRY_VERIFY_WITH_TIMEOUT(pc->hubSupported(), 8000);
+    QTRY_COMPARE_WITH_TIMEOUT(pc->hubPlugins().size(), 1, 8000);
+    const auto row = [&]() { return pc->plugins().value(0).toMap(); };
+
+    pc->installHubPlugin(QStringLiteral("net.example.shadow"), QStringLiteral("1.0.0"));
+    QTRY_VERIFY_WITH_TIMEOUT(pc->plugins().size() == 1, 8000);
+    QCOMPARE(row().value("updateVersion").toString(), QStringLiteral("2.0.0"));  // plain installed copy: the update is offered
+
+    // Link a developer folder of the same id (version 0.9.0, older than both server versions).
+    pc->setDeveloperMode(true);
+    const QString dir = src_.filePath("shadow-dev");
+    QDir().mkpath(dir);
+    {
+      QFile mf(dir + "/manifest.json");
+      QVERIFY(mf.open(QIODevice::WriteOnly));
+      mf.write(R"({"id":"net.example.shadow","name":"Shadowed","version":"0.9.0","api":1,"type":"script","entry":"main.lua","permissions":[]})");
+      QFile lf(dir + "/main.lua");
+      QVERIFY(lf.open(QIODevice::WriteOnly));
+      lf.write("-- dev");
+    }
+    QCOMPARE(pc->loadUnpacked(dir).value("state").toString(), QStringLiteral("ok"));
+    QCOMPARE(row().value("version").toString(), QStringLiteral("0.9.0"));
+    QVERIFY(row().value("devLinked").toBool());
+    QVERIFY2(row().value("overrideText").toString().contains(QStringLiteral("overrides the installed version 1.0.0")), qPrintable(row().value("overrideText").toString()));
+    QVERIFY(row().value("overrideText").toString().contains(QStringLiteral("0.9.0")));
+    QVERIFY(row().value("updateVersion").toString().isEmpty());  // no update offer that would change nothing
+    gotoPlugins(h);
+    QTRY_VERIFY(h.item("pluginUnlink") != nullptr && h.item("pluginUnlink")->isVisible());
+    QVERIFY(h.item("pluginOverride")->isVisible());
+    QVERIFY(h.item("pluginUpdate") == nullptr || !h.item("pluginUpdate")->isVisible());
+
+    // An update installed meanwhile says that the linked folder still overrides it.
+    pc->installHubPlugin(QStringLiteral("net.example.shadow"), QStringLiteral("2.0.0"));
+    QTRY_VERIFY_WITH_TIMEOUT(pc->message().contains(QStringLiteral("still overrides")), 8000);
+    QVERIFY(pc->message().contains(QStringLiteral("Unlink")));
+    QCOMPARE(row().value("version").toString(), QStringLiteral("0.9.0"));
+
+    // Unlink: the installed copy (newest, 2.0.0) is active and nothing is left to update.
+    QVERIFY(h.click("pluginUnlink"));
+    QTRY_COMPARE(row().value("version").toString(), QStringLiteral("2.0.0"));
+    QVERIFY(!row().value("devLinked").toBool());
+    QVERIFY(row().value("overrideText").toString().isEmpty());
+    QVERIFY(row().value("updateVersion").toString().isEmpty());
+    QVERIFY(QFileInfo(dir + "/manifest.json").isFile());  // the folder itself is kept
+    pc->unlinkDevFolder(QStringLiteral("net.example.shadow"));  // not linked any more: nothing happens
+    QCOMPARE(pc->plugins().size(), 1);
+  }
 };
 
 UITEST_MAIN(PluginsUiTest)
