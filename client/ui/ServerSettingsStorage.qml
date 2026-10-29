@@ -9,7 +9,7 @@ import Uzume.App
 // 7 days, unused cores. Each "Clean up…" asks inline first and reads the page again afterwards; clean-up never offers saves, current
 // saves, manual snapshots and open conflicts. The save history limits (network settings save_keep_recent / daily / weekly) apply at once.
 // A server without the endpoint (404) falls back to the disk-only view from GET /admin/status: used / free and the backup disk.
-// objectNames: settingsStorage, storageBar, storageKind_<games|saves|states|screenshots|cores>, storageUsed (disk-only view), storageFree,
+// objectNames: settingsStorage, storageBar, storageBar_other, storageOther, storageKind_<games|saves|states|screenshots|cores>, storageUsed (disk-only view), storageFree,
 // storageKind_backups, storageBackupDisk, storageWarning, storageNoData, storageShotsLabel, storageShotsTable (UzTable prefix),
 // storageCleanupLabel, storageCleanup_<id>, storageCleanupButton_<id>, storageCleanupConfirm_<id>, storageCleanupConfirmText_<id>,
 // storageCleanupCancel_<id>, storageCleanupConfirmButton_<id>, storageCleanupResult, storageNothingToClean (<id> = old_snapshots |
@@ -54,6 +54,8 @@ ColumnLayout {
     // Without the endpoint the bar shows the disk as used / free (ink 72 %).
     readonly property var barKinds: root.usage ? root.kinds
         : (root.disk ? [{ id: "used", name: "storageUsed", label: qsTr("Used"), bytes: root.disk.total_bytes - root.disk.free_bytes, text: root.pane.bytesText(root.disk.total_bytes - root.disk.free_bytes) }] : [])
+    // Used space on the disk that is not Uzume's own data (the kinds above): the bar shows real disk usage, the kinds are Uzume's share.
+    readonly property real otherBytes: root.usage && root.usageDisk ? Math.max(0, root.usageDisk.total_bytes - root.usageDisk.free_bytes - root.kindsTotal) : 0
     readonly property real barTotal: root.usageDisk ? root.usageDisk.total_bytes : root.kindsTotal
     readonly property var extraRows: {
         const rows = []
@@ -128,6 +130,8 @@ ColumnLayout {
             visible: root.usageDisk !== null || root.usage !== null
             kinds: root.barKinds
             totalBytes: root.barTotal
+            otherBytes: root.otherBytes
+            otherText: root.pane.bytesText(root.otherBytes)
             freeText: root.usageDisk ? root.pane.bytesText(root.usageDisk.free_bytes) : ""
             extraRows: root.extraRows
         }

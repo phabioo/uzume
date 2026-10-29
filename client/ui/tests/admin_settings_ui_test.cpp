@@ -593,6 +593,14 @@ class AdminSettingsUiTest : public QObject {
     QCOMPARE(text(h.item("storageKind_cores")), QStringLiteral("1 GB"));       // cores + firmware
     QCOMPARE(text(h.item("storageKind_backups")), QStringLiteral("5 GB"));
     QVERIFY(!text(h.item("storageFree")).isEmpty());
+    // The bar shows the real disk usage (600 GB of 1 TB): Uzume's kinds (~218 GB) plus the other used space (~382 GB) as one more segment.
+    {
+      QQuickItem* bar = h.item("storageBar");
+      QQuickItem* other = h.item("storageBar_other");
+      QVERIFY(bar && other && other->isVisible());
+      QVERIFY(!text(h.item("storageOther")).isEmpty());
+      QTRY_VERIFY(qAbs(other->width() / bar->width() - 0.382) < 0.01);
+    }
     QVERIFY(!text(h.item("storageBackupDisk")).isEmpty());
     QTRY_VERIFY(shown(h, "storageWarning"));  // backup disk 92 % full
     QVERIFY(shown(h, "storageShotsLabel"));
