@@ -378,7 +378,7 @@ void FakeHub::fillDirectory() {
                        {QStringLiteral("events"), events}, {QStringLiteral("public_title"), QString::fromLatin1(title) + QStringLiteral(" (public)")},
                        {QStringLiteral("public_summary"), QStringLiteral("Seen %1 times on %2 devices, versions 0.24.0, 0.23.2.").arg(count).arg(devices)}};
   };
-  if (dirErrorGroups.isEmpty()) {
+  if (dirErrorGroups.isEmpty() && !noErrorGroups) {
     dirErrorGroups = QJsonArray{
         group("uz-aaaaaaaaaaaa", "core_failure", "core:azahar", "Core failed", 7, 2, false, "", "https://github.com/phabioo/azahar", 5),
         group("uz-bbbbbbbbbbbb", "plugin_error", "plugin:uzume.soullink", "Plugin stopped after an error", 3, 1, true,

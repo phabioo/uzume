@@ -219,6 +219,35 @@ class ErrorsUiTest : public QObject {
     QCOMPARE(hub.adminCalls.value(QStringLiteral("GET /api/v1/admin/reports/errors")), 0);
   }
 
+  // #362: the Errors section has its own help text (not the one of Reports) and its empty state is a static check, not the ensō.
+  void helpAndEmptyStateBelongToErrors() {
+    FakeHub hub(QStringLiteral("a"));
+    adminHub(hub);
+    hub.noErrorGroups = true;
+    QVERIFY(hub.start());
+    Harness h;
+    QVERIFY(h.start());
+    pair(h, hub);
+    QTRY_VERIFY(h.controller->admin()->available());
+    h.controller->showServerPage(QStringLiteral("reports"));
+    QTRY_VERIFY(shown(h.item("reportsSections")));
+    auto firstHelpTitle = [&]() {
+      QQuickItem* help = h.item("adminHelp");
+      return help ? help->property("items").toList().value(0).toMap().value("title").toString() : QString();
+    };
+    QTRY_COMPARE(firstHelpTitle(), QString("Reports"));
+    QVERIFY(h.click("reportsSectionErrors"));
+    QTRY_VERIFY(shown(h.item("errorsEmpty")));
+    QCOMPARE(firstHelpTitle(), QString("Errors"));
+    QVERIFY(!h.item("adminHelp")->property("items").toList().value(0).toMap().value("text").toString().contains("Problem reports"));
+    QVERIFY(shown(h.item("stateBlockDone")));
+    QQuickItem* empty = h.item("errorsEmpty");
+    QVERIFY(empty != nullptr);
+    QVERIFY(empty->findChild<QQuickItem*>("uzEnso") == nullptr || !empty->findChild<QQuickItem*>("uzEnso")->isVisible());
+    QVERIFY(h.click("reportsSectionReports"));
+    QTRY_COMPARE(firstHelpTitle(), QString("Reports"));
+  }
+
   void groupsListAndDetails() {
     FakeHub hub(QStringLiteral("a"));
     adminHub(hub);

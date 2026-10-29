@@ -245,6 +245,7 @@ class FakeHub : public QTcpServer {
   QJsonArray dirUsers, dirDevices, dirInvites, dirRequests, dirReports;
   // Error groups (reports_v2, with adminDirectory): GET/PATCH/DELETE /admin/reports/errors[/{fingerprint}] over this array (full groups).
   QJsonArray dirErrorGroups;
+  bool noErrorGroups = false;  // keep dirErrorGroups empty (otherwise the sample groups are filled in)
   QMap<QString, QByteArray> reportFiles;   // "<report id>/<file name>"
   void fillDirectory();
 

@@ -910,6 +910,19 @@ class EmulationControllersTest : public QObject {
     }
     QCOMPARE(picture, (QStringList{integer, aspect}));
 
+    // #360: the aspect ratio hint names the shape of the system it is shown for.
+    auto aspectHint = [&]() {
+      for (const QVariant& g : emu->groups())
+        for (const QVariant& o : g.toMap().value(QStringLiteral("options")).toList())
+          if (o.toMap().value(QStringLiteral("key")).toString() == aspect) return o.toMap().value(QStringLiteral("description")).toString();
+      return QString();
+    };
+    QVERIFY2(aspectHint().contains(QStringLiteral("NDS")) && !aspectHint().contains(QStringLiteral("3DS")), qPrintable(aspectHint()));
+    QVERIFY(h.click("tab_3DS"));
+    QTRY_VERIFY2(aspectHint().contains(QStringLiteral("3DS")) && !aspectHint().contains(QStringLiteral("NDS")), qPrintable(aspectHint()));
+    QVERIFY(h.click("tab_NDS"));
+    QTRY_VERIFY(aspectHint().contains(QStringLiteral("NDS")));
+
     // Stored per system, emitted live, and unknown values are refused.
     QSignalSpy changed(emu, &EmulationController::uzumeOptionsChanged);
     emu->setOption(integer, QStringLiteral("on"));

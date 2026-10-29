@@ -10,6 +10,9 @@ Rectangle {
     property string title: ""
     property string text: ""
     property string action: ""
+    // "done": a static 28 px square with a check instead of the ensō (an empty state that is good news, e.g. "No errors"; the open
+    // circle reads as a spinner there). Default: the ensō.
+    property string icon: ""
     signal actionClicked()
 
     implicitHeight: Math.max(220, col.implicitHeight + 2 * Theme.space3)
@@ -26,7 +29,19 @@ Rectangle {
         anchors.centerIn: parent
         width: Math.min(parent.width - 2 * Theme.space2, 320)
         spacing: 10
-        UzEnso { visible: root.kind !== "error"; size: 48; Layout.alignment: Qt.AlignHCenter }
+        UzEnso { visible: root.kind !== "error" && root.icon !== "done"; size: 48; Layout.alignment: Qt.AlignHCenter }
+        Rectangle {
+            visible: root.kind !== "error" && root.icon === "done"
+            objectName: "stateBlockDone"
+            Layout.alignment: Qt.AlignHCenter
+            Layout.preferredWidth: 28
+            Layout.preferredHeight: 28
+            radius: 0
+            color: "transparent"
+            border.width: 1
+            border.color: Theme.ink2
+            UzGlyph { anchors.centerIn: parent; name: "check"; size: 16; strokeWidth: 1.8; color: Theme.ink }
+        }
         Rectangle {
             visible: root.kind === "error"
             objectName: "stateBlockError"

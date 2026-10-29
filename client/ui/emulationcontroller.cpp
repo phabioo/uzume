@@ -106,6 +106,16 @@ QList<emu::CoreOptionValue> EmulationController::rewindValues(QList<emu::CoreOpt
   return out;
 }
 
+// Hint of an Uzume option for one system. The aspect ratio hint names the shape the core gives that system ("Core" = the system's own shape).
+static QString optionDescription(const QString& key, const QString& description, const QString& systemId) {
+  if (key != QLatin1String(EmulationController::kAspectRatioKey)) return description;
+  if (systemId == QLatin1String("nds")) return QObject::tr("Core uses the system's shape (NDS: two 4:3 screens).");
+  if (systemId == QLatin1String("3ds")) return QObject::tr("Core uses the system's shape (3DS: a wide top screen and a 4:3 bottom screen).");
+  if (systemId == QLatin1String("gba")) return QObject::tr("Core uses the system's shape (GBA: 3:2).");
+  if (systemId == QLatin1String("gb") || systemId == QLatin1String("gbc")) return QObject::tr("Core uses the system's shape (Game Boy: 10:9).");
+  return description;
+}
+
 const QList<EmulationController::FbOption>& EmulationController::uzumeOptions() {
   static const QList<FbOption> opts = {
       {QString::fromLatin1(kFullscreenKey),
@@ -189,7 +199,7 @@ const QList<EmulationController::FbOption>& EmulationController::uzumeOptions() 
        QObject::tr("Picture")},
       {QString::fromLatin1(kAspectRatioKey),
        QObject::tr("Aspect ratio"),
-       QObject::tr("Core uses the system's shape (NDS: two 4:3 screens)."),
+       QObject::tr("Core uses the system's own shape."),
        {{QStringLiteral("core"), QObject::tr("Core")}, {QStringLiteral("4:3"), QStringLiteral("4:3")}, {QStringLiteral("stretch"), QObject::tr("Stretch")}},
        QStringLiteral("core"),
        true,
@@ -812,7 +822,7 @@ void EmulationController::rebuild() {
         QList<emu::CoreOptionValue> vals = o.values;
         if (o.key == QLatin1String(kRewindKey)) vals = rewindValues(vals, selected_);
         if (isProfileKey(o.key)) vals = profileValues(o.key, settings_.resolve(o.key, selected_, gameLvl ? selectedGame_ : QString(), QString(), o.defaultValue).value);
-        fb.append(row(o.key, o.label, o.description, o.category, vals, QString(), o.defaultValue, true));
+        fb.append(row(o.key, o.label, optionDescription(o.key, o.description, selected_), o.category, vals, QString(), o.defaultValue, true));
       }
       groups.prepend(QVariantMap{{QStringLiteral("id"), QStringLiteral("uzume")},
                                 {QStringLiteral("title"), tr("Uzume")},
@@ -910,7 +920,7 @@ QVariantMap EmulationController::gameSettings(const QString& gameId) const {
     QList<emu::CoreOptionValue> vals = o.values;
     if (isProfileKey(o.key)) vals = profileValues(o.key, settings_.resolve(o.key, sys, gameId, QString(), o.defaultValue).value);
     if (o.key == QLatin1String(kRewindKey)) vals = rewindValues(vals, sys);
-    return makeRow(o.key, o.label, o.description, o.category, vals, QString(), o.defaultValue, !appliesLive(o.key) && !isStatesKey(o.key));
+    return makeRow(o.key, o.label, optionDescription(o.key, o.description, sys), o.category, vals, QString(), o.defaultValue, !appliesLive(o.key) && !isStatesKey(o.key));
   };
 
   QVariantList picture, controls, speed, statesRows, core;
