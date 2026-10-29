@@ -681,7 +681,11 @@ void VoiceController::onPcm(const QString& deviceId, const QByteArray& mono16) {
   auto* dst = reinterpret_cast<int16_t*>(stereo.data());
   for (qsizetype i = 0; i < n; ++i) dst[2 * i] = dst[2 * i + 1] = src[i];
   if (rate != uzume::kVoiceRate) {
-    if (v.resampler.isPassthrough()) v.resampler.setRates(uzume::kVoiceRate, rate);
+    if (v.resamplerRate != rate) {
+      v.resampler.reset();
+      v.resampler.setRates(uzume::kVoiceRate, rate);
+      v.resamplerRate = rate;
+    }
     stereo = v.resampler.process(stereo);
   }
   mixer_->push(v.input, stereo);

@@ -109,6 +109,8 @@ class AudioOutput : public QObject {
   AudioMixer* mixer_ = nullptr;
   AudioMixer::InputId input_ = 0;
   bool acquired_ = false;
+  void onMixerOutputChanged();
+  QMetaObject::Connection outputChangedConn_;
   std::unique_ptr<AudioQueueDevice> device_;  // declared before sink_: the sink is destroyed first
   std::unique_ptr<QAudioSink> sink_;
   LinearResampler resampler_;

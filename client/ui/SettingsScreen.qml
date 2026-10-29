@@ -1300,7 +1300,7 @@ Rectangle {
                             Layout.minimumWidth: 0
                             resetMode: "none"
                             label: qsTr("Output")
-                            description: qsTr("Where the app plays sound. A running game switches on its next start; if the device is gone, the system default is used.")
+                            description: qsTr("Where the app plays sound. A running game switches at once; if the device is gone, the system default is used.")
                             ctrl: "select"
                             controlName: "audioOutputSelect"
                             values: root.player.audio.outputDevices

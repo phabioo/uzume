@@ -87,5 +87,9 @@ bool replaceAppImage(const QString& staged, const QString& appImage, const QStri
 // the start marker, runs the image and, when the marker is still there after it exited (it never confirmed its start),
 // moves .previous back and starts that instead.
 InstallerCommand appImageRelaunchCommand(const QString& appImage, qint64 oldPid, const QStringList& args);
+// Like QProcess::startDetached(program, args), but on Unix the child first closes every inherited descriptor above 2 that
+// is not close-on-exec (FUSE mount of the old AppImage, sockets, audio memfds), so a long-lived watcher keeps none of the
+// parent's resources alive.
+bool startDetachedWithoutInheritedFds(const QString& program, const QStringList& args);
 
 }  // namespace uzume::update

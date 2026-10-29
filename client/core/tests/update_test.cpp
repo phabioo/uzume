@@ -2,6 +2,7 @@
 // install root, installer command line, download/stage/apply with file:// index and installer.
 #include <QCryptographicHash>
 #include <QDir>
+#include <QDirIterator>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -15,6 +16,7 @@
 
 #include <openssl/evp.h>
 
+#include <unistd.h>
 #include "installroot.h"
 #include "playersettings.h"
 #include "semver.h"
@@ -728,6 +730,21 @@ class UpdateTest : public QObject {
       QVERIFY(!QFileInfo::exists(appImageStartMarker(app)));
     }
   }
+  // #343: the detached watcher must not inherit non-close-on-exec descriptors of the parent.
+  void detachedStartClosesInheritedFds() {
+    QTemporaryDir tmp;
+    const QString out = tmp.filePath("fds");
+    QFile leak(tmp.filePath("leak"));
+    QVERIFY(leak.open(QIODevice::WriteOnly));
+    const int inherited = ::dup(leak.handle());  // dup() clears close-on-exec: this one would leak into the child
+    QVERIFY(inherited > 2);
+    auto closeIt = qScopeGuard([&]() { ::close(inherited); });
+    QVERIFY(startDetachedWithoutInheritedFds("/bin/sh", {"-c", "ls -l /proc/self/fd > \"$1\"", "x", out}));
+    QTRY_VERIFY_WITH_TIMEOUT(QFileInfo::exists(out) && QFileInfo(out).size() > 0, 5000);
+    const QString listing = QString::fromLatin1(readAll(out));  // `ls -l` shows each descriptor's target
+    QVERIFY2(!listing.contains("/leak"), qPrintable(listing));
+    QVERIFY(listing.contains(" 0 ->") && listing.contains(" 1 ->") && listing.contains(" 2 ->"));
+  }
   void managerReplacesAppImage() {
     QTemporaryDir imgDir;
     const QString image = imgDir.filePath("Uzume.AppImage");
@@ -757,6 +774,66 @@ class UpdateTest : public QObject {
     QCOMPARE(launched.value(0), QString("/bin/sh"));
     QVERIFY(launched.value(1).contains(image));  // watcher args: image, previous, marker, old pid, original args
     QVERIFY(launched.value(1).contains(image + ".previous"));
+  }
+  // #325: the user-triggered install shows "Applying" at once and does the file work on a worker thread.
+  void installNowReplacesAppImageInBackground() {
+    QTemporaryDir imgDir;
+    const QString image = imgDir.filePath("Uzume.AppImage");
+    QVERIFY(writeBytes(image, "old-image"));
+    qputenv("APPIMAGE", image.toLocal8Bit());
+    auto unset = qScopeGuard([]() { qunsetenv("APPIMAGE"); });
+    Env env;
+    env.appImage = true;
+    const QByteArray data = "new-image-bytes-0.3.1";
+    env.publish(data, "0.3.1-test.3");
+    uzume::PlayerSettings settings(env.dir.filePath("data"));
+    settings.setUpdateChannel("beta");
+    int launches = 0;
+    auto mp = env.manager(settings);
+    UpdateManager& m = *mp;
+    m.setLauncher([&](const QString&, const QStringList&) { ++launches; return true; });
+    QSignalSpy quit(&m, &UpdateManager::quitRequested);
+    m.checkNow();
+    QTRY_COMPARE_WITH_TIMEOUT(m.state(), UpdateManager::State::Ready, 5000);
+    m.installNow();
+    QCOMPARE(m.state(), UpdateManager::State::Applying);  // state flips before the file work finished
+    QCOMPARE(quit.count(), 0);
+    QTRY_COMPARE_WITH_TIMEOUT(quit.count(), 1, 5000);
+    QCOMPARE(launches, 1);
+    QCOMPARE(readAll(image), data);
+    QCOMPARE(readAll(image + ".previous"), QByteArray("old-image"));
+  }
+  void installNowAppImageFailureShowsError() {
+    QTemporaryDir imgDir;
+    const QString image = imgDir.filePath("Uzume.AppImage");
+    QVERIFY(writeBytes(image, "old-image"));
+    qputenv("APPIMAGE", image.toLocal8Bit());
+    auto unset = qScopeGuard([]() { qunsetenv("APPIMAGE"); });
+    Env env;
+    env.appImage = true;
+    env.publish("new-image-bytes-0.3.1", "0.3.1-test.3");
+    uzume::PlayerSettings settings(env.dir.filePath("data"));
+    settings.setUpdateChannel("beta");
+    int launches = 0;
+    auto mp = env.manager(settings);
+    UpdateManager& m = *mp;
+    m.setLauncher([&](const QString&, const QStringList&) { ++launches; return true; });
+    m.checkNow();
+    QTRY_COMPARE_WITH_TIMEOUT(m.state(), UpdateManager::State::Ready, 5000);
+    // Corrupt the staged file: the install must end in an error, never launch the watcher.
+    bool corrupted = false;
+    QDirIterator it(env.dir.filePath("data/cache/updates"), QDir::Files, QDirIterator::Subdirectories);
+    while (it.hasNext()) {
+      const QString f = it.next();
+      if (f.endsWith(".json")) continue;
+      QVERIFY(writeBytes(f, "tampered-bytes-of-other-size"));
+      corrupted = true;
+    }
+    QVERIFY(corrupted);
+    m.installNow();
+    QTRY_VERIFY_WITH_TIMEOUT(m.state() != UpdateManager::State::Applying, 5000);
+    QCOMPARE(launches, 0);
+    QCOMPARE(readAll(image), QByteArray("old-image"));
   }
   void managerAppImageRejectionsLeaveNothingBehind() {
     for (int mode = 0; mode < 3; ++mode) {

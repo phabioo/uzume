@@ -574,6 +574,7 @@ class PlayerController : public QObject {
   void adoptUploadedRom(const QString& srcPath, const QString& sha256, const QString& romFilename);  // off-thread copy into the cache
   void trimRomCache();  // applies the size limit (LRU); called at start, after a ROM became ready, when a game ends
   void applyUzumeOptions();
+  void applyScreenViewOptions(bool force);
   void onUploadFinished(const UploadResult& result, const QString& srcPath);
   void startLibraryScan();
   void registerLocalFiles();      // files of the folders the Hub does not know yet
@@ -761,6 +762,7 @@ class PlayerController : public QObject {
   bool gamePageOpen_ = false;
   QString gamePageTab_ = QStringLiteral("overview");
   bool gameActive_ = false;
+  QString appliedLayoutOpt_, appliedSwapOpt_, appliedBottomOpt_;  // stored values last applied to the running game
   bool background_ = false;      // gameActive_ and paused behind the Library (input blocked)
   QString backgroundId_;
   QString backgroundTitle_;

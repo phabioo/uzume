@@ -837,11 +837,7 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
     sessions_->gameStarted(launchGame_.id, launchGame_.title,
                            runStart_.pending() && runStart_.gameId == launchGame_.id ? runStart_.runId : QString());
     // Screen layout default of the system (Emulation > Defaults / system), the in-game switch overrides it for this game only.
-    sessions_->setScreenLayout(emulation_->uzumeValue(QString::fromLatin1(EmulationController::kScreenLayoutKey), launchGame_.system, launchGame_.id));
-    if (session_.screenCount() >= 2) {  // swap and the bottom-screen window exist for two-screen systems only
-      sessions_->setScreenSwap(emulation_->uzumeValue(QString::fromLatin1(EmulationController::kScreenSwapKey), launchGame_.system, launchGame_.id) == QLatin1String("on"));
-      sessions_->setBottomWindow(emulation_->uzumeValue(QString::fromLatin1(EmulationController::kBottomWindowKey), launchGame_.system, launchGame_.id) == QLatin1String("on"));
-    }
+    applyScreenViewOptions(true);
     applyUzumeOptions();  // picture options of the game (gameActive_ is set now)
     {  // identity, cheat formats and core of the running game for uz.cheats / uz.memory.write
       PluginEmulationService::GameInfo gi;
@@ -2338,8 +2334,29 @@ void PlayerController::applyUzumeOptions() {
         emulation_->uzumeValue(QString::fromLatin1(EmulationController::kIntegerScaleKey), sys, launchGame_.id) == QLatin1String("on"),
         emulation_->uzumeValue(QString::fromLatin1(EmulationController::kAspectRatioKey), sys, launchGame_.id));
   }
-  if (gameActive_) applyStateOptions();
+  if (gameActive_) {
+    applyScreenViewOptions(false);
+    applyStateOptions();
+  }
   emit emulationSettingsChanged();
+}
+
+// Screen layout, swap and bottom-screen window of the running game (game > system > global). At the start all three are applied; later
+// only the ones whose stored value changed, so an unrelated option change keeps what the player switched in the game.
+void PlayerController::applyScreenViewOptions(bool force) {
+  if (!sessions_ || !gameActive_) return;
+  const QString sys = launchGame_.system;
+  const QString layout = emulation_->uzumeValue(QString::fromLatin1(EmulationController::kScreenLayoutKey), sys, launchGame_.id);
+  if (force || layout != appliedLayoutOpt_) sessions_->setScreenLayout(layout);
+  appliedLayoutOpt_ = layout;
+  if (session_.screenCount() >= 2) {  // swap and the bottom-screen window exist for two-screen systems only
+    const QString swap = emulation_->uzumeValue(QString::fromLatin1(EmulationController::kScreenSwapKey), sys, launchGame_.id);
+    const QString bottom = emulation_->uzumeValue(QString::fromLatin1(EmulationController::kBottomWindowKey), sys, launchGame_.id);
+    if (force || swap != appliedSwapOpt_) sessions_->setScreenSwap(swap == QLatin1String("on"));
+    if (force || bottom != appliedBottomOpt_) sessions_->setBottomWindow(bottom == QLatin1String("on"));
+    appliedSwapOpt_ = swap;
+    appliedBottomOpt_ = bottom;
+  }
 }
 
 bool PlayerController::canUpload() const { return uploads_->canUpload(); }

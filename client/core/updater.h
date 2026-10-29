@@ -170,8 +170,9 @@ class UpdateManager : public QObject {
   void startDownload(bool applyAfter);
   void beginDownload(const Release& release, const Artifact& artifact, const QString& dir, bool applyAfter, bool rollback);
   void finishDownload(const QString& partPath);
-  void apply(const StagedUpdate& staged);
-  void applyAppImage(const StagedUpdate& staged);
+  void apply(const StagedUpdate& staged, bool background = true);  // background: AppImage file work off the GUI thread (#325)
+  void applyAppImage(const StagedUpdate& staged, bool background);
+  void finishAppImageApply(const StagedUpdate& staged, const QString& image, bool replaced, const QString& why);
   bool appImageKind() const { return kind_ == QLatin1String(kKindAppImage); }
   void applyRollback(const StagedUpdate& staged);
   void recordRunning();
