@@ -753,48 +753,96 @@ plugins::CheatDatabaseResult PluginEmulationService::cheatDatabase() {
   return res;
 }
 
+void PluginEmulationService::failCheatDb(const QString& gameId, const QString& reason, bool storeError) {
+  {
+    QMutexLocker l(&mu_);
+    dbBusy_.remove(gameId);
+    online_ = reason != QLatin1String("offline");
+    if (storeError) dbError_[gameId] = reason;
+  }
+  postApp(QStringLiteral("cheats.database"), QVariantMap{{QStringLiteral("ok"), false}, {QStringLiteral("reason"), reason}});
+}
+
 void PluginEmulationService::refreshCheatDb(const QString& gameId) {
+  QString title, system;
   {
     QMutexLocker l(&mu_);
     if (dbBusy_.contains(gameId)) return;
     dbBusy_.insert(gameId);
     dbFetched_[gameId] = Clock::now();
+    title = game_.title;
+    system = game_.system;
   }
-  const auto fail = [this, gameId](const QString& reason, bool storeError) {
-    {
-      QMutexLocker l(&mu_);
-      dbBusy_.remove(gameId);
-      online_ = reason != QLatin1String("offline");
-      if (storeError) dbError_[gameId] = reason;
-    }
-    postApp(QStringLiteral("cheats.database"), QVariantMap{{QStringLiteral("ok"), false}, {QStringLiteral("reason"), reason}});
-  };
-  if (!conn_ || conn_->state() != HubConnection::State::Connected) return fail(QStringLiteral("offline"), false);
-  if (!conn_->hubHasFeature(QStringLiteral("cheat_db_v1"))) return fail(QStringLiteral("off"), true);
+  qCInfo(lcEmu).noquote() << QStringLiteral("cheat database: looking up \"%1\" (%2, game %3)").arg(title, system, gameId);
+  if (!conn_ || conn_->state() != HubConnection::State::Connected) {
+    qCInfo(lcEmu) << "cheat database: lookup skipped, not connected to the server";
+    return failCheatDb(gameId, QStringLiteral("offline"), false);
+  }
+  if (!conn_->hubHasFeature(QStringLiteral("cheat_db_v1"))) {
+    qCInfo(lcEmu) << "cheat database: the server does not offer a cheat database (feature cheat_db_v1 missing)";
+    return failCheatDb(gameId, QStringLiteral("off"), true);
+  }
   QNetworkReply* reply = conn_->authorizedGet(QStringLiteral("/games/%1/cheats").arg(QString::fromLatin1(QUrl::toPercentEncoding(gameId))));
-  if (reply == nullptr) return fail(QStringLiteral("offline"), false);
+  if (reply == nullptr) {
+    qCInfo(lcEmu) << "cheat database: request could not be started";
+    return failCheatDb(gameId, QStringLiteral("offline"), false);
+  }
   const QString hubId = conn_->hubId();
-  connect(reply, &QNetworkReply::finished, this, [this, reply, gameId, hubId, fail]() {
+  connect(reply, &QNetworkReply::finished, this, [this, reply, gameId, hubId]() {
     const HttpResult r = HubHttp::resultOf(reply);
     reply->deleteLater();
-    if (r.networkError || r.certMismatch) return fail(QStringLiteral("offline"), false);
-    if (r.status == 404) return fail(QStringLiteral("not_found"), true);
-    if (!r.ok()) return fail(QStringLiteral("error: ") + (r.apiErrorMessage.isEmpty() ? QString::number(r.status) : r.apiErrorMessage), true);
-    const QString path = QDir(dataDir_).filePath(QStringLiteral("cheatdb/%1/%2.json").arg(atomicName(hubId), atomicName(gameId)));
-    QDir().mkpath(QFileInfo(path).absolutePath());
-    QSaveFile out(path);
-    if (out.open(QIODevice::WriteOnly)) {
-      out.write(r.body);
-      out.commit();
-    }
-    {
-      QMutexLocker l(&mu_);
-      dbBusy_.remove(gameId);
-      dbError_.remove(gameId);
-      online_ = true;
-    }
-    postApp(QStringLiteral("cheats.database"), QVariantMap{{QStringLiteral("ok"), true}});
+    applyCheatDbReply(gameId, hubId, r);
   });
+}
+
+void PluginEmulationService::applyCheatDbReply(const QString& gameId, const QString& hubId, const HttpResult& r) {
+  QString title, system;
+  {
+    QMutexLocker l(&mu_);
+    title = game_.title;
+    system = game_.system;
+  }
+  if (r.networkError || r.certMismatch) {
+    qCInfo(lcEmu).noquote() << QStringLiteral("cheat database: request failed: %1").arg(r.certMismatch ? QStringLiteral("certificate mismatch") : r.errorString);
+    return failCheatDb(gameId, QStringLiteral("offline"), false);
+  }
+  if (r.status == 404) {
+    qCInfo(lcEmu).noquote() << QStringLiteral("cheat database: HTTP 404, the server does not know game %1").arg(gameId);
+    return failCheatDb(gameId, QStringLiteral("not_found"), true);
+  }
+  if (!r.ok()) {
+    qCInfo(lcEmu).noquote() << QStringLiteral("cheat database: HTTP %1 for \"%2\" %3").arg(r.status).arg(title, r.apiErrorMessage);
+    return failCheatDb(gameId, QStringLiteral("error: ") + (r.apiErrorMessage.isEmpty() ? QString::number(r.status) : r.apiErrorMessage), true);
+  }
+  const QJsonObject o = QJsonDocument::fromJson(r.body).object();
+  const QString source = o.value(QStringLiteral("source")).toString();
+  const qsizetype n = o.value(QStringLiteral("cheats")).toArray().size();
+  if (source == QLatin1String("none") || source == QLatin1String("unavailable")) {
+    qCInfo(lcEmu).noquote() << QStringLiteral("cheat database: HTTP %1 but the server holds no lists (source %2)").arg(r.status).arg(source);
+  } else if (n > 0) {
+    qCInfo(lcEmu).noquote() << QStringLiteral("cheat database: found %1 cheats for \"%2\" (%3) by %4 in list \"%5\" from %6")
+                                   .arg(n).arg(title, system, o.value(QStringLiteral("matched_by")).toString(), o.value(QStringLiteral("list_name")).toString(), source);
+  } else {
+    QStringList other;
+    for (const QJsonValue& v : o.value(QStringLiteral("similar_lists")).toArray()) other << v.toString();
+    qCInfo(lcEmu).noquote() << QStringLiteral("cheat database: no entry for \"%1\" (%2) in the %3 lists%4")
+                                   .arg(title, system, source,
+                                        other.isEmpty() ? QString() : QStringLiteral("; lists of another region exist and are not used (cheats are region specific): ") + other.join(QStringLiteral(", ")));
+  }
+  const QString path = QDir(dataDir_).filePath(QStringLiteral("cheatdb/%1/%2.json").arg(atomicName(hubId), atomicName(gameId)));
+  QDir().mkpath(QFileInfo(path).absolutePath());
+  QSaveFile out(path);
+  if (out.open(QIODevice::WriteOnly)) {
+    out.write(r.body);
+    out.commit();
+  }
+  {
+    QMutexLocker l(&mu_);
+    dbBusy_.remove(gameId);
+    dbError_.remove(gameId);
+    online_ = true;
+  }
+  postApp(QStringLiteral("cheats.database"), QVariantMap{{QStringLiteral("ok"), true}});
 }
 
 // ------------------------------------------------------------------ uz.save.snapshot

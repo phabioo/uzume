@@ -389,3 +389,54 @@ func TestCheat3DSDownload(t *testing.T) {
 		t.Fatal("downloaded 3DS lists stay served while the source is off")
 	}
 }
+
+// Regional matching with synthetic names: a game finds the list of its own region by base title; a list of another
+// region is never used and only named as a hint.
+func TestCheatDBRegionMatching(t *testing.T) {
+	svc, _, admin := newAdmin(t)
+	const dir = "libretro-database-master/cht/Nintendo - Nintendo DS/"
+	if err := svc.ImportCheats(ctx, writeZip(t, map[string]string{
+		dir + "Synth Quest (USA) (En,Fr).cht":             chtOf("US only", "02000001 00000001"),
+		dir + "Synth Quest (Europe) (En,Fr,De,Es,It).cht": chtOf("EU only", "02000002 00000002"),
+		dir + "Lonely Game (USA).cht":                     chtOf("US lonely", "02000003 00000003"),
+		dir + "Worldwide Game (World).cht":                chtOf("Everywhere", "02000004 00000004"),
+	})); err != nil {
+		t.Fatal(err)
+	}
+	add := func(rom []byte, file, title string) hub.CheatList {
+		t.Helper()
+		g, err := svc.AddROM(ctx, bytes.NewReader(rom), file, title, "", admin.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		l, err := svc.GameCheats(ctx, admin.ID, g.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return l
+	}
+	// EU file name without the language tag finds the EU list, not the US one.
+	if l := add([]byte("eu one"), "Synth Quest (Europe).nds", ""); l.MatchedBy != "name" || len(l.Cheats) != 1 || l.Cheats[0].Name != "EU only" {
+		t.Fatalf("eu by tag: %+v", l)
+	}
+	// No region in the name: the region letter of the game code decides (P = Europe, E = USA).
+	if l := add(ndsROM("ASQP"), "synthquest.nds", "Synth Quest"); len(l.Cheats) != 1 || l.Cheats[0].Name != "EU only" {
+		t.Fatalf("eu by code: %+v", l)
+	}
+	if l := add(ndsROM("ASQE"), "synthquest2.nds", "Synth Quest"); len(l.Cheats) != 1 || l.Cheats[0].Name != "US only" {
+		t.Fatalf("us by code: %+v", l)
+	}
+	// Only another region listed: not assumed, but named.
+	l := add([]byte("eu lonely"), "Lonely Game (Europe).nds", "")
+	if l.MatchedBy != "" || len(l.Cheats) != 0 || len(l.SimilarLists) != 1 || l.SimilarLists[0] != "Lonely Game (USA)" {
+		t.Fatalf("other region used: %+v", l)
+	}
+	// Unknown region: an explicitly regional list is not assumed either.
+	if l := add([]byte("who knows"), "Lonely Game.nds", ""); len(l.Cheats) != 0 || len(l.SimilarLists) != 1 {
+		t.Fatalf("unknown region: %+v", l)
+	}
+	// A World list fits every region.
+	if l := add([]byte("w"), "Worldwide Game (Japan).nds", ""); len(l.Cheats) != 1 || l.Cheats[0].Name != "Everywhere" {
+		t.Fatalf("world: %+v", l)
+	}
+}

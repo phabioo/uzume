@@ -24,6 +24,9 @@ func (s *Server) GetGameCheats(ctx context.Context, req api.GetGameCheatsRequest
 			out.ListName = &l.ListName
 		}
 	}
+	if len(l.SimilarLists) > 0 {
+		out.SimilarLists = &l.SimilarLists
+	}
 	for _, c := range l.Cheats {
 		out.Cheats = append(out.Cheats, api.GameCheat{Name: c.Name, Code: c.Code, FormatGuess: api.CheatFormat(c.FormatGuess)})
 	}

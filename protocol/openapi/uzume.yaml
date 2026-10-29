@@ -930,7 +930,7 @@ paths:
       tags: [library]
       summary: The cheat list of the server's cheat database for a game (`cheat_db_v1`)
       description: |
-        The server matches the game to a cheat list of the libretro-database: by the ROM hash through the No-Intro name, else by the file name or title. 3DS games
+        The server matches the game to a cheat list of the libretro-database: by the ROM hash through the No-Intro name, else by the file name or title, else by the base title when the list's region fits the game (region tag of the name, or the region letter of the game code); a list of another region is never used and only named in `similar_lists`. 3DS games
         match by the title ID to a Gateway list (libretro-database has none; they come from `3ds/` in an imported archive or
         from the 3DS URL), and every code of those is `gateway`. `source` is `libretro-database` (fetched by the server), `imported` (`uzume-server import-cheats`) or
         `none` when the server holds no lists (database off or not yet fetched); `updated_at` is the age of the stored lists. A game without a list is
@@ -7567,6 +7567,10 @@ components:
         updated_at: { type: string, format: date-time, description: When the stored lists were fetched or imported }
         matched_by: { type: string, enum: [hash, title_id, name], description: How the game was matched; absent when no list was found }
         list_name: { type: string, description: Name of the matched list (the No-Intro name or the title ID) }
+        similar_lists:
+          type: array
+          items: { type: string }
+          description: Lists with the same base title for another region than the game (never applied, cheats are region specific); only a hint, typically when no list matched
         cheats:
           type: array
           items: { $ref: '#/components/schemas/GameCheat' }

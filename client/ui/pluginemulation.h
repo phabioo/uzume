@@ -25,6 +25,7 @@
 
 namespace uzume {
 class HubConnection;
+struct HttpResult;
 }
 
 namespace uzume::ui {
@@ -107,6 +108,9 @@ class PluginEmulationService : public QObject, public plugins::EmulationBridge {
   plugins::CheatDatabaseResult cheatDatabase() override;
   QString snapshot(const QString& pluginId, const QString& pluginName, const QString& reason) override;
 
+  // Handles the answer of GET /games/{id}/cheats (stores it, logs the outcome, posts cheats.database); public for tests.
+  void applyCheatDbReply(const QString& gameId, const QString& hubId, const HttpResult& r);
+
   // Plain helpers (tests).
   static bool validCheatCode(const QString& format, const QString& code);
 
@@ -154,6 +158,7 @@ private:
   void refreshRegions();
   bool mapped(quint64 addr, quint64 len) const;
   void refreshCheatDb(const QString& gameId);
+  void failCheatDb(const QString& gameId, const QString& reason, bool storeError);
 
   GameSession* session_;
   QString dataDir_;
