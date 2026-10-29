@@ -183,6 +183,8 @@ void PluginManager::scan() {
   }
   for (auto it = m_linked.begin(); it != m_linked.end(); ++it) {
     Entry e = makeEntry(it.value(), it.key(), true);
+    if (const auto shadowed = m_entries.constFind(e.info.manifest.id); shadowed != m_entries.constEnd() && shadowed->valid && !shadowed->info.devLinked)
+      e.info.overridesVersion = shadowed->info.manifest.version.toString();
     m_entries.insert(e.info.manifest.id, e);  // a linked folder overrides an installed copy of the same id
   }
   refreshWatcher();
@@ -247,7 +249,10 @@ void PluginManager::computeDependencyProblems(QMap<QString, QStringList>& out) c
       if (dep == m_entries.constEnd() || !dep->valid) {
         out[m.id] << QStringLiteral("needs %1, not installed").arg(d.id);
       } else if (!d.range.matches(dep->info.manifest.version)) {
-        out[m.id] << QStringLiteral("needs %1 %2 · you have %3").arg(dep->info.manifest.name, d.range.text, dep->info.manifest.version.toString());
+        // A linked developer folder beats the installed copy: say where the version comes from.
+        out[m.id] << QStringLiteral("needs %1 %2 · you have %3%4")
+                         .arg(dep->info.manifest.name, d.range.text, dep->info.manifest.version.toString(),
+                              dep->info.devLinked ? QStringLiteral(" (from the linked developer folder)") : QString());
       }
     }
   }

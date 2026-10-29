@@ -278,6 +278,39 @@ class ManagerTest : public QObject {
     QVERIFY(QFileInfo(dir + "/main.lua").isFile());
   }
 
+  void linkedFolderShadowsInstalledCopy() {
+    QTemporaryDir root, src, devSrc;
+    PluginManager m(root.path());
+    PluginSpec core;
+    core.id = "net.test.core"; core.name = "Creature Core"; core.version = "2.0.0";
+    PluginSpec user;
+    user.id = "net.test.user"; user.requires_ = QJsonObject{{"net.test.core", "^2.0"}};
+    QVERIFY(m.installFromFolder(writePlugin(src.path(), core)).ok);
+    QVERIFY(m.installFromFolder(writePlugin(src.path(), user)).ok);
+    QVERIFY(m.info("net.test.core")->overridesVersion.isEmpty());
+    QVERIFY(m.info("net.test.user")->problems.isEmpty());
+
+    PluginSpec dev = core;
+    dev.version = "0.4.1";
+    const QString dir = writePlugin(devSrc.path(), dev);
+    QVERIFY(m.linkDevFolder(dir).ok);
+    const PluginInfo linked = *m.info("net.test.core");
+    QVERIFY(linked.devLinked);
+    QCOMPARE(linked.manifest.version.toString(), QString("0.4.1"));
+    QCOMPARE(linked.overridesVersion, QString("2.0.0"));
+    // The dependant's message says that the version comes from the linked folder.
+    QCOMPARE(m.info("net.test.user")->problems.join(" | "), QString("needs Creature Core ^2.0 · you have 0.4.1 (from the linked developer folder)"));
+
+    // Unlinking activates the installed copy again; the folder is kept.
+    QVERIFY(m.uninstall("net.test.core"));
+    const PluginInfo back = *m.info("net.test.core");
+    QVERIFY(!back.devLinked);
+    QCOMPARE(back.manifest.version.toString(), QString("2.0.0"));
+    QVERIFY(back.overridesVersion.isEmpty());
+    QVERIFY(m.info("net.test.user")->problems.isEmpty());
+    QVERIFY(QFileInfo(dir + "/main.lua").isFile());
+  }
+
   // ---- .uzplugin files and origins (contract sections 1, 2, 7)
 
   static QString writeFile(const QString& path, const QByteArray& bytes) {
