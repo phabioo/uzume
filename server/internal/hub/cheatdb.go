@@ -759,29 +759,45 @@ func splitCheatName(n string) (base string, regions []string, tags int) {
 	return base, regions, tags
 }
 
-var cheatRevRe = regexp.MustCompile(`(?i)^(?:rev\s*([0-9a-z]+)|v(\d+(?:\.\d+)*))$`)
+var (
+	cheatAnyTagRe = regexp.MustCompile(`[(\[]([^()\[\]]*)[)\]]`)
+	cheatLangRe   = regexp.MustCompile(`(?i)^[a-z]{2}(?:-[a-z0-9]{2,4})?$`)
+	cheatRevRe    = regexp.MustCompile(`(?i)^(?:rev\s*([0-9a-z]+)|v\s*(\d+(?:\.\d+)*))$`)
+)
 
-// cheatRevision returns the revision named in the tags of a No-Intro style name, "(Rev 1)", "(Rev A)" or "(v1.1)",
-// normalized to lowercase ("rev 1", "v1.1"). Empty means the base release.
-func cheatRevision(n string) string {
-	for _, m := range cheatTagRe.FindAllStringSubmatch(n, -1) {
+// cheatBuildKey returns the build qualifiers of a No-Intro style name: every tag part in parentheses or brackets
+// except regions and language codes, such as "Rev 1", "Rev A", "v1.1", "Beta", "Proto", "Demo" or "Alt". The parts
+// are normalized (lowercase, single spaces, "rev 1", "v1.1") and sorted. Empty means the retail base release. The
+// second result tells whether the name carries any tag at all.
+func cheatBuildKey(n string) (key string, tagged bool) {
+	var parts []string
+	for _, m := range cheatAnyTagRe.FindAllStringSubmatch(n, -1) {
+		tagged = true
 		for _, part := range strings.Split(m[1], ",") {
-			if r := cheatRevRe.FindStringSubmatch(strings.TrimSpace(part)); r != nil {
-				if r[1] != "" {
-					return "rev " + strings.ToLower(r[1])
-				}
-				return "v" + r[2]
+			p := strings.Join(strings.Fields(strings.ToLower(part)), " ")
+			if p == "" || cheatRegionNames[p] || cheatLangRe.MatchString(p) {
+				continue
 			}
+			if r := cheatRevRe.FindStringSubmatch(p); r != nil {
+				if r[1] != "" {
+					p = "rev " + r[1]
+				} else {
+					p = "v" + r[2]
+				}
+			}
+			parts = append(parts, p)
 		}
 	}
-	return ""
+	sort.Strings(parts)
+	return strings.Join(parts, "|"), tagged
 }
 
-// gameRevision returns the revision of a game from the tags of its file name, else of its title.
-func gameRevision(g Game) string {
+// gameBuildKey returns the build key of a game from its file name, else its title: the first of the two that
+// carries tags.
+func gameBuildKey(g Game) string {
 	for _, n := range []string{strings.TrimSuffix(g.Filename, path.Ext(g.Filename)), g.Title} {
-		if r := cheatRevision(n); r != "" {
-			return r
+		if k, tagged := cheatBuildKey(n); tagged {
+			return k
 		}
 	}
 	return ""
@@ -827,9 +843,10 @@ func gameRegionLabel(g Game) string {
 
 // matchCheatBase looks for a list with the same base title as the game. Lists tagged with another region are not
 // returned as a match, only as similar names; a list without a region tag or tagged World fits every region. When the
-// game's region is unknown only untagged and World lists fit. Revisions are kept apart: a list fits only when its
-// revision tag ("Rev 1", "Rev A", "v1.1") equals the game's; no tag on either side means the base release, and a
-// list of another revision is only named as similar, like one of another region.
+// game's region is unknown only untagged and World lists fit. Build tags are kept apart: a list fits only when
+// its build key equals the game's, that is the same tags other than regions and languages ("Rev 1", "v1.1", "Beta",
+// "Proto", "Demo", ...); no such tag on either side means the retail release. A list of another build is only named
+// as similar, like one of another region.
 func matchCheatBase(names map[string]string, g Game) (file string, similar []string) {
 	want := map[string]bool{}
 	for _, n := range []string{strings.TrimSuffix(g.Filename, path.Ext(g.Filename)), g.Title} {
@@ -841,7 +858,7 @@ func matchCheatBase(names map[string]string, g Game) (file string, similar []str
 		return "", nil
 	}
 	gr := gameRegions(g)
-	grev := gameRevision(g)
+	gkey := gameBuildKey(g)
 	type cand struct {
 		file string
 		tags int
@@ -863,7 +880,7 @@ func matchCheatBase(names map[string]string, g Game) (file string, similar []str
 				}
 			}
 		}
-		if ok && cheatRevision(lower) != grev {
+		if k, _ := cheatBuildKey(lower); ok && k != gkey {
 			ok = false
 		}
 		if ok {

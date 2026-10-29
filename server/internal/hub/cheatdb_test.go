@@ -404,6 +404,10 @@ func TestCheatDBRegionMatching(t *testing.T) {
 		dir + "Rev Pair (Europe).cht":                     chtOf("Pair base", "02000006 00000006"),
 		dir + "Rev Pair (Europe) (Rev 1).cht":             chtOf("Pair1", "02000007 00000007"),
 		dir + "Rev Pair (Europe) (Rev 2).cht":             chtOf("Pair2", "02000008 00000008"),
+		dir + "Build Game (Europe) (En,Fr).cht":           chtOf("Retail", "0200000A 0000000A"),
+		dir + "Build Game (Europe) (Beta).cht":            chtOf("BetaList", "0200000B 0000000B"),
+		dir + "Proto Game (Europe) (Proto).cht":           chtOf("ProtoList", "0200000C 0000000C"),
+		dir + "Proto Game (Europe).cht":                   chtOf("ProtoRetail", "0200000D 0000000D"),
 		dir + "Ver Game (Europe) (v1.1).cht":              chtOf("Ver11", "02000009 00000009"),
 	})); err != nil {
 		t.Fatal(err)
@@ -463,5 +467,21 @@ func TestCheatDBRegionMatching(t *testing.T) {
 	}
 	if l := add([]byte("v10"), "Ver Game (Europe) (v1.0).nds", ""); len(l.Cheats) != 0 || len(l.SimilarLists) != 1 {
 		t.Fatalf("v1.0 vs v1.1: %+v", l)
+	}
+	// Beta, Proto and other build tags count too; languages do not.
+	if l := add([]byte("beta"), "Build Game (Europe) (Beta).nds", ""); len(l.Cheats) != 1 || l.Cheats[0].Name != "BetaList" {
+		t.Fatalf("beta vs beta: %+v", l)
+	}
+	if l := add([]byte("beta2"), "Lonely Game (USA) (Beta).nds", ""); len(l.Cheats) != 0 || len(l.SimilarLists) != 1 {
+		t.Fatalf("beta vs retail: %+v", l)
+	}
+	if l := add([]byte("retailp"), "Proto Game (Europe) (En,Fr).nds", ""); len(l.Cheats) != 1 || l.Cheats[0].Name != "ProtoRetail" {
+		t.Fatalf("retail vs proto list: %+v", l)
+	}
+	if l := add([]byte("retailb"), "Build Game (Europe) (En,Fr,De).nds", ""); len(l.Cheats) != 1 || l.Cheats[0].Name != "Retail" {
+		t.Fatalf("languages ignored: %+v", l)
+	}
+	if l := add([]byte("retailc"), "Rev Pair (Europe) (En,Fr,De).nds", ""); len(l.Cheats) != 1 || l.Cheats[0].Name != "Pair base" {
+		t.Fatalf("languages ignored vs untagged list: %+v", l)
 	}
 }
