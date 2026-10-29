@@ -1266,9 +1266,13 @@ class SessionsUiTest : public QObject {
     QTRY_COMPARE(h.controller->screen(), QStringLiteral("library"));
   }
 
-  // Controller hand-over (ADR 0033 D8) against the real core: a viewer takes over P1, presses buttons over fb-input and the core sees them;
+  // Controller hand-over (ADR 0033 D8) against the Uzume test core (ui_sessions_testcore only): a viewer takes over P1, presses buttons over fb-input and the core sees them;
   // the host's own pad is off while it holds P1; after Take back the local pad drives P1 again; P2 is a second, independent port.
   void controllerHandOverReachesTheCore() {
+#ifndef FB_TEST_CORE
+    // The assertions read the pixel strips and the data row that only the Uzume test core draws; a real core (nightly) shows a game instead.
+    QSKIP("reads test-core pixel strips; runs in ui_sessions_testcore");
+#endif
     GameRig r;
     if (!startGame(r, true)) UITEST_SKIP_NO_CORE("core or test ROM not available");
     Harness& h = r.h;
