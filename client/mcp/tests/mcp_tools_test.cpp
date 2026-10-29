@@ -175,6 +175,9 @@ class McpToolsTest : public QObject {
     const QString text = QJsonDocument(s).toJson();
     QVERIFY(!text.contains("token", Qt::CaseInsensitive));
     QVERIFY(jsonOf(call("settings_get")).toObject().contains("settings"));
+    const QJsonObject emuSettings = jsonOf(call("settings_get")).toObject().value("emulation_settings").toObject();
+    QVERIFY(emuSettings.value("uzume").toObject().contains("uzume.rewind_seconds"));
+    QVERIFY(emuSettings.contains("global") && emuSettings.contains("systems"));
     QVERIFY(call("game_state").isError == false);
     QVERIFY(call("memory_regions").isError);  // no game
     QCOMPARE(call("memory_read", {{"addr", 0}, {"len", 4}}).content.value(0).text, QStringLiteral("no_game"));

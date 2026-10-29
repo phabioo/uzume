@@ -173,7 +173,7 @@ The server binds to `127.0.0.1` only, checks the token, the `Host` header and (i
 | `status` | | version, channel, commit, OS, data directory, servers (no tokens), screen, running game, plugins |
 | `logs_tail` | `lines`, `contains?`, `level?` | newest redacted log lines (max 2000) |
 | `logs_search` | `pattern`, `max?` | matching lines of the log and its rotated files |
-| `settings_get` | | the non-secret settings summary of the diagnostics bundle |
+| `settings_get` | | the non-secret settings summary of the diagnostics bundle plus `emulation_settings` (effective global Uzume options, explicit global and per-system values) |
 | `collect_diagnostics` | `path?` | writes the "Collect logs" zip (default `<data>/diag/`), returns the path |
 | `connection_check` | | runs the connection check, returns its JSON |
 | `reports_list` | `state?` (`new`, `seen`, `all`), `limit?` (50) | problem reports on the connected server (admins only): id, status, title, user, device, app version, OS, created, size, counts |

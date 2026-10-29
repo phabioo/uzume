@@ -130,8 +130,14 @@ LocalPin::Result LocalPin::verify(const QString& hubId, const QString& userId, c
     r.status = Status::Locked;
     return r;
   }
-  const auto stored = credentials_->read(pinTarget(hubId, a->deviceId));
-  const Stored s = stored ? decode(*stored) : Stored();
+  const CredentialRead stored = credentials_->readChecked(pinTarget(hubId, a->deviceId));
+  if (stored.status == CredentialRead::Status::Error) {
+    // A locked or dismissed keyring is not "no hash": keep the tries and the lock as they are.
+    r.status = Status::Unavailable;
+    r.triesLeft = std::max(0, kLocalPinMaxTries - a->pinFailures);
+    return r;
+  }
+  const Stored s = stored.status == CredentialRead::Status::Ok ? decode(stored.secret) : Stored();
   if (!s.valid) {
     // The hash is gone (credential store reset): never let anyone in with a PIN that cannot be checked.
     r.status = Status::Locked;

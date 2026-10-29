@@ -474,6 +474,26 @@ QString EmulationController::uzumeValue(const QString& key, const QString& syste
   return value;
 }
 
+QJsonObject EmulationController::settingsSummary() const {
+  const auto toJson = [](const QMap<QString, QString>& m) {
+    QJsonObject o;
+    for (auto it = m.cbegin(); it != m.cend(); ++it) o.insert(it.key(), it.value());
+    return o;
+  };
+  QJsonObject effective;
+  for (const FbOption& o : uzumeOptions()) effective.insert(o.key, uzumeValue(o.key, QString()));
+  QJsonObject systems;
+  for (const QVariant& s : systems_) {
+    const QString id = s.toMap().value(QStringLiteral("id")).toString();
+    if (id.isEmpty()) continue;
+    const QMap<QString, QString> v = settings_.values(EmulationSettings::Level::System, id);
+    if (!v.isEmpty()) systems.insert(id, toJson(v));
+  }
+  return QJsonObject{{QStringLiteral("uzume"), effective},
+                     {QStringLiteral("global"), toJson(settings_.values(EmulationSettings::Level::Global, QString()))},
+                     {QStringLiteral("systems"), systems}};
+}
+
 QMap<QString, QString> EmulationController::launchOverrides(const QString& systemId, const QString& gameId) const {
   return settings_.mergedOverrides(systemId, gameId);
 }

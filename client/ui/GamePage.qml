@@ -77,7 +77,7 @@ Rectangle {
     }
     function syncPluginGame() {
         // game.id, not hasGame: this runs from onGameChanged, before the dependent bindings are re-evaluated.
-        if (game.id !== undefined) pluginsApi.setDetailGame(game.system || "", pluginCode, game.sha || "", game.title || "")
+        if (game.id !== undefined) pluginsApi.setDetailGame(game.system || "", pluginCode, game.sha || "", game.title || "", game.id || "")
         else pluginsApi.setDetailGame("", "", "", "")
     }
     onGameChanged: syncPluginGame()

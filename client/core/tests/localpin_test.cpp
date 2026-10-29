@@ -132,6 +132,38 @@ class LocalPinTest : public QObject {
     QCOMPARE(pin.verify(hub, QStringLiteral("u_a"), QStringLiteral("4242")).status, Status::Locked);
     LocalPin::removeStored(creds, hub, QStringLiteral("dev-a"));  // harmless when absent
   }
+
+  // A keyring that cannot be read is not a missing hash: no lock, no counted try.
+  void keyringErrorKeepsState() {
+    struct FailingStore : MemoryCredentialStore {
+      bool fail = false;
+      CredentialRead readChecked(const QString& t) const override {
+        if (fail) {
+          CredentialRead r;
+          r.status = CredentialRead::Status::Error;
+          return r;
+        }
+        return MemoryCredentialStore::readChecked(t);
+      }
+    };
+    QTemporaryDir dir;
+    ProfileStore s(dir.path());
+    FailingStore creds;
+    HubProfile p;
+    p.hubId = hub;
+    p.address = QStringLiteral("https://192.0.2.10:8443");
+    QVERIFY(s.upsertProfile(p));
+    addAccount(s, hub, QStringLiteral("u_a"), QStringLiteral("dev-a"));
+    LocalPin pin(&s, &creds);
+    QVERIFY(pin.setPin(hub, QStringLiteral("u_a"), QStringLiteral("4242")));
+    creds.fail = true;
+    for (int i = 0; i < 5; ++i) QCOMPARE(pin.verify(hub, QStringLiteral("u_a"), QStringLiteral("4242")).status, Status::Unavailable);
+    QVERIFY(pin.hasPin(hub, QStringLiteral("u_a")));
+    QVERIFY(!pin.isLocked(hub, QStringLiteral("u_a")));
+    QCOMPARE(pin.triesLeft(hub, QStringLiteral("u_a")), 3);
+    creds.fail = false;
+    QCOMPARE(pin.verify(hub, QStringLiteral("u_a"), QStringLiteral("4242")).status, Status::Ok);
+  }
 };
 
 QTEST_GUILESS_MAIN(LocalPinTest)

@@ -43,6 +43,7 @@ UzDialog {
                 tag = k === "server" || k === "hub" ? "Server" : k === "both" ? "Both" : "App"
                 text = text.slice(m[0].length)
             }
+            text = text.replace(/`/g, "")  // inline code marks of the Markdown notes are shown as plain text
             if (text === "" || (!admin && tag === "Server")) continue
             if (cur === null) { cur = { title: "", items: [] }; out.push(cur) }
             cur.items.push({ text: text, tag: tag })

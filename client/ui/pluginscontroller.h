@@ -293,7 +293,8 @@ class PluginsController : public QObject {
   // to the plugin's uz.ui.on_action handler.
   Q_INVOKABLE void sendAction(const QString& pluginId, const QString& slot, const QString& action, const QVariant& value = QVariant());
   // The game detail pane shows this game (empty system = none): clears the "detail" slots and sends fb/detail.game.
-  Q_INVOKABLE void setDetailGame(const QString& system, const QString& code, const QString& sha256, const QString& title);
+  Q_INVOKABLE void setDetailGame(const QString& system, const QString& code, const QString& sha256, const QString& title,
+                                const QString& id = QString());
   // Game detail "Plugins · n on" row: [{id, name, origin}] of the enabled, usable plugins that match this game; gameCode reads
   // the game code from a cached ROM (empty when the ROM is not there).
   Q_INVOKABLE QVariantList pluginsForGame(const QString& system, const QString& code) const;

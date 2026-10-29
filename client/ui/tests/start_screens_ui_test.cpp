@@ -117,6 +117,26 @@ class StartScreensUiTest : public QObject {
     QTRY_VERIFY(h.controller->screen() != QStringLiteral("start"));
   }
 
+  // 8a-3: a typed path without Enter is taken by Start playing, which ends the step once the scan found games.
+  void playOnThisPcStartTakesTypedPath() {
+    QTemporaryDir games;
+    QVERIFY(games.isValid());
+    QFile f(QDir(games.path()).filePath(QStringLiteral("dummy.gb")));
+    QVERIFY(f.open(QIODevice::WriteOnly));
+    f.write(QByteArray(0x8000, '\0'));
+    f.close();
+    Harness h;
+    QVERIFY(h.start());
+    CLICK("startPlay");
+    SHOWN("playFolderField");
+    QVERIFY(!h.item("playStart")->isEnabled());
+    setText(h, "playFolderField", games.path());
+    QTRY_VERIFY(h.item("playStart")->isEnabled());  // no Enter needed
+    CLICK("playStart");
+    QTRY_VERIFY(!h.controller->onboarding()->firstStart());
+    QVERIFY(h.controller->libraryFolders().size() == 1);  // the typed path was added
+  }
+
   // 8a-3: nothing found in the folder, and Add later.
   void playOnThisPcNothingFoundAndAddLater() {
     QTemporaryDir empty;

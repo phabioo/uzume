@@ -425,7 +425,7 @@ Subscribe with `uz.events.on("uz", name, fn)`; `fn(value, "uz", name)`. The old 
 
 | Event | Value |
 |---|---|
-| `detail.game` | `{ system, code, sha256, title }` when the game detail shows a game, `nil` for none. The host clears the `detail` slot on every change; the plugin sets a new tree. Posted when the selected game in the Library changes. The game code is known only once the game file is cached, so plugins whose `games` entry has code globs match a game from then on. |
+| `detail.game` | `{ id, system, code, sha256, title }` when the game detail shows a game, `nil` for none. The host clears the `detail` slot on every change; the plugin sets a new tree. `id` is the server game id (what `uz.variants.list(game_id)` takes in the shell context; absent on older apps). Posted when the selected game in the Library changes. The game code is known only once the game file is cached, so plugins whose `games` entry has code globs match a game from then on. |
 | `tiles` | Array of `{ id, player, user_id, game }` for the visible remote Multiview tiles; `user_id` is the remote player's server user id, an empty string when unknown; `id` is stable for a session and is the `<tileId>` of `tile:<tileId>`. |
 | `hud.visible` | `true` or `false` when the user shows or hides this plugin's HUD widget. |
 | `reloaded` | `{ ms }` after the plugin was reloaded (console Reload, Ctrl+R, reload on file change, Restart). Use it to restore state from `uz.store`. |

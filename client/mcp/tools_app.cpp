@@ -195,13 +195,14 @@ void installAppTools(McpToolRegistry& registry, ui::PlayerController& player) {
   {
     ToolDef t;
     t.name = QStringLiteral("settings_get");
-    t.description = QStringLiteral("The non-secret settings summary of the diagnostics bundle (player-info.json \"settings\") plus emulation, media and the Claude debugging switch.");
+    t.description = QStringLiteral("The non-secret settings summary of the diagnostics bundle (player-info.json \"settings\") plus emulation (hardware and cores), emulation_settings (effective global Uzume options, explicit global and per-system values), media and the Claude debugging switch.");
     t.inputSchema = schema();
     t.handler = [pc](const QJsonObject&, ToolReply reply) {
       if (!pc) return reply(ToolResult::error(QStringLiteral("app_closing")));
       const QJsonObject info = pc->diagnosticsSnapshot();
       reply(ToolResult::json(QJsonObject{{QStringLiteral("settings"), info.value(QStringLiteral("settings"))},
                                          {QStringLiteral("emulation"), info.value(QStringLiteral("emulation"))},
+                                         {QStringLiteral("emulation_settings"), pc->emulation() ? pc->emulation()->settingsSummary() : QJsonObject()},
                                          {QStringLiteral("media"), info.value(QStringLiteral("media"))},
                                          {QStringLiteral("controllers"), info.value(QStringLiteral("controllers"))},
                                          {QStringLiteral("mcp"), QJsonObject{{QStringLiteral("port"), pc->mcp()->port()}}}}));
