@@ -687,6 +687,34 @@ class InGameUiTest : public QObject {
     }
   }
 
+  // #368: with gamepad hints the long combo wraps inside the panel instead of being cut off at its right edge.
+  void panelHintRowFitsWithGamepadHints() {
+    FakeHub hub(QStringLiteral("a"));
+    Harness h;
+    pair(hub, h, false);
+    startPreview(h, false);
+    resize(h, 1280, 800);
+    h.controller->controllers()->notePadInput();
+    QTRY_VERIFY(shown(h, "panelHintRow"));
+    QQuickItem* row = visibleItem(h, "panelHintRow");
+    QQuickItem* keys = row->findChild<QQuickItem*>(QStringLiteral("hintRowKeys"));
+    QVERIFY(keys != nullptr);
+    const auto fits = [&]() {
+      const QRectF panel = rectOf(h, "gamePanel");
+      const auto kids = keys->childItems();
+      if (kids.isEmpty() || sceneRect(row).right() > panel.right() + 0.5) return false;
+      for (QQuickItem* k : kids) {
+        if (!k->isVisible()) continue;
+        const QRectF r = sceneRect(k);
+        if (r.right() > sceneRect(row).right() + 0.5 || r.bottom() > sceneRect(row).bottom() + 0.5) return false;
+      }
+      return true;
+    };
+    QTRY_VERIFY2(fits(), "hint row items stay inside the panel");
+    h.controller->controllers()->noteKeyboardInput();
+    QTRY_VERIFY(fits());
+  }
+
   void sessionHeaderZonesAndPanel() {
     FakeHub hub(QStringLiteral("a"));
     Harness h;

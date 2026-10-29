@@ -54,6 +54,7 @@ class AdminController : public QObject {
   Q_PROPERTY(QString statusProblem READ statusProblem NOTIFY statusChanged)
   Q_PROPERTY(int pendingDevices READ pendingDevices NOTIFY countsChanged)
   Q_PROPERTY(int newReports READ newReports NOTIFY countsChanged)
+  Q_PROPERTY(int pluginUpdates READ pluginUpdates NOTIFY countsChanged)  // index plugins newer than the offered ones (Plugins tab badge)
   Q_PROPERTY(QString serverUpdateVersion READ serverUpdateVersion NOTIFY countsChanged)  // newer server version on offer ("" = none)
 
  public:
@@ -82,6 +83,14 @@ class AdminController : public QObject {
   QString statusProblem() const { return statusProblem_; }
   QString serverUpdateVersion() const { return serverUpdateVersion_; }
   int pendingDevices() const { return pendingDevices_; }
+  int pluginUpdates() const { return pluginUpdates_; }
+  // The Plugins page reports the count it just derived from its own data, so the badge follows without waiting for the poll.
+  Q_INVOKABLE void setPluginUpdates(int n) {
+    if (n >= 0 && n != pluginUpdates_) {
+      pluginUpdates_ = n;
+      emit countsChanged();
+    }
+  }
   int newReports() const { return newReports_ + newErrors_; }  // new problem reports plus unseen error groups
 
   AdminApi* api() { return &api_; }
@@ -168,6 +177,7 @@ class AdminController : public QObject {
   int pendingDevices_ = 0;
   int newReports_ = 0;
   int newErrors_ = 0;
+  int pluginUpdates_ = 0;
   QString serverUpdateVersion_;
   bool countsInFlight_ = false;
 };

@@ -48,8 +48,8 @@ void AdminController::refreshAvailability() {
       status_.clear();
       statusProblem_.clear();
       emit statusChanged();
-      if (pendingDevices_ != 0 || newReports_ != 0 || newErrors_ != 0 || !serverUpdateVersion_.isEmpty()) {
-        pendingDevices_ = newReports_ = newErrors_ = 0;
+      if (pendingDevices_ != 0 || newReports_ != 0 || newErrors_ != 0 || pluginUpdates_ != 0 || !serverUpdateVersion_.isEmpty()) {
+        pendingDevices_ = newReports_ = newErrors_ = pluginUpdates_ = 0;
         serverUpdateVersion_.clear();
         emit countsChanged();
       }
@@ -376,7 +376,7 @@ void AdminController::refreshCounts() {
   countsInFlight_ = true;
   const int gen = statusGeneration_;
   const bool errorsToo = d_.conn && d_.conn->hubHasFeature(QStringLiteral("reports_v2"));
-  auto pending = std::make_shared<int>(errorsToo ? 4 : 3);
+  auto pending = std::make_shared<int>(errorsToo ? 5 : 4);
   auto apply = [this, gen, pending](int* target, int value) {
     if (gen != statusGeneration_) return;
     if (value >= 0 && *target != value) {
@@ -406,6 +406,17 @@ void AdminController::refreshCounts() {
       apply(&newErrors_, n);
     });
   }
+  // Plugins waiting for an update in the signed index (catalog entries in state "update").
+  api_.request(QStringLiteral("GET"), QStringLiteral("/admin/plugins"), QVariant(), [this, apply](const AdminApi::Result& r) {
+    int n = -1;
+    if (r.ok && r.data.typeId() == QMetaType::QVariantMap) {
+      n = 0;
+      const QVariantList catalog = r.data.toMap().value(QStringLiteral("index")).toMap().value(QStringLiteral("catalog")).toList();
+      for (const QVariant& e : catalog)
+        if (e.toMap().value(QStringLiteral("state")).toString() == QLatin1String("update")) ++n;
+    }
+    apply(&pluginUpdates_, n);
+  });
   // A server update on offer: settings.updates.available.version, skipped versions do not count. An answer that fails
   // (older server, no such field) leaves the last value alone.
   api_.request(QStringLiteral("GET"), QStringLiteral("/admin/settings"), QVariant(), [this, gen, pending](const AdminApi::Result& r) {

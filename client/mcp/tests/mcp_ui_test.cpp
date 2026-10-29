@@ -388,6 +388,9 @@ class McpUiTest : public QObject {
     QVERIFY(img.loadFromData(png, "PNG"));
     QVERIFY(img.width() > 100 && img.height() > 100);
     QVERIFY(!uitest::isAllBlack(img));
+    // No game on the zero-copy display: the game picture is part of the capture (a zero-copy state cannot be faked here).
+    QCOMPARE(a.json().value(QStringLiteral("game_picture")).toString(), QStringLiteral("captured"));
+    QVERIFY(!a.json().contains(QStringLiteral("note")));
     QVERIFY(call(QStringLiteral("app_screenshot"), {{"window", "42"}}).result.isError);
   }
 

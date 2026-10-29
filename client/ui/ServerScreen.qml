@@ -34,7 +34,7 @@ Rectangle {
         { id: "games", label: qsTr("Games"), count: 0, needsServer: false },
         { id: "systems", label: qsTr("Systems & cores"), count: root.player.coreProblemCount, needsServer: false },
         { id: "tools", label: qsTr("Tools"), count: 0, needsServer: false },
-        { id: "plugins", label: qsTr("Plugins"), count: 0, needsServer: false },
+        { id: "plugins", label: qsTr("Plugins"), count: root.admin.pluginUpdates, needsServer: false },
         { id: "reports", label: qsTr("Reports"), count: root.admin.newReports, needsServer: true },
         { id: "settings", label: qsTr("Settings"), count: 0, needsServer: false }
     ]
