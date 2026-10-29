@@ -193,6 +193,11 @@ class LibraryOverviewUiTest : public QObject {
     QVERIFY(shown(h, "continueCard"));
     QCOMPARE(visibleCount(h, "continueCard") + visibleCount(h, "recentEntry"), 1);
     QCOMPARE(h.item("continueCard")->height(), 64.0);
+    {   // #358: the Play button sizes to its label (also with wide fonts); the title gives way, not the word
+      QQuickItem* pb = h.item("continueButton");
+      QVERIFY(pb != nullptr);
+      QVERIFY2(pb->width() >= pb->implicitWidth() - 0.5, qPrintable(QStringLiteral("Play button %1 of %2").arg(pb->width()).arg(pb->implicitWidth())));
+    }
     QVERIFY(shown(h, "libraryAllLabel"));
 
     // At least seven game rows are inside the list viewport (no scrolling).

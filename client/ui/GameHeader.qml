@@ -115,7 +115,7 @@ Rectangle {
     readonly property string pauseHint: "Esc"
     readonly property string pauseLabel: session.paused ? "▶ " + qsTr("Resume") : "❚❚ " + qsTr("Pause")
 
-    // Narrow headers (board 7-2 section 06): 0 everything; 1 words and values give way (Speed-up shows "»" and its value, Screens and
+    // Narrow headers (board 7-2 section 06): 0 everything; 1 values give way (Speed-up keeps its word, Screens and
     // Panel lose their value, no avatars, no Esc hint); 2 Screens, Fullscreen and the speeds chevron move into "⋯";
     // 3 also Multiview, Speed-up and Panel (in the Multiview the mode switch too), and Sound shows only its value. Pause / Resume never moves. The widths are computed from the strings and the fonts (not from the
     // buttons), so the result does not depend on the level itself.
@@ -129,7 +129,8 @@ Rectangle {
         return Math.max(72, 24 + l + (v > 0 ? (l > 0 ? 8 : 0) + v : 0) + (chevron ? ((l > 0 || v > 0) ? 8 : 0) + 12 : 0))
     }
     readonly property real wSpeed0: bw("» " + qsTr("Speed-up"), speedValue, false)
-    readonly property real wSpeed1: bw("»", speedValue, false)
+    readonly property real wSpeed1: bw("» " + qsTr("Speed-up"), "", false)   // level 1 keeps the word and drops the value
+    readonly property real wSpeed2: bw("»", speedValue, false)
     readonly property real wSound: bw(qsTr("Sound"), soundValue, true)
     readonly property real wSound3: bw("", soundValue, true)
     readonly property real wMic0: bw(voice.wantJoined ? qsTr("Mic") : qsTr("Join voice"), micValue, false)
@@ -146,7 +147,9 @@ Rectangle {
     readonly property bool mixerShown: ctl.tab !== "session" && ctl.mixerTiles.length >= 1
     readonly property int level: {
         const gap = Theme.space1
-        const left0 = backButton.implicitWidth + 2 * Theme.space2 + 1 + 160 + (systemCode !== "" ? 60 : 0)
+        // The title is the last thing to give way: its room is the whole title up to 240 px (at least 160 px).
+        const titleRoom = Math.max(160, Math.min(titleMetrics.advanceWidth + 1, 240))
+        const left0 = backButton.implicitWidth + 2 * Theme.space2 + 1 + titleRoom + (systemCode !== "" ? 60 : 0)
         const more = moreButton.implicitWidth
         for (let l = 0; l <= 3; ++l) {
             const left = left0 + (modeAvailable && l < 3 ? modeSegment.implicitWidth + Theme.space2 : 0)
@@ -162,7 +165,7 @@ Rectangle {
             } else {
                 if (l < 1 && watchers.length > 0) add(watchers.length * 16 + 8 + Theme.space1)
                 if (own) add(l < 1 ? wPause0 : wPause1)
-                if (l < 3 && own && session.fastForwardAvailable) add((l < 1 ? wSpeed0 : wSpeed1) + (l < 2 ? 32 - 1 : 0))
+                if (l < 3 && own && session.fastForwardAvailable) add((l < 1 ? wSpeed0 : l < 2 ? wSpeed1 : wSpeed2) + (l < 2 ? 32 - 1 : 0))
                 if (voiceShown) add(l < 2 ? wMic0 : wMic2)
                 add(l < 3 ? wSound : wSound3)
                 if (l < 2 && layouts.length > 1) add(l < 1 ? wScreens0 : wScreens1)
@@ -637,13 +640,13 @@ Rectangle {
                     objectName: "fastForwardButton"
                     size: "sm"
                     focusPolicy: Qt.TabFocus
-                    text: root.level < 1 ? "» " + qsTr("Speed-up") : "»"
-                    value: root.speedValue
+                    text: root.level < 2 ? "» " + qsTr("Speed-up") : "»"
+                    value: root.level < 1 || root.level >= 2 ? root.speedValue : ""
                     inverted: root.session.fastForward
                     Accessible.name: qsTr("Speed-up") + " " + root.speedValue
                     ToolTip.visible: hovered && !root.menuOpen
                     ToolTip.delay: 500
-                    ToolTip.text: qsTr("Speed-up") + (root.key(root.hotkeys.speedup) !== "" ? " · " + root.hotkeys.speedup : "")
+                    ToolTip.text: qsTr("Speed-up") + (root.level === 1 ? " · " + root.speedValue : "") + (root.key(root.hotkeys.speedup) !== "" ? " · " + root.hotkeys.speedup : "")
                     onClicked: root.session.toggleFastForward()
                 }
                 UzIconButton {

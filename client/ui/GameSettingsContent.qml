@@ -117,7 +117,7 @@ ColumnLayout {
         // One height for every tab (the tallest, capped to the window): the dialog does not jump when the tab changes.
         Layout.preferredHeight: {
             const wh = Window.height > 0 ? Window.height : 800
-            return Math.max(160, Math.min(root.rowsHeight, wh * 0.6, wh - 420))
+            return Math.max(160, Math.min(root.rowsHeight, wh * 0.6, wh - 360))
         }
         ScrollBar.vertical: ScrollBar { policy: flick.contentHeight > flick.height + 1 ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff }
         contentWidth: width

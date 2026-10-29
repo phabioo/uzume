@@ -31,8 +31,12 @@ ComboBox {
     leftPadding: Theme.space15
     rightPadding: 34
 
+    // A label such as "melonDS DS · GPLv3+ · build 2026.10.09" that does not fit the field shows the part before the first " · "
+    // (the name); the list always shows the whole line.
     contentItem: Text {
-        text: control.displayText
+        readonly property string sep: " · "
+        readonly property bool tooLong: fullProbe.implicitWidth > control.availableWidth
+        text: tooLong && control.displayText.indexOf(sep) > 0 ? control.displayText.substring(0, control.displayText.indexOf(sep)) : control.displayText
         textFormat: Text.PlainText
         font: control.font
         color: control.enabled ? Theme.ink : Theme.disabledInk
@@ -95,6 +99,13 @@ ComboBox {
         }
     }
     // Measures the longest line so a label is never cut off in the list (the list may be wider than the field).
+    Text {
+        id: fullProbe
+        visible: false
+        font: control.font
+        textFormat: Text.PlainText
+        text: control.displayText
+    }
     Text {
         id: probe
         visible: false
