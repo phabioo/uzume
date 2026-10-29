@@ -311,7 +311,8 @@ const QHash<QString, TypeSpec>& specs() {
                               {"action", vAction()}, {"disabled", vBool()}}});  // action defaults to the block id; the value is the text
     m.insert(QStringLiteral("empty"), TypeSpec{false, {{"title", shortStr, true}, {"text", vStr(0, 500)}, {"action_label", vStr(0, 60)}, {"action", vAction()}, {"tone", vTone()}}});
     m.insert(QStringLiteral("location"),
-             TypeSpec{true, {{"title", shortStr, true}, {"sub", shortStr}, {"status", vEnum(sl({"open", "encounter", "caught", "missed", "none"}))}}});
+             TypeSpec{true, {{"title", shortStr, true}, {"sub", shortStr}, {"status", vEnum(sl({"open", "encounter", "caught", "missed", "none"}))},
+                              {"status_label", vStr(0, 40)}}});  // status_label: optional own tag text (plugin language), replaces the built-in English one
     const Vfn coord = vNum(-1e6, 1e6);
     m.insert(QStringLiteral("map"),
              {false,

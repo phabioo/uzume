@@ -255,6 +255,10 @@ class UiTest : public QObject {
     bad("{type='map', players={ {id='p', initial='A', color=0, x=1, y=1} }}", "players[1].color");
     bad("{type='text', text='x', wrap='yes'}", "wrap: expected true or false");
     bad("{type='tabs', tabs={}, children={}}", "tabs: needs 1 to 12 entries");
+    // location status_label (own tag text): optional string, length-limited
+    QCOMPARE(conv("{type='location', title='R', status='caught', status_label='Gefangen'}").tree.value("status_label").toString(), QStringLiteral("Gefangen"));
+    bad("{type='location', title='R', status_label=5}", "status_label: expected a string");
+    bad("{type='location', title='R', status_label='" + QString(41, QLatin1Char('x')) + "'}", "status_label: longer than 40 characters");
   }
 
   void treeLimits() {

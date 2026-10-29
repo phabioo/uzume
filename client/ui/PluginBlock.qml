@@ -445,7 +445,8 @@ Item {
             id: loc
             readonly property string status: root.node.status || "none"
             readonly property string tone: status === "open" || status === "encounter" ? "info" : (status === "caught" ? "ok" : "neutral")
-            readonly property string statusText: status === "open" ? qsTr("Open") : status === "encounter" ? qsTr("Encounter now")
+            readonly property string statusText: !!root.node.status_label ? String(root.node.status_label)
+                                                : status === "open" ? qsTr("Open") : status === "encounter" ? qsTr("Encounter now")
                                                 : status === "caught" ? qsTr("Caught") : status === "missed" ? qsTr("Missed") : qsTr("No route")
             implicitWidth: locCol.implicitWidth + 2 * Theme.space15
             implicitHeight: locCol.implicitHeight + 2 * Theme.space15
