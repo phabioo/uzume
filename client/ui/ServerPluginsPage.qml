@@ -48,6 +48,9 @@ AdminPage {
             if (e.state === "replace" && e.replaces && e.replaces.id) out[e.replaces.id] = e.name
         return out
     }
+    // Index entries that are newer than what the server offers (state "update"); feeds the check message and the Plugins tab badge.
+    readonly property var updateEntries: (root.index.catalog ?? []).filter(e => e.state === "update")
+    onUpdateEntriesChanged: if (root.admin) root.admin.setPluginUpdates(root.updateEntries.length)
     readonly property bool allTicked: root.stage !== null && (root.stage.permissions ?? []).every(p => root.ticks[p] === true)
 
     title: qsTr("Plugins")
@@ -174,7 +177,10 @@ AdminPage {
             root.setBusy("refresh", false)
             if (ok && data) {
                 root.index = data
-                root.say(data.last_error ? "" : qsTr("The index is up to date."), "done")
+                const waiting = root.updateEntries
+                root.say(data.last_error ? "" : waiting.length === 0 ? qsTr("No new versions.")
+                         : (waiting.length === 1 ? qsTr("1 update available: %1") : qsTr("%1 updates available: %2").arg(waiting.length))
+                           .arg(waiting.map(e => e.name + " " + e.version).join(", ")), "done")
             } else {
                 root.say(root.failText(qsTr("Could not check the index"), message), "error")
             }

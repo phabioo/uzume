@@ -344,6 +344,35 @@ class AdminSystemsUiTest : public QObject {
     QCOMPARE(bodyOf(hub, install).value("version").toString(), QStringLiteral("0.5.1"));
   }
 
+  void indexCheckSaysHowManyUpdatesAreWaiting() {
+    FakeHub hub(QStringLiteral("a"));
+    adminHub(hub);
+    const QString refresh = QStringLiteral("POST ") + kApi + QStringLiteral("/plugin-index/refresh");
+    hub.adminRoutes[refresh] = {200, R"({"configured": true, "last_check": "2026-10-29T08:00:00Z", "catalog": [
+      {"id": "net.example.soullink", "name": "SoulLink", "version": "0.9.2", "api": 1, "description": "", "permissions": [], "size": 10, "state": "update", "installed_version": "0.9.1"},
+      {"id": "net.example.splits", "name": "Splits", "version": "0.1.4", "api": 1, "description": "", "permissions": [], "size": 10, "state": "update", "installed_version": "0.1.3"},
+      {"id": "net.example.core", "name": "Example Core", "version": "1.4.0", "api": 1, "description": "", "permissions": [], "size": 10, "state": "installed"}]})"};
+    QVERIFY(hub.start());
+    Harness h;
+    QVERIFY(h.start());
+    pair(h, hub);
+    openPage(h, QStringLiteral("plugins"), "serverPluginsPage");
+    QTRY_VERIFY(h.item("indexRefresh") != nullptr);
+    QCOMPARE(h.controller->admin()->pluginUpdates(), 0);
+    QVERIFY(h.clickWhenReady("indexRefresh"));
+    QTRY_COMPARE(calls(hub, refresh), 1);
+    QTRY_COMPARE(text(h.item("pluginsNote")), QStringLiteral("2 updates available: SoulLink 0.9.2, Splits 0.1.4"));
+    QCOMPARE(h.controller->admin()->pluginUpdates(), 2);
+
+    // Nothing waiting: the message says so instead of claiming more.
+    hub.adminRoutes[refresh] = {200, R"({"configured": true, "last_check": "2026-10-29T09:00:00Z", "catalog": [
+      {"id": "net.example.core", "name": "Example Core", "version": "1.4.0", "api": 1, "description": "", "permissions": [], "size": 10, "state": "installed"}]})"};
+    QVERIFY(h.clickWhenReady("indexRefresh"));
+    QTRY_COMPARE(calls(hub, refresh), 2);
+    QTRY_COMPARE(text(h.item("pluginsNote")), QStringLiteral("No new versions."));
+    QCOMPARE(h.controller->admin()->pluginUpdates(), 0);
+  }
+
   void uploadStagesThenOffersWithEveryPermissionTicked() {
     FakeHub hub(QStringLiteral("a"));
     adminHub(hub);

@@ -1251,20 +1251,32 @@ void installUiTools(McpToolRegistry& registry, ui::PlayerController& player) {
     t.name = QStringLiteral("app_screenshot");
     t.description = QStringLiteral(
         "A PNG of an app window as it is drawn (QQuickWindow::grabWindow), dialogs and popups included. Password fields show dots; a revealed "
-        "password would be visible, so do not reveal one while looking.");
+        "password would be visible, so do not reveal one while looking. The result field game_picture says whether the game picture is part of "
+        "the image: with the zero-copy display (GPU texture, Vulkan or OpenGL) it is not captured and shows white or empty, so it is "
+        "\"not_captured\" with a note; use the tool screenshot for the game picture.");
     t.inputSchema = schema({{QStringLiteral("window"), typeStr(QStringLiteral("Window: index, objectName or title part; default the active one."))}});
     t.timeoutMs = 15000;
-    t.handler = [](const QJsonObject& a, ToolReply reply) {
+    t.handler = [pc](const QJsonObject& a, ToolReply reply) {
       QString err;
       QQuickWindow* w = pickWindow(a.value(QStringLiteral("window")).toString(), &err);
       if (w == nullptr) return reply(ToolResult::error(err));
       QPointer<QQuickWindow> wp(w);
-      settle([reply, wp]() {
+      settle([reply, wp, pc]() {
         if (wp == nullptr) return reply(ToolResult::error(QStringLiteral("window_closed")));
         const QImage img = wp->grabWindow();
         const QByteArray png = pngOf(img);
         if (png.isEmpty()) return reply(ToolResult::error(QStringLiteral("no_image")));
-        ToolResult res = ToolResult::json(QJsonObject{{QStringLiteral("width"), img.width()}, {QStringLiteral("height"), img.height()}, {QStringLiteral("window"), windowIndex(wp)}});
+        QJsonObject o{{QStringLiteral("width"), img.width()}, {QStringLiteral("height"), img.height()}, {QStringLiteral("window"), windowIndex(wp)}};
+        // The zero-copy game texture is not part of a window grab (it comes out white); say so instead of returning a wrong image.
+        const ui::GameSession* gs = pc ? pc->gameSession() : nullptr;
+        const ui::EmulationDiagnostics d = gs != nullptr && gs->isActive() ? gs->diagnostics() : ui::EmulationDiagnostics();
+        if (d.zeroCopy) {
+          o.insert(QStringLiteral("game_picture"), QStringLiteral("not_captured"));
+          o.insert(QStringLiteral("note"), QStringLiteral("the game picture is drawn zero-copy and is not part of this capture; use screenshot"));
+        } else {
+          o.insert(QStringLiteral("game_picture"), QStringLiteral("captured"));
+        }
+        ToolResult res = ToolResult::json(o);
         res.addImage(png);
         reply(res);
       });
