@@ -896,7 +896,7 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
     shareOnStart_ = false;
     const bool fromRun = runStart_.pending();  // endGameContext() ends the run start
     endGameContext();
-    startError_ = tr("The emulator could not start: %1").arg(msg);
+    startError_ = session_.errorCode().isEmpty() ? tr("The emulator could not start: %1").arg(msg) : msg;  // coded failures are full sentences
     if (fromRun) runs_->showLaunchProblem(startError_);  // "Play" on the run page: say why there, not only on the game page
     updateScreen();
     emit selectedGameChanged();

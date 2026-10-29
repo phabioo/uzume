@@ -112,6 +112,7 @@ class RunClient : public QObject {
   void setCatchUpDelayMs(int ms) { catchUpDelayMs_ = ms; }
 
  signals:
+  void connectionReset();                              // in-flight requests are dropped without their callback (gen_ bumped)
   void runsChanged();                                  // the set of runs or any run changed
   void runChanged(const QString& runId);               // run_updated / REST answer applied
   void statusChanged(const QString& runId, const QString& status);

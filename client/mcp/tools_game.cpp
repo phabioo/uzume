@@ -96,7 +96,7 @@ void installGameTools(McpToolRegistry& registry, ui::PlayerController& player) {
     ToolDef t;
     t.name = QStringLiteral("game_state");
     t.description = QStringLiteral(
-        "State of the running game: running | paused | starting | failed | idle, the frame number, the frame layout and the chosen screen layout (ui_layout), the screens, the core's render mode and the measurements of the diagnostics overlay (fps, frame times, sizes, audio).");
+        "State of the running game: running | paused | starting | failed | idle, the frame number, the frame layout and the chosen screen layout (ui_layout), the screens, the core's render mode and the measurements of the diagnostics overlay (fps, frame times, sizes, audio). \"reason\" is \"previous_game_hung\" when the start failed because the last game's core never stopped (restart the app); previous_game_hung is true while such a core blocks every start.");
     t.inputSchema = schema();
     t.handler = [session, pc](const QJsonObject&, ToolReply reply) {
       ui::GameSession* gs = session();
@@ -109,6 +109,9 @@ void installGameTools(McpToolRegistry& registry, ui::PlayerController& player) {
                     {QStringLiteral("paused"), gs->isPaused()},
                     {QStringLiteral("title"), gs->title()},
                     {QStringLiteral("error"), gs->errorText()},
+                    // Stable failure reason ("previous_game_hung" or empty) and whether a hung core still blocks every start.
+                    {QStringLiteral("reason"), gs->errorCode()},
+                    {QStringLiteral("previous_game_hung"), ui::GameSession::previousGameHung()},
                     {QStringLiteral("frame"), static_cast<double>(gs->frameNumber())},
                     // "layout" is the frame arrangement of the core output (single | vertical | horizontal); "ui_layout" is the screen
                     // layout the player chose (stacked | side | large | top | bottom), with "screen_swap".

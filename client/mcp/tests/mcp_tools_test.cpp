@@ -616,6 +616,8 @@ class McpToolsTest : public QObject {
     QCOMPARE(st.value("state").toString(), QStringLiteral("running"));
     QCOMPARE(st.value("screens").toArray().size(), 2);
     QVERIFY(st.contains("diagnostics"));
+    QCOMPARE(st.value("reason").toString(), QString());
+    QCOMPARE(st.value("previous_game_hung").toBool(true), false);
     const QJsonArray regions = jsonOf(call("memory_regions")).toArray();
     QVERIFY(regions.size() >= 2);
 

@@ -2,6 +2,7 @@
 #include "emulation_runner.h"
 
 #include "frame_pacer.h"
+#include "libretro_backend.h"
 
 #include <QDeadlineTimer>
 #include <QHash>
@@ -733,6 +734,7 @@ void EmulationRunner::stop() {
     qWarning() << "The emulation thread did not stop within" << timeoutMs << "ms; abandoning it";
     (void)m_worker.release();
     m_abandoned = true;
+    LibretroBackend::markCoreAbandoned();
     m_finalSaveError.clear();
     setState(State::Idle);
     emit stopped();

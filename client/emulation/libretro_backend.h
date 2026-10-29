@@ -34,6 +34,12 @@ class LibretroBackend final : public EmulatorBackend {
   Q_DISABLE_COPY(LibretroBackend)
 
   bool loadCore(const QString& libraryPath, QString* error = nullptr) override;
+  // Error text of loadCore() while an abandoned (hung) core still occupies the process. A stable code for the UI and the MCP server.
+  static inline const QString kPreviousGameHungCode = QStringLiteral("previous_game_hung");
+  // Called by the runner when it left a hung emulation thread behind. Libretro cores keep global state and the callbacks are static, so
+  // no other core can be loaded until that thread ends (unloadCore clears the mark); the person has to restart the app.
+  static void markCoreAbandoned() { s_abandoned.store(true); }
+  static bool previousCoreHung() { return s_abandoned.load() && s_active.load() != nullptr; }
   void unloadCore() override;
   bool isCoreLoaded() const override;
   // True if the core declared RETRO_ENVIRONMENT_SET_SUPPORT_NO_GAME (reset by loadCore).
@@ -150,6 +156,7 @@ class LibretroBackend final : public EmulatorBackend {
   void setOptionVisible(const QString& key, bool visible);
   QString effectiveValue(const CoreOption& o) const;  // m_optMutex held
 
+  static std::atomic<bool> s_abandoned;  // the backend in s_active belongs to an emulation thread that was left running
   static std::atomic<LibretroBackend*> s_active;  // the one backend of this process; claimed with compare_exchange in loadCore (PE-16)
 
   std::unique_ptr<Api> m_api;
