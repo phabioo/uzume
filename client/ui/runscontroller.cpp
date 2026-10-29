@@ -8,6 +8,7 @@
 #include <QDateTime>
 #include <QLocale>
 #include <QLoggingCategory>
+#include <QPointer>
 #include <QMap>
 #include <QJsonArray>
 #include <QSet>
@@ -68,6 +69,17 @@ RunsController::RunsController(RunClient* client, PluginsController* plugins, Hu
     if (items == pluginConsent_.value(QStringLiteral("items")).toList()) return;
     pluginConsent_ = items.isEmpty() ? QVariantMap() : QVariantMap{{QStringLiteral("runId"), run->runId}, {QStringLiteral("items"), items}};
     emit pluginConsentChanged();
+  });
+  // A reset drops the answers of in-flight requests without calling back: forget their join marks and busy holds, or they would stay forever.
+  connect(client, &RunClient::connectionReset, this, [this]() {
+    joining_.clear();
+    if (clientBusy_ > 0) {
+      busyCount_ = std::max(0, busyCount_ - clientBusy_);
+      clientBusy_ = 0;
+      if (busyCount_ == 0) busyText_.clear();
+      emit busyChanged();
+      scheduleRebuild();
+    }
   });
   connect(client, &RunClient::runsChanged, this, &RunsController::scheduleRebuild);
   connect(client, &RunClient::runChanged, this, &RunsController::scheduleRebuild);
@@ -486,7 +498,6 @@ void RunsController::syncRunView() {
   viewFetching_ = true;
   setRunViewState(QStringLiteral("loading"), tr("Getting the plugins of this run from the server…"));
   ensureCopies(*run, [this, gen, start](bool ok, const QString& error) {
-    setBusy(false);  // also for a superseded fetch: ensureCopies raised the busy flag and nobody else would lower it
     if (gen != viewGen_) return;
     if (!ok) {
       viewFetching_ = false;
@@ -538,12 +549,35 @@ void RunsController::setMessage(const QString& text, bool error) {
 
 void RunsController::dismissMessage() { setMessage({}, false); }
 
-void RunsController::setBusy(bool busy, const QString& text) {
-  if (busy_ == busy && busyText_ == text) return;
-  busy_ = busy;
+void RunsController::beginBusy(const QString& text) {
+  ++busyCount_;
   busyText_ = text;
   emit busyChanged();
   scheduleRebuild();  // the entry follows busy_ (available())
+}
+
+void RunsController::beginClientBusy(const QString& text) {
+  ++clientBusy_;
+  beginBusy(text);
+}
+
+void RunsController::endClientBusy() {
+  if (clientBusy_ > 0) --clientBusy_;
+  endBusy();
+}
+
+void RunsController::endBusy() {
+  if (busyCount_ <= 0) return;  // unbalanced call: never go negative
+  --busyCount_;
+  if (busyCount_ == 0) busyText_.clear();
+  emit busyChanged();
+  scheduleRebuild();
+}
+
+void RunsController::setBusyText(const QString& text) {
+  if (busyCount_ <= 0 || busyText_ == text) return;
+  busyText_ = text;
+  emit busyChanged();
 }
 
 // ------------------------------------------------------------------ opening a run
@@ -773,7 +807,7 @@ void RunsController::joinRun(const QString& runId, const QString& gameId, const 
   }
   if (joining_.contains(runId.toLower())) return;  // a join of this run is already in flight (double tap)
   joining_.insert(runId.toLower());
-  setBusy(true, tr("Joining…"));
+  beginClientBusy(tr("Joining…"));
   QJsonObject variant;
   if (!variantKind.isEmpty()) {
     variant.insert(QStringLiteral("kind"), variantKind);
@@ -781,46 +815,49 @@ void RunsController::joinRun(const QString& runId, const QString& gameId, const 
   }
   client_->joinRun(runId, gameId, [this, runId, variantKind, variantId](const RunResult& r) {
     joining_.remove(runId.toLower());
-    setBusy(false);
+    endClientBusy();
     if (!r.ok) {
       setMessage(errorText(r, tr("Joining")), true);
       return;
     }
     setMessage({}, false);
     if (variantKind == QLatin1String("own") && !variantId.isEmpty()) emit ownVariantJoined(runId.toLower(), variantId);
-    openRun(runId);
     if (r.run) {
       // Joining accepts only the pins (and permissions) the join dialog showed; a pin that changed since stays unaccepted for the gate to ask.
+      // Recorded before openRun, so the first detail build already sees the accepted permissions (no stale consent state).
       const auto reviewed = joinReviewed_.value(r.run->runId.toLower());
       for (const RunPluginRef& p : r.run->plugins) {
         const auto it = reviewed.constFind(p.pluginId);
         if (it != reviewed.constEnd() && it->first == p.version) plugins_->acceptRunPermissions(r.run->runId, p.pluginId, it->second);
       }
-      ensureCopies(*r.run, [this](bool, const QString&) { setBusy(false); });  // get the plugins ready in the background
+    }
+    openRun(runId);
+    if (r.run) {
+      ensureCopies(*r.run, [](bool, const QString&) {});  // get the plugins ready in the background (ensureCopies holds busy itself)
     }
   }, variant);
 }
 
 void RunsController::declineRun(const QString& runId) {
-  setBusy(true, tr("Declining…"));
+  beginClientBusy(tr("Declining…"));
   client_->declineRun(runId, [this](const RunResult& r) {
-    setBusy(false);
+    endClientBusy();
     setMessage(r.ok ? QString() : errorText(r, tr("Declining")), !r.ok);
   });
 }
 
 void RunsController::leaveRun(const QString& runId) {
-  setBusy(true, tr("Leaving…"));
+  beginClientBusy(tr("Leaving…"));
   client_->leaveRun(runId, [this](const RunResult& r) {
-    setBusy(false);
+    endClientBusy();
     setMessage(r.ok ? QString() : errorText(r, tr("Leaving")), !r.ok);
   });
 }
 
 void RunsController::setRunStatus(const QString& runId, const QString& status) {
-  setBusy(true);
+  beginClientBusy();
   client_->setStatus(runId, status, [this, status](const RunResult& r) {
-    setBusy(false);
+    endClientBusy();
     setMessage(r.ok ? QString() : errorText(r, tr("Changing the run")), !r.ok);
   });
 }
@@ -834,22 +871,30 @@ void RunsController::ensureCopies(const RunInfo& run, std::function<void(bool, c
     done(false, tr("This server does not offer plugins."));
     return;
   }
+  // One busy hold for the whole fetch, released exactly once before `done` runs. The step function is owned by the in-flight delivery
+  // callback only (the step holds itself weakly), and a destroyed controller is never touched.
+  beginBusy();
   auto pending = std::make_shared<QList<RunPluginRef>>(run.plugins);
   auto step = std::make_shared<std::function<void()>>();
-  *step = [this, pending, step, done = std::move(done)]() {
+  const QPointer<RunsController> self(this);
+  const std::weak_ptr<std::function<void()>> weakStep = step;
+  *step = [self, pending, weakStep, done = std::move(done)]() {
+    if (!self) return;
     if (pending->isEmpty()) {
+      self->endBusy();
       done(true, {});
       return;
     }
     const RunPluginRef ref = pending->takeFirst();
-    setBusy(true, tr("Getting %1 %2 from the server…").arg(pluginName(ref.pluginId), ref.version));
-    plugins_->delivery()->ensureHubCopy(ref.pluginId, ref.version, ref.sha256, [this, pending, step, done, ref](const plugins::DeliveryResult& res) {
+    self->setBusyText(tr("Getting %1 %2 from the server…").arg(self->pluginName(ref.pluginId), ref.version));
+    self->plugins_->delivery()->ensureHubCopy(ref.pluginId, ref.version, ref.sha256, [self, pending, keep = weakStep.lock(), done, ref](const plugins::DeliveryResult& res) {
+      if (!self) return;
       if (!res.ok) {
-        setBusy(false);
-        done(false, tr("%1 %2 could not be prepared: %3").arg(pluginName(ref.pluginId), ref.version, res.error));
+        self->endBusy();
+        done(false, tr("%1 %2 could not be prepared: %3").arg(self->pluginName(ref.pluginId), ref.version, res.error));
         return;
       }
-      (*step)();
+      (*keep)();
     });
   };
   (*step)();
@@ -996,7 +1041,7 @@ void RunsController::applyPluginChange(const QString& runId, const QString& plug
 }
 
 void RunsController::playRun(const QString& runId) {
-  if (busy_) return;
+  if (busyCount_ > 0) return;
   const auto run = client_->run(runId.toLower());
   const RunParticipant* mine = run ? run->participant(client_->myUserId()) : nullptr;
   if (!run || mine == nullptr || mine->status != QLatin1String("joined") || run->isOver()) {
@@ -1027,7 +1072,6 @@ void RunsController::playRun(const QString& runId) {
   const QString game = mine->gameId;
   ensureCopies(*run, [this, runId, game, gen](bool ok, const QString& error) {
     if (gen != playGen_) return;
-    setBusy(false);
     if (!ok) {
       setMessage(error, true);
       return;
@@ -1434,7 +1478,7 @@ void RunsController::startRun(const QString& name, const QString& gameId, const 
     }
     emit startStateChanged();
     openRun(r.run->runId);
-    ensureCopies(*r.run, [this](bool, const QString&) { setBusy(false); });
+    ensureCopies(*r.run, [](bool, const QString&) {});
     emit runCreated(r.run->runId);
   }, rz);
 }

@@ -1610,6 +1610,55 @@ class RunsUiTest : public QObject {
       QCOMPARE(hub.count(QStringLiteral("/api/v1/runs/") + runG2 + QStringLiteral("/join"), "POST"), 1);
     }
 
+    // (b3) Overlapping operations share the busy state: it stays true until both joins have ended (#305).
+    {
+      const auto mk = [&](const char* name) {
+        QJsonObject o = hub.makeRun(QString::fromLatin1(name), {hub.runsMe, QStringLiteral("u_lena")}, QStringLiteral("u_lena"), pin(QStringLiteral("1.0.0")));
+        const QString id = o.value("run_id").toString();
+        hub.pushRun(id);
+        return id;
+      };
+      const QString runJ1 = mk("Run J1");
+      const QString runJ2 = mk("Run J2");
+      QTRY_VERIFY_WITH_TIMEOUT(runs->client()->run(runJ1).has_value() && runs->client()->run(runJ2).has_value(), 8000);
+      runs->prepareGames(runJ1);
+      runs->prepareGames(runJ2);
+      int posts = -1;
+      int busyFalse = 0;
+      const auto conn = QObject::connect(runs, &RunsController::busyChanged, [&]() {
+        if (runs->busy() || posts >= 0) return;
+        ++busyFalse;
+        posts = hub.count(QStringLiteral("/api/v1/runs/") + runJ1 + QStringLiteral("/join"), "POST") +
+                hub.count(QStringLiteral("/api/v1/runs/") + runJ2 + QStringLiteral("/join"), "POST");
+      });
+      runs->joinRun(runJ1, kGameId);
+      runs->joinRun(runJ2, kGameId);
+      QVERIFY(runs->busy());
+      QTRY_VERIFY_WITH_TIMEOUT(!runs->busy(), 8000);
+      QObject::disconnect(conn);
+      QCOMPARE(busyFalse, 1);  // busy dropped once, after the last operation
+      QCOMPARE(posts, 2);
+    }
+
+    // (b4) A connection change while a join is pending drops its answer: the join mark and the busy hold must not stay (#305).
+    {
+      QJsonObject o = hub.makeRun(QStringLiteral("Run J3"), {hub.runsMe, QStringLiteral("u_lena")}, QStringLiteral("u_lena"), pin(QStringLiteral("1.0.0")));
+      const QString runJ3 = o.value("run_id").toString();
+      hub.pushRun(runJ3);
+      QTRY_VERIFY_WITH_TIMEOUT(runs->client()->run(runJ3).has_value(), 8000);
+      runs->prepareGames(runJ3);
+      const QString joinPath = QStringLiteral("/api/v1/runs/") + runJ3 + QStringLiteral("/join");
+      runs->joinRun(runJ3, kGameId);
+      QVERIFY(runs->busy());
+      emit h.controller->connection()->stateChanged(HubConnection::State::Disconnected);  // RunClient::reset(): the pending answer is dropped
+      QVERIFY(!runs->busy());
+      emit h.controller->connection()->stateChanged(HubConnection::State::Connected);
+      QTest::qWait(300);  // let the stale answer of the first join arrive (and be dropped)
+      runs->joinRun(runJ3, kGameId);                                                  // not ignored any more
+      QTRY_VERIFY_WITH_TIMEOUT(hub.count(joinPath, "POST") == 2, 8000);
+      QTRY_VERIFY_WITH_TIMEOUT(!runs->busy(), 8000);
+    }
+
     // (c) A restore that brings back a permission discloses it in its row (against the accepted baseline), bundle included.
     QJsonObject rr = hub.makeRun(QStringLiteral("Run H"), {hub.runsMe}, hub.runsMe, pin(QStringLiteral("1.0.0"), QStringLiteral("1.1.0")));
     const QString runH = rr.value("run_id").toString();

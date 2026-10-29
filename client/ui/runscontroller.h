@@ -147,7 +147,7 @@ class RunsController : public QObject {
   QAbstractItemModel* events() { return &events_; }
   QString message() const { return message_; }
   bool messageIsError() const { return messageIsError_; }
-  bool busy() const { return busy_; }
+  bool busy() const { return busyCount_ > 0; }
   QString busyText() const { return busyText_; }
   QAbstractItemModel* games() { return &games_; }
   QAbstractItemModel* startPlugins() { return &startPlugins_; }
@@ -268,7 +268,12 @@ class RunsController : public QObject {
   void rebuildStartPlugins();
   void rebuildStartUsers();
   void setMessage(const QString& text, bool error);
-  void setBusy(bool busy, const QString& text = {});
+  // Busy is a counter: every beginBusy() is paired with exactly one endBusy(); `busy` stays true until all started operations have ended.
+  void beginBusy(const QString& text = {});
+  void endBusy();
+  void beginClientBusy(const QString& text = {});  // for RunClient requests: dropped on a client reset
+  void endClientBusy();
+  void setBusyText(const QString& text);
   QString pluginName(const QString& pluginId) const;
   QString pluginsText(const RunInfo& run) const;
   QString gameTitle(const QString& gameId) const;
@@ -322,7 +327,8 @@ class RunsController : public QObject {
   QVariantMap detail_;
   QString message_;
   bool messageIsError_ = false;
-  bool busy_ = false;
+  int busyCount_ = 0;
+  int clientBusy_ = 0;  // busy holds taken by RunClient requests (dropped silently when the client resets)
   QSet<QString> joining_;  // runs whose join request is in flight: a second tap or call is ignored
   QString busyText_;
   QString startError_;

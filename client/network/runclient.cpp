@@ -111,6 +111,7 @@ static QJsonObject statesJson(const RunInfo& info) {
 
 void RunClient::reset() {
   ++gen_;
+  emit connectionReset();
   saveCache();
   for (auto it = runs_.begin(); it != runs_.end(); ++it) {
     cachedSeq_[it.key()] = it.value()->lastSeq;
