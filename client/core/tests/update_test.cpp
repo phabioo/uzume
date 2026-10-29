@@ -1189,6 +1189,10 @@ class UpdateTest : public QObject {
   // put the pause, skip and auto-install settings back, and a success must keep them.
   void managerRollbackAppImageAsyncFailureRestoresSettings() {
     for (const bool launcherWorks : {false, true}) {
+#ifndef Q_OS_LINUX
+      // Off Linux the AppImage replacement itself is refused, so the launcher-works branch can never succeed.
+      if (launcherWorks) continue;
+#endif
       QTemporaryDir imgDir;
       const QString image = imgDir.filePath("Uzume.AppImage");
       QVERIFY(writeBytes(image, "old-image"));
@@ -1216,7 +1220,12 @@ class UpdateTest : public QObject {
         continue;
       }
       // The download is asynchronous; wait until the install started and failed (the launcher refuses).
+#ifdef Q_OS_LINUX
       QTRY_VERIFY_WITH_TIMEOUT(m.state() == UpdateManager::State::Error && m.statusText().contains("could not be restarted"), 5000);
+#else
+      // Off Linux the AppImage replacement fails earlier with its own text; any async failure restores the settings.
+      QTRY_COMPARE_WITH_TIMEOUT(m.state(), UpdateManager::State::Error, 5000);
+#endif
       QCOMPARE(quit.count(), 0);
       QVERIFY(!m.updatesPaused());
       QVERIFY(settings.updatePause().isEmpty());
