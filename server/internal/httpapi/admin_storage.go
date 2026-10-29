@@ -55,6 +55,31 @@ func (s *Server) GetAdminStorage(ctx context.Context, _ api.GetAdminStorageReque
 	return api.GetAdminStorage200JSONResponse(out), nil
 }
 
+// GetAdminStorageScreenshots lists the screenshot usage per user and game (all rows, largest first) with the totals.
+func (s *Server) GetAdminStorageScreenshots(ctx context.Context, req api.GetAdminStorageScreenshotsRequestObject) (api.GetAdminStorageScreenshotsResponseObject, error) {
+	if err := requireAdmin(ctx); err != nil {
+		return nil, err
+	}
+	var userID, gameID string
+	if req.Params.UserId != nil {
+		userID = *req.Params.UserId
+	}
+	if req.Params.GameId != nil {
+		gameID = *req.Params.GameId
+	}
+	res, err := s.svc.StorageScreenshots(ctx, userID, gameID)
+	if err != nil {
+		return nil, err
+	}
+	out := api.AdminStorageScreenshots{TotalCount: res.TotalCount, TotalBytes: res.TotalBytes,
+		Items: make([]api.AdminStorageScreenshotUsage, 0, len(res.Items))}
+	for _, u := range res.Items {
+		out.Items = append(out.Items, api.AdminStorageScreenshotUsage{UserId: u.UserID, UserName: u.UserName,
+			GameId: u.GameID, GameName: u.GameName, Bytes: u.Bytes, Count: u.Count})
+	}
+	return api.GetAdminStorageScreenshots200JSONResponse(out), nil
+}
+
 func (s *Server) CleanupAdminStorage(ctx context.Context, req api.CleanupAdminStorageRequestObject) (api.CleanupAdminStorageResponseObject, error) {
 	if err := requireAdmin(ctx); err != nil {
 		return nil, err

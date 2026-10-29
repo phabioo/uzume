@@ -217,6 +217,7 @@ func (s *Service) commitTx(ctx context.Context, m romMeta, stored bool, owner st
 	if err := tx.Commit(); err != nil {
 		return "", internal(err)
 	}
+	s.refreshPresenceGame(ctx, gameID) // a new owner or a stored file changes who may see the title
 	return gameID, nil
 }
 
@@ -270,6 +271,7 @@ func (s *Service) RegisterROM(ctx context.Context, userID string, in RegisterInp
 	if err := tx.Commit(); err != nil {
 		return Game{}, false, internal(err)
 	}
+	s.refreshPresenceGame(ctx, gameID)
 	g, err := s.GetGame(ctx, gameID)
 	return g, created, err
 }
@@ -305,6 +307,7 @@ func (s *Service) UnregisterROM(ctx context.Context, userID, gameID string) (err
 		userID, gameID); err != nil {
 		return internal(err)
 	}
+	s.refreshPresenceGame(ctx, gameID) // the title may no longer be visible to this user
 	return nil
 }
 
