@@ -766,7 +766,7 @@ var (
 )
 
 // cheatBuildKey returns the build qualifiers of a No-Intro style name: every tag part in parentheses or brackets
-// except regions and language codes, such as "Rev 1", "Rev A", "v1.1", "Beta", "Proto", "Demo" or "Alt". The parts
+// except regions, language codes and the good-dump mark "[!]", such as "Rev 1", "Rev A", "v1.1", "Beta", "Proto", "Demo" or "Alt". The parts
 // are normalized (lowercase, single spaces, "rev 1", "v1.1") and sorted. Empty means the retail base release. The
 // second result tells whether the name carries any tag at all.
 func cheatBuildKey(n string) (key string, tagged bool) {
@@ -775,7 +775,7 @@ func cheatBuildKey(n string) (key string, tagged bool) {
 		tagged = true
 		for _, part := range strings.Split(m[1], ",") {
 			p := strings.Join(strings.Fields(strings.ToLower(part)), " ")
-			if p == "" || cheatRegionNames[p] || cheatLangRe.MatchString(p) {
+			if p == "" || p == "!" || cheatRegionNames[p] || cheatLangRe.MatchString(p) {
 				continue
 			}
 			if r := cheatRevRe.FindStringSubmatch(p); r != nil {

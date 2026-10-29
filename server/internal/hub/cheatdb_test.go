@@ -484,4 +484,7 @@ func TestCheatDBRegionMatching(t *testing.T) {
 	if l := add([]byte("retailc"), "Rev Pair (Europe) (En,Fr,De).nds", ""); len(l.Cheats) != 1 || l.Cheats[0].Name != "Pair base" {
 		t.Fatalf("languages ignored vs untagged list: %+v", l)
 	}
+	if l := add([]byte("retaild"), "Build Game (Europe) [!].nds", ""); len(l.Cheats) != 1 || l.Cheats[0].Name != "Retail" {
+		t.Fatalf("good-dump mark ignored: %+v", l)
+	}
 }
