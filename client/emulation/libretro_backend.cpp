@@ -149,6 +149,7 @@ struct LibretroBackend::Api {
 };
 
 std::atomic<LibretroBackend*> LibretroBackend::s_active{nullptr};
+std::atomic<bool> LibretroBackend::s_abandoned{false};
 
 LibretroBackend::LibretroBackend() : m_api(std::make_unique<Api>()) {}
 
@@ -160,7 +161,9 @@ bool LibretroBackend::loadCore(const QString& libraryPath, QString* error) {
     return false;
   };
   if (m_coreLoaded) return fail(QStringLiteral("Core already loaded"));
-  if (s_active.load()) return fail(QStringLiteral("A libretro core is already loaded in this process"));
+  if (s_active.load()) {
+    return fail(previousCoreHung() ? kPreviousGameHungCode : QStringLiteral("A libretro core is already loaded in this process"));
+  }
 
   m_lib.setFileName(libraryPath);
   if (!m_lib.load()) return fail(m_lib.errorString());
@@ -208,7 +211,7 @@ bool LibretroBackend::loadCore(const QString& libraryPath, QString* error) {
     LibretroBackend* expected = nullptr;
     if (!s_active.compare_exchange_strong(expected, this)) {
       m_lib.unload();
-      return fail(QStringLiteral("A libretro core is already loaded in this process"));
+      return fail(previousCoreHung() ? kPreviousGameHungCode : QStringLiteral("A libretro core is already loaded in this process"));
     }
   }
   m_corePath = libraryPath;
@@ -272,6 +275,7 @@ void LibretroBackend::unloadCore() {
   teardownHw();
   m_lib.unload();
   m_coreLoaded = false;
+  s_abandoned.store(false);  // the abandoned thread got through after all
   s_active.store(nullptr);
   if (!m_vkFailed) m_hw.reset();  // after a failed Vulkan start the OpenGL retry reuses the offscreen surface (made on the GUI thread)
   m_vk.reset();

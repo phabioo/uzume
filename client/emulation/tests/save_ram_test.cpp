@@ -263,6 +263,45 @@ class SaveRamTest : public QObject {
     QTest::qWait(2600);  // let the abandoned thread finish
   }
 
+  // #342: a core that blocks inside retro_run is abandoned by stop(); until its thread ends no core can be loaded, and the next
+  // start says so with the stable code instead of the raw "already loaded" error. When the thread gets through, starting works again.
+  void hungCoreBlocksTheNextStartWithAClearCode() {
+    qputenv("FB_FAKE_SRAM_SIZE", "8");
+    qputenv("FB_FAKE_RUN_HANG_MS", "2500");
+    EmulationRunner::stopTimeoutMsForTest = 300;
+    {
+      EmulationRunner runner(std::make_unique<LibretroBackend>());
+      QSignalSpy stopped(&runner, &EmulationRunner::stopped);
+      QVERIFY(!LibretroBackend::previousCoreHung());
+      runner.start(request());
+      QTRY_VERIFY_WITH_TIMEOUT(runner.state() == EmulationRunner::State::Running, 5000);
+      QTest::qWait(300);  // the core is inside the blocking frame now
+      runner.stop();
+      QCOMPARE(stopped.count(), 1);
+      QVERIFY(LibretroBackend::previousCoreHung());
+    }
+    EmulationRunner::stopTimeoutMsForTest = 0;
+    qunsetenv("FB_FAKE_RUN_HANG_MS");
+    {
+      EmulationRunner second(std::make_unique<LibretroBackend>());
+      QSignalSpy failed(&second, &EmulationRunner::startFailed);
+      second.start(request());
+      QTRY_COMPARE_WITH_TIMEOUT(failed.count(), 1, 5000);
+      QCOMPARE(failed.first().first().toString(), LibretroBackend::kPreviousGameHungCode);
+      QVERIFY(LibretroBackend::previousCoreHung());
+    }
+    // The hung frame returns, the abandoned thread unloads the core and the process is free again.
+    QTRY_VERIFY_WITH_TIMEOUT(!LibretroBackend::previousCoreHung(), 8000);
+    {
+      EmulationRunner third(std::make_unique<LibretroBackend>());
+      QImage last;
+      connect(&third, &EmulationRunner::frameReady, &third, [&last](const QImage& img, quint64) { last = img; });
+      third.start(request());
+      QTRY_VERIFY_WITH_TIMEOUT(third.state() == EmulationRunner::State::Running && !last.isNull(), 5000);
+      third.stop();
+    }
+  }
+
   void unreadableFileIsNeverOverwritten() {
 #ifdef Q_OS_WIN
     QSKIP("permissions test is POSIX only");

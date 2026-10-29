@@ -49,7 +49,15 @@ void GameSession::setState(State s) {
   emit stateChanged();
 }
 
-void GameSession::fail(const QString& msg) {
+bool GameSession::previousGameHung() { return emu::LibretroBackend::previousCoreHung(); }
+
+void GameSession::fail(const QString& rawMsg) {
+  QString msg = rawMsg;
+  errorCode_.clear();
+  if (rawMsg == emu::LibretroBackend::kPreviousGameHungCode) {
+    errorCode_ = rawMsg;
+    msg = tr("The last game did not stop. Restart Uzume to play again.");
+  }
   error_ = msg;
   restarting_ = false;
   const bool before = !startedEmitted_;
@@ -70,6 +78,7 @@ void GameSession::launch(const LaunchConfig& config, bool restart) {
   restarting_ = restart;
   setState(Starting);
   error_.clear();
+  errorCode_.clear();
   emit errorChanged();
   if (!restart) {  // a restart keeps the last picture and the title: the game screen stays as it is
     frame_ = QImage();

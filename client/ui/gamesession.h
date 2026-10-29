@@ -109,6 +109,10 @@ class GameSession : public QObject {
   State state() const { return state_; }
   QString title() const { return title_; }
   QString errorText() const { return error_; }
+  // Stable code of the failure when it has one ("previous_game_hung": the last game's emulation thread never stopped), else empty.
+  QString errorCode() const { return errorCode_; }
+  // A core from an earlier game is stuck in this process (Quit abandoned its thread): no game can start until the app restarts.
+  static bool previousGameHung();
   bool isActive() const { return state_ == Starting || state_ == Running || state_ == Paused; }
   bool isPaused() const { return state_ == Paused; }
   bool hasFrame() const { return !frame_.isNull(); }
@@ -315,6 +319,7 @@ class GameSession : public QObject {
   qint64 frameLateNs_ = 0;
   QString title_;
   QString error_;
+  QString errorCode_;
   State state_ = Idle;
   bool startedEmitted_ = false;
   bool restarting_ = false;  // a live-save restart is starting the core again
