@@ -193,7 +193,7 @@ Rectangle {
     function runQuick(name, anchor) {
         if (name === "snapshot") root.saveSnapshot()
         else if (name === "saveState") root.player.states.saveToSlot()
-        else if (name === "loadState") root.player.states.loadSlot()
+        else if (name === "loadState") root.player.states.loadSlot(true)   // the menu is the pause: this load continues
         else if (name === "saves") { root.resumeGame(); panel.openSaves() }
         else if (name === "screenshot") root.player.screenshots.capture()
         else if (name === "gameSettings") gameSettings.open(root.player.runningGameId)
@@ -414,8 +414,8 @@ Rectangle {
     Binding { target: loadStateDialog; property: "shown"; value: (loadStateDialog.req.title ?? "") !== "" }
     Connections {
         target: root.player.states
-        // A loaded state shows on the next frame: a paused game (quick menu) continues
-        function onStateLoaded() { if (root.session.paused) root.resumeGame() }
+        // A loaded state shows on the next frame: only the quick menu's own load continues, an explicitly paused game stays paused
+        function onStateLoaded(n, resumeAfter) { if (resumeAfter && root.session.paused) root.resumeGame() }
     }
 
     property string layoutToastText: ""

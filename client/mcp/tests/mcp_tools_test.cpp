@@ -721,6 +721,12 @@ class McpToolsTest : public QObject {
     const ToolResult ld = call("game_state_load", {{"name", "a"}});
     QVERIFY2(!ld.isError, qPrintable(ld.content.value(0).text));
     QCOMPARE(jsonOf(ld).toObject().value("size").toDouble(), so.value("size").toDouble());
+    QVERIFY(gs->isPaused());   // a load keeps a paused game paused (#373)
+    {
+      const quint64 f = gs->frameNumber();
+      QTest::qWait(150);
+      QCOMPARE(gs->frameNumber(), f);
+    }
     QCOMPARE(jsonOf(call("memory_read", {{"addr", "0x08000800"}, {"len", 4}})).toObject().value("hex").toString(), QStringLiteral("de ad be ef"));
     gs->stop();
     QCOMPARE(call("game_state_save").content.value(0).text, QStringLiteral("no_game"));

@@ -93,6 +93,15 @@ class DiagnosticsTest : public QObject {
     d.underruns = 1;
     QVERIFY(DiagnosticsModel::emulationMap(d).value("audio").toString().contains(QStringLiteral("1 underrun")));
     QVERIFY(!DiagnosticsModel::emulationMap(d).value("audioSub").toString().isEmpty());
+    // Full speed: the CPU is not the cause (#365); slow emulation keeps the CPU hint
+    QVERIFY(DiagnosticsModel::emulationMap(d).value("audioSub").toString().contains(QStringLiteral("unevenly")));
+    d.fps = 41;
+    d.frameMs = 24;
+    const QString slow = DiagnosticsModel::emulationMap(d).value("audioSub").toString();
+    QVERIFY(slow.contains(QStringLiteral("CPU load")) && !slow.contains(QStringLiteral("unevenly")));
+    d.fps = 59.9;
+    d.frameMs = 15;  // fps fine but the frame time leaves no room
+    QVERIFY(DiagnosticsModel::emulationMap(d).value("audioSub").toString().contains(QStringLiteral("CPU load")));
     d.audioActive = false;
     QCOMPARE(DiagnosticsModel::emulationMap(d).value("audio").toString(), QStringLiteral("No audio output"));
   }

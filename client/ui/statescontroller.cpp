@@ -545,10 +545,10 @@ void StatesController::finishSave(int n, const QByteArray& state, const QImage& 
 
 // ------------------------------------------------------------------ load
 
-void StatesController::requestLoad(int n) {
+void StatesController::requestLoad(int n, bool resumeAfter) {
   const QString why = gate(false);
   if (!why.isEmpty()) {
-    load(n, true, {});  // shows the reason as a toast
+    load(n, true, {}, resumeAfter);  // shows the reason as a toast
     return;
   }
   const auto rec = store() ? store()->record(ctx_.gameId, ctx_.saveSlot, n) : std::nullopt;
@@ -557,10 +557,11 @@ void StatesController::requestLoad(int n) {
     return;
   }
   if (!askBeforeLoad()) {
-    load(n, true, {});
+    load(n, true, {}, resumeAfter);
     return;
   }
   loadRequest_ = QVariantMap{{QStringLiteral("n"), n},
+                             {QStringLiteral("resumeAfter"), resumeAfter},
                              {QStringLiteral("label"), StateStore::label(n)},
                              {QStringLiteral("whenText"), TimeFormat::whenIso(rec->createdAt)},
                              {QStringLiteral("title"), tr("Load state %1 from %2?").arg(StateStore::label(n), TimeFormat::whenIso(rec->createdAt))}};
@@ -570,9 +571,10 @@ void StatesController::requestLoad(int n) {
 void StatesController::confirmLoad() {
   if (loadRequest_.isEmpty()) return;
   const int n = loadRequest_.value(QStringLiteral("n")).toInt();
+  const bool resumeAfter = loadRequest_.value(QStringLiteral("resumeAfter")).toBool();
   loadRequest_.clear();
   emit loadRequestChanged();
-  load(n, true, {});
+  load(n, true, {}, resumeAfter);
 }
 
 void StatesController::cancelLoad() {
@@ -586,19 +588,19 @@ void StatesController::undoLoad() {
   doLoad(kStateAuto, true, {});
 }
 
-void StatesController::load(int n, bool force, Done done) {
+void StatesController::load(int n, bool force, Done done, bool resumeAfter) {
   Q_UNUSED(force)
   const QString why = gate(false);
   if (!why.isEmpty()) {
     Result r{false, why, why == QLatin1String("rule_states") ? blockedText() : whyBlocked(why), n};
     return finish(done, r, QStringLiteral("warning"));
   }
-  doLoad(n, false, std::move(done));
+  doLoad(n, false, std::move(done), resumeAfter);
 }
 
 // The progress of the moment is kept as Auto first (not for the undo itself), then the state replaces the running game. Both
 // commands go through the same queue, so nothing runs between them.
-void StatesController::doLoad(int n, bool isUndo, Done done) {
+void StatesController::doLoad(int n, bool isUndo, Done done, bool resumeAfter) {
   if (!store()) return finish(done, {false, QStringLiteral("unavailable"), tr("States need a signed-in account on this PC"), n}, QStringLiteral("warning"));
   const auto rec = store()->record(ctx_.gameId, ctx_.saveSlot, n);
   if (!rec || rec->deletePending) {
@@ -610,7 +612,7 @@ void StatesController::doLoad(int n, bool isUndo, Done done) {
   const StateRecord record = *rec;
   QPointer<StatesController> self(this);
   const QString gameId = ctx_.gameId;
-  ensureBlob(record, [self, record, n, isUndo, done, gameId](const QByteArray& blob, const QString& err) {
+  ensureBlob(record, [self, record, n, isUndo, resumeAfter, done, gameId](const QByteArray& blob, const QString& err) {
     if (!self) return;
     if (!self->running_ || self->ctx_.gameId != gameId) return;
     if (blob.isEmpty()) {
@@ -629,8 +631,8 @@ void StatesController::doLoad(int n, bool isUndo, Done done) {
         }, Qt::QueuedConnection);
       });
     }
-    const quint64 id = self->session_ ? self->session_->submitEmuCommand(Cmd::loadState(blob), [self, n, isUndo, done, record](const emu::EmulationRunner::CommandResult& r) {
-      QMetaObject::invokeMethod(self.data(), [self, n, isUndo, done, record, r]() {
+    const quint64 id = self->session_ ? self->session_->submitEmuCommand(Cmd::loadState(blob), [self, n, isUndo, resumeAfter, done, record](const emu::EmulationRunner::CommandResult& r) {
+      QMetaObject::invokeMethod(self.data(), [self, n, isUndo, resumeAfter, done, record, r]() {
         if (!self) return;
         --self->busy_;
         if (!r.ok) {
@@ -647,7 +649,7 @@ void StatesController::doLoad(int n, bool isUndo, Done done) {
         } else {
           self->showToast(tr("State %1 loaded").arg(StateStore::label(n)), QStringLiteral("done"), tr("Undo"));
         }
-        emit self->stateLoaded(n);
+        emit self->stateLoaded(n, resumeAfter && !isUndo);
         if (done) done({true, QString(), tr("State %1 loaded").arg(StateStore::label(n)), n});
       }, Qt::QueuedConnection);
     }) : 0;

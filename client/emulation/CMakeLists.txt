@@ -3,6 +3,7 @@
 add_library(uzume_emulation STATIC
   emulation_runner.cpp
   frame_stats.cpp
+  host_language.cpp
   core_locator.cpp
   libretro_backend.cpp
   system_manifest.cpp
@@ -65,6 +66,7 @@ if(BUILD_TESTING)
   target_compile_definitions(test_emulation_manifest PRIVATE FB_MANIFEST_SRC_DIR="${CMAKE_CURRENT_SOURCE_DIR}/manifests")
 
   uzume_add_test(emulation_frame_stats tests/frame_stats_test.cpp LIBS uzume_emulation)
+  uzume_add_test(emulation_host_language tests/host_language_test.cpp LIBS uzume_emulation)
   uzume_add_test(emulation_firmware tests/firmware_test.cpp LIBS uzume_emulation)
   uzume_add_test(emulation_launch_options tests/launch_options_test.cpp LIBS uzume_emulation)
   uzume_add_test(emulation_core_options tests/core_options_test.cpp LIBS uzume_emulation NEEDS_CORE)
