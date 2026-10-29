@@ -1597,6 +1597,19 @@ class RunsUiTest : public QObject {
     QVERIFY(!h.controller->plugins()->runAcceptedPermissions(runG, kPluginId).has_value());  // nothing recorded for the unseen pin
     QCOMPARE(runs->consentNeeded(*runs->client()->run(runG)).size(), 1);                      // the gate asks for memory.read
 
+    // (b2) A second join of the same run while the first is in flight is ignored: one POST /join (#305).
+    {
+      QJsonObject g2 = hub.makeRun(QStringLiteral("Run G2"), {hub.runsMe, QStringLiteral("u_lena")}, QStringLiteral("u_lena"), pin(QStringLiteral("1.0.0")));
+      const QString runG2 = g2.value("run_id").toString();
+      hub.pushRun(runG2);
+      QTRY_VERIFY_WITH_TIMEOUT(runs->client()->run(runG2).has_value(), 8000);
+      runs->prepareGames(runG2);
+      runs->joinRun(runG2, kGameId);
+      runs->joinRun(runG2, kGameId);  // double tap, before the answer arrived
+      QTRY_VERIFY_WITH_TIMEOUT(!runs->busy(), 8000);
+      QCOMPARE(hub.count(QStringLiteral("/api/v1/runs/") + runG2 + QStringLiteral("/join"), "POST"), 1);
+    }
+
     // (c) A restore that brings back a permission discloses it in its row (against the accepted baseline), bundle included.
     QJsonObject rr = hub.makeRun(QStringLiteral("Run H"), {hub.runsMe}, hub.runsMe, pin(QStringLiteral("1.0.0"), QStringLiteral("1.1.0")));
     const QString runH = rr.value("run_id").toString();

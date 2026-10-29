@@ -323,6 +323,7 @@ class RunsController : public QObject {
   QString message_;
   bool messageIsError_ = false;
   bool busy_ = false;
+  QSet<QString> joining_;  // runs whose join request is in flight: a second tap or call is ignored
   QString busyText_;
   QString startError_;
   RunRules startCore_;

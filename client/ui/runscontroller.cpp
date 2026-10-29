@@ -771,6 +771,8 @@ void RunsController::joinRun(const QString& runId, const QString& gameId, const 
     setMessage(tr("Pick the game you play in this run."), true);
     return;
   }
+  if (joining_.contains(runId.toLower())) return;  // a join of this run is already in flight (double tap)
+  joining_.insert(runId.toLower());
   setBusy(true, tr("Joining…"));
   QJsonObject variant;
   if (!variantKind.isEmpty()) {
@@ -778,6 +780,7 @@ void RunsController::joinRun(const QString& runId, const QString& gameId, const 
     if (variantKind == QLatin1String("own") && !variantId.isEmpty()) variant.insert(QStringLiteral("variant_id"), variantId);
   }
   client_->joinRun(runId, gameId, [this, runId, variantKind, variantId](const RunResult& r) {
+    joining_.remove(runId.toLower());
     setBusy(false);
     if (!r.ok) {
       setMessage(errorText(r, tr("Joining")), true);
