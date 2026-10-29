@@ -105,8 +105,10 @@ client_sdl3() { SDL3_PATH="$("$ROOT/scripts/fetch-sdl3.sh")" && [ -d "$SDL3_PATH
 # client_diag FILE: failed tests and the QtTest assertions of a ctest run.
 client_diag() {
   grep -E '^\s*[0-9]+/[0-9]+ Test\s+#[0-9]+: .*\*\*\*|tests failed|The following tests FAILED|^\s+[0-9]+ - ' "$1" | head -n 20
-  echo "--- failed test output (FAIL!/QWARN/QFATAL, context) ---"
-  grep -E -B2 -A4 'FAIL!|QFATAL|QWARN|Exception|Segmentation' "$1" | head -n 110
+  echo "--- failed test output (FAIL!/QFATAL/crash, context) ---"
+  grep -E -B2 -A4 'FAIL!|QFATAL|Exception|Segmentation' "$1" | head -n 80
+  echo "--- warnings (QWARN, context) ---"
+  grep -E -B2 -A4 'QWARN' "$1" | head -n 60
 }
 # UZUME_CTEST_REGEX (optional): ctest -R filter. ctest with the output of failed tests (QtTest FAIL!/QWARN/QFATAL with context) so the assertion is not lost.
 # Tests run in parallel (CTEST_PARALLEL_LEVEL, default: number of CPUs); every test uses its own temporary directories and
