@@ -400,6 +400,11 @@ func TestCheatDBRegionMatching(t *testing.T) {
 		dir + "Synth Quest (Europe) (En,Fr,De,Es,It).cht": chtOf("EU only", "02000002 00000002"),
 		dir + "Lonely Game (USA).cht":                     chtOf("US lonely", "02000003 00000003"),
 		dir + "Worldwide Game (World).cht":                chtOf("Everywhere", "02000004 00000004"),
+		dir + "Rev Only (Europe) (Rev 2).cht":             chtOf("Rev2", "02000005 00000005"),
+		dir + "Rev Pair (Europe).cht":                     chtOf("Pair base", "02000006 00000006"),
+		dir + "Rev Pair (Europe) (Rev 1).cht":             chtOf("Pair1", "02000007 00000007"),
+		dir + "Rev Pair (Europe) (Rev 2).cht":             chtOf("Pair2", "02000008 00000008"),
+		dir + "Ver Game (Europe) (v1.1).cht":              chtOf("Ver11", "02000009 00000009"),
 	})); err != nil {
 		t.Fatal(err)
 	}
@@ -438,5 +443,25 @@ func TestCheatDBRegionMatching(t *testing.T) {
 	// A World list fits every region.
 	if l := add([]byte("w"), "Worldwide Game (Japan).nds", ""); len(l.Cheats) != 1 || l.Cheats[0].Name != "Everywhere" {
 		t.Fatalf("world: %+v", l)
+	}
+	// Revisions are kept apart: another revision is only named as similar.
+	l = add([]byte("rev1"), "Rev Only (Europe) (Rev 1).nds", "")
+	if len(l.Cheats) != 0 || len(l.SimilarLists) != 1 || l.SimilarLists[0] != "Rev Only (Europe) (Rev 2)" {
+		t.Fatalf("other revision used: %+v", l)
+	}
+	if l := add([]byte("rev1b"), "Rev Pair (Europe) (rev 1).nds", ""); len(l.Cheats) != 1 || l.Cheats[0].Name != "Pair1" {
+		t.Fatalf("rev 1 wins: %+v", l)
+	}
+	if l := add([]byte("untagged"), "Rev Only (Europe).nds", ""); len(l.Cheats) != 0 || len(l.SimilarLists) != 1 {
+		t.Fatalf("untagged vs rev list: %+v", l)
+	}
+	if l := add([]byte("untagged2"), "Rev Pair (Europe).nds", ""); len(l.Cheats) != 1 || l.Cheats[0].Name != "Pair base" {
+		t.Fatalf("untagged vs untagged: %+v", l)
+	}
+	if l := add([]byte("v11"), "Ver Game (Europe) (v1.1).nds", ""); len(l.Cheats) != 1 || l.Cheats[0].Name != "Ver11" {
+		t.Fatalf("v1.1: %+v", l)
+	}
+	if l := add([]byte("v10"), "Ver Game (Europe) (v1.0).nds", ""); len(l.Cheats) != 0 || len(l.SimilarLists) != 1 {
+		t.Fatalf("v1.0 vs v1.1: %+v", l)
 	}
 }

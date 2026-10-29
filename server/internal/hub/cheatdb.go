@@ -759,6 +759,34 @@ func splitCheatName(n string) (base string, regions []string, tags int) {
 	return base, regions, tags
 }
 
+var cheatRevRe = regexp.MustCompile(`(?i)^(?:rev\s*([0-9a-z]+)|v(\d+(?:\.\d+)*))$`)
+
+// cheatRevision returns the revision named in the tags of a No-Intro style name, "(Rev 1)", "(Rev A)" or "(v1.1)",
+// normalized to lowercase ("rev 1", "v1.1"). Empty means the base release.
+func cheatRevision(n string) string {
+	for _, m := range cheatTagRe.FindAllStringSubmatch(n, -1) {
+		for _, part := range strings.Split(m[1], ",") {
+			if r := cheatRevRe.FindStringSubmatch(strings.TrimSpace(part)); r != nil {
+				if r[1] != "" {
+					return "rev " + strings.ToLower(r[1])
+				}
+				return "v" + r[2]
+			}
+		}
+	}
+	return ""
+}
+
+// gameRevision returns the revision of a game from the tags of its file name, else of its title.
+func gameRevision(g Game) string {
+	for _, n := range []string{strings.TrimSuffix(g.Filename, path.Ext(g.Filename)), g.Title} {
+		if r := cheatRevision(n); r != "" {
+			return r
+		}
+	}
+	return ""
+}
+
 // gameRegions returns the regions of a game: from the tags of its file name or title, else from the region letter of
 // the NDS or GBA game code (4th character). Empty when unknown.
 func gameRegions(g Game) []string {
@@ -799,7 +827,9 @@ func gameRegionLabel(g Game) string {
 
 // matchCheatBase looks for a list with the same base title as the game. Lists tagged with another region are not
 // returned as a match, only as similar names; a list without a region tag or tagged World fits every region. When the
-// game's region is unknown only untagged and World lists fit.
+// game's region is unknown only untagged and World lists fit. Revisions are kept apart: a list fits only when its
+// revision tag ("Rev 1", "Rev A", "v1.1") equals the game's; no tag on either side means the base release, and a
+// list of another revision is only named as similar, like one of another region.
 func matchCheatBase(names map[string]string, g Game) (file string, similar []string) {
 	want := map[string]bool{}
 	for _, n := range []string{strings.TrimSuffix(g.Filename, path.Ext(g.Filename)), g.Title} {
@@ -811,6 +841,7 @@ func matchCheatBase(names map[string]string, g Game) (file string, similar []str
 		return "", nil
 	}
 	gr := gameRegions(g)
+	grev := gameRevision(g)
 	type cand struct {
 		file string
 		tags int
@@ -831,6 +862,9 @@ func matchCheatBase(names map[string]string, g Game) (file string, similar []str
 					ok = true
 				}
 			}
+		}
+		if ok && cheatRevision(lower) != grev {
+			ok = false
 		}
 		if ok {
 			fit = append(fit, cand{f, tags})
