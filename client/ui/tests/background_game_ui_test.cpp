@@ -198,6 +198,23 @@ class BackgroundGameUiTest : public QObject {
     QCOMPARE(uitest::warningCount().load(), 0);
   }
 
+  // #361: "Quit game" of the in-game panel says it returns to the Library; it must not land on the game page it was started from.
+  void quitFromGameViewLeadsToLibrary() {
+    FakeHub hub(QStringLiteral("a"));
+    Harness h;
+    pair(hub, h);
+    PlayerController* c = h.controller.get();
+    GameSession* gs = c->gameSession();
+    QVERIFY(h.openGame(QStringLiteral("g1")));
+    QVERIFY(c->gamePageOpen());
+    startPreview(h, QStringLiteral("g1"));
+    QCOMPARE(c->screen(), QStringLiteral("game"));
+    c->requestQuit();
+    QTRY_VERIFY(!gs->isActive());
+    QCOMPARE(c->screen(), QStringLiteral("library"));
+    QVERIFY(!c->gamePageOpen());
+  }
+
   void startOtherGameAsksFirst() {
     FakeHub hub(QStringLiteral("a"));
     Harness h;

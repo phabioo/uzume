@@ -206,6 +206,7 @@ Item {
             Layout.fillWidth: true
             visible: root.loaded && root.groups.length === 0
             kind: "empty"
+            icon: "done"
             title: qsTr("No errors")
             text: qsTr("When an app of this server reports an error, such as a crash, a core that does not load or a plugin that stops, it shows up here, grouped by problem. Apps send errors only when their person turned that on.")
         }

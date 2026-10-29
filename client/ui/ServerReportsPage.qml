@@ -207,9 +207,12 @@ Item {
         title: qsTr("Reports")
         label: root.loaded ? qsTr("%1 · %2 new").arg(Theme.plural(root.countAll, qsTr("report"), qsTr("reports"))).arg(root.countNew) : qsTr("Server")
         area: qsTr("Reports")
-        helpItems: [
+        helpItems: root.showReports ? [
             { title: qsTr("Reports"), text: qsTr("Problem reports sent from the apps of this server. Opening one does not mark it as seen.") },
             { title: qsTr("Attachments"), text: qsTr("Attachments are kept 30 days. The description stays.") }
+        ] : [
+            { title: qsTr("Errors"), text: qsTr("Errors that apps of this server sent on their own, such as a crash, a core that does not load or a plugin that stops, grouped by problem. Apps send errors only when their person turned that on.") },
+            { title: qsTr("Grouping"), text: qsTr("Equal errors count as one problem. Opening one shows its events and the devices it happened on.") }
         ]
         notice: [
             UzStatusIcon {

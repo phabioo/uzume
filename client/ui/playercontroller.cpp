@@ -3235,8 +3235,18 @@ void PlayerController::requestQuit() {
   }
   quitting_ = true;
   emit quittingChanged();
+  // Quitting the game in front (the panel's "Quit game": "returns to the Library when done") leads to the Library list, not back to
+  // the game page it was started from. A game paused in the background is quit from where the person is (game page, sidebar).
+  const bool inFront = !background_;
   // quitGame() blocks until the core is unloaded: let the "Saving and syncing…" state paint first.
-  QTimer::singleShot(80, this, [this]() { quitGame(); });
+  QTimer::singleShot(80, this, [this, inFront]() {
+    quitGame();
+    if (inFront && conn_->state() == HubConnection::State::Connected) {
+      closeGamePage();
+      page_ = QStringLiteral("library");
+      updateScreen();
+    }
+  });
 }
 
 void PlayerController::quitGame() {
