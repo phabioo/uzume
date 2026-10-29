@@ -80,6 +80,7 @@ Item {
             UzField { objectName: "field"; Layout.preferredWidth: 220; placeholderText: "server.example.com" }
             UzField { objectName: "fieldBad"; Layout.preferredWidth: 220; invalid: true; text: "oops" }
             UzSelect { objectName: "select"; model: [{ value: "a", label: "Alpha" }, { value: "b", label: "Beta" }]; current: "a" }
+            UzSelect { objectName: "selectLong"; width: 150; model: [{ value: "a", label: "Gambatte · GPLv3+ · build 2026.10.09" }]; current: "a" }
             UzSegmented { objectName: "segmented"; options: [{ value: "x", label: "Server" }, { value: "y", label: "This PC" }]; current: "x" }
             UzToggle { objectName: "toggle"; text: "Sound"; showState: true }
             UzCheckbox { objectName: "checkbox"; text: "Remember me"; hint: "On this PC only" }
@@ -310,6 +311,17 @@ class DesignSystemTest : public QObject {
     QCOMPARE(page_->property("durListTok").toInt(), 0);
     QVERIFY(QMetaObject::invokeMethod(page_, "setReduceMotion", Q_ARG(QVariant, false)));
     QCOMPARE(page_->property("durFastTok").toInt(), 120);
+  }
+
+  // #358: a select whose line does not fit shows the part before the first " · " (the name), not "Gambatte · GPLv3+ …".
+  void selectShowsTheNameWhenTheLineDoesNotFit() {
+    QQuickItem* sel = byName("selectLong");
+    QVERIFY(sel != nullptr);
+    QQuickItem* ci = sel->property("contentItem").value<QQuickItem*>();
+    QVERIFY(ci != nullptr);
+    QCOMPARE(ci->property("text").toString(), QStringLiteral("Gambatte"));
+    QQuickItem* normal = byName("select");
+    QCOMPARE(normal->property("contentItem").value<QQuickItem*>()->property("text").toString(), QStringLiteral("Alpha"));
   }
 
   // Every block exists and has the measures of the spec; geometry is the same in both themes.

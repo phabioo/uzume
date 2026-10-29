@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import Uzume.App
 
@@ -41,6 +42,11 @@ Item {
     readonly property bool sourceFailed: (root.source.last_error ?? "") !== ""
 
     // ------------------------------------------------------------ data
+    // "Nintendo - Game Boy / Color (Gambatte)" -> "Gambatte": the part that tells the cores of one system apart comes first.
+    function shortCoreName(name: string): string {
+        const m = /\(([^()]+)\)\s*$/.exec(name ?? "")
+        return m ? m[1] : (name ?? "")
+    }
     function systemById(id: string): var {
         for (const s of root.systems) if (s.id === id) return s
         return null
@@ -439,7 +445,7 @@ Item {
                                     objectName: "systemCore_" + modelData.id
                                     width: parent.width - (entry.core === null ? 20 : 0)
                                     elide: Text.ElideRight
-                                    text: entry.core !== null ? entry.core.display_name : qsTr("No core")
+                                    text: entry.core !== null ? root.shortCoreName(entry.core.display_name) : qsTr("No core")
                                     textFormat: Text.PlainText
                                     font.family: Theme.sans
                                     font.pixelSize: Theme.roles.input.size
@@ -447,6 +453,9 @@ Item {
                                 }
                             }
                         }
+                        ToolTip.visible: hover.hovered
+                        ToolTip.delay: 500
+                        ToolTip.text: modelData.display_name + "\n" + (entry.core !== null ? entry.core.display_name : qsTr("No core"))
                         HoverHandler { id: hover }
                         TapHandler { onTapped: { entry.forceActiveFocus(); root.selectedId = modelData.id } }
                     }

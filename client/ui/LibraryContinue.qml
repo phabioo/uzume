@@ -108,6 +108,8 @@ ColumnLayout {
                     UzButton {
                         objectName: index === 0 ? "continueButton" : ""
                         kind: "link"
+                        Layout.minimumWidth: implicitWidth   // sizes to its label at any font size; the title gives way, never the word
+                        Layout.preferredWidth: implicitWidth
                         text: qsTr("Play")
                         onClicked: root.start(card.modelData.gameId, card.modelData.variantId)
                     }

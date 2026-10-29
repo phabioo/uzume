@@ -13,6 +13,7 @@ FocusScope {
     property string title: ""
     property string text: ""
     property string error: ""
+    property int titleMaxLines: 0       // 0 = the title wraps as far as it needs; 1 = one line, elided (long game names)
     property string size: "md"          // md | lg
     property bool busy: false
     property bool closable: true         // header close button
@@ -89,6 +90,8 @@ FocusScope {
                         objectName: "dialogTitle"
                         Layout.fillWidth: true
                         wrapMode: Text.Wrap
+                        maximumLineCount: root.titleMaxLines > 0 ? root.titleMaxLines : 2147483647
+                        elide: root.titleMaxLines > 0 ? Text.ElideRight : Text.ElideNone
                         text: root.title
                         textFormat: Text.PlainText
                         font.family: Theme.sans

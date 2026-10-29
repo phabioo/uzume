@@ -141,7 +141,8 @@ Item {
             id: help
             objectName: "adminHelp"
             visible: root.helpShown
-            x: flick.width - width - Theme.space3
+            // Beside the content (which never grows past contentMaxWidth) instead of at the window edge: no gap on wide windows.
+            x: Math.min(flick.width - width - Theme.space3, page.x + page.width + Theme.space7)
             y: page.y
             label: root.helpLabel
             items: root.helpItems

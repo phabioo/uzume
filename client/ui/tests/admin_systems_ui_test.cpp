@@ -4,6 +4,8 @@
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QQmlContext>
+#include <QQmlProperty>
 #include <QTemporaryDir>
 #include <QtTest>
 
@@ -134,6 +136,15 @@ class AdminSystemsUiTest : public QObject {
     QTRY_VERIFY(h.item("systemItem_nds") != nullptr);
     QCOMPARE(text(h.item("systemCore_nds")), QStringLiteral("No core"));
     QCOMPARE(text(h.item("systemCore_gba")), QStringLiteral("mGBA"));
+    {   // #364: the part that tells the cores of one system apart comes first; the full names are the tooltip
+      QString r1, r2;
+      QVERIFY(QMetaObject::invokeMethod(h.item("serverSystemsPage"), "shortCoreName", Q_RETURN_ARG(QString, r1), Q_ARG(QString, QStringLiteral("Nintendo - Game Boy / Color (Gambatte)"))));
+      QVERIFY(QMetaObject::invokeMethod(h.item("serverSystemsPage"), "shortCoreName", Q_RETURN_ARG(QString, r2), Q_ARG(QString, QStringLiteral("mGBA"))));
+      QCOMPARE(r1, QStringLiteral("Gambatte"));
+      QCOMPARE(r2, QStringLiteral("mGBA"));
+      const QVariant tip = QQmlProperty(h.item("systemItem_gba"), QStringLiteral("ToolTip.text"), qmlContext(h.item("systemItem_gba"))).read();
+      QVERIFY(tip.toString().contains(QStringLiteral("mGBA")));
+    }
     // Nothing is preselected: the warning and the two cores of the catalog, none "In use".
     QTRY_VERIFY(shown(h, "systemsNoCore"));
     QCOMPARE(text(h.item("systemsNoCore")), QStringLiteral("No core picked. NDS games can't start until you pick one."));

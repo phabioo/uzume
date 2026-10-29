@@ -31,6 +31,7 @@ Item {
         objectName: "gameSettingsDialog"
         parent: Window.contentItem
         size: "lg"
+        titleMaxLines: 1   // a long game name elides instead of taking a second line from the scroll area
         onClosed: { resetConfirm.shown = false; root.closed() }
         label: content.info.systemLabel === undefined ? ""
                : qsTr("%1 · %2 · %3").arg(content.info.systemLabel).arg(content.info.coreName)

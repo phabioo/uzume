@@ -709,6 +709,12 @@ class InGameUiTest : public QObject {
       QVERIFY(!shown(h, "yourGameLabel") && !shown(h, "addSessionToggle") && !shown(h, "quitButton"));
       QVERIFY(shown(h, "backToLibraryButton") && shown(h, "gameTitle") && shown(h, "sharePill") && shown(h, "moreButton"));
       if (sz.width() >= 1280) QVERIFY(shown(h, "pauseButton") && (shown(h, "fastForwardButton") || qEnvironmentVariableIsSet("UZUME_TEST_WIDE_FONT")));
+      // #379: the word stays while the value gives way (it only goes with the last steps of a narrow header); the title is not elided
+      if (sz.width() >= 1280 && shown(h, "fastForwardButton") && !qEnvironmentVariableIsSet("UZUME_TEST_WIDE_FONT")) {
+        QVERIFY2(textOf(visibleItem(h, "fastForwardButton")).contains(QStringLiteral("Speed-up")), qPrintable(tag + textOf(visibleItem(h, "fastForwardButton"))));
+        QQuickItem* t = visibleItem(h, "gameTitle");
+        QVERIFY2(t->width() >= t->implicitWidth() - 0.5, qPrintable(tag + QStringLiteral("title elided")));
+      }
       QCOMPARE(textOf(visibleItem(h, "gameTitle")), QStringLiteral("Lumen Drift"));
       QCOMPARE(textOf(visibleItem(h, "sharePill")), QStringLiteral("Not shared"));
     }
@@ -849,6 +855,14 @@ class InGameUiTest : public QObject {
     QTRY_VERIFY(shown(h, "menuItem_gameSettings"));
     QVERIFY(h.click("menuItem_gameSettings"));
     QTRY_VERIFY(shown(h, "gameSettingsDialog"));
+    {   // #379: one-line title; the whole dialog stays inside the window at 1280 x 800
+      resize(h, 1280, 800);
+      QQuickItem* dt = visibleItem(h, "dialogTitle");
+      QVERIFY(dt != nullptr && dt->property("lineCount").toInt() == 1);
+      const QRectF frame = rectOf(h, "dialogFrame");
+      QVERIFY2(frame.top() >= 0 && frame.bottom() <= 800.5, "settings dialog outside the window");
+      QVERIFY(visibleItem(h, "gameSettingsScroll")->height() >= 160);
+    }
     {
       // One height on every tab (no jumping), and the rows show the live in-game values with their source.
       QQuickItem* host = h.item("gameSettingsContent");
