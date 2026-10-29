@@ -11,12 +11,14 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
 	"path"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -551,7 +553,10 @@ type CheatList struct {
 	UpdatedAt *time.Time
 	MatchedBy string // "hash", "title_id", "name" or "" (nothing found)
 	ListName  string // name of the list file without .cht
-	Cheats    []Cheat
+	// SimilarLists names lists with the same base title that belong to another region than the game. They are never
+	// applied (cheat addresses differ between regions); the app shows them as a hint.
+	SimilarLists []string
+	Cheats       []Cheat
 }
 
 // cheatIndex returns the lowercase base names of the cht files of a system and the DAT indexes, loading them once per
@@ -655,7 +660,9 @@ func (s *Service) gameCheats(ctx context.Context, userID, gameID string) (CheatL
 		}
 		return false
 	}
+	hashed := false
 	if sum, crc, ok := s.romHashes(ctx, g); ok {
+		hashed = true
 		found := pick(dat.SHA1[sum], "hash")
 		if !found {
 			pick(dat.CRC[crc], "hash")
@@ -666,9 +673,21 @@ func (s *Service) gameCheats(ctx context.Context, userID, gameID string) (CheatL
 			pick(g.Title, "name")
 		}
 	}
+	// Same base title, region checked: "Game (Europe) (En,Fr)" finds "Game (Europe) (En,Fr,De)" but never the USA list.
 	if file == "" {
+		var similar []string
+		file, similar = matchCheatBase(names, g)
+		if file != "" {
+			by = "name"
+		}
+		out.SimilarLists = similar
+	}
+	if file == "" {
+		slog.Info("cheat database: no list for game", "game_id", g.ID, "system", g.System, "title", g.Title, "game_code", g.GameCode,
+			"region", gameRegionLabel(g), "hashed", hashed, "other_region_lists", len(out.SimilarLists), "lists", len(names), "dat_hashes", len(dat.SHA1))
 		return out, nil
 	}
+	slog.Info("cheat database: list matched", "game_id", g.ID, "system", g.System, "title", g.Title, "by", by, "list", file)
 	b, err := readLimitedFile(filepath.Join(s.cheatDir(), "cht", dir, file), maxCheatListBytes)
 	if err != nil {
 		return out, nil // replaced while reading, or damaged: no list
@@ -710,4 +729,175 @@ func (s *Service) gameCheats3DS(g Game, out CheatList) CheatList {
 		}
 	}
 	return out
+}
+
+var cheatTagRe = regexp.MustCompile(`\(([^()]*)\)`)
+
+// cheatRegionNames are the region words of No-Intro names (lowercase).
+var cheatRegionNames = map[string]bool{
+	"usa": true, "europe": true, "japan": true, "world": true, "australia": true, "korea": true, "china": true, "taiwan": true,
+	"asia": true, "germany": true, "france": true, "italy": true, "spain": true, "netherlands": true, "sweden": true,
+	"denmark": true, "norway": true, "finland": true, "russia": true, "brazil": true, "canada": true, "hong kong": true,
+}
+
+// splitCheatName splits a No-Intro style name into its normalized base title (everything before the first
+// parenthesis) and the regions named in its tags.
+func splitCheatName(n string) (base string, regions []string, tags int) {
+	b := n
+	if i := strings.Index(n, "("); i >= 0 {
+		b = n[:i]
+	}
+	base = strings.Join(strings.Fields(strings.ToLower(b)), " ")
+	for _, m := range cheatTagRe.FindAllStringSubmatch(n, -1) {
+		tags++
+		for _, part := range strings.Split(m[1], ",") {
+			if r := strings.ToLower(strings.TrimSpace(part)); cheatRegionNames[r] {
+				regions = append(regions, r)
+			}
+		}
+	}
+	return base, regions, tags
+}
+
+var (
+	cheatAnyTagRe = regexp.MustCompile(`[(\[]([^()\[\]]*)[)\]]`)
+	cheatLangRe   = regexp.MustCompile(`(?i)^[a-z]{2}(?:-[a-z0-9]{2,4})?$`)
+	cheatRevRe    = regexp.MustCompile(`(?i)^(?:rev\s*([0-9a-z]+)|v\s*(\d+(?:\.\d+)*))$`)
+)
+
+// cheatBuildKey returns the build qualifiers of a No-Intro style name: every tag part in parentheses or brackets
+// except regions, language codes and the good-dump mark "[!]", such as "Rev 1", "Rev A", "v1.1", "Beta", "Proto", "Demo" or "Alt". The parts
+// are normalized (lowercase, single spaces, "rev 1", "v1.1") and sorted. Empty means the retail base release. The
+// second result tells whether the name carries any tag at all.
+func cheatBuildKey(n string) (key string, tagged bool) {
+	var parts []string
+	for _, m := range cheatAnyTagRe.FindAllStringSubmatch(n, -1) {
+		tagged = true
+		for _, part := range strings.Split(m[1], ",") {
+			p := strings.Join(strings.Fields(strings.ToLower(part)), " ")
+			if p == "" || p == "!" || cheatRegionNames[p] || cheatLangRe.MatchString(p) {
+				continue
+			}
+			if r := cheatRevRe.FindStringSubmatch(p); r != nil {
+				if r[1] != "" {
+					p = "rev " + r[1]
+				} else {
+					p = "v" + r[2]
+				}
+			}
+			parts = append(parts, p)
+		}
+	}
+	sort.Strings(parts)
+	return strings.Join(parts, "|"), tagged
+}
+
+// gameBuildKey returns the build key of a game from its file name, else its title: the first of the two that
+// carries tags.
+func gameBuildKey(g Game) string {
+	for _, n := range []string{strings.TrimSuffix(g.Filename, path.Ext(g.Filename)), g.Title} {
+		if k, tagged := cheatBuildKey(n); tagged {
+			return k
+		}
+	}
+	return ""
+}
+
+// gameRegions returns the regions of a game: from the tags of its file name or title, else from the region letter of
+// the NDS or GBA game code (4th character). Empty when unknown.
+func gameRegions(g Game) []string {
+	for _, n := range []string{strings.TrimSuffix(g.Filename, path.Ext(g.Filename)), g.Title} {
+		if _, r, _ := splitCheatName(n); len(r) > 0 {
+			return r
+		}
+	}
+	if (g.GameCodeKind == GameCodeNDS || g.GameCodeKind == GameCodeGBA) && len(g.GameCode) == 4 {
+		switch g.GameCode[3] {
+		case 'E':
+			return []string{"usa"}
+		case 'P', 'D', 'F', 'I', 'S', 'H', 'X', 'Y', 'Z', 'V':
+			return []string{"europe"}
+		case 'J':
+			return []string{"japan"}
+		case 'K':
+			return []string{"korea"}
+		case 'U':
+			return []string{"australia"}
+		case 'C':
+			return []string{"china"}
+		case 'T':
+			return []string{"taiwan"}
+		case 'A':
+			return []string{"asia"}
+		}
+	}
+	return nil
+}
+
+func gameRegionLabel(g Game) string {
+	if r := gameRegions(g); len(r) > 0 {
+		return strings.Join(r, ",")
+	}
+	return "unknown"
+}
+
+// matchCheatBase looks for a list with the same base title as the game. Lists tagged with another region are not
+// returned as a match, only as similar names; a list without a region tag or tagged World fits every region. When the
+// game's region is unknown only untagged and World lists fit. Build tags are kept apart: a list fits only when
+// its build key equals the game's, that is the same tags other than regions and languages ("Rev 1", "v1.1", "Beta",
+// "Proto", "Demo", ...); no such tag on either side means the retail release. A list of another build is only named
+// as similar, like one of another region.
+func matchCheatBase(names map[string]string, g Game) (file string, similar []string) {
+	want := map[string]bool{}
+	for _, n := range []string{strings.TrimSuffix(g.Filename, path.Ext(g.Filename)), g.Title} {
+		if b, _, _ := splitCheatName(n); b != "" {
+			want[b] = true
+		}
+	}
+	if len(want) == 0 {
+		return "", nil
+	}
+	gr := gameRegions(g)
+	gkey := gameBuildKey(g)
+	type cand struct {
+		file string
+		tags int
+	}
+	var fit []cand
+	for lower, f := range names {
+		b, regs, tags := splitCheatName(lower)
+		if !want[b] {
+			continue
+		}
+		ok := len(regs) == 0
+		for _, r := range regs {
+			if r == "world" {
+				ok = true
+			}
+			for _, x := range gr {
+				if x == r {
+					ok = true
+				}
+			}
+		}
+		if k, _ := cheatBuildKey(lower); ok && k != gkey {
+			ok = false
+		}
+		if ok {
+			fit = append(fit, cand{f, tags})
+		} else {
+			similar = append(similar, strings.TrimSuffix(f, filepath.Ext(f)))
+		}
+	}
+	sort.Strings(similar)
+	if len(fit) == 0 {
+		return "", similar
+	}
+	sort.Slice(fit, func(i, j int) bool {
+		if fit[i].tags != fit[j].tags {
+			return fit[i].tags < fit[j].tags
+		}
+		return fit[i].file < fit[j].file
+	})
+	return fit[0].file, similar
 }

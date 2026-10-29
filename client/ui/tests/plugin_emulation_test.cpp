@@ -10,6 +10,7 @@
 #include <QtTest>
 
 #include "gamesession.h"
+#include "hubhttp.h"
 #include "pluginemulation.h"
 #include "run_bridge.h"
 #include "test_core_layout.h"
@@ -199,6 +200,47 @@ class PluginEmulationServiceTest : public QObject {
     const plugins::CheatDatabaseResult ok = svc_->cheatDatabase();
     QVERIFY(ok.error.isEmpty());
     QCOMPARE(ok.data.value("source").toString(), QStringLiteral("libretro-database"));
+  }
+
+  // Issue #370: the lookup leaves log lines; EU key matches its entry, a missing region says so, a failure shows the status.
+  void cheatDatabaseLookupIsLogged() {
+    static QStringList* sink = nullptr;
+    QStringList lines;
+    sink = &lines;
+    const QtMessageHandler prev = qInstallMessageHandler([](QtMsgType, const QMessageLogContext&, const QString& m) { if (sink) sink->append(m); });
+    const auto joined = [&] { return lines.join('\n'); };
+    startGame(nullptr);
+    const auto reply = [&](int status, const QByteArray& body) {
+      HttpResult r;
+      r.status = status;
+      r.body = body;
+      lines.clear();
+      svc_->applyCheatDbReply(QStringLiteral("game-1"), QString(), r);
+    };
+    reply(200, R"j({"source":"libretro-database","matched_by":"name","list_name":"Synth Quest (Europe) (En,Fr)","cheats":[{"name":"a","code":"1","format_guess":"raw"}]})j");
+    QVERIFY2(joined().contains("found 1 cheats") && joined().contains("Synth Quest (Europe) (En,Fr)") && joined().contains("by name"), qPrintable(joined()));
+    QVERIFY(svc_->cheatDatabase().error.isEmpty());
+
+    reply(200, R"j({"source":"libretro-database","cheats":[],"similar_lists":["Synth Quest (USA)"]})j");
+    QVERIFY2(joined().contains("no entry for") && joined().contains("another region") && joined().contains("Synth Quest (USA)"), qPrintable(joined()));
+
+    reply(200, R"({"source":"libretro-database","cheats":[]})");
+    QVERIFY2(joined().contains("no entry for") && !joined().contains("another region"), qPrintable(joined()));
+
+    reply(500, {});
+    QVERIFY2(joined().contains("HTTP 500"), qPrintable(joined()));
+    reply(404, {});
+    QVERIFY2(joined().contains("HTTP 404"), qPrintable(joined()));
+    {
+      HttpResult r;
+      r.networkError = true;
+      r.errorString = QStringLiteral("Connection refused");
+      lines.clear();
+      svc_->applyCheatDbReply(QStringLiteral("game-1"), QString(), r);
+      QVERIFY2(joined().contains("request failed") && joined().contains("Connection refused"), qPrintable(joined()));
+    }
+    qInstallMessageHandler(prev);
+    sink = nullptr;
   }
 
   void cheatsConsentDeniedIsNotRemembered() {

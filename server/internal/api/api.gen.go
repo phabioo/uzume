@@ -3928,6 +3928,9 @@ type GameCheats struct {
 	// MatchedBy How the game was matched; absent when no list was found
 	MatchedBy *GameCheatsMatchedBy `json:"matched_by,omitempty"`
 
+	// SimilarLists Lists with the same base title for another region than the game (never applied, cheats are region specific); only a hint, typically when no list matched
+	SimilarLists *[]string `json:"similar_lists,omitempty"`
+
 	// Source `none` = the cheat database is off; `unavailable` = it is on but holds no lists yet (not loaded, or the update failed)
 	Source GameCheatsSource `json:"source"`
 

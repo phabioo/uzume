@@ -389,3 +389,102 @@ func TestCheat3DSDownload(t *testing.T) {
 		t.Fatal("downloaded 3DS lists stay served while the source is off")
 	}
 }
+
+// Regional matching with synthetic names: a game finds the list of its own region by base title; a list of another
+// region is never used and only named as a hint.
+func TestCheatDBRegionMatching(t *testing.T) {
+	svc, _, admin := newAdmin(t)
+	const dir = "libretro-database-master/cht/Nintendo - Nintendo DS/"
+	if err := svc.ImportCheats(ctx, writeZip(t, map[string]string{
+		dir + "Synth Quest (USA) (En,Fr).cht":             chtOf("US only", "02000001 00000001"),
+		dir + "Synth Quest (Europe) (En,Fr,De,Es,It).cht": chtOf("EU only", "02000002 00000002"),
+		dir + "Lonely Game (USA).cht":                     chtOf("US lonely", "02000003 00000003"),
+		dir + "Worldwide Game (World).cht":                chtOf("Everywhere", "02000004 00000004"),
+		dir + "Rev Only (Europe) (Rev 2).cht":             chtOf("Rev2", "02000005 00000005"),
+		dir + "Rev Pair (Europe).cht":                     chtOf("Pair base", "02000006 00000006"),
+		dir + "Rev Pair (Europe) (Rev 1).cht":             chtOf("Pair1", "02000007 00000007"),
+		dir + "Rev Pair (Europe) (Rev 2).cht":             chtOf("Pair2", "02000008 00000008"),
+		dir + "Build Game (Europe) (En,Fr).cht":           chtOf("Retail", "0200000A 0000000A"),
+		dir + "Build Game (Europe) (Beta).cht":            chtOf("BetaList", "0200000B 0000000B"),
+		dir + "Proto Game (Europe) (Proto).cht":           chtOf("ProtoList", "0200000C 0000000C"),
+		dir + "Proto Game (Europe).cht":                   chtOf("ProtoRetail", "0200000D 0000000D"),
+		dir + "Ver Game (Europe) (v1.1).cht":              chtOf("Ver11", "02000009 00000009"),
+	})); err != nil {
+		t.Fatal(err)
+	}
+	add := func(rom []byte, file, title string) hub.CheatList {
+		t.Helper()
+		g, err := svc.AddROM(ctx, bytes.NewReader(rom), file, title, "", admin.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		l, err := svc.GameCheats(ctx, admin.ID, g.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return l
+	}
+	// EU file name without the language tag finds the EU list, not the US one.
+	if l := add([]byte("eu one"), "Synth Quest (Europe).nds", ""); l.MatchedBy != "name" || len(l.Cheats) != 1 || l.Cheats[0].Name != "EU only" {
+		t.Fatalf("eu by tag: %+v", l)
+	}
+	// No region in the name: the region letter of the game code decides (P = Europe, E = USA).
+	if l := add(ndsROM("ASQP"), "synthquest.nds", "Synth Quest"); len(l.Cheats) != 1 || l.Cheats[0].Name != "EU only" {
+		t.Fatalf("eu by code: %+v", l)
+	}
+	if l := add(ndsROM("ASQE"), "synthquest2.nds", "Synth Quest"); len(l.Cheats) != 1 || l.Cheats[0].Name != "US only" {
+		t.Fatalf("us by code: %+v", l)
+	}
+	// Only another region listed: not assumed, but named.
+	l := add([]byte("eu lonely"), "Lonely Game (Europe).nds", "")
+	if l.MatchedBy != "" || len(l.Cheats) != 0 || len(l.SimilarLists) != 1 || l.SimilarLists[0] != "Lonely Game (USA)" {
+		t.Fatalf("other region used: %+v", l)
+	}
+	// Unknown region: an explicitly regional list is not assumed either.
+	if l := add([]byte("who knows"), "Lonely Game.nds", ""); len(l.Cheats) != 0 || len(l.SimilarLists) != 1 {
+		t.Fatalf("unknown region: %+v", l)
+	}
+	// A World list fits every region.
+	if l := add([]byte("w"), "Worldwide Game (Japan).nds", ""); len(l.Cheats) != 1 || l.Cheats[0].Name != "Everywhere" {
+		t.Fatalf("world: %+v", l)
+	}
+	// Revisions are kept apart: another revision is only named as similar.
+	l = add([]byte("rev1"), "Rev Only (Europe) (Rev 1).nds", "")
+	if len(l.Cheats) != 0 || len(l.SimilarLists) != 1 || l.SimilarLists[0] != "Rev Only (Europe) (Rev 2)" {
+		t.Fatalf("other revision used: %+v", l)
+	}
+	if l := add([]byte("rev1b"), "Rev Pair (Europe) (rev 1).nds", ""); len(l.Cheats) != 1 || l.Cheats[0].Name != "Pair1" {
+		t.Fatalf("rev 1 wins: %+v", l)
+	}
+	if l := add([]byte("untagged"), "Rev Only (Europe).nds", ""); len(l.Cheats) != 0 || len(l.SimilarLists) != 1 {
+		t.Fatalf("untagged vs rev list: %+v", l)
+	}
+	if l := add([]byte("untagged2"), "Rev Pair (Europe).nds", ""); len(l.Cheats) != 1 || l.Cheats[0].Name != "Pair base" {
+		t.Fatalf("untagged vs untagged: %+v", l)
+	}
+	if l := add([]byte("v11"), "Ver Game (Europe) (v1.1).nds", ""); len(l.Cheats) != 1 || l.Cheats[0].Name != "Ver11" {
+		t.Fatalf("v1.1: %+v", l)
+	}
+	if l := add([]byte("v10"), "Ver Game (Europe) (v1.0).nds", ""); len(l.Cheats) != 0 || len(l.SimilarLists) != 1 {
+		t.Fatalf("v1.0 vs v1.1: %+v", l)
+	}
+	// Beta, Proto and other build tags count too; languages do not.
+	if l := add([]byte("beta"), "Build Game (Europe) (Beta).nds", ""); len(l.Cheats) != 1 || l.Cheats[0].Name != "BetaList" {
+		t.Fatalf("beta vs beta: %+v", l)
+	}
+	if l := add([]byte("beta2"), "Lonely Game (USA) (Beta).nds", ""); len(l.Cheats) != 0 || len(l.SimilarLists) != 1 {
+		t.Fatalf("beta vs retail: %+v", l)
+	}
+	if l := add([]byte("retailp"), "Proto Game (Europe) (En,Fr).nds", ""); len(l.Cheats) != 1 || l.Cheats[0].Name != "ProtoRetail" {
+		t.Fatalf("retail vs proto list: %+v", l)
+	}
+	if l := add([]byte("retailb"), "Build Game (Europe) (En,Fr,De).nds", ""); len(l.Cheats) != 1 || l.Cheats[0].Name != "Retail" {
+		t.Fatalf("languages ignored: %+v", l)
+	}
+	if l := add([]byte("retailc"), "Rev Pair (Europe) (En,Fr,De).nds", ""); len(l.Cheats) != 1 || l.Cheats[0].Name != "Pair base" {
+		t.Fatalf("languages ignored vs untagged list: %+v", l)
+	}
+	if l := add([]byte("retaild"), "Build Game (Europe) [!].nds", ""); len(l.Cheats) != 1 || l.Cheats[0].Name != "Retail" {
+		t.Fatalf("good-dump mark ignored: %+v", l)
+	}
+}
