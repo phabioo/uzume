@@ -155,7 +155,7 @@ end)
 
 ### Ticks
 
-`uz.on_tick(fn)` sets the function that is called on the plugin thread whenever a new snapshot exists, at most `tickHz` times per second (host setting, default 30). `fn` receives the snapshot frame number. `uz.on_tick(nil)` removes it.
+`uz.on_tick(fn)` sets the function that is called on the plugin thread whenever a new snapshot exists, at most `tickHz` times per second (host setting, default 30). `fn` receives the snapshot frame number. `uz.on_tick(nil)` removes it. Snapshots, and so ticks and `uz.memory.frame()`, exist only while at least one range is watched: a plugin that needs ticks without reading memory (a timer, for example) watches one byte.
 
 ### Events
 
