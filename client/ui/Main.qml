@@ -367,10 +367,12 @@ ApplicationWindow {
             if (window.player.screen === "game" && window.player.fullscreenOnStart && !window.fullscreenApplied) {
                 window.visibilityBeforeGame = window.visibility
                 window.fullscreenApplied = true
+                window.player.video.moveToFullscreenScreen(window)   // Settings > Audio & video > Fullscreen on
                 window.visibility = Window.FullScreen
             } else if (window.player.screen !== "game" && window.fullscreenApplied) {
                 window.fullscreenApplied = false
                 window.visibility = window.visibilityBeforeGame === Window.FullScreen ? Window.Windowed : window.visibilityBeforeGame
+                window.player.video.restoreWindowedPosition(window)
             }
         }
     }

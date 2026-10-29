@@ -18,6 +18,7 @@
 
 #include "audiocontroller.h"
 #include "audiomixer.h"
+#include "videocontroller.h"
 #include "pluginsoundbus.h"
 #include "connectioncheckcontroller.h"
 #include "controllerscontroller.h"
@@ -150,6 +151,7 @@ class PlayerController : public QObject {
   Q_PROPERTY(uzume::ui::EmulationController* emulation READ emulation CONSTANT)
   Q_PROPERTY(uzume::ui::ControllersController* controllers READ controllers CONSTANT)
   Q_PROPERTY(uzume::ui::AudioController* audio READ audio CONSTANT)
+  Q_PROPERTY(uzume::ui::VideoController* video READ video CONSTANT)  // fullscreen monitor and vertical sync (Settings > Audio & video)
   Q_PROPERTY(bool fullscreenOnStart READ fullscreenOnStart NOTIFY emulationSettingsChanged)  // effective Uzume option
   // Sessions (3c list, 3g panel, multiview, diagnostics)
   Q_PROPERTY(uzume::ui::SessionController* sessions READ sessions CONSTANT)
@@ -332,6 +334,7 @@ class PlayerController : public QObject {
   EmulationController* emulation() { return emulation_.get(); }
   ControllersController* controllers() { return controllers_.get(); }
   AudioController* audio() { return audio_.get(); }
+  VideoController* video() { return video_.get(); }
   AudioMixer* audioMixer() { return &mixer_; }
   bool fullscreenOnStart() const;
   QString currentSystemId() const;
@@ -705,6 +708,7 @@ class PlayerController : public QObject {
   std::unique_ptr<SaveHistoryController> history_;  // after saves_/conn_: destroyed first
   std::unique_ptr<EmulationController> emulation_;
   std::unique_ptr<ControllersController> controllers_;
+  std::unique_ptr<VideoController> video_;
   std::unique_ptr<AudioController> audio_;  // master volume, mute, background mute (0.19)
   // Helpers (after everything they reference): they read/write the state below through references.
   std::unique_ptr<CoreCatalog> catalog_;

@@ -85,6 +85,9 @@ class PluginsController : public QObject {
   // Result of the last "Load unpacked...": {state ("ok" | "error"), title ("Item Helper didn't load"), detail ("manifest.json: ..."),
   //  path}; empty before the first attempt or after dismissUnpackedResult(). An error installs nothing (board 4d-2B).
   Q_PROPERTY(QVariantMap unpackedResult READ unpackedResult NOTIFY unpackedResultChanged)
+  // A folder picked for "Load unpacked..." whose manifest is fine and that waits for the person (boards 4d-2A, 4d-2C):
+  // {path, name, version, detail ("manifest.json · name version"), permissions: [{text, warn}]}; empty = none waiting.
+  Q_PROPERTY(QVariantMap pendingUnpacked READ pendingUnpacked NOTIFY pendingUnpackedChanged)
 
   // Plugin UI v1 (uz.ui). Models are rebuilt on the UI thread when the plugin thread delivers changes (coalesced to
   // about 30 updates per second and slot); the trees themselves are fetched with slotTree() on slotChanged().
@@ -143,6 +146,7 @@ class PluginsController : public QObject {
   QVariantMap console() const { return devConsole_->model(); }
   DevConsole* devConsole() { return devConsole_.get(); }
   QVariantMap unpackedResult() const { return unpackedResult_; }
+  QVariantMap pendingUnpacked() const { return pendingUnpacked_; }
 
   QVariantList panelTabs() const { return panelTabs_; }
   QVariantList hudWidgets() const { return hudWidgets_; }
@@ -269,6 +273,11 @@ class PluginsController : public QObject {
   // nothing is installed and unpackedResult says why. Returns the result (debug MCP).
   Q_INVOKABLE QVariantMap loadUnpacked(const QString& pathOrUrl);
   Q_INVOKABLE void dismissUnpackedResult();
+  // Checks the folder's manifest without installing anything: a problem goes to unpackedResult (4d-2B), a good manifest to
+  // pendingUnpacked, which the Load unpacked sheet shows (4d-2A) with the permissions (4d-2C). Unpacked plugins ask on every load.
+  Q_INVOKABLE QVariantMap prepareUnpacked(const QString& pathOrUrl);
+  Q_INVOKABLE QVariantMap confirmUnpacked();   // the person agreed: loadUnpacked() of the waiting folder
+  Q_INVOKABLE void cancelUnpacked();           // nothing is installed
   // Developer mode only: the game identity {system, code} that plugin matching uses for the next game start instead of the detected
   // one (debug MCP game_start identity). Refused (false) with developer mode off; single use, expires after 30 s.
   bool setIdentityOverride(const QString& system, const QString& code);
@@ -370,6 +379,7 @@ class PluginsController : public QObject {
   void consentRequestChanged();
   void cheatsOnChanged();
   void unpackedResultChanged();
+  void pendingUnpackedChanged();
 
  private:
   void updateShell();
@@ -448,6 +458,7 @@ class PluginsController : public QObject {
   std::shared_ptr<VideoCaptureAdapter> video_;  // uz.video of the running game; released on the GUI thread after host_->stop()
   std::unique_ptr<DevConsole> devConsole_;
   QVariantMap unpackedResult_;
+  QVariantMap pendingUnpacked_;
   struct IdentityOverride {
     QString system, code;
     qint64 setAtMs = 0;

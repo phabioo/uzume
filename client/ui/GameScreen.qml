@@ -139,10 +139,12 @@ Rectangle {
         if (on && w && root.applyToWindow) {
             root.windowedVisibility = w.visibility === root.visFullScreen ? root.visWindowed : w.visibility
             root.enteredHere = true
+            root.player.video.moveToFullscreenScreen(w)   // Settings > Audio & video > Fullscreen on
             w.visibility = root.visFullScreen
         } else if (!on && w && root.applyToWindow && root.enteredHere) {
             root.enteredHere = false
             w.visibility = root.windowedVisibility
+            root.player.video.restoreWindowedPosition(w)
         }
         root.fullscreen = on
         if (on) hintTimer.restart()

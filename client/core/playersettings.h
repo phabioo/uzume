@@ -207,6 +207,12 @@ class PlayerSettings {
   bool setAudioShowVolume(bool on);
   QString audioOutputDevice() const { return audioOutputDevice_; }
   bool setAudioOutputDevice(const QString& id);  // empty = system default
+  // Settings > Audio & video > Video: the monitor F11 opens the game on (QScreen::name(); empty = where the window is) and
+  // vertical sync (default on; read once at the start, so a change applies after a restart).
+  QString videoFullscreenScreen() const { return videoFullscreenScreen_; }
+  bool setVideoFullscreenScreen(const QString& name);
+  bool videoVsync() const { return videoVsync_; }
+  bool setVideoVsync(bool on);
   // Audio stage 2 (0.23): channel gains of the Sound popover (Voice, Plugin sounds; 0..100 %, default 100), "Mix all tiles" in the
   // Multiview (default off) and the gain of each watched person's tile by user id (0..100 %, default 100).
   int audioVoiceGain() const { return audioVoiceGain_; }
@@ -301,6 +307,8 @@ class PlayerSettings {
   int audioVolumeStep_ = 5;
   bool audioShowVolume_ = true;
   QString audioOutputDevice_;
+  QString videoFullscreenScreen_;
+  bool videoVsync_ = true;
   int audioVoiceGain_ = 100;
   int audioPluginGain_ = 100;
   bool audioMixAll_ = false;

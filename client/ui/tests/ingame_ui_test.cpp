@@ -16,6 +16,7 @@
 #include "savestore.h"
 #include "savesync.h"
 #include "statescontroller.h"
+#include "videocontroller.h"
 #include "testsupport.h"
 
 using namespace uzume;
@@ -1951,6 +1952,23 @@ class InGameUiTest : public QObject {
     QVERIFY(h.click("audioMuteBackgroundToggle"));
     QTRY_VERIFY(!audio->muteInBackground());
     QVERIFY(h.item("audioOutputSelect") != nullptr);
+
+    // Video rows (board 6g-1): Fullscreen on (monitor) and Vertical sync
+    VideoController* video = h.controller->video();
+    QTRY_VERIFY(shown(h, "videoFullscreenSelect") && shown(h, "videoVsyncToggle"));
+    QVERIFY(video->screens().size() >= 2);  // "Where the window is" and at least one monitor
+    QCOMPARE(video->screens().first().toMap().value("value").toString(), QString());
+    QVERIFY(video->vsync());
+    QVERIFY(h.click("videoVsyncToggle"));
+    QTRY_VERIFY(!video->vsync());
+    QVERIFY(!PlayerSettings(h.controller->profileStore()->baseDir()).videoVsync());
+    video->setVsync(true);
+    video->setFullscreenScreen(video->screens().at(1).toMap().value("value").toString());
+    QVERIFY(!video->fullscreenScreen().isEmpty());
+    QVERIFY(video->targetScreen() != nullptr);
+    QCOMPARE(PlayerSettings(h.controller->profileStore()->baseDir()).videoFullscreenScreen(), video->fullscreenScreen());
+    video->setFullscreenScreen(QString());
+    QVERIFY(video->targetScreen() == nullptr);
   }
 
   void sidebarNowRunningStrip() {

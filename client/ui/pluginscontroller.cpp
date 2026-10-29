@@ -511,6 +511,35 @@ QVariantMap PluginsController::loadUnpacked(const QString& pathOrUrl) {
   return res;
 }
 
+QVariantMap PluginsController::prepareUnpacked(const QString& pathOrUrl) {
+  cancelUnpacked();
+  const QString path = localPath(pathOrUrl);
+  if (!developerMode() || path.isEmpty() || !QFileInfo(path).isDir()) return loadUnpacked(pathOrUrl);  // the same problem texts as a direct load
+  const plugins::ManifestResult mr = plugins::loadManifest(path);
+  if (!mr.ok) return loadUnpacked(pathOrUrl);
+  dismissUnpackedResult();
+  pendingUnpacked_ = {{QStringLiteral("path"), path},
+                      {QStringLiteral("name"), mr.manifest.name},
+                      {QStringLiteral("version"), mr.manifest.version.toString()},
+                      {QStringLiteral("detail"), tr("manifest.json · %1 %2").arg(mr.manifest.name, mr.manifest.version.toString())},
+                      {QStringLiteral("permissions"), permissionRows(mr.manifest.permissions)}};
+  emit pendingUnpackedChanged();
+  return pendingUnpacked_;
+}
+
+QVariantMap PluginsController::confirmUnpacked() {
+  if (pendingUnpacked_.isEmpty()) return {};
+  const QString path = pendingUnpacked_.value(QStringLiteral("path")).toString();
+  cancelUnpacked();
+  return loadUnpacked(path);
+}
+
+void PluginsController::cancelUnpacked() {
+  if (pendingUnpacked_.isEmpty()) return;
+  pendingUnpacked_.clear();
+  emit pendingUnpackedChanged();
+}
+
 void PluginsController::dismissUnpackedResult() {
   if (unpackedResult_.isEmpty()) return;
   unpackedResult_.clear();

@@ -1347,6 +1347,33 @@ Rectangle {
                             checked: root.player.audio.showVolume
                             onToggled: on => root.player.audio.showVolume = on
                         }
+                        UzSectionLabel { Layout.fillWidth: true; Layout.topMargin: Theme.space15; text: qsTr("Video"); objectName: "videoSectionLabel" }
+                        Rectangle { Layout.fillWidth: true; height: 1; color: Theme.rule; Layout.topMargin: -Theme.space05 }
+                        UzSettingsRow {
+                            objectName: "videoFullscreenRow"
+                            Layout.fillWidth: true
+                            Layout.minimumWidth: 0
+                            resetMode: "none"
+                            label: qsTr("Fullscreen on")
+                            description: qsTr("F11 opens the game on this monitor. If it is not connected, the game goes fullscreen where the window is.")
+                            ctrl: "select"
+                            controlName: "videoFullscreenSelect"
+                            values: root.player.video.screens
+                            current: root.player.video.fullscreenScreen
+                            onValuePicked: value => root.player.video.fullscreenScreen = value
+                        }
+                        UzSettingsRow {
+                            objectName: "videoVsyncRow"
+                            Layout.fillWidth: true
+                            Layout.minimumWidth: 0
+                            resetMode: "none"
+                            label: qsTr("Vertical sync")
+                            description: qsTr("Smooth picture; adds a little delay. Applies the next time the app starts.")
+                            ctrl: "toggle"
+                            toggleName: "videoVsyncToggle"
+                            checked: root.player.video.vsync
+                            onToggled: on => root.player.video.vsync = on
+                        }
                     }
 
                     // ------------------------------------------------------------------ LIBRARY FOLDERS

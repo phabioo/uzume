@@ -328,6 +328,7 @@ class RunsController : public QObject {
   QString message_;
   bool messageIsError_ = false;
   int busyCount_ = 0;
+  QString pendingPlay_;  // run id of a Play that arrived while busy (latest wins); started by endBusy()
   int clientBusy_ = 0;  // busy holds taken by RunClient requests (dropped silently when the client resets)
   QSet<QString> joining_;  // runs whose join request is in flight: a second tap or call is ignored
   QString busyText_;

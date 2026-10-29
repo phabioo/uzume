@@ -290,6 +290,67 @@ class PluginsUiTest : public QObject {
     pc->setPreviewConsole({});
   }
 
+  // Boards 4d-2A and 4d-2C: Load unpacked shows the folder with its manifest check, then what the plugin may do; "Don't allow"
+  // and Cancel install nothing, Allow loads it. A manifest problem (4d-2B) never opens the sheet.
+  void loadUnpackedSheetAsksBeforeLoading() {
+    FakeHub hub(QStringLiteral("a"));
+    hub.hubId = QStringLiteral("hub-lu");
+    hub.name = QStringLiteral("Home");
+    hub.decision = FakeHub::Decision::Approve;
+    QVERIFY(hub.start());
+    Harness h;
+    QVERIFY(h.start());
+    pair(h, hub);
+    PluginsController* pc = h.controller->plugins();
+    pc->setDeveloperMode(true);
+    gotoPlugins(h);
+    const QString dir = writePlugin(src_.path(), "net.example.item-helper-dev", "Item Helper");
+    QVERIFY(!dir.isEmpty());
+
+    // A missing folder: the problem line, no sheet.
+    pc->prepareUnpacked(src_.filePath("no-such-folder"));
+    QTRY_VERIFY(h.item("consoleLoadResult")->isVisible());
+    QVERIFY(pc->pendingUnpacked().isEmpty());
+    QVERIFY(h.item("pluginUnpackedDialog") == nullptr || !h.item("pluginUnpackedDialog")->isVisible());
+    pc->dismissUnpackedResult();
+
+    // Step 1 (4d-2A): folder and manifest check.
+    pc->prepareUnpacked(dir);
+    QTRY_VERIFY(h.item("pluginUnpackedDialog") != nullptr && h.item("pluginUnpackedDialog")->isVisible());
+    QCOMPARE(h.item("pluginUnpackedTitle")->property("text").toString(), QStringLiteral("Load a plugin from a folder"));
+    QCOMPARE(h.item("pluginUnpackedFolder")->property("text").toString(), dir);
+    QVERIFY(h.item("pluginUnpackedManifest")->property("text").toString().contains(QStringLiteral("manifest.json · Item Helper 1.2.0")));
+    QCOMPARE(h.item("pluginUnpackedNext")->property("text").toString(), QStringLiteral("Load"));
+    QVERIFY(pc->plugins().isEmpty());  // nothing installed yet
+
+    // Cancel installs nothing.
+    QVERIFY(h.click("pluginUnpackedCancel"));
+    QTRY_VERIFY(pc->pendingUnpacked().isEmpty());
+    QVERIFY(pc->plugins().isEmpty());
+
+    // Step 2 (4d-2C): the permissions; Don't allow installs nothing.
+    pc->prepareUnpacked(dir);
+    QTRY_VERIFY(h.item("pluginUnpackedDialog")->isVisible());
+    QVERIFY(h.click("pluginUnpackedNext"));
+    QTRY_COMPARE(h.item("pluginUnpackedTitle")->property("text").toString(), QStringLiteral("Allow Item Helper to"));
+    QCOMPARE(h.items("pluginUnpackedPermission").size(), 1);
+    QVERIFY(h.item("pluginUnpackedAskNote")->property("text").toString().contains(QStringLiteral("ask every time")));
+    QCOMPARE(h.item("pluginUnpackedCancel")->property("text").toString(), QStringLiteral("Don't allow"));
+    QVERIFY(h.click("pluginUnpackedCancel"));
+    QTRY_VERIFY(pc->pendingUnpacked().isEmpty());
+    QVERIFY(pc->plugins().isEmpty());
+
+    // Allow loads the plugin.
+    pc->prepareUnpacked(dir);
+    QTRY_VERIFY(h.item("pluginUnpackedDialog")->isVisible());
+    QVERIFY(h.click("pluginUnpackedNext"));
+    QTRY_COMPARE(h.item("pluginUnpackedNext")->property("text").toString(), QStringLiteral("Allow"));
+    QVERIFY(h.click("pluginUnpackedNext"));
+    QTRY_COMPARE(pc->plugins().size(), 1);
+    QVERIFY(pc->pendingUnpacked().isEmpty());
+    QCOMPARE(pc->unpackedResult().value("state").toString(), QStringLiteral("ok"));
+  }
+
   // The game header tag and Ctrl+Shift+D (board 4d-2F).
   void developerModeTagAndShortcut() {
     FakeHub hub(QStringLiteral("a"));

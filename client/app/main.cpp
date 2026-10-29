@@ -278,6 +278,7 @@ int main(int argc, char* argv[]) {
   std::optional<uzume::errors::RunMarker> runMarker;
   if (!smokeMode) runMarker.emplace(runDataDir);
 
+  controller.video()->applyStartupFormat();   // vertical sync: the swap interval is read before the first window exists
   QQmlApplicationEngine engine;
   engine.addImportPath(QStringLiteral("qrc:/qt/qml"));
   engine.addImageProvider(QStringLiteral("uzplugin"), new uzume::ui::PluginImageProvider(controller.plugins()->imageSources()));

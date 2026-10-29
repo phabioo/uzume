@@ -645,7 +645,7 @@ ColumnLayout {
             objectName: "pluginFolderApplyButton"
             text: root.pathMode === "link" ? qsTr("Load") : qsTr("Install")
             onClicked: {
-                if (root.pathMode === "link") root.ctl.loadUnpacked(pathField.text)
+                if (root.pathMode === "link") root.ctl.prepareUnpacked(pathField.text)
                 else if (root.pathMode === "file") root.ctl.installFromPath(pathField.text)
                 else root.ctl.installFromFolder(pathField.text)
                 root.pathPromptOpen = false
@@ -861,6 +861,96 @@ ColumnLayout {
                         const id = root.confirmEnableId
                         enableDialog.close()
                         root.ctl.setPluginEnabled(id, true)
+                    }
+                }
+            }
+        ]
+    }
+
+    // Load unpacked (boards 4d-2A and 4d-2C): the folder and its manifest check, then what the plugin may do. Unpacked plugins ask
+    // every time they load; "Don't allow" installs nothing.
+    readonly property var pendingUnpacked: root.ctl.pendingUnpacked
+    readonly property bool hasPendingUnpacked: root.pendingUnpacked.path !== undefined
+    readonly property var pendingPermissions: root.hasPendingUnpacked ? root.pendingUnpacked.permissions : []
+    property int unpackedStep: 1
+    onHasPendingUnpackedChanged: root.unpackedStep = 1
+
+    PluginDialog {
+        id: unpackedDialog
+        contentName: "pluginUnpackedDialog"
+        visible: root.hasPendingUnpacked
+        onClosed: root.ctl.cancelUnpacked()
+        bodyItem: [
+            UzLabel {
+                textFormat: Text.PlainText  // plugin- and peer-supplied strings are never HTML
+                objectName: "pluginUnpackedTitle"
+                Layout.fillWidth: true
+                text: root.unpackedStep === 1 ? qsTr("Load a plugin from a folder")
+                      : qsTr("Allow %1 to").arg(root.hasPendingUnpacked ? root.pendingUnpacked.name : "")
+                font.pixelSize: Theme.roles.itemTitle.size
+                font.weight: Font.Medium
+                wrapMode: Text.WordWrap
+            },
+            UzMono {
+                textFormat: Text.PlainText
+                objectName: "pluginUnpackedFolder"
+                visible: root.unpackedStep === 1
+                Layout.fillWidth: true
+                wrapMode: Text.WrapAnywhere
+                text: root.hasPendingUnpacked ? root.pendingUnpacked.path : ""
+                font.pixelSize: Theme.roles.meta11.size
+                color: Theme.ink2
+            },
+            UzStatusIcon {
+                objectName: "pluginUnpackedManifest"
+                visible: root.unpackedStep === 1
+                kind: "done"
+                text: root.hasPendingUnpacked ? root.pendingUnpacked.detail : ""
+                maxWidth: Theme.dialog - 2 * Theme.space3
+            },
+            Repeater {
+                model: root.unpackedStep === 2 ? root.pendingPermissions : []
+                UzLabel {
+                    textFormat: Text.PlainText
+                    objectName: "pluginUnpackedPermission"
+                    Layout.fillWidth: true
+                    text: "✓ " + modelData.text
+                    wrapMode: Text.WordWrap
+                    font.pixelSize: Theme.roles.input.size
+                    color: Theme.ink
+                }
+            },
+            UzLabel {
+                textFormat: Text.PlainText
+                objectName: "pluginUnpackedAskNote"
+                visible: root.unpackedStep === 2
+                Layout.fillWidth: true
+                text: qsTr("Unpacked plugins ask every time they load.")
+                color: Theme.ink2
+                font.pixelSize: Theme.roles.input.size
+                wrapMode: Text.WordWrap
+            },
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Theme.space1
+                Item { Layout.fillWidth: true }
+                UzButton {
+                    textFormat: Text.PlainText
+                    objectName: "pluginUnpackedCancel"
+                    text: root.unpackedStep === 1 ? qsTr("Cancel") : qsTr("Don't allow")
+                    onClicked: unpackedDialog.close()
+                }
+                UzButton {
+                    textFormat: Text.PlainText
+                    objectName: "pluginUnpackedNext"
+                    kind: "primary"
+                    text: root.unpackedStep === 1 ? qsTr("Load") : qsTr("Allow")
+                    onClicked: {
+                        if (root.unpackedStep === 1 && root.pendingPermissions.length > 0) {
+                            root.unpackedStep = 2
+                        } else {
+                            root.ctl.confirmUnpacked()
+                        }
                     }
                 }
             }
