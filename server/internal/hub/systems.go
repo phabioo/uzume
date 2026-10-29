@@ -130,12 +130,16 @@ func (s *Service) ListRegistry(ctx context.Context) ([]SystemEntry, error) {
 	if err != nil {
 		return nil, err
 	}
+	modes := make(map[string]FirmwareMode, len(out))
+	for _, e := range out {
+		modes[e.ID] = e.FirmwareMode
+	}
+	firmware, err := s.allFirmware(ctx, modes)
+	if err != nil {
+		return nil, err
+	}
 	for i := range out {
-		files, err := s.systemFirmware(ctx, out[i].ID, out[i].FirmwareMode)
-		if err != nil {
-			return nil, err
-		}
-		out[i].Firmware = files
+		out[i].Firmware = firmware[out[i].ID]
 		out[i].Cores = installed[out[i].ID]
 		for _, c := range out[i].Cores {
 			if c.CoreID == out[i].CoreID {
@@ -163,22 +167,23 @@ func (s *Service) GetRegistryEntry(ctx context.Context, systemID string) (System
 	return SystemEntry{}, ErrNotFound
 }
 
-func (s *Service) systemFirmware(ctx context.Context, systemID string, mode FirmwareMode) ([]FirmwareFile, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT d.file_id, d.display_name, d.sizes, COALESCE(f.sha256,''), COALESCE(f.size,0), f.sha256 IS NOT NULL,
+// allFirmware loads the firmware files of all systems with one query, grouped by system id.
+func (s *Service) allFirmware(ctx context.Context, modes map[string]FirmwareMode) (map[string][]FirmwareFile, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT d.system_id, d.file_id, d.display_name, d.sizes, COALESCE(f.sha256,''), COALESCE(f.size,0), f.sha256 IS NOT NULL,
 		COALESCE(p.sha256,''), COALESCE(f.uploaded_at,0) FROM firmware_defs d
 		LEFT JOIN firmware_files f ON f.system_id = d.system_id AND f.file_id = d.file_id
 		LEFT JOIN firmware_pins p ON p.system_id = d.system_id AND p.file_id = d.file_id
-		WHERE d.system_id = ? ORDER BY d.sort, d.file_id`, systemID)
+		ORDER BY d.system_id, d.sort, d.file_id`)
 	if err != nil {
 		return nil, internal(err)
 	}
 	defer rows.Close()
-	var out []FirmwareFile
+	out := map[string][]FirmwareFile{}
 	for rows.Next() {
 		var f FirmwareFile
-		var sizes string
+		var systemID, sizes string
 		var at int64
-		if err := rows.Scan(&f.ID, &f.DisplayName, &sizes, &f.SHA256, &f.Size, &f.Present, &f.Pinned, &at); err != nil {
+		if err := rows.Scan(&systemID, &f.ID, &f.DisplayName, &sizes, &f.SHA256, &f.Size, &f.Present, &f.Pinned, &at); err != nil {
 			return nil, internal(err)
 		}
 		if at > 0 {
@@ -189,7 +194,7 @@ func (s *Service) systemFirmware(ctx context.Context, systemID string, mode Firm
 				f.Sizes = append(f.Sizes, n)
 			}
 		}
-		f.Required = mode == FirmwareNative
+		f.Required = modes[systemID] == FirmwareNative
 		switch {
 		case !f.Present && f.Required:
 			f.State = FirmwareMissing
@@ -200,7 +205,7 @@ func (s *Service) systemFirmware(ctx context.Context, systemID string, mode Firm
 		default:
 			f.State = FirmwareValid
 		}
-		out = append(out, f)
+		out[systemID] = append(out[systemID], f)
 	}
 	return out, rows.Err()
 }
