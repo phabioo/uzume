@@ -188,15 +188,12 @@ Rectangle {
             parts.push(qsTr("Nobody is watching."))
         return parts.join(" ")
     }
-    // Set by "Load state" in the quick menu (which is the pause itself): that load continues. A pause the person chose
-    // (button, Esc, hotkey, MCP game_pause) and a load from the hotkey stay paused.
-    property bool resumeAfterLoad: false
     function resumeGame() { if (root.session.paused) root.session.togglePause() }
     // A row of the quick menu. Rows that act in the panel or on the stage resume the game first; the others keep the menu open.
     function runQuick(name, anchor) {
         if (name === "snapshot") root.saveSnapshot()
         else if (name === "saveState") root.player.states.saveToSlot()
-        else if (name === "loadState") { root.resumeAfterLoad = true; root.player.states.loadSlot() }
+        else if (name === "loadState") root.player.states.loadSlot(true)   // the menu is the pause: this load continues
         else if (name === "saves") { root.resumeGame(); panel.openSaves() }
         else if (name === "screenshot") root.player.screenshots.capture()
         else if (name === "gameSettings") gameSettings.open(root.player.runningGameId)
@@ -235,7 +232,7 @@ Rectangle {
     // Resumed: the keys go back to the game
     Connections {
         target: root.session
-        function onStateChanged() { if (!root.session.paused) { root.resumeAfterLoad = false; Qt.callLater(root.focusLocal) } }
+        function onStateChanged() { if (!root.session.paused) Qt.callLater(root.focusLocal) }
     }
 
     // Player hotkeys are configurable (Settings > Hotkeys): the controller maps the Qt key to an action name.
@@ -269,7 +266,7 @@ Rectangle {
         else if (action === "screenshot") root.player.screenshots.capture()
         else if (action === "saveState") { if (root.session.active) root.player.states.saveToSlot() }
         else if (action === "nextState") { if (root.session.active) root.player.states.nextSlot() }
-        else if (action === "loadState") { if (root.session.active) { root.resumeAfterLoad = false; root.player.states.loadSlot() } }
+        else if (action === "loadState") { if (root.session.active) root.player.states.loadSlot() }
         else if (action === "rewind") { if (root.session.active) root.player.states.rewindKey(true) }
         else if (action === "talk") root.player.voice.talkKey(true)
         else if (action === "mic") root.player.voice.toggleMic()
@@ -410,7 +407,7 @@ Rectangle {
             UzButton {
                 objectName: "loadStateCancel"
                 text: qsTr("Cancel")
-                onClicked: { dontAsk.checked = false; root.resumeAfterLoad = false; root.player.states.cancelLoad() }
+                onClicked: { dontAsk.checked = false; root.player.states.cancelLoad() }
             }
         ]
     }
@@ -418,11 +415,7 @@ Rectangle {
     Connections {
         target: root.player.states
         // A loaded state shows on the next frame: only the quick menu's own load continues, an explicitly paused game stays paused
-        function onStateLoaded() {
-            const resume = root.resumeAfterLoad
-            root.resumeAfterLoad = false
-            if (resume && root.session.paused) root.resumeGame()
-        }
+        function onStateLoaded(n, resumeAfter) { if (resumeAfter && root.session.paused) root.resumeGame() }
     }
 
     property string layoutToastText: ""

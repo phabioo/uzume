@@ -179,6 +179,30 @@ class StatesControllerTest : public QObject {
     QTRY_COMPARE_WITH_TIMEOUT(loaded.count(), 3, 10000);
   }
 
+  // The "continue after load" intent belongs to one request: a cancelled quick-menu load must not leak into the next load (#373)
+  void resumeIntentBelongsToOneLoad() {
+    startGame();
+    QVERIFY(save(1).ok);
+    st_->setAskBeforeLoad(true);
+    QVERIFY(st_->askBeforeLoad());
+    QSignalSpy loaded(st_.get(), &StatesController::stateLoaded);
+    st_->requestLoad(1, true);
+    QVERIFY(st_->loadRequest().value("resumeAfter").toBool());
+    st_->cancelLoad();
+    st_->requestLoad(1);  // a plain load right after
+    QVERIFY(!st_->loadRequest().value("resumeAfter").toBool());
+    st_->confirmLoad();
+    QTRY_COMPARE_WITH_TIMEOUT(loaded.count(), 1, 10000);
+    QCOMPARE(loaded.last().at(1).toBool(), false);
+    st_->requestLoad(1, true);
+    st_->confirmLoad();
+    QTRY_COMPARE_WITH_TIMEOUT(loaded.count(), 2, 10000);
+    QCOMPARE(loaded.last().at(1).toBool(), true);
+    st_->undoLoad();  // an undo never continues
+    QTRY_COMPARE_WITH_TIMEOUT(loaded.count(), 3, 10000);
+    QCOMPARE(loaded.last().at(1).toBool(), false);
+  }
+
   void deleteEmptiesTheSlot() {
     startGame();
     QVERIFY(save(4).ok);

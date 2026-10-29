@@ -1364,7 +1364,7 @@ class InGameUiTest : public QObject {
       QCOMPARE(textOf(visibleItem(h, "pauseButton")), QStringLiteral("▶ Resume"));   // the header reads Resume as well
     }
     // A loaded state (hotkey, MCP) keeps a game the person paused paused (#373); only the menu's own "Load state" continues
-    emit h.controller->states()->stateLoaded(1);
+    emit h.controller->states()->stateLoaded(1, false);
     QTest::qWait(100);
     QVERIFY(gs->isPaused() && shown(h, "quickMenu"));
     QTest::keyClick(h.window, Qt::Key_Escape);

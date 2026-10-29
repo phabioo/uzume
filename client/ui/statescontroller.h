@@ -130,17 +130,19 @@ class StatesController : public QObject {
   // --- actions (QML, hotkeys, MCP) ---
   Q_INVOKABLE void save(int n);          // "Save to N"; 0 = the Auto slot (internal)
   Q_INVOKABLE void saveToSlot() { save(slot_); }  // F6
-  Q_INVOKABLE void requestLoad(int n);   // "Load N", F8: asks first unless the person turned that off
+  // "Load N", F8: asks first unless the person turned that off. `resumeAfter`: this very load continues a paused game
+  // (the quick menu is the pause itself); the intent travels with the request and is gone when it is cancelled or answered.
+  Q_INVOKABLE void requestLoad(int n, bool resumeAfter = false);
   Q_INVOKABLE void confirmLoad();        // the dialog's Load
   Q_INVOKABLE void cancelLoad();
-  Q_INVOKABLE void loadSlot() { requestLoad(slot_); }  // F8
+  Q_INVOKABLE void loadSlot(bool resumeAfter = false) { requestLoad(slot_, resumeAfter); }  // F8
   Q_INVOKABLE void undoLoad();           // the toast's Undo: back to the Auto state taken before the load
   Q_INVOKABLE void remove(int n);        // the menu's Delete
   Q_INVOKABLE void dismissToast();
   Q_INVOKABLE void rewindKey(bool down); // hold
   // Same with a result for the debug MCP; `force` loads without the dialog.
   void save(int n, Done done);
-  void load(int n, bool force, Done done);
+  void load(int n, bool force, Done done, bool resumeAfter = false);
   void remove(int n, Done done);
   // Rewind by hand (MCP): steps back up to `snapshots` kept states at once (each is kRewindIntervalFrames frames), also while the
   // game is paused. Result.n = how many it stepped back; error "empty" when the buffer holds nothing yet.
@@ -158,7 +160,7 @@ class StatesController : public QObject {
   void askBeforeLoadChanged();
   void toastChanged();
   void rewindTextChanged();
-  void stateLoaded(int n);   // a state was loaded into the running game (MCP and tests)
+  void stateLoaded(int n, bool resumeAfter);   // a state was loaded into the running game (MCP and tests); resumeAfter as requested for that load
   void stateSaved(int n);
 
  private:
@@ -180,7 +182,7 @@ class StatesController : public QObject {
   void deleteOnServer(const StateRecord& rec);
   void ensureBlob(const StateRecord& rec, std::function<void(const QByteArray&, const QString& err)> done);
   void doSave(int n, bool silent, Done done);
-  void doLoad(int n, bool isUndo, Done done);
+  void doLoad(int n, bool isUndo, Done done, bool resumeAfter = false);
   void finishSave(int n, const QByteArray& state, const QImage& preview, bool silent, Done done);
   void showToast(const QString& text, const QString& kind = QStringLiteral("done"), const QString& action = QString(), int ms = kToastMs);
   void applyRewind();
