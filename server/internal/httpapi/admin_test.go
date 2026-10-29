@@ -47,6 +47,7 @@ func TestAdminEndpointsAuth(t *testing.T) {
 		{"PUT", "/api/v1/admin/metrics", map[string]any{"enabled": true}},
 		{"POST", "/api/v1/admin/metrics/token", nil},
 		{"GET", "/api/v1/admin/storage", nil},
+		{"GET", "/api/v1/admin/storage/screenshots", nil},
 		{"POST", "/api/v1/admin/storage/cleanup", map[string]any{"id": "old_snapshots"}},
 	}
 	for _, c := range calls {

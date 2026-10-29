@@ -287,8 +287,14 @@ func (s *Service) removeGameScreenshotFiles(userIDs []string, gameID string) {
 
 // ScreenshotUsage returns the number and size of screenshots per user and game plus the total (storage overview).
 func (s *Service) ScreenshotUsage(ctx context.Context) (ScreenshotUsageResult, error) {
+	return s.ScreenshotUsageFor(ctx, "", "")
+}
+
+// ScreenshotUsageFor is ScreenshotUsage narrowed to one user and/or one game ("" = any).
+func (s *Service) ScreenshotUsageFor(ctx context.Context, userID, gameID string) (ScreenshotUsageResult, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT user_id, game_id, COUNT(*), COALESCE(SUM(size_bytes), 0) FROM screenshots
-		GROUP BY user_id, game_id ORDER BY user_id, game_id`)
+		WHERE (?1 = '' OR user_id = ?1) AND (?2 = '' OR game_id = ?2)
+		GROUP BY user_id, game_id ORDER BY user_id, game_id`, userID, gameID)
 	if err != nil {
 		return ScreenshotUsageResult{}, internal(err)
 	}

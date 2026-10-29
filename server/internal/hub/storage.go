@@ -144,28 +144,7 @@ func (s *Service) StorageOverview(ctx context.Context) (StorageOverview, error) 
 		out.Kinds = append(out.Kinds, StorageKind{StorageBackups, n, c})
 	}
 
-	rows := shots.Rows
-	sort.SliceStable(rows, func(i, j int) bool {
-		if rows[i].Bytes != rows[j].Bytes {
-			return rows[i].Bytes > rows[j].Bytes
-		}
-		if rows[i].Count != rows[j].Count {
-			return rows[i].Count > rows[j].Count
-		}
-		if rows[i].UserID != rows[j].UserID {
-			return rows[i].UserID < rows[j].UserID
-		}
-		return rows[i].GameID < rows[j].GameID
-	})
-	if len(rows) > StorageScreenshotRows {
-		rows = rows[:StorageScreenshotRows]
-	}
-	for _, r := range rows {
-		u := StorageScreenshotUsage{UserID: r.UserID, GameID: r.GameID, Bytes: r.Bytes, Count: r.Count, GameName: "(removed game)"}
-		_ = s.db.QueryRowContext(ctx, `SELECT display_name FROM users WHERE id = ?`, r.UserID).Scan(&u.UserName)
-		_ = s.db.QueryRowContext(ctx, `SELECT title FROM games WHERE id = ?`, r.GameID).Scan(&u.GameName)
-		out.Screenshots = append(out.Screenshots, u)
-	}
+	out.Screenshots = s.screenshotUsageRows(ctx, shots.Rows, StorageScreenshotRows)
 
 	snapsOld, err := s.oldSnapshotStats(ctx)
 	if err != nil {
@@ -198,6 +177,51 @@ func (s *Service) StorageOverview(ctx context.Context) (StorageOverview, error) 
 	}
 	out.Cleanup = []StorageCleanup{snapsOld, up, uc, dgs}
 	return out, nil
+}
+
+// screenshotUsageRows sorts the usage rows (largest first), keeps at most limit of them (0 = all) and adds the user
+// and game names; a removed game gets a placeholder.
+func (s *Service) screenshotUsageRows(ctx context.Context, rows []ScreenshotUsageRow, limit int) []StorageScreenshotUsage {
+	sort.SliceStable(rows, func(i, j int) bool {
+		if rows[i].Bytes != rows[j].Bytes {
+			return rows[i].Bytes > rows[j].Bytes
+		}
+		if rows[i].Count != rows[j].Count {
+			return rows[i].Count > rows[j].Count
+		}
+		if rows[i].UserID != rows[j].UserID {
+			return rows[i].UserID < rows[j].UserID
+		}
+		return rows[i].GameID < rows[j].GameID
+	})
+	if limit > 0 && len(rows) > limit {
+		rows = rows[:limit]
+	}
+	out := make([]StorageScreenshotUsage, 0, len(rows))
+	for _, r := range rows {
+		u := StorageScreenshotUsage{UserID: r.UserID, GameID: r.GameID, Bytes: r.Bytes, Count: r.Count, GameName: "(removed game)"}
+		_ = s.db.QueryRowContext(ctx, `SELECT display_name FROM users WHERE id = ?`, r.UserID).Scan(&u.UserName)
+		_ = s.db.QueryRowContext(ctx, `SELECT title FROM games WHERE id = ?`, r.GameID).Scan(&u.GameName)
+		out = append(out, u)
+	}
+	return out
+}
+
+// StorageScreenshotsResult is the full screenshot usage per user and game with the totals.
+type StorageScreenshotsResult struct {
+	TotalCount int
+	TotalBytes int64
+	Items      []StorageScreenshotUsage
+}
+
+// StorageScreenshots lists the screenshot usage per user and game, all rows, largest first. userID and gameID ("" =
+// any) narrow the rows; the totals cover the returned rows.
+func (s *Service) StorageScreenshots(ctx context.Context, userID, gameID string) (StorageScreenshotsResult, error) {
+	u, err := s.ScreenshotUsageFor(ctx, userID, gameID)
+	if err != nil {
+		return StorageScreenshotsResult{}, err
+	}
+	return StorageScreenshotsResult{TotalCount: u.TotalCount, TotalBytes: u.TotalBytes, Items: s.screenshotUsageRows(ctx, u.Rows, 0)}, nil
 }
 
 // saveBlobStats walks saves/<user>/<game>/<slot>/<sha>: a blob that a current checkpoint uses counts as a save, a blob

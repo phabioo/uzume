@@ -283,6 +283,8 @@ class RunsUiTest : public QObject {
       QVERIFY(htmlText.contains(QStringLiteral("Tide Hardcore")) && !htmlText.contains(QStringLiteral("http")));
       QVERIFY(recap->suggestedFileName("png").startsWith(QStringLiteral("Tide Hardcore - recap")));
       QQuickItem* sheet = h.item("recapSheet");
+      // Layout and polish run asynchronously (a theme switch or a dismissed note re-lays the sheet out): grab only a sheet with a real size (#308).
+      QTRY_VERIFY(sheet->isVisible() && sheet->width() > 0 && sheet->height() > 0);
       QSharedPointer<QQuickItemGrabResult> grab = sheet->grabToImage();
       QVERIFY(grab);
       QSignalSpy grabbed(grab.data(), &QQuickItemGrabResult::ready);

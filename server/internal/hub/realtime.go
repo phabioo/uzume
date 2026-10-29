@@ -667,7 +667,47 @@ func (s *Service) resendPresence(ownerDeviceID string, active *sessionData, only
 	pb.setSession(ownerDeviceID, active)
 	for _, o := range s.clients() {
 		if o != c && only(o) {
-			o.sendDroppable(encode("presence_update", "", pb.payload(c, o)))
+			// Reliable (not droppable): the update that removes session_id after an ACL revocation must arrive even when
+			// the receiver's queue is busy. sendRaw keeps working in the presence reserve and only closes a queue that
+			// is completely full (the reconnect then gets a fresh snapshot).
+			o.sendRaw(encode("presence_update", "", pb.payload(c, o)))
+		}
+	}
+}
+
+// refreshPresenceGame re-resolves the game of every device that is playing gameID and sends their presence again, so
+// that a ROM registration (or removal) that changes who may see the title shows up without waiting for the next
+// report of the sender. Database access: never call it while holding a hub lock or inside a transaction.
+func (s *Service) refreshPresenceGame(ctx context.Context, gameID string) {
+	var playing []*Client
+	for _, c := range s.clients() {
+		c.mu.Lock()
+		if c.state == "in_game" && c.gameID == gameID {
+			playing = append(playing, c)
+		}
+		c.mu.Unlock()
+	}
+	if len(playing) == 0 {
+		return
+	}
+	game := s.resolvePresenceGame(ctx, gameID)
+	pb := s.newPresenceBuilder()
+	for _, c := range playing {
+		pb.lookupSession(c.deviceID)
+	}
+	others := s.clients()
+	for _, c := range playing {
+		c.mu.Lock()
+		if c.state != "in_game" || c.gameID != gameID { // moved on meanwhile
+			c.mu.Unlock()
+			continue
+		}
+		c.game = game
+		c.mu.Unlock()
+		for _, o := range others {
+			if o != c {
+				o.sendRaw(encode("presence_update", "", pb.payload(c, o)))
+			}
 		}
 	}
 }

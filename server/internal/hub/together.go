@@ -276,12 +276,14 @@ func (c *Client) readyCheckStart(env envelope) {
 
 // resyncMembers re-reads the members of a scope after a check was registered with a list read before tg.mu was
 // taken: a membership change in between would otherwise leave the check with stale members (the change's own
-// reconcile found no check yet). A scope that is gone meanwhile drops the check and the pause. No database call
+// reconcile found no check yet). A scope that is gone or no longer live (a run that left the active state between
+// the membership read and the registration; its own end-of-scope step found no check yet) drops the check and the
+// pause. No database call
 // under tg.mu.
 func (s *Service) resyncMembers(k scopeKey) {
-	members, ok := s.membersOf(context.Background(), k)
-	if !ok {
-		members = nil
+	members, live, ok := s.membersOfState(context.Background(), k)
+	if !ok || !live {
+		members = nil // gone or no longer active (finished, paused, archived): the check and the pause go
 	}
 	s.reconcileTogether(k.scope, k.id, members)
 }

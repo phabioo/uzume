@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"path/filepath"
@@ -98,4 +99,80 @@ func TestAdminStorageMemberForbidden(t *testing.T) {
 	wantStatus(t, rec, 403, "")
 	rec = e.do("POST", "/api/v1/admin/storage/cleanup", map[string]any{"id": "old_snapshots"}, opt{token: userTok})
 	wantStatus(t, rec, 403, "")
+}
+
+func TestAdminStorageScreenshots(t *testing.T) {
+	e, tok := adminEnv(t, diag.NewErrorRing(5), diag.NewRing(5, 1024))
+	ctx := context.Background()
+	rec := e.do("GET", "/api/v1/admin/storage/screenshots", nil, opt{token: tok})
+	wantStatus(t, rec, 200, "")
+	type resT struct {
+		TotalCount int   `json:"total_count"`
+		TotalBytes int64 `json:"total_bytes"`
+		Items      []struct {
+			UserID   string `json:"user_id"`
+			UserName string `json:"user_name"`
+			GameID   string `json:"game_id"`
+			GameName string `json:"game_name"`
+			Bytes    int64  `json:"bytes"`
+			Count    int    `json:"count"`
+		} `json:"items"`
+	}
+	if r := decode[resT](t, rec); r.Items == nil || len(r.Items) != 0 || r.TotalCount != 0 {
+		t.Fatalf("empty: %s", rec.Body.String())
+	}
+
+	anna, err := e.svc.CreateUser(ctx, "anna", "Anna")
+	if err != nil {
+		t.Fatal(err)
+	}
+	g1, err := e.svc.AddROM(ctx, bytes.NewReader([]byte("rom-one-dummy")), "one.nds", "One", "", e.admin.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g2, err := e.svc.AddROM(ctx, bytes.NewReader([]byte("rom-two-dummy")), "two.nds", "Two", "", e.admin.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	small, big := testPNG(t, 16, 16), testPNG(t, 256, 192)
+	add := func(user, game string, data []byte) {
+		t.Helper()
+		if _, err := e.svc.AddScreenshot(ctx, user, game, "", bytes.NewReader(data)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	add(e.admin.ID, g1.ID, small)
+	add(e.admin.ID, g1.ID, small)
+	add(anna.ID, g1.ID, big)
+	add(anna.ID, g2.ID, small)
+
+	rec = e.do("GET", "/api/v1/admin/storage/screenshots", nil, opt{token: tok})
+	wantStatus(t, rec, 200, "")
+	r := decode[resT](t, rec)
+	var sum int64
+	for _, it := range r.Items {
+		sum += it.Bytes
+	}
+	if len(r.Items) != 3 || r.TotalCount != 4 || r.TotalBytes != sum || r.TotalBytes <= 0 {
+		t.Fatalf("rows: %s", rec.Body.String())
+	}
+	if first := r.Items[0]; first.UserID != anna.ID || first.GameID != g1.ID || first.Count != 1 || first.UserName != "Anna" || first.GameName != "One" {
+		t.Fatalf("largest first: %+v", first)
+	}
+	for i := 1; i < len(r.Items); i++ {
+		if r.Items[i].Bytes > r.Items[i-1].Bytes {
+			t.Fatalf("not sorted: %s", rec.Body.String())
+		}
+	}
+
+	rec = e.do("GET", "/api/v1/admin/storage/screenshots?user_id="+e.admin.ID, nil, opt{token: tok})
+	wantStatus(t, rec, 200, "")
+	if r := decode[resT](t, rec); len(r.Items) != 1 || r.TotalCount != 2 || r.Items[0].UserID != e.admin.ID {
+		t.Fatalf("user filter: %s", rec.Body.String())
+	}
+	rec = e.do("GET", "/api/v1/admin/storage/screenshots?game_id="+g2.ID+"&user_id="+anna.ID, nil, opt{token: tok})
+	wantStatus(t, rec, 200, "")
+	if r := decode[resT](t, rec); len(r.Items) != 1 || r.TotalCount != 1 || r.Items[0].GameID != g2.ID {
+		t.Fatalf("game filter: %s", rec.Body.String())
+	}
 }

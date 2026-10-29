@@ -28,6 +28,10 @@ ColumnLayout {
     }
     function finishExport(target: string) {
         if (root.exportKind === "png") {
+            if (sheet.width <= 0 || sheet.height <= 0) {  // grabToImage on a zero-size item fails with a warning
+                root.recap.saveImage(undefined, target)
+                return
+            }
             sheet.grabToImage(function(result) { root.recap.saveImage(result.image, target) })
         } else if (root.exportKind === "html") {
             root.recap.saveHtml(target)

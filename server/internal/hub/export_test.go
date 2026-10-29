@@ -140,3 +140,11 @@ func (s *Service) RegisterStaleCheckForTest(scope, id, by string, stale []string
 	t.mu.Unlock()
 	s.resyncMembers(k)
 }
+
+// OpenCheckForTest reports whether a ready check is registered for the scope.
+func (s *Service) OpenCheckForTest(scope, id string) bool {
+	s.tg.mu.Lock()
+	defer s.tg.mu.Unlock()
+	_, ok := s.tg.scope[scopeKey{scope, id}]
+	return ok
+}

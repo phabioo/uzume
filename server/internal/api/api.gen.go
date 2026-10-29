@@ -3160,7 +3160,7 @@ type AdminStorage struct {
 	// BackupDisk The volume holding the backup folder; absent when no backup folder is set. Sizes are absent where the platform has no reader.
 	BackupDisk *AdminStatusBackupDisk `json:"backup_disk,omitempty"`
 
-	// Cleanup Always all three suggestions, in the order of the enum.
+	// Cleanup Always all four suggestions, in the order of the enum.
 	Cleanup []AdminStorageCleanup `json:"cleanup"`
 
 	// Disk The volume of the data directory; absent where the platform has no reader.
@@ -3231,6 +3231,16 @@ type AdminStorageScreenshotUsage struct {
 	GameName string `json:"game_name"`
 	UserId   string `json:"user_id"`
 	UserName string `json:"user_name"`
+}
+
+// AdminStorageScreenshots defines model for AdminStorageScreenshots.
+type AdminStorageScreenshots struct {
+	// Items One row per user and game, largest first (may be empty).
+	Items      []AdminStorageScreenshotUsage `json:"items"`
+	TotalBytes int64                         `json:"total_bytes"`
+
+	// TotalCount Screenshots over all returned rows
+	TotalCount int `json:"total_count"`
 }
 
 // AdminSystem defines model for AdminSystem.
@@ -5444,6 +5454,12 @@ type DeleteAdminExternalTurnParams struct {
 	Name string `form:"name" json:"name"`
 }
 
+// GetAdminStorageScreenshotsParams defines parameters for GetAdminStorageScreenshots.
+type GetAdminStorageScreenshotsParams struct {
+	UserId *string `form:"user_id,omitempty" json:"user_id,omitempty"`
+	GameId *string `form:"game_id,omitempty" json:"game_id,omitempty"`
+}
+
 // DeleteAdminSaveSlotParams defines parameters for DeleteAdminSaveSlot.
 type DeleteAdminSaveSlotParams struct {
 	ConfirmRevision int `form:"confirm_revision" json:"confirm_revision"`
@@ -6538,6 +6554,9 @@ type ServerInterface interface {
 	// Run one storage clean-up (admin only)
 	// (POST /api/v1/admin/storage/cleanup)
 	CleanupAdminStorage(w http.ResponseWriter, r *http.Request)
+	// Screenshot usage per user and game (admin only)
+	// (GET /api/v1/admin/storage/screenshots)
+	GetAdminStorageScreenshots(w http.ResponseWriter, r *http.Request, params GetAdminStorageScreenshotsParams)
 	// Systems, cores and firmware as the admin sees them (admin)
 	// (GET /api/v1/admin/systems)
 	ListAdminSystems(w http.ResponseWriter, r *http.Request)
@@ -9337,6 +9356,58 @@ func (siw *ServerInterfaceWrapper) CleanupAdminStorage(w http.ResponseWriter, r 
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.CleanupAdminStorage(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAdminStorageScreenshots operation middleware
+func (siw *ServerInterfaceWrapper) GetAdminStorageScreenshots(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAdminStorageScreenshotsParams
+
+	// ------------- Optional query parameter "user_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "user_id", r.URL.Query(), &params.UserId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "user_id"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "user_id", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "game_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "game_id", r.URL.Query(), &params.GameId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "game_id"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "game_id", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAdminStorageScreenshots(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -14948,6 +15019,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/admin/status/log", wrapper.GetAdminStatusLog)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/admin/storage", wrapper.GetAdminStorage)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/api/v1/admin/storage/cleanup", wrapper.CleanupAdminStorage)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/admin/storage/screenshots", wrapper.GetAdminStorageScreenshots)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/api/v1/admin/systems", wrapper.ListAdminSystems)
 	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/api/v1/admin/systems/{system_id}", wrapper.UpdateAdminSystem)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/api/v1/admin/systems/{system_id}/cores/{core_id}", wrapper.RemoveAdminCore)
@@ -20937,6 +21009,70 @@ func (response CleanupAdminStorage403JSONResponse) VisitCleanupAdminStorageRespo
 type CleanupAdminStorage429JSONResponse struct{ RateLimitedJSONResponse }
 
 func (response CleanupAdminStorage429JSONResponse) VisitCleanupAdminStorageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminStorageScreenshotsRequestObject struct {
+	Params GetAdminStorageScreenshotsParams
+}
+
+type GetAdminStorageScreenshotsResponseObject interface {
+	VisitGetAdminStorageScreenshotsResponse(w http.ResponseWriter) error
+}
+
+type GetAdminStorageScreenshots200JSONResponse AdminStorageScreenshots
+
+func (response GetAdminStorageScreenshots200JSONResponse) VisitGetAdminStorageScreenshotsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminStorageScreenshots401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetAdminStorageScreenshots401JSONResponse) VisitGetAdminStorageScreenshotsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminStorageScreenshots403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetAdminStorageScreenshots403JSONResponse) VisitGetAdminStorageScreenshotsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAdminStorageScreenshots429JSONResponse struct{ RateLimitedJSONResponse }
+
+func (response GetAdminStorageScreenshots429JSONResponse) VisitGetAdminStorageScreenshotsResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -31964,6 +32100,9 @@ type StrictServerInterface interface {
 	// Run one storage clean-up (admin only)
 	// (POST /api/v1/admin/storage/cleanup)
 	CleanupAdminStorage(ctx context.Context, request CleanupAdminStorageRequestObject) (CleanupAdminStorageResponseObject, error)
+	// Screenshot usage per user and game (admin only)
+	// (GET /api/v1/admin/storage/screenshots)
+	GetAdminStorageScreenshots(ctx context.Context, request GetAdminStorageScreenshotsRequestObject) (GetAdminStorageScreenshotsResponseObject, error)
 	// Systems, cores and firmware as the admin sees them (admin)
 	// (GET /api/v1/admin/systems)
 	ListAdminSystems(ctx context.Context, request ListAdminSystemsRequestObject) (ListAdminSystemsResponseObject, error)
@@ -34812,6 +34951,32 @@ func (sh *strictHandler) CleanupAdminStorage(w http.ResponseWriter, r *http.Requ
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(CleanupAdminStorageResponseObject); ok {
 		if err := validResponse.VisitCleanupAdminStorageResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAdminStorageScreenshots operation middleware
+func (sh *strictHandler) GetAdminStorageScreenshots(w http.ResponseWriter, r *http.Request, params GetAdminStorageScreenshotsParams) {
+	var request GetAdminStorageScreenshotsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAdminStorageScreenshots(ctx, request.(GetAdminStorageScreenshotsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAdminStorageScreenshots")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAdminStorageScreenshotsResponseObject); ok {
+		if err := validResponse.VisitGetAdminStorageScreenshotsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

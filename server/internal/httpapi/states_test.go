@@ -304,6 +304,12 @@ func TestSaveStatesStorageAndCleanup(t *testing.T) {
 		t.Fatalf("nothing to clean yet: %+v", c)
 	}
 
+	// The clean-up leaves the states of an existing game alone.
+	if res, err := s.svc.StorageCleanup(ctx, hub.CleanupDeletedGameStates); err != nil || res.Removed != 0 || res.FreedBytes != 0 {
+		t.Fatalf("clean-up touched the states of a live game: %+v %v", res, err)
+	}
+	wantStatus(t, s.api(anna, "GET", "/api/v1/games/"+gid+"/states", nil), 200, "")
+
 	// Deleting the game keeps the states (as with saves) and offers the clean-up.
 	if err := s.svc.DeleteGame(ctx, gid); err != nil {
 		t.Fatal(err)
