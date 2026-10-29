@@ -458,7 +458,7 @@ A block is a table `{ type = "...", id = "...", children = { ... }, <props> }`. 
 | `textfield` | `action` (required), `text`, `placeholder`, `error`, `live`, `disabled` | no; `disabled` (boolean, since Uzume 0.22) greys the control out in the app's disabled style, keeps it readable and sends no action. The action fires on Enter; with `live = true` it also fires while typing, debounced to 250 ms |
 | `textarea` | `value` (text, up to 64 KiB), `lines` (visible lines, 1..40, default 4), `mono` (monospace), `placeholder`, `error`, `action`, `disabled` | no; `disabled` (boolean, since Uzume 0.22) greys the control out in the app's disabled style, keeps it readable and sends no action. Multi-line text. The action fires 300 ms after typing pauses and when the focus leaves. It arrives as `on_action(<action>, text, slot)`; without `action` the name is the block `id`, without both `"change"`. (A `textfield` sends its `action` prop as the name.) |
 | `empty` | `title` (required), `text`, `action_label`, `action`, `tone` | no; `tone = "danger"` is an error state |
-| `location` | `title` (required), `sub`, `status` (`open`, `encounter`, `caught`, `missed`, `none`) | yes, optional |
+| `location` | `title` (required), `sub`, `status` (`open`, `encounter`, `caught`, `missed`, `none`), `status_label` (up to 40 characters) | yes, optional; `status_label` replaces the status tag text, which the app otherwise draws in its own (English) wording, so a plugin can show it in its own language; the colour still follows `status`. Older apps ignore `status_label` and show their built-in text. |
 | `map` | see [Map block](#map-block) | no |
 
 Prop details:

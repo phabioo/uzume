@@ -252,6 +252,13 @@ class PluginBlocksUiTest : public QObject {
   void init() { uitest::warningCount() = 0; }
   void cleanup() { QCOMPARE(uitest::warningCount().load(), 0); }
 
+  void locationStatusLabel() {
+    // status_label replaces the built-in (English) tag text; without it the built-in text stays.
+    show(json(R"({"type":"location","title":"Route 4","status":"caught","status_label":"Gefangen"})"), false);
+    QCOMPARE(textOf(mustFind("pluginLocationStatus")->childItems().value(0)), QStringLiteral("Gefangen"));
+    show(json(R"({"type":"location","title":"Route 4","status":"caught"})"), false);
+    QCOMPARE(textOf(mustFind("pluginLocationStatus")->childItems().value(0)), QStringLiteral("Caught"));
+  }
   void sheetRendersEveryBlock_data() {
     QTest::addColumn<bool>("dark");
     QTest::newRow("dark") << true;
