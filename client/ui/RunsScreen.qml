@@ -118,11 +118,12 @@ Rectangle {
                     color: Theme.muted
                 }
             }
-            Row {
+            Flow {   // wraps the Randomized tag below the rules tag instead of clipping it (#410)
+                objectName: "runRowRulesFlow"
                 visible: cell.key === "rules" && cell.row !== null && (cell.row.rules !== "" || cell.row.randomized === true)
                 anchors.verticalCenter: parent.verticalCenter
                 width: parent.width
-                spacing: Theme.space1
+                spacing: Theme.space05
                 UzTag {
                     visible: cell.row !== null && cell.row.rules !== ""
                     width: Math.min(implicitWidth, Math.max(0, parent.width))
@@ -468,7 +469,7 @@ Rectangle {
                         Layout.fillWidth: true
                         columns: {
                             const c = [{ key: "name", title: qsTr("Run"), fill: 1.3, custom: true }]
-                            if (page.width >= 640) c.push({ key: "rules", title: qsTr("Rules"), width: 200, custom: true })
+                            if (page.width >= 640) c.push({ key: "rules", title: qsTr("Rules"), width: 220, custom: true })
                             if (page.width >= 520) c.push({ key: "people", title: qsTr("People"), fill: 1, custom: true })
                             if (page.width >= 560) c.push({ key: "played", title: qsTr("Play time"), width: 96, custom: true })
                             c.push({ key: "updated", title: qsTr("Updated"), width: 96, custom: true })

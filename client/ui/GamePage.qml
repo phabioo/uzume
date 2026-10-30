@@ -869,9 +869,10 @@ Rectangle {
                                     UzMono {
                                         id: rowLabel
                                         anchors.left: parent.left
-                                        width: 96
+                                        // 96 px as a minimum; a longer (translated) label gets room, up to 45 % of the row, and wraps.
+                                        width: Math.max(96, Math.min(implicitWidth, parent.width * 0.45))
                                         text: row.modelData.label
-                                        elide: Text.ElideRight
+                                        wrapMode: Text.Wrap
                                         color: Theme.dim
                                         font.pixelSize: Theme.roles.sectionLabel.size
                                         font.weight: Theme.roles.sectionLabel.weight
@@ -901,7 +902,7 @@ Rectangle {
                                 }
                                 UzMono {
                                     visible: (row.modelData.hint || "") !== ""
-                                    x: 96 + Theme.space15
+                                    x: rowLabel.width + Theme.space15
                                     width: parent.width - x
                                     text: row.modelData.hint || ""
                                     wrapMode: Text.WrapAnywhere
