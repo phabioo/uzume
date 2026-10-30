@@ -32,6 +32,7 @@ Item {
         y: parent.height - height - Theme.space3 - (linkWaiting ? 56 : 0)
         readonly property bool linkWaiting: root.player.onboarding.linkWaiting
         kind: isError ? "error" : "done"
+        maxLines: 2   // a long text wraps and elides at its end, never at its start
         text: message
         action: isError || variantId === "" ? "" : qsTr("Play")
         onActionTriggered: { const id = toast.variantId; toast.clear(); root.vc.play(id) }
@@ -46,7 +47,9 @@ Item {
         function onBuildFinished(id: string, ok: bool, error: string) {
             if (ok || error === "cancelled") return
             const v = root.vc.variantMap(id)
-            toast.show(qsTr("%1 couldn’t be built").arg(v.name ?? ""), id, true)
+            // A run's variant has no name of its own: without one the text must still read as a sentence, not start mid-way (#415).
+            const name = v.name ?? ""
+            toast.show(name !== "" ? qsTr("%1 couldn’t be built").arg(name) : qsTr("Your variant couldn’t be built"), id, true)
         }
     }
 

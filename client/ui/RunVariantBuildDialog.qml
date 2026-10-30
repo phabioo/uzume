@@ -35,11 +35,22 @@ UzDialog {
         if (root.wanted) root.open()
         else if (root.shown) root.shown = false
     }
-    Component.onCompleted: if (root.wanted) root.open()
+    Component.onCompleted: { if (root.failed) root.failedScreen = root.player.screen; if (root.wanted) root.open() }
     // Esc closes the dialog like "Run in background": the build goes on (Cancel is its own button, nothing is lost by accident).
     onClosed: {
         if (root.building && root.b.background !== true) root.player.runBuildInBackground()
         else if (root.failed) root.player.dismissRunBuild()
+    }
+
+    // A failure belongs to the screen it happened on (the run screen): leaving that screen dismisses it, so it never stays over the Library (#415).
+    // A running build keeps its dialog (it can be sent to the background); only the failed state is tied to the screen.
+    property string failedScreen: ""
+    onFailedChanged: failedScreen = root.failed ? root.player.screen : ""
+    Connections {
+        target: root.player
+        function onScreenChanged() {
+            if (root.failed && root.player.screen !== root.failedScreen) root.player.dismissRunBuild()
+        }
     }
 
     component Step: Item {

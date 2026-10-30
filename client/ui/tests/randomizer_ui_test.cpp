@@ -498,6 +498,16 @@ class RandomizerUiTest : public QObject {
     QVERIFY(h.item("runBuildFailed")->isVisible());
     QVERIFY(!shown(h.item("runBuildStart")));
     uitest::saveShot(h.window, QStringLiteral("rz_buildfailed"));
+    // #415: leaving the run screen dismisses the failure; it does not stay over the Library.
+    QVERIFY(h.click("navLibrary"));
+    QTRY_VERIFY(h.controller->runBuild().isEmpty());
+    QTRY_VERIFY(!popupOpen(h, "runBuildDialog"));
+    QVERIFY(h.click("navRuns"));
+    runs->openRun(runId);
+    QTRY_VERIFY(shown(h.item("runPlay")));
+    QVERIFY(h.click("runPlay"));
+    QTRY_COMPARE_WITH_TIMEOUT(h.controller->runBuild().value("state").toString(), QStringLiteral("failed"), 8000);
+    QTRY_VERIFY(popupOpen(h, "runBuildDialog"));
     QVERIFY(h.click("runBuildClose"));
     QTRY_VERIFY(h.controller->runBuild().isEmpty());
     QTRY_VERIFY(!popupOpen(h, "runBuildDialog"));
