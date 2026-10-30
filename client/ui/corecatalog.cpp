@@ -53,22 +53,33 @@ void CoreCatalog::probeCores() {
     return;  // a game is about to load its core; the next call after the game picks the list up
   }
   for (const emu::SystemManifest& sys : manifests_.all()) {
-    const emu::SystemManifest* mp = manifestForSystem(sys.systemId);
-    if (mp == nullptr || mp->coreId.isEmpty()) {
-      continue;
+    // Every core of the system, not only the one in use: a second installed core (DeSmuME next to melonDS) must be listed too (#411).
+    QList<emu::SystemManifest> candidates;
+    if (const emu::SystemManifest* mp = manifestForSystem(sys.systemId)) candidates.append(*mp);
+    QStringList coreIds;
+    for (const QVariant& c : coresOf(sys.systemId)) coreIds.append(c.toMap().value(QStringLiteral("id")).toString());
+    for (const emu::CoreProfile& p : manifests_.profilesForSystem(sys.systemId)) coreIds.append(p.coreId);
+    for (const QString& id : std::as_const(coreIds)) {
+      const bool have = std::any_of(candidates.cbegin(), candidates.cend(), [&](const emu::SystemManifest& c) { return c.coreId == id; });
+      if (have || id.isEmpty()) continue;
+      if (const auto resolved = manifests_.resolve(sys.systemId, id)) candidates.append(*resolved);
     }
-    const emu::SystemManifest& m = *mp;
-    const emu::CoreLocation loc = locateCore(m);
-    if (!loc.found()) {
-      continue;
+    for (const emu::SystemManifest& m : std::as_const(candidates)) {
+      if (m.coreId.isEmpty()) {
+        continue;
+      }
+      const emu::CoreLocation loc = locateCore(m);
+      if (!loc.found()) {
+        continue;
+      }
+      const bool known = std::any_of(coreList_.cbegin(), coreList_.cend(), [&](const CoreInfo& c) { return c.id == m.coreId; });
+      if (known || listIds_.contains(m.coreId)) {
+        continue;
+      }
+      listIds_.insert(m.coreId);
+      probingIds_.insert(m.coreId);
+      prober_.request(m.coreId, loc.path, systemDir(), QDir(profiles_->baseDir()).filePath(QStringLiteral("probe")));
     }
-    const bool known = std::any_of(coreList_.cbegin(), coreList_.cend(), [&](const CoreInfo& c) { return c.id == m.coreId; });
-    if (known || listIds_.contains(m.coreId)) {
-      continue;
-    }
-    listIds_.insert(m.coreId);
-    probingIds_.insert(m.coreId);
-    prober_.request(m.coreId, loc.path, systemDir(), QDir(profiles_->baseDir()).filePath(QStringLiteral("probe")));
   }
 }
 

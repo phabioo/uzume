@@ -135,9 +135,11 @@ Item {
                     // fillWidth + maximumWidth = natural width: never grows, but shrinks (a Layout item without fillWidth would not)
                     Layout.fillWidth: giveWay || yields
                     Layout.maximumWidth: yields || (rowLayout.hasInput && kid.type === "text") ? implicitWidth : Number.POSITIVE_INFINITY
-                    // a chip follows its text and only gives way beyond 160 px scaled (a badge may elide at once)
+                    // a chip follows its text and only gives way beyond 160 px scaled (a badge too, so a short badge such as "Nicht unterstützt" next to a long text never elides)
                     Layout.minimumWidth: kid.type === "text" ? Math.min(implicitWidth, Math.round(96 * Theme.textScale))
                                          : kid.type === "chip" ? Math.min(implicitWidth, Math.round(160 * Theme.textScale))
+                                         // a badge keeps its text while the text beside it still gets its minimum, else it elides
+                                         : kid.type === "badge" ? Math.min(implicitWidth, Math.max(0, rowLayout.width - Math.round(96 * Theme.textScale) - rowLayout.spacing))
                                          : giveWay || yields ? 0 : implicitWidth
                     Layout.fillHeight: root.node.align === "stretch"
                     Layout.alignment: root.alignFlag(false)

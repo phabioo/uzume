@@ -38,6 +38,10 @@ ColumnLayout {
         root.reload()
         root.activeTab = root.tabs.length > 0 ? root.tabs[0].title : ""
     }
+    // Opens the tab with this id (picture, controls, speedup, states, core); an unknown id keeps the current tab.
+    function showTab(id: string) {
+        for (let i = 0; i < root.tabs.length; ++i) if (root.tabs[i].id === id) { root.activeTab = root.tabs[i].title; return }
+    }
     onGameIdChanged: { root.reload(); if (root.activeTab === "" || root.tabs.every(t => t.title !== root.activeTab)) root.activeTab = root.tabs.length > 0 ? root.tabs[0].title : "" }
     readonly property var tabCounts: {
         const c = {}

@@ -182,8 +182,11 @@ class GamePageUiTest : public QObject {
     QTRY_VERIFY(shown(h, "saveSummary"));
     // "Change" on a row of "How it plays" leads to the Settings tab.
     QTRY_VERIFY(shown(h, "playRowChange_speedup") || shown(h, "playRowChange_core"));
-    QVERIFY(h.click(shown(h, "playRowChange_speedup") ? "playRowChange_speedup" : "playRowChange_core"));
+    const bool viaSpeedup = shown(h, "playRowChange_speedup");
+    QVERIFY(h.click(viaSpeedup ? "playRowChange_speedup" : "playRowChange_core"));
     QTRY_VERIFY(shown(h, "gameSettingsContent"));
+    // #409: the link opens its own section (Core / Speed-up), not the first tab.
+    QTRY_COMPARE(h.item("gameSettingsContent")->property("activeTab").toString(), viaSpeedup ? QStringLiteral("Speed-up") : QStringLiteral("Core"));
     QCOMPARE(h.item("detailTabs")->property("active").toString(), QStringLiteral("Settings"));
   }
 
