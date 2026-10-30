@@ -499,10 +499,10 @@ class RandomizerUiTest : public QObject {
     QVERIFY(!shown(h.item("runBuildStart")));
     uitest::saveShot(h.window, QStringLiteral("rz_buildfailed"));
     // #415: leaving the run screen dismisses the failure; it does not stay over the Library.
-    QVERIFY(h.click("navLibrary"));
+    h.controller->showLibrary();   // the dialog is modal, so a click cannot leave; the debug MCP, hotkeys and links can
     QTRY_VERIFY(h.controller->runBuild().isEmpty());
     QTRY_VERIFY(!popupOpen(h, "runBuildDialog"));
-    QVERIFY(h.click("navRuns"));
+    h.controller->showRuns();
     runs->openRun(runId);
     QTRY_VERIFY(shown(h.item("runPlay")));
     QVERIFY(h.click("runPlay"));
