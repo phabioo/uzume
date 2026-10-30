@@ -615,6 +615,37 @@ class AdminLibraryUiTest : public QObject {
     QVERIFY(h.click("whatsNewDone"));
   }
 
+  void whatsNewButtonsStayInsideTheFrameInAMinimumHeightWindow() {
+    QString notes = QStringLiteral("Fixed:\n");
+    for (int i = 0; i < 30; ++i) notes += QStringLiteral("- Area %1: something was fixed here, with enough words to wrap onto a second line in the list.\n").arg(i);
+    notes += QStringLiteral("... and 7 more (see the release notes)\n");
+    FakeHub hub(QStringLiteral("a"));
+    adminHub(hub);
+    Harness h;
+    start(h, hub);
+    h.window->resize(h.window->width(), 600);
+    QTest::qWait(50);
+    UpdatesController* up = h.controller->updates();
+    up->rememberWhatsNew(QStringLiteral("0.0.1"));
+    up->applyWhatsNew(notes);
+    QTRY_VERIFY(shown(h, "whatsNewDialog"));
+    QTRY_VERIFY(shown(h, "whatsNewServerLine"));   // the fake server is older than the app
+    QVERIFY(shown(h, "whatsNewMore"));
+    QQuickItem* frame = h.item("whatsNewDialog")->findChild<QQuickItem*>(QStringLiteral("dialogFrame"));
+    QVERIFY(frame != nullptr);
+    QTest::qWait(50);
+    const QRectF fr(0, 0, frame->width(), frame->height());
+    for (const char* name : {"whatsNewDone", "whatsNewOpenUpdates", "whatsNewServerLine", "whatsNewMore"}) {
+      QQuickItem* it = h.item(name);
+      QVERIFY2(it != nullptr, name);
+      const QRectF r(it->mapToItem(frame, QPointF(0, 0)), QSizeF(it->width(), it->height()));
+      QVERIFY2(fr.contains(r), name);
+    }
+    uitest::saveShot(h.window, QStringLiteral("whats-new-min-height"));
+    QVERIFY(h.click("whatsNewDone"));
+    QTRY_VERIFY(!shown(h, "whatsNewDialog"));
+  }
+
   void whatsNewOpenUpdatesLeadsToSettings() {
     FakeHub hub(QStringLiteral("a"));
     adminHub(hub);

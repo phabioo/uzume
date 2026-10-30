@@ -32,6 +32,18 @@ UzDialog {
     readonly property string summary: root.summaryText(root.groups)
     readonly property bool serverOlder: root.admin && root.player.versionRelation === "server_older"
 
+    // Room for the list: the window minus the frame margins, the dialog's own parts and the other content items (none of them
+    // depends on the list, so there is no binding loop); at least 120 px, so a tiny window still scrolls instead of clipping buttons.
+    readonly property real listRoom: {
+        let others = 0
+        let gaps = 0
+        for (const it of [summaryLine, moreRow, serverLine]) {
+            if (!it.visible) continue
+            others += it.implicitHeight
+            gaps += 1
+        }
+        return Math.max(120, root.height - 2 * Theme.space2 - root.chromeHeight - others - gaps * Theme.space2)
+    }
     readonly property var order: ["", "added", "changed", "fixed", "removed", "security"]
 
     // { groups: [{ key, title, items: [{ text, lead, rest, tag }] }], more }; `tag` is "App" | "Server" | "Both" | "" (not carried
@@ -121,6 +133,7 @@ UzDialog {
     onClosed: root.player.updates.dismissWhatsNew()
 
     Text {
+        id: summaryLine
         objectName: "whatsNewSummary"
         visible: root.summary !== ""
         Layout.fillWidth: true
@@ -135,7 +148,7 @@ UzDialog {
     }
     Item {
         Layout.fillWidth: true
-        Layout.preferredHeight: Math.min(body.implicitHeight, Math.round(root.height * 0.62))
+        Layout.preferredHeight: Math.min(body.implicitHeight, Math.round(root.height * 0.62), root.listRoom)
         Flickable {
             id: scroller
             anchors.fill: parent
@@ -237,6 +250,7 @@ UzDialog {
         }
     }
     RowLayout {
+        id: moreRow
         objectName: "whatsNewMore"
         readonly property int count: root.more
         visible: root.more > 0
@@ -261,6 +275,7 @@ UzDialog {
         }
     }
     UzStatusIcon {
+        id: serverLine
         objectName: "whatsNewServerLine"
         Layout.fillWidth: true
         visible: root.serverOlder

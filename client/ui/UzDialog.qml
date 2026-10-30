@@ -23,6 +23,14 @@ FocusScope {
     property alias actions: mainActions.data
     property alias dangerActions: dangerActions.data
     property alias hints: hintsBox.data
+    // Height of the frame without the content slot: header, action row, hints and the gaps between them (not the optional `text` and
+    // `error` lines). Does not depend on the content, so a content item can cap itself at `root.height - 2 * space2 - chromeHeight`
+    // without a binding loop.
+    readonly property real chromeHeight: headerRow.implicitHeight + headerRow.Layout.topMargin
+                                         + (actionsBox.visible ? actionsBox.implicitHeight + actionsBox.Layout.topMargin : 0)
+                                         + (hintsWrap.visible ? hintsWrap.implicitHeight + Theme.space15 : 0)
+                                         + (28 - Theme.space15)
+                                         + (2 + (actionsBox.visible ? 1 : 0)) * Theme.space15
     signal closed()
 
     function open() { shown = true }
@@ -64,6 +72,7 @@ FocusScope {
             spacing: Theme.space15
 
             RowLayout {   // header: label + title, close button
+                id: headerRow
                 Layout.fillWidth: true
                 Layout.topMargin: 28
                 Layout.leftMargin: 28
