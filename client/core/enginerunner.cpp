@@ -5,6 +5,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QLoggingCategory>
+#include <QSaveFile>
 #include <QStorageInfo>
 #include <algorithm>
 
@@ -71,6 +72,38 @@ qint64 EngineRunner::availableMemoryBytes() {
 #endif
 }
 
+bool EngineRunner::extractLauncher(const QString& dir) {
+#ifdef UZUME_HAVE_FVX_LAUNCHER
+  QFile res(QStringLiteral(":/uzume/engine/") + QLatin1String(kLauncherJarName));
+  if (!res.open(QIODevice::ReadOnly)) return false;
+  const QByteArray bytes = res.readAll();
+  if (bytes.isEmpty()) return false;
+  const QString target = dir + QLatin1Char('/') + QLatin1String(kLauncherJarName);
+  QFile cur(target);
+  if (cur.open(QIODevice::ReadOnly)) {
+    const QByteArray have = cur.readAll();
+    cur.close();
+    if (have == bytes) return true;
+  }
+  QSaveFile out(target);
+  if (!out.open(QIODevice::WriteOnly) || out.write(bytes) != bytes.size()) return false;
+  return out.commit();
+#else
+  Q_UNUSED(dir);
+  return false;
+#endif
+}
+
+QStringList EngineRunner::javaPrefix(const EngineJob& job, bool useLauncher) {
+  QStringList a{QStringLiteral("-Xmx%1M").arg(job.heapMb)};
+  if (useLauncher) {
+    a << QStringLiteral("-cp") << job.jarName + QDir::listSeparator() + QLatin1String(kLauncherJarName) << QLatin1String(kLauncherClass);
+  } else {
+    a << QStringLiteral("-jar") << job.jarName;
+  }
+  return a;
+}
+
 void EngineRunner::note(const QString& text) { result_.log.append(QDateTime::currentDateTime().toString(QStringLiteral("HH:mm:ss ")) + text); }
 
 void EngineRunner::start(const EngineJob& job) {
@@ -108,9 +141,16 @@ void EngineRunner::start(const EngineJob& job) {
     return;
   }
 
-  QStringList args{QStringLiteral("-Xmx%1M").arg(job.heapMb), QStringLiteral("-jar"), job.jarName, QStringLiteral("cli"),
-                   QStringLiteral("-i"), job.baseFile, QStringLiteral("-o"), job.outPath, QStringLiteral("-S"), job.settings,
-                   QStringLiteral("-z"), job.seed};
+  // 3DS: the FVX CLI refuses 3DS games unless the launcher enables them first (issue #414); on any problem, run the plain call.
+  bool useLauncher = false;
+  if (job.isMod) {
+    useLauncher = extractLauncher(job.workDir);
+    if (!useLauncher) note(QStringLiteral("the 3DS launcher is not available, running the engine without it"));
+  }
+  result_.launcherUsed = useLauncher;
+  QStringList args = javaPrefix(job, useLauncher);
+  args << QStringLiteral("cli") << QStringLiteral("-i") << job.baseFile << QStringLiteral("-o") << job.outPath << QStringLiteral("-S")
+       << job.settings << QStringLiteral("-z") << job.seed;
   if (job.directoryOutput) args << QStringLiteral("-d");
   if (job.spoilerLog) args << QStringLiteral("-l");
   proc_ = new QProcess(this);
@@ -141,7 +181,7 @@ void EngineRunner::start(const EngineJob& job) {
   clock_.start();
   limit_.start(job.timeLimitMs > 0 ? job.timeLimitMs : (job.isMod ? kTimeLimit3dsMs : kTimeLimitOtherMs));
   ticker_.start();
-  qCInfo(lcEngine) << "start" << (job.isMod ? "mod" : "rom") << "base bytes" << job.baseBytes << "heap" << job.heapMb;
+  qCInfo(lcEngine) << "start" << (job.isMod ? "mod" : "rom") << "base bytes" << job.baseBytes << "heap" << job.heapMb << "launcher" << useLauncher;
   proc_->start();
   tick();
 }

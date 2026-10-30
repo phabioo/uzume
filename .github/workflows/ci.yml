@@ -357,6 +357,11 @@ jobs:
       CCACHE_MAXSIZE: 1500M
     steps:
       - uses: actions/checkout@v7
+      - name: Set up Java (FVX launcher jar, issue #414)
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
       - name: Image key and week key
         # ImageOS (ubuntu24) is set by the runner image; the key parts keep prefixes built on another image apart.
         id: week
@@ -487,6 +492,11 @@ jobs:
       CCACHE_MAXSIZE: 1000M
     steps:
       - uses: actions/checkout@v7
+      - name: Set up Java (FVX launcher jar, issue #414)
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
       - name: Image key and week key
         id: week
         run: |
@@ -570,7 +580,7 @@ jobs:
           ddc="$(../scripts/fetch-libdatachannel.sh)"
           sdl="$(../scripts/fetch-sdl3.sh)"
           cmake --preset linux-release "-DCMAKE_PREFIX_PATH=$ddc" "-DSDL3_ROOT=$sdl" \
-            "-DUZUME_VERSION=$UZUME_VERSION" "-DUZUME_CHANNEL=$UZUME_CHANNEL" "-DUZUME_COMMIT=$UZUME_COMMIT"
+            -DUZUME_REQUIRE_FVX_LAUNCHER=ON "-DUZUME_VERSION=$UZUME_VERSION" "-DUZUME_CHANNEL=$UZUME_CHANNEL" "-DUZUME_COMMIT=$UZUME_COMMIT"
           cmake --build --preset linux-release --target uzume_app uzume_cli
       - name: ccache statistics
         if: always()
@@ -713,6 +723,11 @@ jobs:
       CCACHE_MAXSIZE: 2000M
     steps:
       - uses: actions/checkout@v7
+      - name: Set up Java (FVX launcher jar, issue #414)
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
       - name: Cache vcpkg checkout
         uses: actions/cache@v6
         with:
@@ -818,7 +833,7 @@ jobs:
           CCACHE_EXE: ${{ steps.ccache.outputs.path }}
         # The launcher is a cache variable of this project only; vcpkg builds its ports in their own CMake runs.
         run: >-
-          cmake --preset windows-msvc-release "-DUZUME_VERSION=$env:UZUME_VERSION" "-DUZUME_CHANNEL=$env:UZUME_CHANNEL"
+          cmake --preset windows-msvc-release -DUZUME_REQUIRE_FVX_LAUNCHER=ON "-DUZUME_VERSION=$env:UZUME_VERSION" "-DUZUME_CHANNEL=$env:UZUME_CHANNEL"
           "-DUZUME_COMMIT=$env:UZUME_COMMIT" "-DCMAKE_C_COMPILER_LAUNCHER=$env:CCACHE_EXE" "-DCMAKE_CXX_COMPILER_LAUNCHER=$env:CCACHE_EXE"
       # Save the binary cache right after vcpkg install (part of configure), even if
       # later steps fail, so a long FFmpeg build is never repeated. Only when this run added or changed entries

@@ -12,6 +12,8 @@ namespace uzume {
 
 // One run of the randomizer engine (ADR 0031 D3): `<java> -Xmx<heap>M -jar <jar> cli -i <base> -o <out> -S <settings> -z <seed>
 // [-d] [-l]` as a child process with a fixed argument list and no shell, in the engine's folder. Exit code 0 is success. Progress
+// For a 3DS (mod) job the call is `<java> -Xmx<heap>M -cp <jar><sep>uzume-fvx-launcher.jar UzumeFvxLauncher cli ...` when the launcher is
+// compiled in (UZUME_HAVE_FVX_LAUNCHER, issue #414): the FVX CLI cannot open 3DS games without it. Progress
 // is an estimate from the size of the base file (the engine reports none). Only the engine's own ERROR / WARNING lines are kept
 // (at most the last 20, each cut to 200 characters); everything else it prints (it may carry game data) is dropped, and stderr
 // is dropped altogether. Error codes (EngineResult::error): engine_missing, base_missing, not_enough_memory, disk_full,
@@ -48,6 +50,7 @@ struct EngineResult {
   QStringList log;               // "HH:mm:ss text" lines without game data: start, filtered ERROR / WARNING lines, exit code
   QString producedPath;  // ROM output: the one file the engine wrote (its name may carry an extra extension); mod: the folder
   QString spoilerLogPath;        // <outPath>.log when requested and written
+  bool launcherUsed = false;     // the call went through uzume-fvx-launcher.jar (3DS jobs)
 };
 
 class EngineRunner : public QObject {
@@ -66,6 +69,13 @@ class EngineRunner : public QObject {
   static qint64 memoryNeededBytes(int heapMb) { return static_cast<qint64>(heapMb) * 1024 * 1024 * 3 / 4; }
   static qint64 diskNeededBytes(bool isMod, qint64 baseBytes);
   static qint64 availableMemoryBytes();  // -1 = unknown
+  static constexpr const char* kLauncherJarName = "uzume-fvx-launcher.jar";
+  static constexpr const char* kLauncherClass = "UzumeFvxLauncher";
+  // Writes the embedded launcher jar to <dir>/uzume-fvx-launcher.jar unless a file with the same bytes is there; false when it is
+  // not compiled in or cannot be written.
+  static bool extractLauncher(const QString& dir);
+  // The arguments up to (not including) "cli": heap option and either -jar <jar> or -cp <jar><sep><launcher> <class>.
+  static QStringList javaPrefix(const EngineJob& job, bool useLauncher);
 
   // Tests: replace the probes for free memory and free disk space (bytes; <0 = unknown).
   void setMemoryProbe(std::function<qint64()> fn) { memoryProbe_ = std::move(fn); }
