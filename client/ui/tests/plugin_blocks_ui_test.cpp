@@ -315,6 +315,18 @@ class PluginBlocksUiTest : public QObject {
     QVERIFY(sheet_->width() <= 300);
   }
 
+  // #410: a short badge keeps its whole text in a row with a long text, also on a wide panel.
+  void badgesKeepTheirTextBesideALongText() {
+    show(json(R"({"type":"row","gap":8,"children":[
+      {"type":"text","text":"Randomizer: a long line of text that has to give way before the badge does, as the game card of the randomizer plugin has"},
+      {"type":"badge","id":"badgeStatus","text":"Nicht unterstützt"}]})"),
+         true, 700);
+    QQuickItem* badge = mustFind("plugin_badgeStatus");
+    QVERIFY(badge != nullptr);
+    QVERIFY2(badge->width() >= badge->implicitWidth() - 0.5, "badge was cut");
+    QVERIFY(sheet_->width() <= 700);
+  }
+
   // PI-5: strings from plugins and peers are text, never HTML: no <img> fetch, no <b>/<font> restyling.
   void hostileStringsRenderLiterally() {
     const QString evil = QStringLiteral("<img src=\"https://hostile.example/p.png?ip\"><b>Official</b><font size=40>x</font>");
