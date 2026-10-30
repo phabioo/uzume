@@ -695,6 +695,7 @@ func (s *Service) gameCheats(ctx context.Context, userID, gameID string) (CheatL
 	out.MatchedBy, out.ListName = by, strings.TrimSuffix(file, filepath.Ext(file))
 	for _, c := range ParseCht(b) {
 		c.FormatGuess = GuessCheatFormat(g.System, c.Code)
+		c.Code = NormalizeCheatCode(c.Code)
 		out.Cheats = append(out.Cheats, c)
 	}
 	return out, nil

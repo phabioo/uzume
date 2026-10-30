@@ -136,7 +136,7 @@ func demoFiles() map[string]string {
 		len(demoROM), crc32.ChecksumIEEE([]byte(demoROM)), sum)
 	return map[string]string{
 		"libretro-database-master/metadat/no-intro/Nintendo - Nintendo DS.dat":      dat,
-		"libretro-database-master/cht/Nintendo - Nintendo DS/Synthetic Demo.cht":    chtOf("Infinite things", "02001234 000000FF", "Odd one", "XYZ"),
+		"libretro-database-master/cht/Nintendo - Nintendo DS/Synthetic Demo.cht":    chtOf("Infinite things", "02001234 000000FF+D2000000 00000000", "Odd one", "XYZ"),
 		"libretro-database-master/cht/Nintendo - Nintendo DS/Other Thing.cht":       chtOf("By name", "02005678 00000001"),
 		"libretro-database-master/3ds/0004000000abcdef.txt":                         gatewayOf("Title cheat", "00123456 000000ff"),
 		"libretro-database-master/cht/Nintendo - Nintendo 3DS/0004000000AAAAAA.cht": chtOf("Ignored", "00123456 000000FF"),
@@ -176,7 +176,7 @@ func TestCheatDBImportAndMatching(t *testing.T) {
 	if err != nil || l.Source != "imported" || l.MatchedBy != "hash" || l.ListName != "Synthetic Demo" || len(l.Cheats) != 2 || l.UpdatedAt == nil {
 		t.Fatalf("%+v %v", l, err)
 	}
-	if l.Cheats[0].Name != "Infinite things" || l.Cheats[0].FormatGuess != hub.CheatARDS || l.Cheats[1].FormatGuess != hub.CheatRaw {
+	if l.Cheats[0].Name != "Infinite things" || l.Cheats[0].FormatGuess != hub.CheatARDS || l.Cheats[0].Code != "02001234 000000FF\nD2000000 00000000" || l.Cheats[1].FormatGuess != hub.CheatRaw {
 		t.Fatalf("%+v", l.Cheats)
 	}
 	// The hashes are cached: a second lookup works without the ROM file.
@@ -486,5 +486,11 @@ func TestCheatDBRegionMatching(t *testing.T) {
 	}
 	if l := add([]byte("retaild"), "Build Game (Europe) [!].nds", ""); len(l.Cheats) != 1 || l.Cheats[0].Name != "Retail" {
 		t.Fatalf("good-dump mark ignored: %+v", l)
+	}
+}
+
+func TestNormalizeCheatCode(t *testing.T) {
+	if got := hub.NormalizeCheatCode(" 02001234 000000FF + D2000000 00000000\n"); got != "02001234 000000FF\nD2000000 00000000" {
+		t.Fatalf("%q", got)
 	}
 }
