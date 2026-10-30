@@ -350,6 +350,46 @@ class SaveHistoryUiTest : public QObject {
     QVERIFY(hist->restoreRequest().isEmpty());
     QCOMPARE(hub.count(QStringLiteral("/api/v1/games/g1/saves/default/history")), 0);
   }
+  // #407 / #406: the slot meta (current checkpoint, history) belongs to the slot that is selected. A slot switched by the run start
+  // (SaveSync::setSlot, not the picker) must not keep showing the previous slot's meta, and slots keep their own checkpoints.
+  void slotMetaFollowsSelectedSlot() {
+    const QByteArray rom = "homebrew-dummy-rom-slotmeta";
+    FakeHub hub(QStringLiteral("a"));
+    hub.features = {QStringLiteral("saves_v1"), QStringLiteral("saves_v2"), QStringLiteral("sessions_v1")};
+    setGames(hub, rom);
+    hub.setHubSave(QStringLiteral("g1"), "cp-main");
+    hub.addHistory(QStringLiteral("g1"), QStringLiteral("default"), "old-main", QStringLiteral("session_end"));
+    hub.setHubSave(QStringLiteral("g1/run-b"), "cp-b");
+    QVERIFY(hub.start());
+    Harness h;
+    QVERIFY(h.start());
+    pair(h, hub);
+    SaveHistoryController* hist = h.controller->saveHistory();
+    SaveSync* sync = h.controller->saveSync();
+    QTRY_VERIFY_WITH_TIMEOUT(hist->available() && !hist->loading() && hist->history().size() == 1, 8000);
+    const QString mainSha = hist->current().value(QStringLiteral("sha256")).toString();
+    QVERIFY(!mainSha.isEmpty());
+
+    // Empty run slot selected like a run start does: nothing of Main may remain visible, not even for a moment.
+    QVERIFY(sync->setSlot(QStringLiteral("g1"), QStringLiteral("run-new")));
+    QVERIFY(hist->history().isEmpty());
+    QVERIFY(hist->current().isEmpty());
+    QTRY_VERIFY_WITH_TIMEOUT(!hist->loading(), 8000);
+    QVERIFY(hist->history().isEmpty());
+    QVERIFY(hist->current().isEmpty());
+
+    // Another slot with its own save shows its own checkpoint, not the one of the slot before.
+    QVERIFY(sync->setSlot(QStringLiteral("g1"), QStringLiteral("run-b")));
+    QVERIFY(hist->current().isEmpty());
+    QTRY_VERIFY_WITH_TIMEOUT(!hist->current().isEmpty(), 8000);
+    const QString bSha = hist->current().value(QStringLiteral("sha256")).toString();
+    QVERIFY(bSha != mainSha);
+
+    // Back to Main: Main's own checkpoint again.
+    QVERIFY(sync->setSlot(QStringLiteral("g1"), QStringLiteral("default")));
+    QTRY_COMPARE_WITH_TIMEOUT(hist->current().value(QStringLiteral("sha256")).toString(), mainSha, 8000);
+    QCOMPARE(hist->history().size(), 1);
+  }
 };
 
 UITEST_MAIN(SaveHistoryUiTest)

@@ -36,6 +36,19 @@ SaveHistoryController::SaveHistoryController(const Env& env, QObject* parent) : 
       refresh();  // the final sync may have added a history version
     }
   });
+  // The selected slot changed (run start, restore of the previous slot, rename...): the cached history and current checkpoint
+  // belong to the old slot and must not be shown for the new one (#406, #407).
+  connect(env_.saves, &SaveSync::slotSelected, this, [this](const QString& id, const QString&) {
+    if (id != gameId_) {
+      return;
+    }
+    history_.clear();
+    current_.clear();
+    currentRevision_ = 0;
+    slotVersionCounts_.clear();
+    recomputeBlock();
+    refresh();
+  });
   connect(env_.connection, &HubConnection::stateChanged, this, [this]() { refresh(); });
   // Another device renamed or deleted a slot: SaveSync already handled the local copy; show the outcome.
   connect(env_.saves, &SaveSync::slotChangedElsewhere, this, [this](const SaveUpdate& u, const QString& message, bool warning) {
@@ -397,7 +410,7 @@ void SaveHistoryController::selectSlot(const QString& slotName) {
   currentRevision_ = 0;
   message_.clear();
   recomputeBlock();
-  refresh();
+  // refresh() already ran through SaveSync::slotSelected.
 }
 
 QString SaveHistoryController::validateSlotName(const QString& name) const {

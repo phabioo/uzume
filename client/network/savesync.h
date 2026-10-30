@@ -268,6 +268,7 @@ class SaveSync : public QObject {
   void saveChangedElsewhere(const uzume::SaveUpdate& update, bool runningHere);
   // save_updated "renamed" / "deleted" from another device, after the local slot was handled (moved, removed, or kept
   // because it is running or has unsynced changes). `message` is a user-facing notice (empty = nothing to say).
+  void slotSelected(const QString& gameId, const QString& slot);  // the selected slot of a game changed
   void slotChangedElsewhere(const uzume::SaveUpdate& update, const QString& message, bool warning);
 
  private:
