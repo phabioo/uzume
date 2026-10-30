@@ -205,7 +205,9 @@ Rectangle {
         if (!root.saves.slotsAvailable) return ""
         if (root.saves.busy) return qsTr("Saving…")
         const sync = root.saves.uploading ? qsTr("syncing") : (root.saves.online ? qsTr("synced") : qsTr("waiting for the server"))
-        const when = root.saves.history.length > 0 ? root.saves.history[0].when : ""
+        // The newest save of the slot that is running: the current checkpoint, else the newest history version.
+        const cur = root.saves.current && root.saves.current.when ? root.saves.current.when : ""
+        const when = cur !== "" ? cur : (root.saves.history.length > 0 ? root.saves.history[0].when : "")
         return when !== "" ? qsTr("Saved %1").arg(when) + " · " + sync : qsTr("Not saved yet")
     }
     // Play time of the running game (library statistics, as the game page shows it); empty while unknown.

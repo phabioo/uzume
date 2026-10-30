@@ -103,6 +103,7 @@ bool SaveSync::setSlot(const QString& gameId, const QString& slot) {
     return false;
   }
   const QString hubId = conn_->hubId();
+  const QString before = slotFor(gameId);
   if (settings_ != nullptr) {
     if (!settings_->setSaveSlot(hubId, gameId, slot)) {
       return false;
@@ -111,6 +112,9 @@ bool SaveSync::setSlot(const QString& gameId, const QString& slot) {
     memorySlots_.insert(hubId + QLatin1Char('/') + gameId, slot);
   }
   refreshKinds({gameId});
+  if (before != slot) {
+    emit slotSelected(gameId, slot);  // views caching per-slot meta (history, current checkpoint) must drop it
+  }
   return true;
 }
 
