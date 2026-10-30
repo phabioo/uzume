@@ -388,7 +388,7 @@ class SaveHistoryUiTest : public QObject {
     // Back to Main: Main's own checkpoint again.
     QVERIFY(sync->setSlot(QStringLiteral("g1"), QStringLiteral("default")));
     QTRY_COMPARE_WITH_TIMEOUT(hist->current().value(QStringLiteral("sha256")).toString(), mainSha, 8000);
-    QCOMPARE(hist->history().size(), 1);
+    QTRY_COMPARE_WITH_TIMEOUT(hist->history().size(), 1, 8000);  // the history arrives in its own answer, after the checkpoint
   }
 };
 

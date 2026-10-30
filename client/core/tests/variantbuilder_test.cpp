@@ -142,6 +142,10 @@ class VariantBuilderTest : public QObject {
     QVERIFY(all.contains(QStringLiteral("WARNING: synthetic warning")));
     QVERIFY(all.contains(QStringLiteral("exit code 3")));
     QVERIFY(!all.contains(QStringLiteral("SYNTHETICMON")));  // every other engine line is dropped
+    // The first ERROR line reaches the outcome; absolute paths shrink to the file name (they can carry the user name).
+    QCOMPARE(o.engineError, QStringLiteral("synthetic failure while writing"));
+    QVERIFY(all.contains(QStringLiteral("ERROR: Could not load abc.3ds; SYNTHETIC_REASON")));
+    QVERIFY(!all.contains(QStringLiteral("Users")));
     QVERIFY(!variants_->isBuilt(QStringLiteral("vf")));
     QVERIFY(!QFileInfo::exists(variants_->tempDir(QStringLiteral("vf"))));
   }

@@ -353,6 +353,7 @@ QVariantMap VariantsController::toMap(const VariantInfo& v) const {
   m.insert(QStringLiteral("etaText"), etaTextOf(st.etaMs));
   m.insert(QStringLiteral("error"), st.error);
   m.insert(QStringLiteral("errorText"), st.error.isEmpty() ? QString() : errorText(st.error));
+  m.insert(QStringLiteral("engineError"), st.engineError);
   m.insert(QStringLiteral("neededBytes"), static_cast<double>(st.needed));
   m.insert(QStringLiteral("freeBytes"), static_cast<double>(st.free));
   m.insert(QStringLiteral("neededText"), st.needed > 0 ? formatBytesText(st.needed) : QString());
@@ -970,6 +971,7 @@ void VariantsController::onFinished(const BuildOutcome& o) {
   } else {
     VarState st;
     st.error = o.error.isEmpty() ? QStringLiteral("engine_failed") : o.error;
+    st.engineError = o.engineError;
     st.log = o.log;
     st.needed = o.neededBytes;
     st.free = o.freeBytes;
@@ -1300,6 +1302,7 @@ QVariantMap VariantsController::runVariantState(const QString& runId) const {
   QString state = runStates_.value(runId.toLower());
   if (state.isEmpty()) state = runVariantBuilt(runId) ? QStringLiteral("ready") : QStringLiteral("not_built");
   QVariantMap m{{QStringLiteral("state"), state}, {QStringLiteral("error"), runErrors_.value(runId.toLower())}, {QStringLiteral("fraction"), 0.0}};
+  m.insert(QStringLiteral("engineError"), states_.value(runVariantId(runId)).engineError);
   if (active_ && active_->runId == runId.toLower()) m.insert(QStringLiteral("fraction"), states_.value(active_->variantId).fraction);
   return m;
 }

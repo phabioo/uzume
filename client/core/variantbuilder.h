@@ -23,6 +23,7 @@ struct BuildOutcome {
   // Empty when ok. engine_missing | base_missing | base_mismatch | not_enough_memory | disk_full | engine_failed | timed_out |
   // cancelled | output_missing | io_error
   QString error;
+  QString engineError;       // see EngineResult
   QStringList log;           // lines without game data ("HH:mm:ss text"), see EngineRunner
   int exitCode = -1;
   qint64 neededBytes = 0;    // not_enough_memory, disk_full

@@ -497,7 +497,8 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
         runBuild_ = {};
         if (const auto r = runClient_->run(runId)) {
           runBuild_ = {{QStringLiteral("runId"), runId}, {QStringLiteral("runName"), r->name}, {QStringLiteral("state"), QStringLiteral("failed")},
-                       {QStringLiteral("error"), variants_->runVariantState(runId).value(QStringLiteral("error"))}, {QStringLiteral("startWhenReady"), false},
+                       {QStringLiteral("error"), variants_->runVariantState(runId).value(QStringLiteral("error"))},
+                       {QStringLiteral("engineError"), variants_->runVariantState(runId).value(QStringLiteral("engineError"))}, {QStringLiteral("startWhenReady"), false},
                        {QStringLiteral("background"), false}};
         }
         emit runBuildChanged();

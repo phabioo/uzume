@@ -5,9 +5,10 @@
 //     give the same bytes, any other value gives different bytes.
 //   - With -d: the output folder holds <TID>/romfs/a/0/0/0 and <TID>/code.bin with synthetic bytes derived the same way.
 //   - With -l: <out>.log holds one synthetic line.
+//   - UZUME_TEST_ENGINE_ARGS_FILE: the received arguments are written there, one per line.
 //   - UZUME_TEST_ENGINE_DELAY_MS sleeps before the output is written (cancel and time-limit tests).
 //   - Settings starting with "999" make it fail: it prints ERROR: and WARNING: lines (and a line that must be filtered out) and
-//     exits with 3.
+//     exits with 3. One ERROR line carries absolute paths (the runner shortens them).
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
@@ -91,6 +92,10 @@ struct Keystream {
 }  // namespace
 
 int main(int argc, char** argv) {
+  if (const char* af = std::getenv("UZUME_TEST_ENGINE_ARGS_FILE")) {  // tests: the received arguments, one per line
+    std::ofstream a(af, std::ios::binary | std::ios::trunc);
+    for (int i = 1; i < argc; ++i) a << argv[i] << "\n";
+  }
   std::string in, out, settings, seed;
   bool dir = false, log = false, seenCli = false;
   for (int i = 1; i < argc; ++i) {
@@ -114,6 +119,7 @@ int main(int argc, char** argv) {
     std::printf("Randomizing something about SYNTHETICMON\n");
     std::printf("WARNING: synthetic warning\n");
     std::printf("ERROR: synthetic failure while writing\n");
+    std::printf("ERROR: Could not load C:\\Users\\Some One\\cache\\roms\\abc.3ds; SYNTHETIC_REASON\n");  // a path to shorten
     std::fflush(stdout);
     return 3;
   }

@@ -157,6 +157,7 @@ void VariantBuilder::onEngineFinished(const EngineResult& r) {
   if (!running_) return;
   BuildOutcome o;
   o.log = r.log;
+  o.engineError = r.engineError;
   o.exitCode = r.exitCode;
   o.neededBytes = r.neededBytes;
   o.freeBytes = r.freeBytes;
