@@ -305,6 +305,18 @@ func GuessCheatFormat(system, code string) string {
 	return CheatRaw
 }
 
+// NormalizeCheatCode turns the libretro-database separator "+" between the lines of a multi-line code into line breaks
+// (the form the cheats plugin and the app expect, one code line per row) and trims every line.
+func NormalizeCheatCode(code string) string {
+	var lines []string
+	for _, p := range codePartSplt.Split(code, -1) {
+		if p = strings.TrimSpace(p); p != "" {
+			lines = append(lines, p)
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
 var gatewayCodeLine = regexp.MustCompile(`^[0-9A-Fa-f]{8} [0-9A-Fa-f]{8}$`)
 
 // ParseGatewayList reads a Citra/Azahar-style Gateway list for one 3DS title: "[Cheat name]" header lines followed by
