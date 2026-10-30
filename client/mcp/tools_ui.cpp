@@ -1146,7 +1146,7 @@ void installUiTools(McpToolRegistry& registry, ui::PlayerController& player) {
         "(developer_mode_required otherwise), used for this start only. With run_id the game starts as part of that run (the same path as Play on the run page: "
         "the run's save slot, its plugins and run state); a run that cannot be played answers run_unavailable with the reason.");
     t.inputSchema = schema({{QStringLiteral("gameId"), typeStr(QStringLiteral("Library game id."))},
-                            {QStringLiteral("slot"), typeStr(QStringLiteral("Save slot name (an existing slot of the game)."))},
+                            {QStringLiteral("slot"), typeStr(QStringLiteral("Save slot name (an existing slot of the game; \"Main\" is the default slot, used when omitted)."))},
                             {QStringLiteral("identity"), typeObject({{QStringLiteral("system"), typeStr(QStringLiteral("System id, e.g. 3ds."))},
                                                                      {QStringLiteral("code"), typeStr(QStringLiteral("Game code or title id."))}},
                                                                     {QStringLiteral("system"), QStringLiteral("code")},
@@ -1158,9 +1158,11 @@ void installUiTools(McpToolRegistry& registry, ui::PlayerController& player) {
     t.handler = [pc](const QJsonObject& a, ToolReply reply) {
       if (!pc) return reply(ToolResult::error(QStringLiteral("app_closing")));
       const QString gameId = a.value(QStringLiteral("gameId")).toString();
-      const QString slot = a.value(QStringLiteral("slot")).toString();
+      QString slot = a.value(QStringLiteral("slot")).toString();
       const QString runId = a.value(QStringLiteral("run_id")).toString().trimmed();
       if (gameId.isEmpty()) return reply(ToolResult::error(QStringLiteral("gameId required")));
+      // The default slot is stored as "default" and shown as "Main"; accept both spellings.
+      if (slot.compare(QLatin1String("main"), Qt::CaseInsensitive) == 0) slot = QStringLiteral("default");
       if (!runId.isEmpty() && !slot.isEmpty()) return reply(ToolResult::error(QStringLiteral("run_id and slot exclude each other: a run plays in its own slot")));
       const bool hasIdentity = a.contains(QStringLiteral("identity"));
       const QJsonObject identity = a.value(QStringLiteral("identity")).toObject();
@@ -1171,10 +1173,12 @@ void installUiTools(McpToolRegistry& registry, ui::PlayerController& player) {
       }
       if (!pc->runningGameId().isEmpty() && !pc->gameInBackground()) return reply(ToolResult::error(QStringLiteral("game_running: stop it first (game_stop)")));
       if (!selectKnownGame(*pc, gameId)) return reply(ToolResult::error(QStringLiteral("unknown_game: %1").arg(gameId)));
+      // Without a slot (and not as part of a run) the game starts in Main instead of whatever slot the game page remembered.
+      if (slot.isEmpty() && runId.isEmpty()) slot = QStringLiteral("default");
       if (!slot.isEmpty()) {
         ui::SaveHistoryController* h = pc->saveHistory();
         if (h->slot() != slot) h->selectSlot(slot);
-        if (h->slot() != slot) return reply(ToolResult::error(QStringLiteral("slot_unavailable: %1").arg(slot)));
+        if (h->slot() != slot) return reply(ToolResult::error(QStringLiteral("slot_unavailable: %1").arg(a.value(QStringLiteral("slot")).toString().isEmpty() ? slot : a.value(QStringLiteral("slot")).toString())));
       }
       const QVariantMap sel = pc->selectedGame();
       const bool running = sel.value(QStringLiteral("running")).toBool();
@@ -1213,6 +1217,7 @@ void installUiTools(McpToolRegistry& registry, ui::PlayerController& player) {
         else if (st == QLatin1String("confirm_pending")) pc->plugins()->clearIdentityOverride();  // the person decides; the override does not wait
         QJsonObject o = navState(*pc);
         o.insert(QStringLiteral("status"), st);
+        if (runId.isEmpty()) o.insert(QStringLiteral("slot"), pc->saveHistory()->slot());
         // A run start that cannot go ahead (game cannot start, copies missing ...) says why on the run page; pass it on.
         if (st == QLatin1String("starting") && !runId.isEmpty() && pc->runs()->messageIsError() && !pc->runs()->message().isEmpty())
           o.insert(QStringLiteral("run_error"), pc->runs()->message());

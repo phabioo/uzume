@@ -429,6 +429,14 @@ class McpUiTest : public QObject {
     plugins->setDeveloperMode(false);
   }
 
+  // #408: "Main" is the default slot ("default" internally) and is accepted, also without a slot being given.
+  void gameStartAcceptsMainSlot() {
+    const Answer a = call(QStringLiteral("game_start"), {{"gameId", "g1"}, {"slot", "Main"}});
+    QVERIFY(!a.text().startsWith(QStringLiteral("slot_unavailable")));
+    const Answer b = call(QStringLiteral("game_start"), {{"gameId", "g1"}});
+    QVERIFY(!b.text().startsWith(QStringLiteral("slot_unavailable")));
+  }
+
   // 0.22: game_start run_id starts the game through the run (Play on the run page); an unknown run answers run_unavailable.
   void gameStartRunIdNeedsAPlayableRun() {
     const ToolDef* def = registry.find(QStringLiteral("game_start"));
