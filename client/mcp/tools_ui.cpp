@@ -1173,8 +1173,9 @@ void installUiTools(McpToolRegistry& registry, ui::PlayerController& player) {
       }
       if (!pc->runningGameId().isEmpty() && !pc->gameInBackground()) return reply(ToolResult::error(QStringLiteral("game_running: stop it first (game_stop)")));
       if (!selectKnownGame(*pc, gameId)) return reply(ToolResult::error(QStringLiteral("unknown_game: %1").arg(gameId)));
-      // Without a slot (and not as part of a run) the game starts in Main instead of whatever slot the game page remembered.
-      if (slot.isEmpty() && runId.isEmpty()) slot = QStringLiteral("default");
+      // Without a slot (and not as part of a run) a fresh start uses Main instead of whatever slot the game page remembered;
+      // the game already running in the background resumes in its own slot.
+      if (slot.isEmpty() && runId.isEmpty() && pc->runningGameId() != gameId) slot = QStringLiteral("default");
       if (!slot.isEmpty()) {
         ui::SaveHistoryController* h = pc->saveHistory();
         if (h->slot() != slot) h->selectSlot(slot);
