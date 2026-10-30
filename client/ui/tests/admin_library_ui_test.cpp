@@ -504,6 +504,148 @@ class AdminLibraryUiTest : public QObject {
     }
   }
 
+  void whatsNewParsesTheIndexFormatIntoGroupsSummaryAndMore() {
+    const QString notes = QStringLiteral(
+        "Fixed:\n- The diagnostics overlay no longer blames the CPU for audio underruns while the game runs at full speed.\n"
+        "- Cloud saves keep the newest version after a restart.\n"
+        "Added:\n- Plugins see the server game id in the game detail.\n"
+        "- Settings \u203a Audio & video: choose the monitor for fullscreen, and switch vertical sync on or off (applies after a restart).\n"
+        "Changed:\n- Developer console: Load unpacked shows the folder and manifest check first, and asks for the plugin's permissions.\n"
+        "... and 7 more (see the release notes)\n");
+    FakeHub hub(QStringLiteral("a"));
+    adminHub(hub, false);
+    Harness h;
+    start(h, hub);
+    UpdatesController* up = h.controller->updates();
+    up->rememberWhatsNew(QStringLiteral("0.0.1"));
+    up->applyWhatsNew(notes);
+    QTRY_VERIFY(shown(h, "whatsNewDialog"));
+    // Fixed order Added, Changed, Fixed whatever the order in the notes; group names carry the count as meta.
+    auto groupLabel = [&](int n) {
+      QQuickItem* g = h.item(QStringLiteral("whatsNewGroup_%1").arg(n).toUtf8().constData());
+      QQuickItem* l = g ? g->findChild<QQuickItem*>(QStringLiteral("sectionLabelText")) : nullptr;
+      return text(l);
+    };
+    QVERIFY(shown(h, "whatsNewGroup_2"));
+    QVERIFY(!shown(h, "whatsNewGroup_3"));
+    QCOMPARE(groupLabel(0), QStringLiteral("Added"));
+    QCOMPARE(groupLabel(1), QStringLiteral("Changed"));
+    QCOMPARE(groupLabel(2), QStringLiteral("Fixed"));
+    QCOMPARE(text(h.item("whatsNewSummary")), QStringLiteral("2 new \u00b7 1 changed \u00b7 2 fixed"));
+    QVERIFY(shown(h, "whatsNewItem_0_1"));
+    QVERIFY(!shown(h, "whatsNewItem_0_2"));
+    QVERIFY(text(h.item("whatsNewItem_0_1")).startsWith(QStringLiteral("Settings \u203a Audio & video: choose")));
+    // The area name of an item with a lead-in is its own medium-weight line.
+    QQuickItem* item = h.item("whatsNewItem_1_0");
+    QVERIFY(item != nullptr);
+    bool leadFound = false;
+    for (QQuickItem* t : item->findChildren<QQuickItem*>()) {
+      if (t->isVisible() && t->property("text").toString() == QStringLiteral("Developer console")) leadFound = true;
+    }
+    QVERIFY(leadFound);
+    bool restCapitalised = false;
+    for (QQuickItem* t : item->findChildren<QQuickItem*>()) {
+      if (t->isVisible() && t->property("text").toString().startsWith(QStringLiteral("Load unpacked shows"))) restCapitalised = true;
+    }
+    QVERIFY(restCapitalised);
+    QVERIFY(text(h.item("whatsNewItem_0_1")).startsWith(QStringLiteral("Settings \u203a Audio & video: choose")));   // the item's own text stays as written
+    QVERIFY(shown(h, "whatsNewMore"));
+    QCOMPARE(h.item("whatsNewMore")->property("count").toInt(), 7);
+    uitest::saveShot(h.window, QStringLiteral("whats-new-index-format"));
+    QVERIFY(h.click("whatsNewDone"));
+    QTRY_VERIFY(!shown(h, "whatsNewDialog"));
+  }
+
+  void whatsNewLongNotesScrollAndShotInBothThemes() {
+    QString notes = QStringLiteral("Added:\n");
+    const QStringList added = {
+        QStringLiteral("Plugins see the server game id in the game detail."),
+        QStringLiteral("Settings \u203a Audio & video: choose the monitor for fullscreen, and switch vertical sync on or off (applies after a restart)."),
+        QStringLiteral("Library: sort by last played and filter by system."),
+        QStringLiteral("Sessions: invite links can be copied from the lobby.")};
+    const QStringList changed = {
+        QStringLiteral("Developer console: Load unpacked shows the folder and manifest check first, and asks for the plugin's permissions before it loads."),
+        QStringLiteral("Saves: the restore dialog names the device that wrote a version."),
+        QStringLiteral("Controllers: profiles keep their order after a reconnect."),
+        QStringLiteral("Updates: the channel is shown next to the version.")};
+    const QStringList fixed = {
+        QStringLiteral("The diagnostics overlay no longer blames the CPU for audio underruns while the game runs at full speed."),
+        QStringLiteral("Cloud saves keep the newest version after a restart."),
+        QStringLiteral("Audio: the volume slider no longer jumps back to 100 % after a Session."),
+        QStringLiteral("Fullscreen: the cursor hides again after a Session ends.")};
+    for (const QString& a : added) notes += QStringLiteral("- ") + a + QLatin1Char('\n');
+    notes += QStringLiteral("Changed:\n");
+    for (const QString& a : changed) notes += QStringLiteral("- ") + a + QLatin1Char('\n');
+    notes += QStringLiteral("Fixed:\n");
+    for (const QString& a : fixed) notes += QStringLiteral("- ") + a + QLatin1Char('\n');
+    notes += QStringLiteral("... and 7 more (see the release notes)\n");
+    FakeHub hub(QStringLiteral("a"));
+    adminHub(hub, false);
+    Harness h;
+    start(h, hub);
+    UpdatesController* up = h.controller->updates();
+    up->rememberWhatsNew(QStringLiteral("0.0.1"));
+    up->applyWhatsNew(notes);
+    QTRY_VERIFY(shown(h, "whatsNewDialog"));
+    QQuickItem* dlg = h.item("whatsNewDialog");
+    QVERIFY(dlg != nullptr);
+    QQuickItem* frame = dlg->findChild<QQuickItem*>(QStringLiteral("dialogFrame"));
+    QVERIFY(frame != nullptr);
+    QVERIFY(frame->height() <= dlg->height());
+    QVERIFY(shown(h, "whatsNewMore"));
+    QVERIFY(shown(h, "whatsNewDone"));
+    for (const bool dark : {true, false}) {
+      h.controller->setAppearance(dark ? QStringLiteral("dark") : QStringLiteral("light"));
+      QTest::qWait(50);
+      uitest::saveShot(h.window, dark ? QStringLiteral("whats-new-long-dark") : QStringLiteral("whats-new-long-light"));
+    }
+    QVERIFY(h.click("whatsNewDone"));
+    QTRY_VERIFY(!shown(h, "whatsNewDialog"));
+    // Very long notes overflow: the bottom fade shows and Page Down scrolls the list.
+    QString big = QStringLiteral("Fixed:\n");
+    for (int i = 0; i < 40; ++i) big += QStringLiteral("- Area %1: something was fixed here, with enough words to wrap onto a second line in the list.\n").arg(i);
+    up->rememberWhatsNew(QStringLiteral("0.0.1"));
+    up->applyWhatsNew(big);
+    QTRY_VERIFY(shown(h, "whatsNewDialog"));
+    QQuickItem* fade = h.item("whatsNewFade");
+    QVERIFY(fade != nullptr);
+    QTRY_VERIFY(fade->isVisible());
+    QVERIFY(frame->height() <= dlg->height());
+    QTest::keyClick(h.window, Qt::Key_PageDown);
+    QVERIFY(h.click("whatsNewDone"));
+  }
+
+  void whatsNewButtonsStayInsideTheFrameInAMinimumHeightWindow() {
+    QString notes = QStringLiteral("Fixed:\n");
+    for (int i = 0; i < 30; ++i) notes += QStringLiteral("- Area %1: something was fixed here, with enough words to wrap onto a second line in the list.\n").arg(i);
+    notes += QStringLiteral("... and 7 more (see the release notes)\n");
+    FakeHub hub(QStringLiteral("a"));
+    adminHub(hub);
+    Harness h;
+    start(h, hub);
+    h.window->resize(h.window->width(), 600);
+    QTest::qWait(50);
+    UpdatesController* up = h.controller->updates();
+    up->rememberWhatsNew(QStringLiteral("0.0.1"));
+    up->applyWhatsNew(notes);
+    QTRY_VERIFY(shown(h, "whatsNewDialog"));
+    QTRY_VERIFY(shown(h, "whatsNewServerLine"));   // the fake server is older than the app
+    QVERIFY(shown(h, "whatsNewMore"));
+    QQuickItem* frame = h.item("whatsNewDialog")->findChild<QQuickItem*>(QStringLiteral("dialogFrame"));
+    QVERIFY(frame != nullptr);
+    QTest::qWait(50);
+    const QRectF fr(0, 0, frame->width(), frame->height());
+    for (const char* name : {"whatsNewDone", "whatsNewOpenUpdates", "whatsNewServerLine", "whatsNewMore"}) {
+      QQuickItem* it = h.item(name);
+      QVERIFY2(it != nullptr, name);
+      const QRectF r(it->mapToItem(frame, QPointF(0, 0)), QSizeF(it->width(), it->height()));
+      QVERIFY2(fr.contains(r), name);
+    }
+    uitest::saveShot(h.window, QStringLiteral("whats-new-min-height"));
+    QVERIFY(h.click("whatsNewDone"));
+    QTRY_VERIFY(!shown(h, "whatsNewDialog"));
+  }
+
   void whatsNewOpenUpdatesLeadsToSettings() {
     FakeHub hub(QStringLiteral("a"));
     adminHub(hub);

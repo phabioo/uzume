@@ -59,6 +59,7 @@ class UpdatesController : public QObject {
   // after an update. whatsNewPending is true until the dialog is dismissed; the version is then remembered in the local settings.
   Q_PROPERTY(bool whatsNewPending READ whatsNewPending NOTIFY whatsNewChanged)
   Q_PROPERTY(QString whatsNewNotes READ whatsNewNotes NOTIFY whatsNewChanged)
+  Q_PROPERTY(QString whatsNewNotesUrl READ whatsNewNotesUrl NOTIFY changed)  // notes_url of the running version (https) or ""
 
  public:
   struct Options {
@@ -105,6 +106,8 @@ class UpdatesController : public QObject {
   bool busy() const { return manager_.busy(); }
   bool whatsNewPending() const { return whatsNewPending_; }
   QString whatsNewNotes() const { return whatsNewNotes_; }
+  QString whatsNewNotesUrl() const { return manager_.installedNotesUrl(); }
+  Q_INVOKABLE void openWhatsNewNotes();
 
   // Version for people (ADR 0036): "21.1.0" -> "21.1". Every QML text that shows a version goes through it; comparisons do not.
   Q_INVOKABLE QString shown(const QString& version) const;
