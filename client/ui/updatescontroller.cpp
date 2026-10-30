@@ -242,6 +242,11 @@ void UpdatesController::openNotes() {
   if (u.isValid() && u.scheme() == QLatin1String("https")) QDesktopServices::openUrl(u);
 }
 
+void UpdatesController::openWhatsNewNotes() {
+  const QUrl u(manager_.installedNotesUrl());
+  if (u.isValid() && u.scheme() == QLatin1String("https")) QDesktopServices::openUrl(u);
+}
+
 void UpdatesController::dismissBanner() {
   dismissedVersion_ = manager_.availableVersion();
   emit changed();

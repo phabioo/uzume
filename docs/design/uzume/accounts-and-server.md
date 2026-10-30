@@ -321,7 +321,7 @@ Three states: empty, member ("Reports go to admins"; send one from Settings › 
 
 Boards: [`S6a1`](../source/uzume/S6a1.dc.html) · [`S6a1Kinari`](../source/uzume/S6a1Kinari.dc.html). Built in: 0.18 package 8 (app admin area).
 
-One `Dialog` lg "Uzume 0.17.0" (label with date). Sections ADDED / CHANGED / FIXED with a tag column App / Server / Both per item. Admins also get the server-version line ("Home server runs 0.16.4. Update it to get the server items." Open Updates).
+One `Dialog` lg "Uzume 0.17.0" (label with date), with a muted mono summary line under the title ("8 new · 3 changed · 12 fixed", only counts that exist). Sections ADDED / CHANGED / FIXED (then REMOVED / SECURITY) each have a section label with the count at the right ("FIXED · 2") and rows separated by a hairline, a small marker at the left (accent for Added, muted otherwise) and a tag column App / Server / Both per item; an item that starts with an area name and ": " shows the area as a medium-weight line above its text. The list uses up to about 60 % of the window height, scrolls with a bar and a fade at the bottom edge, and when the notes were cut a muted row "N more changes in the full release notes" with a ghost button "Full release notes" follows. Admins also get the server-version line ("Home server runs 0.16.4. Update it to get the server items." Open Updates).
 
 ### 6a-app-2 What's new · member
 

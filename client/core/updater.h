@@ -117,6 +117,14 @@ class UpdateManager : public QObject {
   QString notesUrl() const { return selection_.release.notesUrl; }
   // Notes of the running version from the last verified index ("What's new"); empty when the index has none or was not read yet.
   QString installedNotes() const { return lastIndex_.ok ? releaseNotes(lastIndex_.index, QStringLiteral("player"), config_.currentVersion) : QString(); }
+  // notes_url of the running version's release in the last verified index; empty when there is none.
+  QString installedNotesUrl() const {
+    if (!lastIndex_.ok) return {};
+    for (const auto& r : lastIndex_.index.releases) {
+      if (r.product == QLatin1String("player") && r.version == config_.currentVersion) return r.notesUrl;
+    }
+    return {};
+  }
   double progress() const { return progress_; }
   QDateTime lastCheck() const { return lastCheck_; }
   const QString& currentVersion() const { return config_.currentVersion; }
