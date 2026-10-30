@@ -268,7 +268,7 @@ Item {
               : kind === "file" ? qsTr("The game file couldn’t be downloaded from %1. Try again.").arg(root.serverName)
               : kind === "engine" ? qsTr("%1 Ask an admin to turn on Offer to apps in Server › Tools.").arg(root.target.errorText ?? "")
               : kind === "offline" ? qsTr("Try again when %1 is back.").arg(root.serverName)
-              : (root.target.errorText ?? "")
+              : (root.target.errorText ?? "") + (root.target.engineError ? "\n" + qsTr("Engine: %1").arg(root.target.engineError) : "")
         UzMono {
             objectName: "variantProblemMono"
             visible: problem.kind === "dump" && problem.shaLine !== ""

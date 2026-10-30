@@ -242,6 +242,7 @@ class VariantsController : public QObject {
   };
   struct VarState {
     QString error;
+    QString engineError;
     QStringList log;
     qint64 needed = 0, free = 0;
     QString expectedSha, actualSha;

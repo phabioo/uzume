@@ -129,7 +129,8 @@ UzDialog {
         Layout.fillWidth: true
         wrapMode: Text.Wrap
         textFormat: Text.PlainText
-        text: root.b.error ? qsTr("Reason: %1. Details hold no spoilers.").arg(root.b.error) : ""
+        text: root.b.error ? qsTr("Reason: %1. Details hold no spoilers.").arg(root.b.error)
+                             + (root.b.engineError ? "\n" + qsTr("Engine: %1").arg(root.b.engineError) : "") : ""
         font.family: Theme.mono
         font.pixelSize: Theme.roles.small.size
         color: Theme.muted

@@ -8,7 +8,7 @@
 //   - UZUME_TEST_ENGINE_ARGS_FILE: the received arguments are written there, one per line.
 //   - UZUME_TEST_ENGINE_DELAY_MS sleeps before the output is written (cancel and time-limit tests).
 //   - Settings starting with "999" make it fail: it prints ERROR: and WARNING: lines (and a line that must be filtered out) and
-//     exits with 3.
+//     exits with 3. One ERROR line carries absolute paths (the runner shortens them).
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
@@ -119,6 +119,7 @@ int main(int argc, char** argv) {
     std::printf("Randomizing something about SYNTHETICMON\n");
     std::printf("WARNING: synthetic warning\n");
     std::printf("ERROR: synthetic failure while writing\n");
+    std::printf("ERROR: Could not load C:\\Users\\Some One\\cache\\roms\\abc.3ds; SYNTHETIC_REASON\n");  // a path to shorten
     std::fflush(stdout);
     return 3;
   }

@@ -47,6 +47,7 @@ struct EngineResult {
   int exitCode = -1;
   qint64 neededBytes = 0;        // not_enough_memory / disk_full: what the build needs ...
   qint64 freeBytes = 0;          // ... and what is free
+  QString engineError;           // the engine's first ERROR line without the prefix, paths shortened (no game data)
   QStringList log;               // "HH:mm:ss text" lines without game data: start, filtered ERROR / WARNING lines, exit code
   QString producedPath;  // ROM output: the one file the engine wrote (its name may carry an extra extension); mod: the folder
   QString spoilerLogPath;        // <outPath>.log when requested and written

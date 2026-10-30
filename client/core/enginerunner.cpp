@@ -5,6 +5,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QLoggingCategory>
+#include <QRegularExpression>
 #include <QSaveFile>
 #include <QStorageInfo>
 #include <algorithm>
@@ -20,6 +21,16 @@ Q_LOGGING_CATEGORY(lcEngine, "uzume.engine")
 namespace {
 constexpr int kKeepLines = 20;
 constexpr int kMaxLineChars = 200;
+
+// Absolute file paths in an engine line shrink to the file name: they can carry the user name.
+QString shortenPaths(const QString& line) {
+  static const QRegularExpression drivePath(QStringLiteral(R"((?<![\w.])[A-Za-z]:[\\/](?:[^\\/;"']+[\\/])*([^\\/\s;"']*))"));
+  static const QRegularExpression unixPath(QStringLiteral(R"((?<![\w.])/(?:[^\\/\s;"']+/)*([^\\/\s;"']*))"));
+  QString out = line;
+  out.replace(drivePath, QStringLiteral("\\1"));
+  out.replace(unixPath, QStringLiteral("\\1"));
+  return out;
+}
 }  // namespace
 
 EngineRunner::EngineRunner(QObject* parent) : QObject(parent) {
@@ -213,7 +224,7 @@ void EngineRunner::readOutput() {
     lineBuf_.remove(0, nl + 1);
     // Only the engine's own error and warning lines are kept; the rest of its output may describe the game.
     if (line.startsWith(QLatin1String("ERROR:")) || line.startsWith(QLatin1String("WARNING:"))) {
-      engineLines_.append(line.left(kMaxLineChars));
+      engineLines_.append(shortenPaths(line).left(kMaxLineChars));
       if (engineLines_.size() > kKeepLines) engineLines_.removeFirst();
     }
   }
@@ -237,6 +248,12 @@ void EngineRunner::finish(const QString& error) {
   for (const QString& l : std::as_const(engineLines_)) note(l);
   result_.error = error;
   result_.ok = error.isEmpty();
+  if (!result_.ok) {
+    for (const QString& l : std::as_const(engineLines_)) {
+      qCWarning(lcEngine) << "engine:" << l;
+      if (result_.engineError.isEmpty() && l.startsWith(QLatin1String("ERROR:"))) result_.engineError = l.mid(6).trimmed();
+    }
+  }
   if (result_.ok) {
     // FVX does not write exactly -o for ROMs: FileNameFunctions.fixFilename appends the default extension (red.gb -> red.gb.gbc)
     // and the -l log is "<actual output>.log". So the one produced file in the output folder (not *.log) is the result.
