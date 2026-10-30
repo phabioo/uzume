@@ -103,7 +103,7 @@ Rectangle {
         if (m === "saves") root.openSaves(false)
         else { root.leaveSaves(); root.mode = m }
     }
-    function pickTab(label: string) { root.applyTab(root.tabModes[Math.max(0, root.tabItems.indexOf(label))]) }
+    function pickTab(label: string) { root.settingsTab = ""; root.applyTab(root.tabModes[Math.max(0, root.tabItems.indexOf(label))]) }
     function openSaves(upload) {
         root.mode = "saves"
         savesLoader.active = true
@@ -163,6 +163,7 @@ Rectangle {
 
     // ---- "How it plays": the effective values of this game (EmulationController.gameSettings), with where they come from
     property var info: ({})
+    property string settingsTab: ""   // the settings section a "Change" link asked for; "" = first tab
     function reloadInfo() { root.info = root.gameId === "" ? ({}) : root.emu.gameSettings(root.gameId) }
     Connections {
         target: root.emu
@@ -579,7 +580,12 @@ Rectangle {
                                         Layout.fillWidth: false
                                         text: qsTr("Change")
                                         Accessible.name: qsTr("Change %1").arg(playRow.modelData.label)
-                                        onClicked: root.applyTab("settings")
+                                        onClicked: {
+                                            // The row opens its own section of the game's settings (Core -> Core, not the first tab).
+                                            root.settingsTab = ({ core: "core", screens: "picture", controller: "controls", speedup: "speedup" })[playRow.modelData.name] ?? ""
+                                            root.applyTab("settings")
+                                            if (settingsLoader.item !== null) settingsLoader.item.showTab(root.settingsTab)
+                                        }
                                     }
                                 }
                             }
@@ -780,7 +786,7 @@ Rectangle {
                     Layout.minimumWidth: 0
                     sourceComponent: GameSettingsContent {
                         player: root.player
-                        Component.onCompleted: showGame(root.gameId)
+                        Component.onCompleted: { showGame(root.gameId); if (root.settingsTab !== "") showTab(root.settingsTab) }
                     }
                 }
             }
