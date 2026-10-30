@@ -386,7 +386,9 @@ ApplicationWindow {
     SetupAssistant { player: window.player }   // player.showSetupAssistant()
 
     // Tooltips (R-P12): the shared tooltip of the attached ToolTip type is restyled once with the theme tokens
-    // (popup surface, popup border, text) instead of the default white box.
+    // (popup surface, popup border, text) instead of the default white box. Both items are owned by tipHost but
+    // leave it visually before they are handed over: Qt 6.8 reparents a content item into the popup only when it
+    // has no parent item, so a content item inside the hidden tipHost stayed invisible and left an empty box (#366).
     Component {
         id: tipBackground
         Rectangle {
@@ -413,8 +415,12 @@ ApplicationWindow {
         Component.onCompleted: {
             const tip = ToolTip.toolTip
             if (tip === null || tip === undefined) return
-            tip.background = tipBackground.createObject(tipHost)
-            tip.contentItem = tipContent.createObject(tipHost, { tip: tip })
+            const bg = tipBackground.createObject(tipHost)
+            const content = tipContent.createObject(tipHost, { tip: tip })
+            bg.parent = null
+            content.parent = null
+            tip.background = bg
+            tip.contentItem = content
             tip.padding = 8
             tip.topPadding = 5
             tip.bottomPadding = 5
