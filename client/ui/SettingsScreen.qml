@@ -314,7 +314,7 @@ Rectangle {
                     id: content
                     x: Theme.space5 + Theme.space1
                     y: Theme.space5 + Theme.space1
-                    width: Math.min(Theme.contentMaxWidth, flick.width - 2 * (Theme.space5 + Theme.space1))   // left-aligned, never wider than 880 (P7); descriptions are capped per row
+                    width: Math.max(0, flick.width - 2 * (Theme.space5 + Theme.space1))   // fills the page (2026-11-01); descriptions are capped per row
                     // Hub card and update card sit on the label edge (14 in) and end where the controls end (72 in) on wide pages.
                     readonly property bool wide: width >= Theme.settingsNarrowBelow
                     spacing: Theme.space4
@@ -1733,7 +1733,7 @@ Rectangle {
                 Layout.preferredWidth: Theme.openColumn
                 Layout.fillHeight: true
                 Layout.topMargin: Theme.space5 + Theme.space1
-                Layout.rightMargin: Theme.space5 + Theme.space1
+                Layout.rightMargin: Theme.space7
                 label: qsTr("Uzume · Settings · This PC")
                 items: root.helpItems
             }

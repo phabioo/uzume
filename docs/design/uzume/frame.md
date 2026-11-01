@@ -4,7 +4,7 @@ Covers canvas pages "0 All sheets" (index only) and "1 Frame and first start": t
 
 Conventions that hold for every screen in this file:
 
-- Full-window first-start screens have **no sidebar** until a library exists; since the usability pass they sit in a centred 880 px grid: Lockup on top, one Mono step line ("STEP 1 OF 2 · SERVER", the only numbering), content left and a 260 px help column right (footer "Uzume <version>"); no vertical side label.
+- Full-window first-start screens have **no sidebar** until a library exists; since the usability pass they sit in a centred 880 px grid (first-start screens only; main pages use the full window width since 2026-11-01, see design-system.md "Page width"): Lockup on top, one Mono step line ("STEP 1 OF 2 · SERVER", the only numbering), content left and a 260 px help column right (footer "Uzume <version>"); no vertical side label.
 - Gamepad screens end with a hint row of `GamepadHint` (A Choose, B Back, Y Keyboard, X Show password); keyboard screens use `Kbd` (Tab, Enter, Esc, Ctrl+V). The hint row follows the last input device.
 - Passwords are at least 12 characters. Sign-in lockout is per person per PC: 5 tries, then 5 minutes.
 - Codes: security code `K7Q4-9WMP-2HXD` (groups of four, hyphens), invite code `UZ-8XK2-M4QD` (prefix `UZ-`; the field accepts spaces, hyphens or none), setup code `7H4K-2Q` (6 letters and numbers). Hosts are placeholders: `server.example.com:8443`, `192.0.2.10` and `192.0.2.20` (documentation range).

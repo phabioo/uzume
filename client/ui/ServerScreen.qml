@@ -26,7 +26,7 @@ Rectangle {
     readonly property bool pcOnly: root.player.localHub.onThisPcOnly
     readonly property bool pcBlocked: root.pcOnly && (root.page === "overview" || root.page === "people" || root.page === "reports")
     readonly property real pageMargin: Theme.space7
-    readonly property real contentWidth: Math.max(0, Math.min(Theme.contentMaxWidth, width - Theme.sidebarWidth - 2 * root.pageMargin))
+    readonly property real contentWidth: Math.max(0, width - Theme.sidebarWidth - 2 * root.pageMargin)
     // id, tab label and the count of the old AppNav badge (open problems, waiting devices, core problems, new reports).
     readonly property var tabs: [
         { id: "overview", label: qsTr("Overview"), count: root.player.attentionCount, needsServer: true },

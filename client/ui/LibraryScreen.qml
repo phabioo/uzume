@@ -147,8 +147,8 @@ Rectangle {
             player: root.player
         }
 
-        // The page area takes what the sidebar leaves and shrinks first (wide fonts). The content stops at Theme.gridMaxWidth
-        // (1680 + margins), left-aligned.
+        // The page area takes what the sidebar leaves and shrinks first (wide fonts). The content fills that width (no
+        // maximum, Fabio 2026-11-01).
         Item {
             Layout.fillWidth: true
             Layout.minimumWidth: 0
@@ -166,7 +166,7 @@ Rectangle {
             anchors.topMargin: Theme.space4
             anchors.bottomMargin: Theme.space3
             anchors.leftMargin: Theme.space4
-            width: Math.max(0, Math.min(parent.width - 2 * Theme.space4, Theme.gridMaxWidth))
+            width: Math.max(0, parent.width - 2 * Theme.space4)
             contentWidth: width
             contentHeight: pageColumn.height
             clip: true
@@ -611,9 +611,9 @@ Rectangle {
                     boundsBehavior: Flickable.StopAtBounds
                     ScrollBar.vertical: ScrollBar { }
 
-                    // The table stops at Theme.gridMaxWidth (1680), left-aligned. One column of
+                    // The table fills the page width (no maximum). One column of
                     // 44 px rows: the GameGrid is a one-column grid here, so the virtualization of large libraries stays.
-                    readonly property int gridW: Math.min(Theme.gridMaxWidth, width - 4)
+                    readonly property int gridW: Math.max(0, width - 4)
                     // List: one column of 44 px rows. Grid: tiles of at least 190 px (five per row at 1280), 4:3 placeholder plus title and status line.
                     readonly property int tileColumns: Math.max(2, Math.floor(gridW / 190))
                     readonly property int cellW: root.gridView ? Math.floor(gridW / tileColumns) : gridW
@@ -625,7 +625,7 @@ Rectangle {
                         id: gridColumn
                         x: 0
                         y: 0
-                        width: Math.min(Theme.gridMaxWidth, gridScroll.width - 4)
+                        width: Math.max(0, gridScroll.width - 4)
                         spacing: 0
 
                         GameGrid {

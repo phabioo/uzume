@@ -59,7 +59,7 @@ Item {
             objectName: "adminPageContent"
             x: root.pageMargin
             y: Theme.space3
-            width: Math.min(Theme.contentMaxWidth, flick.width - root.pageMargin - (root.helpShown ? Theme.space7 + Theme.openColumn + Theme.space3 : root.pageMargin))
+            width: Math.max(0, flick.width - root.pageMargin - (root.helpShown ? Theme.space7 + Theme.openColumn + root.pageMargin : root.pageMargin))
             spacing: 0   // the blocks below carry their own gaps, so an empty header takes no room
 
             ColumnLayout {
@@ -141,8 +141,8 @@ Item {
             id: help
             objectName: "adminHelp"
             visible: root.helpShown
-            // Beside the content (which never grows past contentMaxWidth) instead of at the window edge: no gap on wide windows.
-            x: Math.min(flick.width - width - Theme.space3, page.x + page.width + Theme.space7)
+            // Directly right of the full-width content, 56 px from it and 56 px from the window edge (same margins as Runs and Settings).
+            x: page.x + page.width + Theme.space7
             y: page.y
             label: root.helpLabel
             items: root.helpItems

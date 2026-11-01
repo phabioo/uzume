@@ -103,6 +103,8 @@ class ShellLayoutTest : public QObject {
       h.window->resize(w, 800);
       QTest::qWait(100);
       checkLibraryHeader(h, qPrintable(QStringLiteral("width %1").arg(w)));
+      // Pages fill the window (no content maximum, 2026-11-01): the Library header spans the area right of the sidebar.
+      if (w == 3840) QVERIFY2(h.item("libraryHeader")->width() > 3000, qPrintable(QString::number(h.item("libraryHeader")->width())));
     }
   }
 

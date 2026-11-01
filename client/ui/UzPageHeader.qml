@@ -4,7 +4,7 @@ import QtQuick
 // (`label`, with `number` and `labelMeta`), the page title (Plex Sans Light 40/40, -2 %, once per page), an optional `meta`
 // line under it and the page actions (buttons, default slot). The title and the meta line wrap and never elide; the actions
 // sit at the right of the title baseline when they fit next to it and wrap below the title otherwise. The width is the
-// width the page gives it (every main page uses the same content max width, Theme.contentMaxWidth).
+// width the page gives it (every main page fills the window width, no maximum).
 // The "01 —" number of the eyebrow only shows at 1440 px and wider (`decorated`; Theme.columnsCompactMax).
 Item {
     id: root

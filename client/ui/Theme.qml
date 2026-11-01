@@ -187,8 +187,8 @@ QtObject {
     // ---- Layout and motion -----------------------------------------------------------------------------------------
     readonly property int sidebarWidth: sidebar
     readonly property int columnWidth: 300       // second column of 3e / 3f / 3p
-    readonly property int contentMaxWidth: 880   // Settings, Runs and plugin screens: left-aligned, never wider
-    readonly property int gridMaxWidth: 1680     // Library grid
+    // Pages use the full window width (Fabio, 2026-11-01); only long prose keeps a readable line length inside a row.
+    readonly property int proseMaxWidth: 720
     readonly property int inputTestWidth: 340    // Controllers input test
     // SettingsRow grid 14 | flex | 280 | 72; Emulation and Settings share the content width, so the controls end on the same x.
     readonly property int settingsDotSlot: 14
