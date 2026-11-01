@@ -9,7 +9,7 @@ Loader {
     property string pluginId: ""
     signal action(string action, var value)
 
-    Component.onCompleted: setSource("PluginBlock.qml", {"node": child.node, "dark": child.dark, "pluginId": child.pluginId})
+    Component.onCompleted: setSource("PluginBlock.qml", {"nested": true, "node": child.node, "dark": child.dark, "pluginId": child.pluginId})
     Binding { target: child.item; property: "node"; value: child.node; when: child.item !== null }
     Binding { target: child.item; property: "dark"; value: child.dark; when: child.item !== null }
     Binding { target: child.item; property: "pluginId"; value: child.pluginId; when: child.item !== null }

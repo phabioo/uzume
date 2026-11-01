@@ -9,14 +9,55 @@ import QtQuick.Layouts
 Item {
     id: root
     property var node: ({})
+    // PluginChild sets it: only the root block of a view (panel tab, sheet, run section, detail section, tile) prepares the tree.
+    property bool nested: false
     property bool dark: true
     property string pluginId: ""
     signal action(string action, var value)
 
-    readonly property string type: node.type || ""
-    readonly property var kids: node.children || []
-    readonly property bool fillsHeight: type === "scroll" && !node.max_height
-    objectName: node.id ? "plugin_" + node.id : "plugin_" + type
+    // Design system: one primary button per view. In document order only the first primary button (an `empty` block's action
+    // counts as one, unless the empty block is an error state) stays primary; every later one is drawn as secondary. Each tab
+    // of a `tabs` block starts from what came before the block, so a hidden tab never demotes a visible one. The tree the
+    // plugin sent stays untouched (console, MCP); the renderer works on `shown`.
+    function primariesDemoted(tree) {
+        function walk(n, seen) {
+            if (!n || typeof n !== "object") return {node: n, seen: seen}
+            let out = n
+            let s = seen
+            if (n.type === "button" && n.variant === "primary") {
+                if (s) out = Object.assign({}, n, {variant: "secondary"})
+                s = true
+            } else if (n.type === "empty" && n.action_label && n.tone !== "danger") {
+                if (s) out = Object.assign({}, n, {action_variant: "secondary"})
+                s = true
+            }
+            const kids = n.children
+            if (kids && kids.length !== undefined && kids.length > 0) {
+                const isTabs = n.type === "tabs"
+                let cur = s
+                let any = s
+                const mapped = []
+                for (let i = 0; i < kids.length; ++i) {
+                    const r = walk(kids[i], isTabs ? s : cur)
+                    mapped.push(r.node)
+                    if (isTabs) any = any || r.seen
+                    else cur = r.seen
+                }
+                s = isTabs ? any : cur
+                let changed = false
+                for (let i = 0; i < kids.length; ++i) if (mapped[i] !== kids[i]) changed = true
+                if (changed) out = Object.assign({}, out, {children: mapped})
+            }
+            return {node: out, seen: s}
+        }
+        return walk(tree, false).node
+    }
+    readonly property var shown: nested ? node : primariesDemoted(node)
+
+    readonly property string type: shown.type || ""
+    readonly property var kids: shown.children || []
+    readonly property bool fillsHeight: type === "scroll" && !shown.max_height
+    objectName: shown.id ? "plugin_" + shown.id : "plugin_" + type
 
     implicitWidth: loader.item ? loader.item.implicitWidth : 0
     implicitHeight: loader.item ? loader.item.implicitHeight : 0
@@ -30,7 +71,7 @@ Item {
         return ["text", "stat", "bar", "select", "textfield", "textarea", "location", "card", "column", "row", "grid", "list", "table"].indexOf(t) >= 0
     }
     function alignFlag(horizontal) {
-        switch (node.align || (horizontal ? "stretch" : "center")) {
+        switch (shown.align || (horizontal ? "stretch" : "center")) {
         case "start": return horizontal ? Qt.AlignLeft : Qt.AlignTop
         case "end": return horizontal ? Qt.AlignRight : Qt.AlignBottom
         case "center": return horizontal ? Qt.AlignHCenter : Qt.AlignVCenter
@@ -78,7 +119,7 @@ Item {
     Component {
         id: columnC
         ColumnLayout {
-            spacing: Theme.gapPx(root.node.gap)
+            spacing: Theme.gapPx(root.shown.gap)
             PluginPool {
                 count: root.kids.length
                 delegate: PluginChild {
@@ -89,9 +130,9 @@ Item {
                     dark: root.dark
                     pluginId: root.pluginId
                     onAction: (a, v) => root.action(a, v)
-                    Layout.fillWidth: (root.node.align || "stretch") === "stretch" && (root.stretches(kid.type) || (kid.type === "image" && !!kid.label))
+                    Layout.fillWidth: (root.shown.align || "stretch") === "stretch" && (root.stretches(kid.type) || (kid.type === "image" && !!kid.label))
                     Layout.fillHeight: kid.type === "scroll" && !kid.max_height
-                    Layout.alignment: (root.node.align || "stretch") === "stretch" ? ((root.stretches(kid.type) || (kid.type === "image" && !!kid.label)) ? 0 : Qt.AlignLeft) : root.alignFlag(true)
+                    Layout.alignment: (root.shown.align || "stretch") === "stretch" ? ((root.stretches(kid.type) || (kid.type === "image" && !!kid.label)) ? 0 : Qt.AlignLeft) : root.alignFlag(true)
                 }
             }
         }
@@ -100,7 +141,7 @@ Item {
         id: rowC
         RowLayout {
             id: rowLayout
-            spacing: Theme.gapPx(root.node.gap)
+            spacing: Theme.gapPx(root.shown.gap)
             property int fillers: 0
             // A row with an input: its texts keep their natural width, so the input takes the free space (otherwise the
             // texts and the input share it and the left edge of the inputs differs from row to row).
@@ -134,14 +175,16 @@ Item {
                     readonly property bool yields: kid.type === "badge" || kid.type === "chip"
                     // fillWidth + maximumWidth = natural width: never grows, but shrinks (a Layout item without fillWidth would not)
                     Layout.fillWidth: giveWay || yields
-                    Layout.maximumWidth: yields || (rowLayout.hasInput && kid.type === "text") ? implicitWidth : Number.POSITIVE_INFINITY
+                    // an image with a label never grows past its natural width either: otherwise it shares the free space with the
+                    // texts beside it and pushes them to the middle of the row
+                    Layout.maximumWidth: yields || (kid.type === "image" && !!kid.label) || (rowLayout.hasInput && kid.type === "text") ? implicitWidth : Number.POSITIVE_INFINITY
                     // a chip follows its text and only gives way beyond 160 px scaled (a badge too, so a short badge such as "Nicht unterstützt" next to a long text never elides)
                     Layout.minimumWidth: kid.type === "text" ? Math.min(implicitWidth, Math.round(96 * Theme.textScale))
                                          : kid.type === "chip" ? Math.min(implicitWidth, Math.round(160 * Theme.textScale))
                                          // a badge keeps its text while the text beside it still gets its minimum, else it elides
                                          : kid.type === "badge" ? Math.min(implicitWidth, Math.max(0, rowLayout.width - Math.round(96 * Theme.textScale) - rowLayout.spacing))
                                          : giveWay || yields ? 0 : implicitWidth
-                    Layout.fillHeight: root.node.align === "stretch"
+                    Layout.fillHeight: root.shown.align === "stretch"
                     Layout.alignment: root.alignFlag(false)
                 }
             }
@@ -151,9 +194,9 @@ Item {
     Component {
         id: gridC
         GridLayout {
-            columns: Math.max(1, Math.min(6, root.node.columns || 1))
-            columnSpacing: Theme.gapPx(root.node.gap)
-            rowSpacing: Theme.gapPx(root.node.gap)
+            columns: Math.max(1, Math.min(6, root.shown.columns || 1))
+            columnSpacing: Theme.gapPx(root.shown.gap)
+            rowSpacing: Theme.gapPx(root.shown.gap)
             PluginPool {
                 count: root.kids.length
                 delegate: PluginChild {
@@ -177,14 +220,14 @@ Item {
             id: tabs
             spacing: Theme.space15
             property int localSel: 0
-            readonly property int nodeSel: root.node.selected || 1
+            readonly property int nodeSel: root.shown.selected || 1
             readonly property int sel: Math.max(1, Math.min(root.kids.length, localSel > 0 ? localSel : nodeSel))
             onNodeSelChanged: localSel = 0
             function select(i) {   // 1-based; LB / RB hook
                 const n = Math.max(1, Math.min(root.kids.length, i))
                 if (n === sel) return
                 localSel = n
-                root.action(root.node.action || "", n)
+                root.action(root.shown.action || "", n)
             }
             function next() { select(sel + 1) }
             function previous() { select(sel - 1) }
@@ -223,11 +266,11 @@ Item {
                 spacing: Theme.space05
                 Repeater {
                     id: tabRepeater
-                    model: (root.node.tabs || []).length   // a count, so an unchanged tab strip keeps its delegates (and the focus on a tab)
+                    model: (root.shown.tabs || []).length   // a count, so an unchanged tab strip keeps its delegates (and the focus on a tab)
                     delegate: PluginFocusable {
                         id: tab
                         required property int index
-                        readonly property var modelData: (root.node.tabs || [])[index]
+                        readonly property var modelData: (root.shown.tabs || [])[index]
                         objectName: "pluginTab_" + (index + 1)
                         readonly property bool active: tabs.sel === index + 1
                         dark: root.dark
@@ -277,7 +320,7 @@ Item {
         id: scrollC
         Flickable {
             id: flick
-            readonly property real maxH: ({s: 160, m: 280, l: 420})[root.node.max_height] || 0
+            readonly property real maxH: ({s: 160, m: 280, l: 420})[root.shown.max_height] || 0
             clip: true
             contentWidth: width
             contentHeight: inner.implicitHeight
@@ -322,12 +365,12 @@ Item {
         id: cardC
         PluginFocusable {
             id: card
-            readonly property bool hasHeader: !!(root.node.eyebrow || root.node.title || root.node.link_label)
+            readonly property bool hasHeader: !!(root.shown.eyebrow || root.shown.title || root.shown.link_label)
             dark: root.dark
-            actionable: !!root.node.action
+            actionable: !!root.shown.action
             implicitWidth: cardCol.implicitWidth + 2 * Theme.space15
             implicitHeight: cardCol.implicitHeight + 2 * Theme.space15
-            onActivated: root.action(root.node.action, root.node.value)
+            onActivated: root.action(root.shown.action, root.shown.value)
             Rectangle {
                 anchors.fill: parent
                 color: card.hovered ? Theme.blockColor("hover", root.dark) : "transparent"
@@ -347,8 +390,8 @@ Item {
                         spacing: 2
                         Text {
                             textFormat: Text.PlainText  // plugin- and peer-supplied strings are never HTML
-                            visible: !!root.node.eyebrow
-                            text: root.node.eyebrow || ""
+                            visible: !!root.shown.eyebrow
+                            text: root.shown.eyebrow || ""
                             font.family: Theme.mono
                             font.pixelSize: Theme.roles.sectionLabel.size
                             font.weight: Theme.roles.sectionLabel.weight
@@ -358,9 +401,9 @@ Item {
                         }
                         Text {
                             textFormat: Text.PlainText  // plugin- and peer-supplied strings are never HTML
-                            visible: !!root.node.title
+                            visible: !!root.shown.title
                             Layout.fillWidth: true
-                            text: root.node.title || ""
+                            text: root.shown.title || ""
                             elide: Text.ElideRight
                             font.pixelSize: Theme.roles.itemTitle.size
                             font.weight: Theme.roles.itemTitle.weight
@@ -369,8 +412,8 @@ Item {
                     }
                     Text {
                         textFormat: Text.PlainText  // plugin- and peer-supplied strings are never HTML
-                        visible: !!root.node.link_label
-                        text: (root.node.link_label || "") + " ›"
+                        visible: !!root.shown.link_label
+                        text: (root.shown.link_label || "") + " ›"
                         font.pixelSize: Theme.roles.small.size
                         color: Theme.tok("accentText", root.dark)
                     }
@@ -400,7 +443,7 @@ Item {
                 Text {
                     textFormat: Text.PlainText  // plugin- and peer-supplied strings are never HTML
                     Layout.fillWidth: true
-                    text: root.node.title || ""
+                    text: root.shown.title || ""
                     elide: Text.ElideRight
                     font.family: Theme.mono
                     font.pixelSize: Theme.roles.sectionLabel.size
@@ -410,17 +453,17 @@ Item {
                     color: Theme.blockColor("textFaint", root.dark)
                 }
                 PluginFocusable {
-                    visible: !!root.node.link_label
+                    visible: !!root.shown.link_label
                     dark: root.dark
-                    actionable: !!root.node.action
+                    actionable: !!root.shown.action
                     implicitWidth: linkText.implicitWidth + 8
                     implicitHeight: 22
-                    onActivated: root.action(root.node.action, root.node.value)
+                    onActivated: root.action(root.shown.action, root.shown.value)
                     Text {
                         textFormat: Text.PlainText  // plugin- and peer-supplied strings are never HTML
                         id: linkText
                         anchors.centerIn: parent
-                        text: (root.node.link_label || "") + " ›"
+                        text: (root.shown.link_label || "") + " ›"
                         font.pixelSize: Theme.roles.small.size
                         color: Theme.tok("accentText", root.dark)
                     }
@@ -445,9 +488,9 @@ Item {
         id: locationC
         Item {
             id: loc
-            readonly property string status: root.node.status || "none"
+            readonly property string status: root.shown.status || "none"
             readonly property string tone: status === "open" || status === "encounter" ? "info" : (status === "caught" ? "ok" : "neutral")
-            readonly property string statusText: !!root.node.status_label ? String(root.node.status_label)
+            readonly property string statusText: !!root.shown.status_label ? String(root.shown.status_label)
                                                 : status === "open" ? qsTr("Open") : status === "encounter" ? qsTr("Encounter now")
                                                 : status === "caught" ? qsTr("Caught") : status === "missed" ? qsTr("Missed") : qsTr("No route")
             implicitWidth: locCol.implicitWidth + 2 * Theme.space15
@@ -472,7 +515,7 @@ Item {
                         Text {
                             textFormat: Text.PlainText  // plugin- and peer-supplied strings are never HTML
                             Layout.fillWidth: true
-                            text: root.node.title || ""
+                            text: root.shown.title || ""
                             elide: Text.ElideRight
                             font.pixelSize: Theme.roles.itemTitle.size
                             font.weight: Theme.roles.itemTitle.weight
@@ -480,9 +523,9 @@ Item {
                         }
                         Text {
                             textFormat: Text.PlainText  // plugin- and peer-supplied strings are never HTML
-                            visible: !!root.node.sub
+                            visible: !!root.shown.sub
                             Layout.fillWidth: true
-                            text: root.node.sub || ""
+                            text: root.shown.sub || ""
                             elide: Text.ElideRight
                             font.pixelSize: Theme.roles.small.size
                             color: Theme.blockColor("textMeta", root.dark)
@@ -523,34 +566,34 @@ Item {
         id: emptyC
         ColumnLayout {
             spacing: Theme.space1
-            readonly property bool isError: root.node.tone === "danger"
+            readonly property bool isError: root.shown.tone === "danger"
             Item { Layout.preferredHeight: Theme.space1 }
             Text {
                 textFormat: Text.PlainText  // plugin- and peer-supplied strings are never HTML
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.Wrap
-                text: root.node.title || ""
+                text: root.shown.title || ""
                 font.pixelSize: Theme.roles.itemTitle.size
                 font.weight: Theme.roles.itemTitle.weight
                 color: isError ? Theme.toneFg("danger", root.dark) : Theme.blockColor("text", root.dark)
             }
             Text {
                 textFormat: Text.PlainText  // plugin- and peer-supplied strings are never HTML
-                visible: !!root.node.text
+                visible: !!root.shown.text
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.Wrap
-                text: root.node.text || ""
+                text: root.shown.text || ""
                 font.pixelSize: Theme.roles.input.size
                 color: Theme.blockColor("textMuted", root.dark)
             }
             PluginButton {
-                visible: !!root.node.action_label
+                visible: !!root.shown.action_label
                 Layout.alignment: Qt.AlignHCenter
                 Layout.topMargin: Theme.space1
                 dark: root.dark
-                node: ({label: root.node.action_label || "", variant: isError ? "secondary" : "primary", action: root.node.action || ""})
+                node: ({label: root.shown.action_label || "", variant: isError ? "secondary" : (root.shown.action_variant || "primary"), action: root.shown.action || ""})
                 onAction: (a, v) => root.action(a, v)
             }
             Item { Layout.preferredHeight: Theme.space1 }
@@ -562,14 +605,14 @@ Item {
         id: textC
         Text {
             textFormat: Text.PlainText  // plugin- and peer-supplied strings are never HTML
-            readonly property string st: root.node.style || "body"
-            readonly property bool wraps: root.node.wrap !== false
+            readonly property string st: root.shown.style || "body"
+            readonly property bool wraps: root.shown.wrap !== false
             // Styles map onto the type roles: title = header-title, heading = item-title, body = input, meta = small,
             // eyebrow = section-label (Mono, uppercase), value = Mono 11.
             readonly property var role: st === "title" ? Theme.roles.headerTitle : st === "heading" ? Theme.roles.itemTitle
                 : st === "meta" ? Theme.roles.small : st === "eyebrow" ? Theme.roles.sectionLabel
                 : st === "value" ? Theme.roles.meta11 : Theme.roles.input
-            text: root.node.text || ""
+            text: root.shown.text || ""
             wrapMode: wraps ? Text.Wrap : Text.NoWrap
             elide: wraps ? Text.ElideNone : Text.ElideRight
             font.pixelSize: role.size
@@ -577,7 +620,7 @@ Item {
             font.family: st === "eyebrow" || st === "value" ? Theme.mono : Theme.sans
             font.capitalization: st === "eyebrow" ? Font.AllUppercase : Font.MixedCase
             font.letterSpacing: st === "eyebrow" ? role.spacing : 0
-            color: root.node.tone ? Theme.toneFg(root.node.tone, root.dark)
+            color: root.shown.tone ? Theme.toneFg(root.shown.tone, root.dark)
                    : st === "eyebrow" ? Theme.blockColor("textFaint", root.dark)
                    : st === "meta" ? Theme.blockColor("textMeta", root.dark)
                    : st === "body" ? Theme.blockColor("textSecondary", root.dark) : Theme.blockColor("text", root.dark)
@@ -587,20 +630,21 @@ Item {
         id: chipC
         PluginFocusable {
             id: chip
-            readonly property string tone: root.node.tone || "neutral"
-            readonly property bool picked: root.node.selected === true
+            readonly property string tone: root.shown.tone || "neutral"
+            readonly property bool picked: root.shown.selected === true
             dark: root.dark
-            actionable: !!root.node.action
+            actionable: !!root.shown.action
             implicitHeight: Theme.row28
             implicitWidth: chipLabel.implicitWidth + 2 * Theme.space15
-            onActivated: root.action(root.node.action, root.node.value)
-            // Same look as FilterChip: rule frame, the picked chip is a Yamabuki plane; a tone only colours frame and text.
+            onActivated: root.action(root.shown.action, root.shown.value)
+            // Same look as FilterChip: rule-control frame, the picked chip is a neutral ink plane (yellow is for acting); a tone only colours frame and text.
             Rectangle {
                 anchors.fill: parent
-                color: chip.picked ? Theme.blockColor("accent", root.dark) : (chip.hovered ? Theme.blockColor("hover", root.dark) : "transparent")
+                color: chip.picked ? (chip.pressed ? Theme.tok("ink2", root.dark) : Theme.tok("ink", root.dark)) : (chip.hovered ? Theme.blockColor("hover", root.dark) : "transparent")
                 border.width: 1
-                border.color: chip.picked ? Theme.blockColor("accent", root.dark)
-                              : (chip.tone === "neutral" ? Theme.blockColor("border", root.dark) : Theme.toneLine(chip.tone, root.dark))
+                border.color: chip.picked ? Theme.tok("ink", root.dark)
+                              : (chip.tone === "neutral" ? (chip.hovered ? Theme.tok("ink2", root.dark) : Theme.blockColor("borderButton", root.dark)) : Theme.toneLine(chip.tone, root.dark))
+                Behavior on color { ColorAnimation { duration: Theme.durFast } }
             }
             Text {
                 textFormat: Text.PlainText  // plugin- and peer-supplied strings are never HTML
@@ -609,10 +653,10 @@ Item {
                 anchors.centerIn: parent
                 width: Math.min(implicitWidth, Math.max(0, parent.width - 2 * Theme.space15))
                 elide: Text.ElideRight
-                text: root.node.text || ""
+                text: root.shown.text || ""
                 font.pixelSize: Theme.roles.small.size
                 font.weight: chip.picked ? Font.Medium : Font.Normal
-                color: chip.picked ? Theme.blockColor("textOnAccent", root.dark)
+                color: chip.picked ? Theme.tok("ground", root.dark)
                        : (chip.tone === "neutral" ? Theme.blockColor("text", root.dark) : Theme.toneFg(chip.tone, root.dark))
             }
         }
@@ -620,17 +664,17 @@ Item {
     Component {
         id: badgeC
         UzTag {
-            text: root.node.text || ""
-            tone: ({warning: "accent", danger: "danger", ok: "ok"})[root.node.tone || "neutral"] || "neutral"
+            text: root.shown.text || ""
+            tone: ({warning: "accent", danger: "danger", ok: "ok"})[root.shown.tone || "neutral"] || "neutral"
             icon: "none"
         }
     }
     Component {
         id: avatarC
         UzAvatar {
-            name: (root.node.initial || "").substring(0, 1)
-            person: root.node.color || 1
-            size: root.node.size === "s" ? 20 : (root.node.size === "l" ? 40 : 28)
+            name: (root.shown.initial || "").substring(0, 1)
+            person: root.shown.color || 1
+            size: root.shown.size === "s" ? 20 : (root.shown.size === "l" ? 40 : 28)
         }
     }
     Component {
@@ -638,16 +682,16 @@ Item {
         RowLayout {
             spacing: Theme.space1
             PluginImage {
-                node: root.node
+                node: root.shown
                 dark: root.dark
                 pluginId: root.pluginId
             }
             Text {
                 textFormat: Text.PlainText  // plugin- and peer-supplied strings are never HTML
-                visible: !!root.node.label
+                visible: !!root.shown.label
                 Layout.fillWidth: true
                 Layout.minimumWidth: 0
-                text: root.node.label || ""
+                text: root.shown.label || ""
                 elide: Text.ElideRight
                 font.pixelSize: Theme.roles.small.size
                 color: Theme.blockColor("textMuted", root.dark)
@@ -657,14 +701,14 @@ Item {
     Component {
         id: barC
         ColumnLayout {
-            readonly property real v: Math.max(0, Math.min(1, root.node.value || 0))
+            readonly property real v: Math.max(0, Math.min(1, root.shown.value || 0))
             // A thin Progress (Yamabuki fill); only an explicit tone, or a nearly empty bar, changes the colour.
-            readonly property string tone: root.node.tone || (v < 0.2 ? "danger" : "")
+            readonly property string tone: root.shown.tone || (v < 0.2 ? "danger" : "")
             spacing: Theme.space05
             Text {
                 textFormat: Text.PlainText  // plugin- and peer-supplied strings are never HTML
-                visible: !!root.node.label
-                text: root.node.label || ""
+                visible: !!root.shown.label
+                text: root.shown.label || ""
                 font.pixelSize: Theme.roles.small.size
                 color: Theme.blockColor("textMuted", root.dark)
             }
@@ -688,10 +732,10 @@ Item {
         PluginFocusable {
             id: stat
             dark: root.dark
-            actionable: !!root.node.action
+            actionable: !!root.shown.action
             implicitHeight: Theme.row32
             implicitWidth: statLabel.implicitWidth + statValue.implicitWidth + 5 * Theme.space1
-            onActivated: root.action(root.node.action, root.node.value)
+            onActivated: root.action(root.shown.action, root.shown.value)
             Rectangle {
                 anchors.fill: parent
                 color: stat.hovered ? Theme.blockColor("hover", root.dark) : "transparent"
@@ -705,7 +749,7 @@ Item {
                     textFormat: Text.PlainText  // plugin- and peer-supplied strings are never HTML
                     id: statLabel
                     Layout.fillWidth: true
-                    text: root.node.label || ""
+                    text: root.shown.label || ""
                     elide: Text.ElideRight
                     font.pixelSize: Theme.roles.input.size
                     color: Theme.blockColor("textMuted", root.dark)
@@ -713,7 +757,7 @@ Item {
                 Text {
                     textFormat: Text.PlainText  // plugin- and peer-supplied strings are never HTML
                     id: statValue
-                    text: root.node.value === undefined ? "" : String(root.node.value)
+                    text: root.shown.value === undefined ? "" : String(root.shown.value)
                     font.family: Theme.mono
                     font.pixelSize: Theme.roles.meta11.size
                     font.weight: Font.Medium
@@ -721,7 +765,7 @@ Item {
                 }
                 Text {
                     textFormat: Text.PlainText  // plugin- and peer-supplied strings are never HTML
-                    visible: !!root.node.action
+                    visible: !!root.shown.action
                     text: "›"
                     font.pixelSize: Theme.roles.headerTitle.size
                     color: Theme.blockColor("textFaint", root.dark)
@@ -731,13 +775,13 @@ Item {
     }
 
     // ---- blocks with their own file
-    Component { id: listC; PluginList { node: root.node; dark: root.dark; pluginId: root.pluginId; onAction: (a, v) => root.action(a, v) } }
-    Component { id: tableC; PluginTable { node: root.node; dark: root.dark; pluginId: root.pluginId; onAction: (a, v) => root.action(a, v) } }
-    Component { id: buttonC; PluginButton { node: root.node; dark: root.dark; pluginId: root.pluginId; onAction: (a, v) => root.action(a, v) } }
-    Component { id: toggleC; PluginToggle { node: root.node; dark: root.dark; pluginId: root.pluginId; onAction: (a, v) => root.action(a, v) } }
-    Component { id: selectC; PluginSelect { node: root.node; dark: root.dark; pluginId: root.pluginId; onAction: (a, v) => root.action(a, v) } }
-    Component { id: segmentedC; PluginSegmented { node: root.node; dark: root.dark; pluginId: root.pluginId; onAction: (a, v) => root.action(a, v) } }
-    Component { id: textareaC; PluginTextArea { node: root.node; dark: root.dark; pluginId: root.pluginId; onAction: (a, v) => root.action(a, v) } }
-    Component { id: textfieldC; PluginTextField { node: root.node; dark: root.dark; pluginId: root.pluginId; onAction: (a, v) => root.action(a, v) } }
-    Component { id: mapC; PluginMapView { node: root.node; dark: root.dark; pluginId: root.pluginId; onAction: (a, v) => root.action(a, v) } }
+    Component { id: listC; PluginList { node: root.shown; dark: root.dark; pluginId: root.pluginId; onAction: (a, v) => root.action(a, v) } }
+    Component { id: tableC; PluginTable { node: root.shown; dark: root.dark; pluginId: root.pluginId; onAction: (a, v) => root.action(a, v) } }
+    Component { id: buttonC; PluginButton { node: root.shown; dark: root.dark; pluginId: root.pluginId; onAction: (a, v) => root.action(a, v) } }
+    Component { id: toggleC; PluginToggle { node: root.shown; dark: root.dark; pluginId: root.pluginId; onAction: (a, v) => root.action(a, v) } }
+    Component { id: selectC; PluginSelect { node: root.shown; dark: root.dark; pluginId: root.pluginId; onAction: (a, v) => root.action(a, v) } }
+    Component { id: segmentedC; PluginSegmented { node: root.shown; dark: root.dark; pluginId: root.pluginId; onAction: (a, v) => root.action(a, v) } }
+    Component { id: textareaC; PluginTextArea { node: root.shown; dark: root.dark; pluginId: root.pluginId; onAction: (a, v) => root.action(a, v) } }
+    Component { id: textfieldC; PluginTextField { node: root.shown; dark: root.dark; pluginId: root.pluginId; onAction: (a, v) => root.action(a, v) } }
+    Component { id: mapC; PluginMapView { node: root.shown; dark: root.dark; pluginId: root.pluginId; onAction: (a, v) => root.action(a, v) } }
 }

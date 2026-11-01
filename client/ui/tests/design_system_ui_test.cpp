@@ -266,7 +266,7 @@ class DesignSystemTest : public QObject {
       QCOMPARE(colorOf("badgeTok"), QColor(dark ? QStringLiteral("#efece4") : QStringLiteral("#1c1b19")));
       QCOMPARE(colorOf("markerNavTok"), QColor(dark ? QStringLiteral("#f8b500") : QStringLiteral("#715c1f")));
       QCOMPARE(colorOf("dimTok"), QColor(dark ? QStringLiteral("#96928a") : QStringLiteral("#6a665f")));
-      QCOMPARE(colorOf("selectedTok"), QColor(dark ? QStringLiteral("#2a2925") : QStringLiteral("#ece9de")));
+      QCOMPARE(colorOf("selectedTok"), QColor(dark ? QStringLiteral("#2e2c28") : QStringLiteral("#eae7dc")));
       QCOMPARE(page_->property("targetMinTok").toInt(), 32);
       QCOMPARE(page_->property("targetTvTok").toInt(), 44);
       QCOMPARE(page_->property("columnsCompactMaxTok").toInt(), 1440);

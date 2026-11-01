@@ -320,6 +320,7 @@ FocusScope {
         implicitHeight: Math.max(44, Theme.row44)
         enabled: row.enabled !== false
         hoverEnabled: true
+        HoverHandler { enabled: qr.enabled; cursorShape: Qt.PointingHandCursor }
         padding: 0
         activeFocusOnTab: true
         Accessible.name: (row.label ?? "") + (row.value ? " " + row.value : "")

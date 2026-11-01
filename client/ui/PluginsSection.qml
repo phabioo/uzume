@@ -562,7 +562,7 @@ ColumnLayout {
             Layout.minimumWidth: 0
             resetMode: "none"
             label: qsTr("Plugin language")
-            description: qsTr("Language of plugin texts. Auto uses the 3DS system language for 3DS games, otherwise the language of this computer. Applies when the next game starts.")
+            description: qsTr("Language of plugin texts. Auto follows the app language. Applies when the next game starts.")
             descriptionName: "pluginLanguageHint"
             ctrl: "select"
             controlName: "pluginLanguageSelect"

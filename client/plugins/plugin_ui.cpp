@@ -1,5 +1,6 @@
 #include "plugin_ui.h"
 
+#include <QJSValue>
 #include <QRegularExpression>
 #include <algorithm>
 #include <cmath>
@@ -304,7 +305,7 @@ const QHash<QString, TypeSpec>& specs() {
     m.insert(QStringLiteral("toggle"), TypeSpec{false, {{"label", shortStr}, {"accessible", shortStr}, {"checked", vBool()}, {"action", vAction(), true}, {"disabled", vBool()}, {"value", vAny()}}});
     m.insert(QStringLiteral("select"), TypeSpec{false, {{"options", vOptions(1, 100), true}, {"selected", vScalar()}, {"action", vAction(), true}, {"disabled", vBool()}}});
     m.insert(QStringLiteral("segmented"), TypeSpec{false, {{"options", vOptions(2, 3), true}, {"selected", vScalar()}, {"action", vAction(), true}}});
-    m.insert(QStringLiteral("textfield"), TypeSpec{false, {{"text", vStr()}, {"placeholder", shortStr}, {"error", shortStr}, {"action", vAction(), true}, {"live", vBool()}, {"disabled", vBool()}}});
+    m.insert(QStringLiteral("textfield"), TypeSpec{false, {{"text", vStr()}, {"placeholder", shortStr}, {"error", shortStr}, {"action", vAction(), true}, {"live", vBool()}, {"disabled", vBool()}, {"mono", vBool()}}});
     // textarea (0.20): multi-line input; "change" fires (default action name "change") with {id, value} once typing pauses.
     m.insert(QStringLiteral("textarea"),
              TypeSpec{false, {{"value", vStr(0, kUiMaxTextareaBytes)}, {"lines", vInt(1, 40)}, {"mono", vBool()}, {"placeholder", shortStr}, {"error", shortStr},
@@ -504,6 +505,12 @@ QVariant variantFromValue(const Value& v) {
 Value valueFromVariant(const QVariant& var, int depth) {
   Value v;
   if (depth > 8 || !var.isValid() || var.isNull()) return v;
+  // QML hands JS objects/arrays over as QJSValue: unwrap to plain variants, anything unconvertible becomes nil.
+  if (var.metaType() == QMetaType::fromType<QJSValue>()) {
+    const QVariant plain = var.value<QJSValue>().toVariant();
+    if (plain.metaType() == QMetaType::fromType<QJSValue>()) return v;
+    return valueFromVariant(plain, depth);
+  }
   switch (var.typeId()) {
     case QMetaType::Bool: v.type = Value::Type::Bool; v.b = var.toBool(); return v;
     case QMetaType::Int:
@@ -515,8 +522,14 @@ Value valueFromVariant(const QVariant& var, int depth) {
       return v;
     case QMetaType::Double:
     case QMetaType::Float:
-      v.type = Value::Type::Float;
       v.d = var.toDouble();
+      // QML numbers are doubles: whole numbers within 2^53 stay integers for the plugin.
+      if (std::isfinite(v.d) && v.d == std::floor(v.d) && std::fabs(v.d) <= 9007199254740992.0) {
+        v.type = Value::Type::Int;
+        v.i = static_cast<int64_t>(v.d);
+      } else {
+        v.type = Value::Type::Float;
+      }
       return v;
     case QMetaType::QString:
       v.type = Value::Type::String;
@@ -534,9 +547,28 @@ Value valueFromVariant(const QVariant& var, int depth) {
       }
       return v;
     }
+    case QMetaType::QStringList: {
+      v.type = Value::Type::Table;
+      const QStringList l = var.toStringList();
+      for (int i = 0; i < l.size(); ++i) {
+        Value k;
+        k.type = Value::Type::Int;
+        k.i = i + 1;
+        v.keys.push_back(k);
+        v.vals.push_back(valueFromVariant(l[i], depth + 1));
+      }
+      return v;
+    }
+    case QMetaType::QVariantHash:
     case QMetaType::QVariantMap: {
       v.type = Value::Type::Table;
-      const QVariantMap m = var.toMap();
+      QVariantMap m;
+      if (var.typeId() == QMetaType::QVariantHash) {
+        const QVariantHash h = var.toHash();
+        for (auto it = h.begin(); it != h.end(); ++it) m.insert(it.key(), it.value());
+      } else {
+        m = var.toMap();
+      }
       for (auto it = m.begin(); it != m.end(); ++it) {
         Value k;
         k.type = Value::Type::String;
@@ -547,7 +579,7 @@ Value valueFromVariant(const QVariant& var, int depth) {
       return v;
     }
     default: {
-      // QML hands over QJSValue-converted variants as the types above; anything else is passed as text.
+      // Anything else is passed as text.
       v.type = Value::Type::String;
       v.s = var.toString().toStdString();
       return v;

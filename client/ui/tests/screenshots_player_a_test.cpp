@@ -78,7 +78,7 @@ class ShotsPlayerATest : public QObject {
     shot(h, QStringLiteral("3a-3-pair-again"));
   }
 
-  // 3c-6: the Library at 1280 and on a 3840 wide window (grid capped at 1680, left-aligned), with filters.
+  // 3c-6: the Library at 1280 and on a 3840 wide window (the grid fills the width), with filters.
   void libraryWidths() {
     FakeHub hub(QStringLiteral("a"));
     hub.features = {QStringLiteral("saves_v1"), QStringLiteral("local_roms_v1")};

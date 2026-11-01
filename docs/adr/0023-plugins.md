@@ -71,6 +71,10 @@ Open: whether the buildbot build of Azahar contains this code, and whether the m
 - The group plays German/EU releases; plugins support all language versions of a game where feasible, at least German and English. Game names (species, moves, locations) are read from the game at runtime and follow its language; plugin UI strings use i18n files (English source, German first translation) (Fabio, 2026-10-11).
 - 3DS: EU cartridges hold several languages and the game language follows the emulated console's system language. Azahar offers the core option "3DS System Language"; FrameBeam must let the user set it (per-game override or 3DS default), and `pokemon-core` detects the active language rather than assuming it. Open: where the setting lives.
 
+### Amendment 2026-11-01: plugin UI language follows the app (Fabio)
+
+Plugin UIs use the app's UI language so the in-game panel no longer mixes app and plugin languages. The app is English only, so Auto resolves to `en`; the explicit setting (English, Deutsch) still wins. The 3DS system language and the OS locale no longer feed Auto. Names read from the game stay in the game's language (unchanged).
+
 ### Amendment 2026-10-28: switching a run's plugin versions (issue #335)
 
 A run still pins exact plugin versions (id, version, SHA-256); what changes is that the creator of the run or an admin can now switch a pinned plugin to another version server offers while the run is not over (`PUT /api/v1/runs/{run_id}/plugins`, handshake feature `run_plugin_updates_v1`, see [protocol](../reference/protocol.md)). Fabio decided the defaults on 2026-10-28:

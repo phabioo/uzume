@@ -24,7 +24,7 @@ QtObject {
     readonly property var sumi: ({
         ground: "#1c1b19", surface: "#242320", scrim: "#cc1c1b19", stage: "#171614", placeholder: "#262521", placeholderRule: "#34322e",
         ink: "#efece4", ink2: "#d3cfc5", muted: "#a19d94", dim: "#96928a", rule: "#3a3833", ruleControl: "#7a766d", badge: "#efece4", rule2: "#2b2a27",
-        hover: "#242320", pressed: "#2c2b28", selected: "#2a2925",
+        hover: "#302e2a", pressed: "#373530", selected: "#2e2c28",
         disabledGround: "#262521", disabledInk: "#6b6861", disabledRule: "#2b2a27",
         accent: "#f8b500", accentHover: "#ffc42e", accentPressed: "#dba000", accentText: "#f8b500", onAccent: "#1c1b19",
         danger: "#ee836f", dangerTint: "#1aee836f", ok: "#68be8d"
@@ -32,7 +32,7 @@ QtObject {
     readonly property var kinari: ({
         ground: "#fbfaf5", surface: "#ffffff", scrim: "#ccfbfaf5", stage: "#f3f1e9", placeholder: "#e9e6dc", placeholderRule: "#d6d2c6",
         ink: "#1c1b19", ink2: "#3a3936", muted: "#5f5c55", dim: "#6a665f", rule: "#d6d2c6", ruleControl: "#86817a", badge: "#1c1b19", rule2: "#e9e6dd",
-        hover: "#f4f2ea", pressed: "#ebe8de", selected: "#ece9de",
+        hover: "#efece2", pressed: "#e6e3d8", selected: "#eae7dc",
         disabledGround: "#efede6", disabledInk: "#a3a097", disabledRule: "#e9e6dd",
         accent: "#f8b500", accentHover: "#ffc42e", accentPressed: "#e0a400", accentText: "#715c1f", onAccent: "#1c1b19",
         danger: "#ac3a41", dangerTint: "#12b94047", ok: "#006b3a"
@@ -187,8 +187,8 @@ QtObject {
     // ---- Layout and motion -----------------------------------------------------------------------------------------
     readonly property int sidebarWidth: sidebar
     readonly property int columnWidth: 300       // second column of 3e / 3f / 3p
-    readonly property int contentMaxWidth: 880   // Settings, Runs and plugin screens: left-aligned, never wider
-    readonly property int gridMaxWidth: 1680     // Library grid
+    // Pages use the full window width (Fabio, 2026-11-01); only long prose keeps a readable line length inside a row.
+    readonly property int proseMaxWidth: 720
     readonly property int inputTestWidth: 340    // Controllers input test
     // SettingsRow grid 14 | flex | 280 | 72; Emulation and Settings share the content width, so the controls end on the same x.
     readonly property int settingsDotSlot: 14

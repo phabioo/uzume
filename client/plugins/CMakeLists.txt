@@ -24,7 +24,7 @@ add_library(uzume_plugins STATIC manifest.cpp plugin_value.cpp lua_sandbox.cpp p
   plugin_host.cpp plugin_store.cpp plugin_store_sync.cpp plugin_pick.cpp plugin_manager.cpp uzplugin.cpp plugin_delivery.cpp run_bridge.cpp run_session_bridge.cpp plugin_language.cpp plugin_variants.cpp plugin_sound.cpp)
 target_include_directories(uzume_plugins PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_features(uzume_plugins PUBLIC cxx_std_20)
-target_link_libraries(uzume_plugins PUBLIC uzume_lua uzume_core uzume_formats Qt6::Core)
+target_link_libraries(uzume_plugins PUBLIC uzume_lua uzume_core uzume_formats Qt6::Core Qt6::Qml)
 uzume_warnings(uzume_plugins)
 
 uzume_add_test(plugins_manifest tests/manifest_test.cpp LIBS uzume_plugins)

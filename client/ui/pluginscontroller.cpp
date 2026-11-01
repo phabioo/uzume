@@ -263,7 +263,9 @@ QVariantList PluginsController::pluginLanguageOptions() const {
 }
 
 QString PluginsController::resolveLanguage(const QString& systemId, const QMap<QString, QString>& coreOptions) const {
-  return plugins::resolvePluginLanguage(pluginLanguage(), systemId, coreOptions);
+  Q_UNUSED(systemId);     // Auto follows the app language, not the game or core options
+  Q_UNUSED(coreOptions);
+  return plugins::resolvePluginLanguage(pluginLanguage());
 }
 
 QString PluginsController::localPath(const QString& pathOrUrl) {

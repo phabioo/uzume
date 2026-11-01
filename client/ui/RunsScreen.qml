@@ -331,7 +331,7 @@ Rectangle {
                 id: page
                 x: Theme.space7
                 y: 48
-                width: Math.max(0, Math.min(Theme.contentMaxWidth, flick.width - 2 * Theme.space7))
+                width: Math.max(0, flick.width - 2 * Theme.space7)
                 spacing: Theme.space3
 
                 // ---------------------------------------------------------------- shared: message line and busy line

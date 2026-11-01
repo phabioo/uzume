@@ -659,6 +659,34 @@ class RunsUiTest : public QObject {
     QVERIFY(h.controller->runs()->startRulesOptions().isEmpty());
   }
 
+  // Pages fill the window width (2026-11-01): in a 2000 px window the Runs header (with "New run…" at its right edge) spans the
+  // content area, and the open column (vertical label, counts) sits right of it at the window edge.
+  void pageFillsWindowWidth() {
+    FakeHub hub(QStringLiteral("a"));
+    hub.hubId = QStringLiteral("hub-wide");
+    hub.decision = FakeHub::Decision::Approve;
+    hub.features = {QStringLiteral("saves_v1"), QStringLiteral("plugins_v1"), QStringLiteral("runs_v1"), QStringLiteral("sessions_v1")};
+    QVERIFY(hub.start());
+    Harness h;
+    QVERIFY(h.start());
+    h.window->resize(2000, 1000);
+    pair(h, hub);
+    QTRY_VERIFY_WITH_TIMEOUT(h.controller->runs()->loaded(), 8000);
+    QTRY_VERIFY(h.item("navRuns") != nullptr && h.item("navRuns")->isVisible());
+    QVERIFY(h.click("navRuns"));
+    QTRY_COMPARE_WITH_TIMEOUT(h.controller->screen(), QStringLiteral("runs"), 8000);
+    QTRY_VERIFY(h.item("runsStartButton") != nullptr && h.item("runsStartButton")->isVisible());
+    QQuickTest::qWaitForPolish(h.window);
+    QQuickItem* start = h.item("runsStartButton");
+    const qreal startRight = start->mapToScene(QPointF(start->width(), 0)).x();
+    QVERIFY2(startRight > 1500, qPrintable(QString::number(startRight)));   // was ~1170 with the 880 px cap
+    QQuickItem* column = h.item("runsOpenColumn");
+    QVERIFY(column != nullptr && column->isVisible());
+    const qreal columnRight = column->mapToScene(QPointF(column->width(), 0)).x();
+    QVERIFY2(columnRight > 1900 && columnRight <= 2000, qPrintable(QString::number(columnRight)));
+    QVERIFY(startRight < column->mapToScene(QPointF(0, 0)).x());
+  }
+
   // runs_v2: "None" comes first and a run without plugins is created with an empty plugin list. The Hub offers no plugin feature
   // at all, so nothing is fetched and the plugin-less run can be played.
   void runWithoutPlugin() {

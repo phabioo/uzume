@@ -20,7 +20,7 @@ ColumnLayout {
         Layout.fillWidth: true
         text: root.node.text || ""
         placeholderText: root.node.placeholder || ""
-        mono: true
+        mono: root.node.mono === true
         invalid: !!root.node.error
         onAccepted: { liveTimer.stop(); root.action(root.node.action || "", text) }
         // live = true: also fires while typing, 250 ms after the last key (the action value is the text, like on Enter)

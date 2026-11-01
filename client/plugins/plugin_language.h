@@ -26,10 +26,11 @@ QString normalizeLanguageTag(const QString& tag);
 // Azahar "3DS System Language" value ("German", "Simplified Chinese", ...; a code such as "de" is accepted too) -> tag, "" when unknown.
 QString languageFromAzaharOption(const QString& value);
 
-// What the plugins get. `setting` = "auto" or an explicit tag. Auto: for system "3ds" the language of the Azahar option
-// in `coreOptions` (explicit user overrides) if set and known, else the OS language `system`, else "en".
-// An explicit setting wins over everything.
-QString resolvePluginLanguage(const QString& setting, const QString& systemId, const QMap<QString, QString>& coreOptions,
-                              const QLocale& system = QLocale::system());
+// Language of the app UI (English only today). What Auto resolves to, so plugin texts match the app.
+QString appUiLanguage();
+
+// What the plugins get. `setting` = "auto" (or empty) or an explicit tag. Auto: the app UI language (appUiLanguage()); game
+// language and OS locale are not used. An explicit setting wins. Names read from the game stay in the game's language.
+QString resolvePluginLanguage(const QString& setting);
 
 }  // namespace uzume::plugins
