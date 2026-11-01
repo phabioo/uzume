@@ -260,7 +260,7 @@ var (
 // NDS "XXXXXXXX YYYYYYYY" is Action Replay DS; GB and GBC "XXX-YYY[-ZZZ]" is Game Genie and 8 hex digits GameShark;
 // 3DS "XXXXXXXX YYYYYYYY" is Gateway. Everything else is raw.
 func GuessCheatFormat(system, code string) string {
-	parts := codePartSplt.Split(code, -1)
+	parts := codePartSplt.Split(NormalizeCheatCodeFor(system, code), -1)
 	all := func(re ...*regexp.Regexp) bool {
 		for _, p := range parts {
 			p = strings.TrimSpace(p)
@@ -312,6 +312,40 @@ func NormalizeCheatCode(code string) string {
 	for _, p := range codePartSplt.Split(code, -1) {
 		if p = strings.TrimSpace(p); p != "" {
 			lines = append(lines, p)
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+// NormalizeCheatCodeFor is NormalizeCheatCode plus the DS/3DS word pairing: the libretro .cht source writes Action Replay
+// and Gateway codes as "XXXXXXXX+YYYYYYYY+...", so for "nds" and "3ds" a code whose every token is exactly 8 hex digits
+// (an even count) becomes one "XXXXXXXX YYYYYYYY" pair per line, and a colon pair "XXXXXXXX:YYYYYYYY" becomes the
+// space form. Other systems and shapes are only normalized.
+func NormalizeCheatCodeFor(system, code string) string {
+	out := NormalizeCheatCode(code)
+	if system != "nds" && system != "3ds" {
+		return out
+	}
+	lines := strings.Split(out, "\n")
+	if len(lines) > 0 && len(lines)%2 == 0 {
+		paired := true
+		for _, l := range lines {
+			if !hex8.MatchString(l) {
+				paired = false
+				break
+			}
+		}
+		if paired {
+			pairs := make([]string, 0, len(lines)/2)
+			for i := 0; i < len(lines); i += 2 {
+				pairs = append(pairs, lines[i]+" "+lines[i+1])
+			}
+			return strings.Join(pairs, "\n")
+		}
+	}
+	for i, l := range lines {
+		if hexPair8x8.MatchString(l) {
+			lines[i] = l[:8] + " " + l[9:]
 		}
 	}
 	return strings.Join(lines, "\n")

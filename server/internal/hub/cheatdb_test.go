@@ -494,3 +494,35 @@ func TestNormalizeCheatCode(t *testing.T) {
 		t.Fatalf("%q", got)
 	}
 }
+
+func TestNormalizeCheatCodeForDS(t *testing.T) {
+	for _, sys := range []string{"nds", "3ds"} {
+		for in, want := range map[string]string{
+			"02000000+00000063+12000004+0000FFFF":    "02000000 00000063\n12000004 0000FFFF",
+			"02000000\n00000063\n12000004\n0000FFFF": "02000000 00000063\n12000004 0000FFFF",
+			"02000000 00000063+12000004 0000FFFF":    "02000000 00000063\n12000004 0000FFFF",
+			"02000000:00000063":                      "02000000 00000063",
+			"02000000+00000063+12000004":             "02000000\n00000063\n12000004",
+		} {
+			if got := hub.NormalizeCheatCodeFor(sys, in); got != want {
+				t.Errorf("%s %q: %q want %q", sys, in, got, want)
+			}
+		}
+	}
+	// Other systems keep the plain line split.
+	if got := hub.NormalizeCheatCodeFor("gb", "01FF16D0+01FF17D0"); got != "01FF16D0\n01FF17D0" {
+		t.Fatalf("%q", got)
+	}
+	if got := hub.NormalizeCheatCodeFor("gba", "82003EE8+0001"); got != "82003EE8\n0001" {
+		t.Fatalf("%q", got)
+	}
+	if g := hub.GuessCheatFormat("nds", "02000000+00000063+12000004+0000FFFF"); g != hub.CheatARDS {
+		t.Fatalf("nds %q", g)
+	}
+	if g := hub.GuessCheatFormat("3ds", "02000000+00000063"); g != hub.CheatGateway {
+		t.Fatalf("3ds %q", g)
+	}
+	if g := hub.GuessCheatFormat("nds", "02000000+00000063+12000004"); g != hub.CheatRaw {
+		t.Fatalf("odd %q", g)
+	}
+}
