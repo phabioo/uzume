@@ -186,7 +186,7 @@ class UiTest : public QObject {
       {type='toggle', label='HUD', checked=true, action='hud'},
       {type='select', options={{value='a', label='A'},{value='b', label='B'}}, selected='a', action='sel'},
       {type='segmented', options={{value=1, label='One'},{value=2, label='Two'}}, selected=1, action='seg'},
-      {type='textfield', text='abc', placeholder='Name', error='Too short', action='name'},
+      {type='textfield', text='abc', placeholder='Name', error='Too short', action='name', mono=true},
       {type='empty', title='Nothing', text='x', action_label='Retry', action='retry', tone='danger'},
       {type='location', title='Route 3', sub='Area', status='encounter', children={ {type='text', text='in'} }},
       {type='map', image='cache:map.png', image_w=1024, image_h=768, filter='me', me='p1', selected='r1', legend=true, action='map',
@@ -248,6 +248,7 @@ class UiTest : public QObject {
     bad("{type='button', label='x'}", "missing required property \"action\"");
     bad("{type='button', label='x', action='a', disabled='yes'}", "disabled: expected true or false");
     bad("{type='textfield', action='a', disabled=1}", "disabled: expected true or false");
+    bad("{type='textfield', action='a', mono='yes'}", "mono: expected true or false");
     QVERIFY(conv("{type='button', label='x', action='a', disabled=true}").tree.value("disabled").toBool());
     QVERIFY(conv("{type='select', options={{value=1,label='A'}}, action='a', disabled=true}").ok);
     QVERIFY(conv("{type='textarea', value='', disabled=true}").ok);

@@ -305,7 +305,7 @@ const QHash<QString, TypeSpec>& specs() {
     m.insert(QStringLiteral("toggle"), TypeSpec{false, {{"label", shortStr}, {"accessible", shortStr}, {"checked", vBool()}, {"action", vAction(), true}, {"disabled", vBool()}, {"value", vAny()}}});
     m.insert(QStringLiteral("select"), TypeSpec{false, {{"options", vOptions(1, 100), true}, {"selected", vScalar()}, {"action", vAction(), true}, {"disabled", vBool()}}});
     m.insert(QStringLiteral("segmented"), TypeSpec{false, {{"options", vOptions(2, 3), true}, {"selected", vScalar()}, {"action", vAction(), true}}});
-    m.insert(QStringLiteral("textfield"), TypeSpec{false, {{"text", vStr()}, {"placeholder", shortStr}, {"error", shortStr}, {"action", vAction(), true}, {"live", vBool()}, {"disabled", vBool()}}});
+    m.insert(QStringLiteral("textfield"), TypeSpec{false, {{"text", vStr()}, {"placeholder", shortStr}, {"error", shortStr}, {"action", vAction(), true}, {"live", vBool()}, {"disabled", vBool()}, {"mono", vBool()}}});
     // textarea (0.20): multi-line input; "change" fires (default action name "change") with {id, value} once typing pauses.
     m.insert(QStringLiteral("textarea"),
              TypeSpec{false, {{"value", vStr(0, kUiMaxTextareaBytes)}, {"lines", vInt(1, 40)}, {"mono", vBool()}, {"placeholder", shortStr}, {"error", shortStr},
