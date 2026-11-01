@@ -411,3 +411,77 @@ func TestReleaseAddKeepsNotes(t *testing.T) {
 		t.Fatal("oversize notes must be refused")
 	}
 }
+
+func TestReleaseRemove(t *testing.T) {
+	dir := t.TempDir()
+	fixed := time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC)
+	later := fixed.Add(48 * time.Hour)
+	idxPath := filepath.Join(dir, "idx.json")
+	relFile := filepath.Join(dir, "release.json")
+	var out bytes.Buffer
+	runAt := func(at time.Time, args ...string) error {
+		out.Reset()
+		return run(args, func(string) string { return "" }, &out, func() time.Time { return at })
+	}
+	add := func(product, channel, version string) {
+		t.Helper()
+		plat, kind, name := "linux-amd64", "deb", "uzume-server_"+version+"_amd64.deb"
+		if product == "player" {
+			plat, kind, name = "windows-x64", "installer", "uzume-app-"+version+"-setup.exe"
+		}
+		b, _ := json.Marshal(updates.Release{Product: product, Channel: channel, Version: version, PublishedAt: fixed,
+			ProtocolVersion: 1, MinProtocolVersion: 1,
+			Artifacts: []updates.Artifact{{Platform: plat, Kind: kind, Name: name, Size: 5, SHA256: strings.Repeat("ab", 32), URL: "https://example.org/" + name}}})
+		os.WriteFile(relFile, b, 0o644)
+		if err := runAt(fixed, "release-add", "-index", idxPath, "-release", relFile); err != nil {
+			t.Fatal(err)
+		}
+	}
+	list := func() []string {
+		t.Helper()
+		data, _ := os.ReadFile(idxPath)
+		idx, errs := updates.ParseIndex(data)
+		if len(errs) != 0 {
+			t.Fatal(errs)
+		}
+		var got []string
+		for _, r := range idx.Releases {
+			got = append(got, r.Product+"/"+r.Channel+"/"+r.Version)
+		}
+		return got
+	}
+	if err := runAt(fixed, "release-remove", "-index", idxPath, "-product", "hub", "-channel", "stable", "-version", "0.7.29"); err == nil {
+		t.Fatal("missing index must fail")
+	}
+	add("hub", "stable", "0.7.29")
+	add("player", "stable", "0.7.29")
+	add("hub", "stable", "0.7.30")
+	add("hub", "beta", "0.7.29")
+	if err := runAt(later, "release-remove", "-index", idxPath, "-product", "hub", "-channel", "stable", "-version", "0.7.29"); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "Removed") {
+		t.Fatalf("output %q", out.String())
+	}
+	got := strings.Join(list(), " ")
+	if strings.Contains(got, "hub/stable/0.7.29") || !strings.Contains(got, "hub/stable/0.7.30") || !strings.Contains(got, "hub/beta/0.7.29") || !strings.Contains(got, "player/stable/0.7.29") {
+		t.Fatalf("got %s", got)
+	}
+	data, _ := os.ReadFile(idxPath)
+	idx, _ := updates.ParseIndex(data)
+	if !idx.GeneratedAt.Equal(later) || !idx.ExpiresAt.Equal(later.Add(updates.IndexValidity)) {
+		t.Fatalf("not re-dated: %v %v", idx.GeneratedAt, idx.ExpiresAt)
+	}
+	// An absent entry is a no-op: message, no error, file untouched.
+	before, _ := os.ReadFile(idxPath)
+	if err := runAt(later.Add(time.Hour), "release-remove", "-index", idxPath, "-product", "hub", "-channel", "stable", "-version", "0.7.29"); err != nil {
+		t.Fatal(err)
+	}
+	after, _ := os.ReadFile(idxPath)
+	if !bytes.Equal(before, after) || !strings.Contains(out.String(), "Nothing to remove") {
+		t.Fatalf("no-op changed the file or lacks a message: %q", out.String())
+	}
+	if err := runAt(fixed, "release-remove", "-index", idxPath, "-product", "hub"); err == nil {
+		t.Fatal("missing flags must fail")
+	}
+}

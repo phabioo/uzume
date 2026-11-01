@@ -4,6 +4,7 @@
 //	uzume-sign keygen -out <seed-file>
 //	uzume-sign add -index <cores-index.json> -package <package.json>
 //	uzume-sign release-add -index <updates-index.json> -release <release.json> [-keep 5]
+//	uzume-sign release-remove -index <updates-index.json> -product <hub|player> -channel <stable|beta> -version <x.y.z>   (drops one entry, e.g. of a deleted GitHub release; no-op when absent)
 //	uzume-sign plugin-sign -in <x.uzplugin> -out <y.uzplugin>      (adds/replaces SIGNATURE.json; seed from env UZUME_SIGNING_KEY)
 //	uzume-sign plugin-add -index <plugin-index.json> -plugin <signed.uzplugin> -url <https url> [-replace]   (refuses a different file for an existing id+version unless -replace)
 //	uzume-sign sign -index <cores-index.json|updates-index.json|plugin-index.json> [-out <file>.sig] [-bundle <file>.signed]   (seed from env UZUME_SIGNING_KEY)
@@ -46,7 +47,7 @@ func main() {
 
 func run(args []string, getenv func(string) string, out io.Writer, now func() time.Time) error {
 	if len(args) == 0 {
-		return errors.New("usage: uzume-sign keygen|add|release-add|plugin-sign|plugin-add|sign|index-refresh|verify|pubkey [flags]")
+		return errors.New("usage: uzume-sign keygen|add|release-add|release-remove|plugin-sign|plugin-add|sign|index-refresh|verify|pubkey [flags]")
 	}
 	fs := flag.NewFlagSet(args[0], flag.ContinueOnError)
 	switch args[0] {
@@ -72,6 +73,15 @@ func run(args []string, getenv func(string) string, out io.Writer, now func() ti
 			return err
 		}
 		return releaseAdd(*idx, *rel, *keep, *allowFile, now)
+	case "release-remove":
+		idx := fs.String("index", "", "updates-index.json (must exist)")
+		product := fs.String("product", "", "hub or player")
+		channel := fs.String("channel", "", "release channel of the entry")
+		version := fs.String("version", "", "version of the entry")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
+		return releaseRemove(*idx, *product, *channel, *version, now, out)
 	case "plugin-sign":
 		in := fs.String("in", "", "input .uzplugin")
 		o := fs.String("out", "", "output .uzplugin (may equal -in)")
@@ -285,6 +295,53 @@ func releaseAdd(indexPath, relPath string, keep int, allowFile bool, now func() 
 		return err
 	}
 	return os.WriteFile(indexPath, b, 0o644)
+}
+
+// releaseRemove drops one release from the updates index (for example one whose GitHub release was deleted, so its
+// download URLs 404) and writes the index the same way releaseAdd does. An absent entry leaves the file untouched.
+func releaseRemove(indexPath, product, channel, version string, now func() time.Time, out io.Writer) error {
+	if indexPath == "" || product == "" || channel == "" || version == "" {
+		return errors.New("-index, -product, -channel and -version are required")
+	}
+	data, err := os.ReadFile(indexPath)
+	if err != nil {
+		return err
+	}
+	idx, errs := updates.ParseIndex(data)
+	if updates.Fatal(errs) {
+		return fmt.Errorf("existing index is invalid: %w", errs[0])
+	}
+	for _, e := range errs {
+		fmt.Fprintln(warnOut, "Warning: dropping release from the existing index:", e)
+	}
+	rels := idx.Releases[:0:0]
+	found := false
+	for _, q := range idx.Releases {
+		if q.Product == product && q.Channel == channel && q.Version == version {
+			found = true
+			continue
+		}
+		if q.Product == updates.ProductHub && updates.IsLegacyCompanion(q.Version) {
+			continue // regenerated below
+		}
+		rels = append(rels, q)
+	}
+	if !found {
+		fmt.Fprintf(out, "Nothing to remove: %s %s %s is not in the index\n", product, channel, version)
+		return nil
+	}
+	idx.Releases = addLegacyCompanions(rels)
+	idx.GeneratedAt = now().UTC().Truncate(time.Second)
+	idx.ExpiresAt = idx.GeneratedAt.Add(updates.IndexValidity)
+	b, err := updates.Marshal(idx)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(indexPath, b, 0o644); err != nil {
+		return err
+	}
+	fmt.Fprintf(out, "Removed %s %s %s from the index\n", product, channel, version)
+	return nil
 }
 
 func sign(indexPath, outPath, bundlePath string, allowFile bool, getenv func(string) string) error {
