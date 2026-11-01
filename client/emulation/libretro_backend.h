@@ -94,6 +94,8 @@ class LibretroBackend final : public EmulatorBackend {
   void setGpuDisplayTarget(std::shared_ptr<GpuDisplayTarget> target) override;
   void setDisplayLimit(const QSize& maxSize) override { m_displayLimit.store(pack(maxSize)); }
   void setReadbackEnabled(bool on) override { m_readbackEnabled.store(on); }
+  void requestCurrentFrameReadback() override { m_currentFrameReadback.store(true); }
+  bool refreshVideoFrame() override;
   double lastDisplayMs() const override;
   bool lastDisplayed() const override { return m_lastDisplayed.load(); }
   bool lastGpuCaptured() const override { return m_lastGpuCaptured.load(); }
@@ -221,6 +223,7 @@ class LibretroBackend final : public EmulatorBackend {
   std::atomic<qint64> m_lastDisplayNs{0};   // display blit of the last runFrame
   std::atomic<bool> m_lastDisplayed{false};
   std::atomic<bool> m_readbackEnabled{true};
+  std::atomic<bool> m_currentFrameReadback{false};  // one-shot: discard the pending PBO frame before the next readback
   bool m_readbackWasEnabled = true;  // emulation thread: edge detection for discarding the pending readback
   std::atomic<qint64> m_lastGpuCopyNs{0};   // encode blit + capture of the last runFrame
   std::atomic<bool> m_lastGpuCaptured{false};

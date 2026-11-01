@@ -610,6 +610,19 @@ void LibretroBackend::cheatSet(unsigned index, bool enabled, const QString& code
   if (supportsCheats() && m_gameLoaded) m_api->cheat_set(index, enabled, code.toUtf8().constData());
 }
 
+// Paused OpenGL game without a readback image: the core's framebuffer still holds the last presented frame.
+bool LibretroBackend::refreshVideoFrame() {
+  if (!m_gameLoaded || !m_hwActive || m_vkActive || !m_hw) return false;
+  const QSize src = unpack(m_sourceSize.load());
+  if (src.isEmpty() || !m_hw->makeCurrent()) return false;
+  m_hw->discardReadback();  // synchronous: the frame itself, not one from before
+  const QImage img = m_hw->readback(src.width(), src.height(), m_hwBottomLeft, unpack(m_readbackLimit.load()));
+  if (img.isNull()) return false;
+  m_frame = img;
+  m_readbackWasEnabled = true;
+  return true;
+}
+
 QImage LibretroBackend::videoFrame() const { return m_frame; }
 quint64 LibretroBackend::frameCount() const { return m_frameCount; }
 
@@ -1086,7 +1099,8 @@ void LibretroBackend::handleVideo(const void* data, unsigned width, unsigned hei
     }
     const bool readbackOn = m_readbackEnabled.load();
     if (readbackOn) {
-      if (!m_readbackWasEnabled) m_hw->discardReadback();  // switched on again: no frame from before the pause
+      if (!m_readbackWasEnabled || m_currentFrameReadback.exchange(false))
+        m_hw->discardReadback();  // switched on again (no frame from before the pause) or asked for exactly this frame
       const auto t0 = std::chrono::steady_clock::now();
       const QImage img = m_hw->readback(static_cast<int>(width), static_cast<int>(height), m_hwBottomLeft,
                                         unpack(m_readbackLimit.load()));

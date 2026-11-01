@@ -45,7 +45,9 @@ void GameSession::setState(State s) {
   if (state_ == s) {
     return;
   }
+  const State before = state_;
   state_ = s;
+  if (runner_ && (s == Paused || before == Paused)) updateReadbackLimit();  // paused: readback stays on (frame steps, screenshots)
   emit stateChanged();
 }
 
@@ -550,6 +552,10 @@ void GameSession::updateReadbackLimit() {
     plan.readback = true;
     plan.readbackLimit = unlimited ? QSize() : cpu.expandedTo(shareSize_);
   }
+  if (state_ == Paused) {  // no frame renders while paused, so readback costs nothing; a debug frame step then yields a CPU frame
+    plan.readback = true;
+    plan.readbackLimit = QSize();
+  }
   if (!captureWaiters_.isEmpty()) {  // a plugin waits for a native-size frame (video.capture): full size, readback on
     plan.readback = true;
     plan.readbackLimit = QSize();
@@ -584,6 +590,17 @@ void GameSession::requestNativeFrame(std::function<void(const QImage&, const QSt
   const bool readbackWasOn = readbackOn_;  // with readback off, frame_ is not kept up to date: wait for a fresh frame
   updateReadbackLimit();
   if (readbackWasOn) serveCaptures(false);  // the current frame may already have the native size
+  if (!captureWaiters_.isEmpty() && state_ == Paused && runner_) {
+    // Paused: no frame will arrive by itself. Read the last presented one back without advancing the game; when that is
+    // not possible say so at once instead of waiting.
+    if (!runner_->refreshFrame()) {
+      auto waiters = std::move(captureWaiters_);
+      captureWaiters_.clear();
+      updateReadbackLimit();
+      for (auto& w : waiters) w(QImage(), QStringLiteral("no_frame"));
+      return;
+    }
+  }
   if (!captureWaiters_.isEmpty()) {
     QPointer<GameSession> self(this);
     QTimer::singleShot(2000, this, [self]() {
