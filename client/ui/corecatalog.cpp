@@ -77,6 +77,12 @@ void CoreCatalog::probeCores() {
         continue;
       }
       listIds_.insert(m.coreId);
+      // Cache cores are reported with the package version the server served, not the library's own version (#429).
+      if (loc.source == QLatin1String("cache") && !loc.version.isEmpty()) {
+        listPackageVersions_.insert(m.coreId, loc.version);
+      } else {
+        listPackageVersions_.remove(m.coreId);
+      }
       probingIds_.insert(m.coreId);
       prober_.request(m.coreId, loc.path, systemDir(), QDir(profiles_->baseDir()).filePath(QStringLiteral("probe")));
     }
@@ -111,11 +117,14 @@ void CoreCatalog::applyProbe(const QString& coreId, const emu::CoreProbe& probe)
     emulation_->loadCoreCache(coreId);
   }
   if (listIds_.remove(coreId)) {
+    const QString packageVersion = listPackageVersions_.take(coreId);
     const bool known = std::any_of(coreList_.cbegin(), coreList_.cend(), [&](const CoreInfo& c) { return c.id == coreId; });
     if (!known) {
       CoreInfo ci;
       ci.id = coreId;
-      if (probe.ok) {
+      if (!packageVersion.isEmpty()) {
+        ci.version = packageVersion;  // the server compares this with its registry package version
+      } else if (probe.ok) {
         ci.version = probe.info.version;
       }
       coreList_.append(ci);

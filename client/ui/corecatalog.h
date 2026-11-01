@@ -130,6 +130,7 @@ class CoreCatalog : public QObject {
   CoreProber prober_;
   QSet<QString> probingIds_;  // core ids with a queued / running probe
   QSet<QString> attempted_;   // library keys (path|size|mtime) probed this run (a failed probe is not repeated)
+  QMap<QString, QString> listPackageVersions_;  // core_id -> cache package version, for cores located in the download cache
   QSet<QString> listIds_;     // core ids requested by probeCores(): get a core list entry when their result arrives
   mutable std::map<QString, emu::SystemManifest> effective_;
 };
