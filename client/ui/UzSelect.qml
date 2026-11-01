@@ -26,6 +26,7 @@ ComboBox {
     }
     onActivated: index => control.picked(control.model[index].value)
 
+    HoverHandler { enabled: control.enabled; cursorShape: Qt.PointingHandCursor }
     font.family: Theme.sans
     font.pixelSize: Theme.roles.input.size
     leftPadding: Theme.space15

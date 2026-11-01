@@ -51,6 +51,7 @@ Button {
     Layout.fillWidth: kind === "link"
     Layout.maximumWidth: kind === "link" ? implicitWidth : Number.POSITIVE_INFINITY
     hoverEnabled: true
+    HoverHandler { enabled: control.enabled && !control.working; cursorShape: Qt.PointingHandCursor }
     font.family: Theme.sans
     font.pixelSize: size === "sm" ? Theme.roles.buttonSm.size : Theme.roles.button.size
     // button: primary and danger 500, secondary and ghost 400 (link keeps 500 like its label always had)

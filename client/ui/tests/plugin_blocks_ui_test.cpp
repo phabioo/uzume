@@ -2,6 +2,8 @@
 // and light, button actions with and without confirmation, toggle, map marker selection, filter, clusters, keyboard
 // navigation. No hub, no core. With UZUME_SCREENSHOT_DIR=<dir> the sheet and the map are also saved as PNGs (never
 // checked in). Sprites come from a test image provider that paints generated pixmaps (no game assets).
+#include <functional>
+
 #include <QJsonDocument>
 #include <QQmlComponent>
 #include <QQmlEngine>
@@ -313,6 +315,41 @@ class PluginBlocksUiTest : public QObject {
       QVERIFY2(chip->width() >= label->implicitWidth() + 2, id);
     }
     QVERIFY(sheet_->width() <= 300);
+  }
+
+  // Design system: one primary button per view. Only the first primary stays Yamabuki, later buttons and the action of an
+  // `empty` block are drawn as outline buttons; the first `empty` action stays primary when nothing came before it.
+  void onlyTheFirstPrimaryButtonStaysPrimary() {
+    auto kindOf = [](QQuickItem* root) {
+      QString kind;
+      std::function<void(QQuickItem*)> walk = [&](QQuickItem* it) {
+        if (!kind.isEmpty() || it == nullptr) return;
+        const QVariant k = it->property("kind");
+        if (k.isValid() && it->property("kind").typeId() == QMetaType::QString && it->inherits("QQuickAbstractButton")) {
+          kind = k.toString();
+          return;
+        }
+        for (QQuickItem* c : it->childItems()) walk(c);
+      };
+      walk(root);
+      return kind;
+    };
+    show(json(R"({"type":"column","gap":8,"children":[
+      {"type":"button","id":"pFirst","label":"Add","variant":"primary","action":"a"},
+      {"type":"button","id":"pSecond","label":"Set","variant":"primary","action":"b"},
+      {"type":"button","id":"pDanger","label":"Delete","variant":"danger","action":"c"},
+      {"type":"empty","id":"emptyAfter","title":"Nothing","action_label":"Open","action":"d"}]})"),
+         true, 400);
+    QCOMPARE(kindOf(mustFind("plugin_pFirst")), QStringLiteral("primary"));
+    QCOMPARE(kindOf(mustFind("plugin_pSecond")), QStringLiteral("outline"));
+    QCOMPARE(kindOf(mustFind("plugin_pDanger")), QStringLiteral("danger"));
+    QCOMPARE(kindOf(mustFind("plugin_emptyAfter")), QStringLiteral("outline"));
+    show(json(R"({"type":"column","gap":8,"children":[
+      {"type":"empty","id":"emptyFirst","title":"Nothing","action_label":"Open","action":"d"},
+      {"type":"button","id":"pLater","label":"Add","variant":"primary","action":"a"}]})"),
+         true, 400);
+    QCOMPARE(kindOf(mustFind("plugin_emptyFirst")), QStringLiteral("primary"));
+    QCOMPARE(kindOf(mustFind("plugin_pLater")), QStringLiteral("outline"));
   }
 
   // #410: a short badge keeps its whole text in a row with a long text, also on a wide panel.

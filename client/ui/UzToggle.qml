@@ -10,6 +10,7 @@ Switch {
     padding: 0
     spacing: Theme.space15
     hoverEnabled: true
+    HoverHandler { enabled: control.enabled; cursorShape: Qt.PointingHandCursor }
     Accessible.role: Accessible.CheckBox
     Accessible.name: control.text
     Accessible.checkable: true

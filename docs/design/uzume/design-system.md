@@ -42,8 +42,8 @@ All values below are copied from `tokens.json` (version 1, readable revision). E
 |---|---|---|---|
 | `ink` | `#efece4` | `#1c1b19` | Titles, item titles, values, primary labels. On ground, surface, stage, hover, pressed and selected: ≥ 12:1 in both themes. |
 | `ink-2` | `#d3cfc5` | `#3a3936` | Body copy, chat, dialog text, the ensō stroke. ≥ 9:1 on every ground in both themes. |
-| `muted` | `#a19d94` | `#5f5c55` | Secondary text, inactive nav items and tabs, helper lines; meta text on surface, hover, pressed and selected (where `dim` is too weak). ≥ 5.2:1 on every ground in both themes. Also the frame of an unchecked checkbox (≥ 5.2:1, meets 3:1 for controls). |
-| `dim` | `#96928a` | `#6a665f` | The quietest text: decoration, disabled hints and Mono labels that repeat their heading. Raised in r6 so it passes 4.5:1 on ground, surface, pressed, selected and stage in both themes (lowest 4.57 on Sumi pressed); still never for information a person needs — use `muted` or stronger. |
+| `muted` | `#a19d94` | `#5f5c55` | Secondary text, inactive nav items and tabs, helper lines; meta text on surface, hover, pressed and selected (where `dim` is too weak). ≥ 4.5:1 on every ground in both themes (lowest 4.53 on Sumi pressed). Also the frame of an unchecked checkbox (≥ 4.5:1, meets 3:1 for controls). |
+| `dim` | `#96928a` | `#6a665f` | The quietest text: decoration, disabled hints and Mono labels that repeat their heading. Raised in r6 so it passes 4.5:1 on ground, surface, pressed, selected and stage in both themes (lowest 4.62 on Sumi selected; on Sumi pressed `#373530` it is 3.95:1, so `dim` stays off pressed planes); still never for information a person needs — use `muted` or stronger. |
 | `rule` | `#3a3833` | `#d6d2c6` | Structural hairlines that are not controls: table heads, dialog and menu frames, column and panel edges, register marks, inactive tile frames (1.45:1, a divider has no minimum). |
 | `rule-control` | `#7a766d` | `#86817a` | Border of everything you can operate: fields, selects, the search underline, secondary buttons, chips, segments, the toggle track, checkboxes, game tiles. ≥ 3:1 on ground, surface, stage, pressed and selected in both themes (WCAG 1.4.11). Hover and focus go stronger (`ink-2`, `ink`). |
 | `badge` | `#efece4` | `#1c1b19` | Fill of count badges (nav, bell, tab counts) with `ground` text: neutral, so a count never looks like a warning. |
@@ -53,9 +53,9 @@ All values below are copied from `tokens.json` (version 1, readable revision). E
 
 | Token | Sumi (dark) | Kinari (light) | Use |
 |---|---|---|---|
-| `hover` | `#242320` | `#f4f2ea` | Row, nav item and secondary/ghost button hover. |
-| `pressed` | `#2c2b28` | `#ebe8de` | Pressed, and toggled-on secondary (e.g. the Panel button while the side panel is open). |
-| `selected` | `#2a2925` | `#ece9de` | Neutral tint of a selected row, list item or menu item. Always together with the 2 px `marker-start` in `ink` and weight 500 — never the tint alone, never yellow. |
+| `hover` | `#302e2a` | `#efece2` | Row, nav item and secondary/ghost button hover. |
+| `pressed` | `#373530` | `#e6e3d8` | Pressed, and toggled-on secondary (e.g. the Panel button while the side panel is open). |
+| `selected` | `#2e2c28` | `#eae7dc` | Neutral tint of a selected row, list item or menu item. Always together with the 2 px `marker-start` in `ink` and weight 500 — never the tint alone, never yellow. |
 | `disabled-ground` | `#262521` | `#efede6` | Fill of disabled buttons and fields. From MaKit. |
 | `disabled-ink` | `#6b6861` | `#a3a097` | Text of disabled controls. Exempt from 4.5:1 (WCAG inactive); a disabled control carries a reason line in `muted` where space allows. From MaKit. |
 | `disabled-rule` | `#2b2a27` | `#e9e6dd` | Border of disabled controls. From MaKit. |
