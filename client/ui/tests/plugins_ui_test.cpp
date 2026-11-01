@@ -153,14 +153,14 @@ class PluginsUiTest : public QObject {
     QVERIFY(PlayerSettings(h.controller->profileStore()->baseDir()).developerMode());
     QTRY_VERIFY(h.item("consoleLoadUnpacked")->isVisible());
 
-    // Plugin language: Auto by default, explicit choice persists and wins over the 3DS option.
+    // Plugin language: Auto by default, Auto follows the app language (en) whatever the 3DS option says; an explicit choice persists and wins.
     QVERIFY(h.item("pluginLanguageSelect") != nullptr);
     QCOMPARE(pc->pluginLanguage(), QStringLiteral("auto"));
     QCOMPARE(pc->pluginLanguageOptions().size(), 3);
-    QCOMPARE(pc->resolveLanguage(QStringLiteral("3ds"), {{QStringLiteral("citra_language_value"), QStringLiteral("German")}}), QStringLiteral("de"));
-    pc->setPluginLanguage(QStringLiteral("en"));
-    QCOMPARE(PlayerSettings(h.controller->profileStore()->baseDir()).pluginLanguage(), QStringLiteral("en"));
     QCOMPARE(pc->resolveLanguage(QStringLiteral("3ds"), {{QStringLiteral("citra_language_value"), QStringLiteral("German")}}), QStringLiteral("en"));
+    pc->setPluginLanguage(QStringLiteral("de"));
+    QCOMPARE(PlayerSettings(h.controller->profileStore()->baseDir()).pluginLanguage(), QStringLiteral("de"));
+    QCOMPARE(pc->resolveLanguage(QStringLiteral("3ds"), {{QStringLiteral("citra_language_value"), QStringLiteral("English")}}), QStringLiteral("de"));
     pc->setPluginLanguage(QStringLiteral("auto"));
 
     // Install two plugins from folders (copy); one has an unmet dependency.

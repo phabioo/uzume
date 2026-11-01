@@ -120,7 +120,7 @@ Everything lives in the global table `uz`.
 
 - `uz.api` is `1`.
 - `uz.plugin` is `{ id, version }`.
-- `uz.game` is `{ system, code, sha256, title, language }`. Any field may be `nil`. `language` is the plugin UI language as a tag (`en`, `de`, `de-DE`, ...): the app setting Settings > Plugins > Plugin language, or with Auto the Azahar "3DS System Language" of a 3DS game, else the language of the computer. It is fixed when the game starts.
+- `uz.game` is `{ system, code, sha256, title, language }`. Any field may be `nil`. `language` is the plugin UI language as a tag (`en`, `de`, `de-DE`, ...): the app setting Settings > Plugins > Plugin language, or with Auto the app UI language (English today). It does not follow the game language; names read from the game stay in the game's language. It is fixed when the game starts.
 - `uz.game.hash()` returns the SHA-256 of the game file as lower-case hex (the key of the server's cheat database), `nil` without a game. It needs no permission and is missing in the shell context.
 - `uz.clock()` returns monotonic milliseconds (integer).
 

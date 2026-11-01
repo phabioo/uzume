@@ -35,28 +35,17 @@ class LanguageTest : public QObject {
     QCOMPARE(languageFromAzaharOption(""), QString());
     QCOMPARE(languageFromAzaharOption("???"), QString());
   }
-  void autoWith3dsOption() {
-    const QMap<QString, QString> o{{kAzaharLanguageOption, "German"}};
-    QCOMPARE(resolvePluginLanguage("auto", "3ds", o, QLocale("en_US")), QStringLiteral("de"));
-    QCOMPARE(resolvePluginLanguage("", "3ds", o, QLocale("fr_FR")), QStringLiteral("de"));
-    // Other systems ignore the 3DS option.
-    QCOMPARE(resolvePluginLanguage("auto", "nds", o, QLocale("fr_FR")), QStringLiteral("fr-FR"));
-    // An unknown option value falls through to the OS language.
-    const QMap<QString, QString> bad{{kAzaharLanguageOption, "Klingon!"}};
-    QCOMPARE(resolvePluginLanguage("auto", "3ds", bad, QLocale("de_DE")), QStringLiteral("de-DE"));
-  }
-  void autoWithSystemLocale() {
-    QCOMPARE(resolvePluginLanguage("auto", "3ds", {}, QLocale("de_DE")), QStringLiteral("de-DE"));
-    QCOMPARE(resolvePluginLanguage("auto", "", {}, QLocale("en_GB")), QStringLiteral("en-GB"));
-    QCOMPARE(resolvePluginLanguage("auto", "nds", {}, QLocale::c()), QStringLiteral("en"));
+  void autoFollowsAppLanguage() {
+    QCOMPARE(resolvePluginLanguage("auto"), appUiLanguage());
+    QCOMPARE(resolvePluginLanguage(""), QStringLiteral("en"));
+    QCOMPARE(resolvePluginLanguage("  AUTO "), QStringLiteral("en"));
   }
   void explicitChoiceWins() {
-    const QMap<QString, QString> o{{kAzaharLanguageOption, "German"}};
-    QCOMPARE(resolvePluginLanguage("en", "3ds", o, QLocale("de_DE")), QStringLiteral("en"));
-    QCOMPARE(resolvePluginLanguage("de", "nds", {}, QLocale("en_US")), QStringLiteral("de"));
-    QCOMPARE(resolvePluginLanguage("de_DE", "nds", {}, QLocale("en_US")), QStringLiteral("de-DE"));
+    QCOMPARE(resolvePluginLanguage("en"), QStringLiteral("en"));
+    QCOMPARE(resolvePluginLanguage("de"), QStringLiteral("de"));
+    QCOMPARE(resolvePluginLanguage("de_DE"), QStringLiteral("de-DE"));
     // An unusable explicit value behaves like Auto.
-    QCOMPARE(resolvePluginLanguage("!!", "nds", {}, QLocale("de_DE")), QStringLiteral("de-DE"));
+    QCOMPARE(resolvePluginLanguage("!!"), QStringLiteral("en"));
   }
 };
 

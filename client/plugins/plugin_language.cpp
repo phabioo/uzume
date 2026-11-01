@@ -50,19 +50,17 @@ QString languageFromAzaharOption(const QString& value) {
   return normalizeLanguageTag(value);
 }
 
-QString resolvePluginLanguage(const QString& setting, const QString& systemId, const QMap<QString, QString>& coreOptions,
-                              const QLocale& system) {
+QString appUiLanguage() {
+  return QStringLiteral("en");  // the app UI is English only; return its language here once the app gets translations
+}
+
+QString resolvePluginLanguage(const QString& setting) {
   const QString s = setting.trimmed();
   if (!s.isEmpty() && s.compare(QLatin1String(kPluginLanguageAuto), Qt::CaseInsensitive) != 0) {
     const QString explicitTag = normalizeLanguageTag(s);
     if (!explicitTag.isEmpty()) return explicitTag;
   }
-  if (systemId == QLatin1String("3ds")) {
-    const QString game = languageFromAzaharOption(coreOptions.value(QLatin1String(kAzaharLanguageOption)));
-    if (!game.isEmpty()) return game;
-  }
-  const QString os = normalizeLanguageTag(system.name());
-  return os.isEmpty() ? QStringLiteral("en") : os;
+  return appUiLanguage();
 }
 
 }  // namespace uzume::plugins
