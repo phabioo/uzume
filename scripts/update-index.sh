@@ -6,6 +6,7 @@
 # Uploads updates-index.json + .sig (legacy pair, raw-byte signature, read by old Hubs/Players) and updates-index.json.signed
 # (one file: domain-separated signature line + the same bytes; read by current clients, cannot be a mismatched pair;
 # ADR 0016 amendment 2026-10-19). Ships the bundle first, then the legacy pair.
+# Entries whose release v<version> no longer exists are removed first (scripts/prune-index-missing-releases.sh).
 # Needs gh (GH_TOKEN, GH_REPO) and UZUME_SIGNING_KEY in the environment (never echoed). Workdir: $RUNNER_TEMP/index.
 set -euo pipefail
 
@@ -44,6 +45,10 @@ esac
 if [ "$release_exists" = true ] && grep -qx updates-index.json <<<"$assets"; then
   # An existing index must be read successfully (set -e), otherwise it would be silently replaced by a fresh one.
   gh release download updates-index --pattern updates-index.json --dir "$idx"
+fi
+if [ -f "$idx/updates-index.json" ]; then
+  # Entries whose GitHub release was deleted would 404 and, below -keep, stay forever (issue 399).
+  "$root/scripts/prune-index-missing-releases.sh" "$sign" "$idx/updates-index.json"
 fi
 if [ $# -eq 0 ]; then
   [ -f "$idx/updates-index.json" ] || { echo "::error::refresh needs an existing updates index"; exit 1; }
