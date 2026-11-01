@@ -2,14 +2,49 @@
   "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
   "name": "uzume",
   "version": "0.0.0",
-  "builtin-baseline": "9e593bb18ea69cc5095e012465dcd675a822ed0d",
+  "builtin-baseline": "9eec002df1cd109f8f104cd966a763daf9751489",
   "dependencies": [
-    { "name": "libdatachannel", "default-features": false, "features": ["srtp"], "platform": "windows" },
-    { "name": "ffmpeg", "default-features": false, "features": ["avcodec", "swscale", "openh264", "nvcodec", "qsv", "amf"], "platform": "windows" },
-    { "name": "opus", "platform": "windows" },
-    { "name": "speexdsp", "platform": "windows" },
-    { "name": "sdl3", "default-features": false, "platform": "windows" },
-    { "name": "openssl", "platform": "windows" },
-    { "name": "vulkan-headers", "platform": "windows" }
+    {
+      "name": "libdatachannel",
+      "default-features": false,
+      "features": [
+        "srtp"
+      ],
+      "platform": "windows"
+    },
+    {
+      "name": "ffmpeg",
+      "default-features": false,
+      "features": [
+        "avcodec",
+        "swscale",
+        "openh264",
+        "nvcodec",
+        "qsv",
+        "amf"
+      ],
+      "platform": "windows"
+    },
+    {
+      "name": "opus",
+      "platform": "windows"
+    },
+    {
+      "name": "speexdsp",
+      "platform": "windows"
+    },
+    {
+      "name": "sdl3",
+      "default-features": false,
+      "platform": "windows"
+    },
+    {
+      "name": "openssl",
+      "platform": "windows"
+    },
+    {
+      "name": "vulkan-headers",
+      "platform": "windows"
+    }
   ]
 }
