@@ -1,5 +1,6 @@
 // Plugin UI v1 runtime: manifest field `ui`, tree validation/conversion, uz.ui.* through the plugin host, action round
 // trip, host events, shell context. Homebrew plugins written to a temporary directory only.
+#include <QJSEngine>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QSignalSpy>
@@ -450,6 +451,58 @@ class UiTest : public QObject {
     QVERIFY2(hasLog(con(), "ACTION go table:7:x panel"), qPrintable(logJoined(con())));
     QVERIFY(hasLog(con(), "ACTION open 42 toast"));
     QVERIFY(hasLog(con(), "ACTION flag true panel"));
+  }
+
+  void valueFromVariantJs() {
+    QJSEngine eng;
+    // JS object -> table with string keys, whole number stays an integer
+    const Value o = valueFromVariant(QVariant::fromValue(eng.evaluate(QStringLiteral("({kind: 'team', slot: 1, f: 2.5})"))));
+    QCOMPARE(o.type, Value::Type::Table);
+    QCOMPARE(o.keys.size(), size_t(3));
+    int seen = 0;
+    for (size_t i = 0; i < o.keys.size(); ++i) {
+      QCOMPARE(o.keys[i].type, Value::Type::String);
+      if (o.keys[i].s == "kind") { QCOMPARE(o.vals[i].s, std::string("team")); ++seen; }
+      if (o.keys[i].s == "slot") { QCOMPARE(o.vals[i].type, Value::Type::Int); QCOMPARE(o.vals[i].i, int64_t(1)); ++seen; }
+      if (o.keys[i].s == "f") { QCOMPARE(o.vals[i].type, Value::Type::Float); ++seen; }
+    }
+    QCOMPARE(seen, 3);
+    // JS array -> list (integer keys from 1)
+    const Value a = valueFromVariant(QVariant::fromValue(eng.evaluate(QStringLiteral("[10, 'x', [3]]"))));
+    QCOMPARE(a.type, Value::Type::Table);
+    QCOMPARE(a.keys.size(), size_t(3));
+    QCOMPARE(a.keys[2].type, Value::Type::Int);
+    QCOMPARE(a.keys[2].i, int64_t(3));
+    QCOMPARE(a.vals[0].type, Value::Type::Int);
+    QCOMPARE(a.vals[2].type, Value::Type::Table);
+    // doubles
+    const Value i2 = valueFromVariant(2.0);
+    QCOMPARE(i2.type, Value::Type::Int);
+    QCOMPARE(i2.i, int64_t(2));
+    QCOMPARE(valueFromVariant(2.5).type, Value::Type::Float);
+    QCOMPARE(valueFromVariant(1e300).type, Value::Type::Float);
+    QCOMPARE(valueFromVariant(std::nan("")).type, Value::Type::Float);
+    // undefined JS value -> nil
+    QCOMPARE(valueFromVariant(QVariant::fromValue(eng.evaluate(QStringLiteral("undefined")))).type, Value::Type::Nil);
+  }
+
+  void actionFromQmlValues() {
+    startSpec(spec(R"LUA(
+      uz.ui.on_action(function(action, value, slot)
+        if type(value) == 'table' then
+          uz.log.info('ACTION ' .. action .. ' ' .. tostring(value.kind) .. ' ' .. math.type(value.slot))
+        else
+          uz.log.info('ACTION ' .. action .. ' ' .. tostring(math.type(value)))
+        end
+      end)
+    )LUA"));
+    QJSEngine eng;
+    m_host->sendAction(kId, "panel", "row", QVariant::fromValue(eng.evaluate(QStringLiteral("({kind: 'team', slot: 1})"))));
+    m_host->sendAction(kId, "panel", "box", QVariant(2.0));
+    m_host->sendAction(kId, "panel", "frac", QVariant(2.5));
+    QTRY_VERIFY(hasLog(con(), "ACTION frac float"));
+    QVERIFY2(hasLog(con(), "ACTION row team integer"), qPrintable(logJoined(con())));
+    QVERIFY(hasLog(con(), "ACTION box integer"));
   }
 
   void actionWithoutHandlerAndRemoval() {
