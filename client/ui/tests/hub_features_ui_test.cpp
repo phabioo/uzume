@@ -421,6 +421,32 @@ class HubFeaturesUiTest : public QObject {
     QCOMPARE(h.controller->handshakeCores().first().id, QStringLiteral("melondsds"));
   }
 
+  // #429: a core from the download cache is reported with the package version the server served ("2026.10.26"),
+  // not with the library's own version (retro_get_system_info).
+  void handshakeReportsCachePackageVersion() {
+    const QString envCore = QCoreApplication::applicationFilePath();  // any library file; the probed library version is not the package version
+    Harness h;
+    const QString platform = CoreCache::currentPlatform();
+    QVERIFY(!platform.isEmpty());
+    const QString pkgDir = QDir(h.dir.path()).filePath(QStringLiteral("cache/cores/melondsds/2026.10.26/") + platform);
+    QVERIFY(QDir().mkpath(pkgDir));
+    const QString libName = QStringLiteral("melondsds_libretro.bin");
+    QVERIFY(QFile::copy(envCore, QDir(pkgDir).filePath(libName)));
+    QFile pj(QDir(pkgDir).filePath(QStringLiteral("package.json")));
+    QVERIFY(pj.open(QIODevice::WriteOnly));
+    pj.write(QJsonDocument(QJsonObject{{QStringLiteral("files"),
+                                        QJsonArray{QJsonObject{{QStringLiteral("role"), QStringLiteral("library")},
+                                                               {QStringLiteral("name"), libName},
+                                                               {QStringLiteral("size"), double(QFileInfo(envCore).size())}}}}})
+                 .toJson());
+    pj.close();
+    qunsetenv("UZUME_MELONDS_DS_CORE");  // no env override: the cache is the source
+    QVERIFY(h.start(/*probeCores=*/true));
+    QTRY_COMPARE_WITH_TIMEOUT(h.controller->handshakeCores().size(), 1, 15000);
+    QCOMPARE(h.controller->handshakeCores().first().id, QStringLiteral("melondsds"));
+    QCOMPARE(h.controller->handshakeCores().first().version, QStringLiteral("2026.10.26"));
+  }
+
   // Settings page: Appearance Dark (default) | Light | System, persisted; the game view stays dark.
   void settingsAppearance() {
     FakeHub hub(QStringLiteral("a"));
