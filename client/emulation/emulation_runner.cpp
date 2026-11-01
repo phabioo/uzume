@@ -66,6 +66,7 @@ class EmulationRunner::Worker : public QThread {
     for (int i = 0; i < n; ++i) {
       const bool last = i == n - 1;
       be.setVideoWanted(last);
+      if (last) be.requestCurrentFrameReadback();  // an asynchronous readback would hand back the frame before
       const auto t0 = std::chrono::steady_clock::now();
       if (!be.runFrame()) return -1;
       m_owner->m_timing.recordFrame(monotonicMs(), std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count(),
@@ -644,6 +645,15 @@ qint64 EmulationRunner::stepFrames(int frames, int timeoutMs) {
   qint64 result = -1;
   const bool ran = runOnEmuThread([&](EmulatorBackend& be) { result = m_worker->stepOnEmuThread(be, frames); }, timeoutMs);
   return ran ? result : -1;
+}
+bool EmulationRunner::refreshFrame(int timeoutMs) {
+  if (m_state.load() != State::Paused || !m_worker) return false;
+  bool ok = false;
+  const bool ran = runOnEmuThread([&](EmulatorBackend& be) {
+    ok = be.refreshVideoFrame();
+    if (ok) emit frameReady(be.videoFrame(), be.frameCount(), 0);
+  }, timeoutMs);
+  return ran && ok;
 }
 quint64 EmulationRunner::submit(Command cmd, std::function<void(const CommandResult&)> onDone) {
   if (!m_worker) return 0;

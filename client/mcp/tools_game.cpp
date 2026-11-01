@@ -323,7 +323,7 @@ void installGameTools(McpToolRegistry& registry, ui::PlayerController& player) {
   {
     ToolDef t;
     t.name = QStringLiteral("screenshot");
-    t.description = QStringLiteral("The game picture at the core's native size as a PNG image: all screens, or only the top or bottom screen of a two-screen system.");
+    t.description = QStringLiteral("The game picture at the core's native size as a PNG image: all screens, or only the top or bottom screen of a two-screen system. Never advances the game: a paused hardware-rendered game answers from its last presented frame (OpenGL) or from the last frame step; when neither is possible it answers no_frame, then step one frame first.");
     t.inputSchema = schema({{QStringLiteral("screen"), typeStr(QStringLiteral("all (default) | top | bottom."))}});
     t.timeoutMs = 15000;
     t.handler = [session](const QJsonObject& a, ToolReply reply) {
@@ -333,7 +333,10 @@ void installGameTools(McpToolRegistry& registry, ui::PlayerController& player) {
       if (which != QLatin1String("all") && which != QLatin1String("top") && which != QLatin1String("bottom")) return reply(ToolResult::error(QStringLiteral("screen must be all, top or bottom")));
       QPointer<ui::GameSession> gp(gs);
       gs->requestNativeFrame([gp, which, reply](const QImage& frame, const QString& error) {
-        if (!error.isEmpty() || frame.isNull()) return reply(ToolResult::error(error.isEmpty() ? QStringLiteral("no_frame") : error));
+        if (!error.isEmpty() || frame.isNull()) {
+          if (gp && gp->isPaused()) return reply(ToolResult::error(QStringLiteral("no_frame: the game is paused and no picture can be read back without running it; step one frame first (game_frame_step)")));
+          return reply(ToolResult::error(error.isEmpty() ? QStringLiteral("no_frame") : error));
+        }
         QImage img = frame;
         const emu::DisplayProfile prof = gp ? gp->displayProfile() : emu::DisplayProfile();
         if (which != QLatin1String("all") && prof.screens.size() >= 2) {

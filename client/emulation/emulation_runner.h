@@ -119,6 +119,10 @@ class EmulationRunner : public QObject {
   // paused/running, the count is out of range or the thread did not get to it within `timeoutMs`.
   static constexpr int kMaxStepFrames = 600;
   qint64 stepFrames(int frames, int timeoutMs = 20000);
+  // Paused debug screenshot without a readback image yet: reads the last presented hardware frame back on the emulation
+  // thread WITHOUT running the core (the game does not advance) and delivers it through frameReady. false: not possible
+  // (not paused, software video, Vulkan, no frame presented yet).
+  bool refreshFrame(int timeoutMs = 3000);
   // Queues a command; returns its request id (> 0), or 0 when the emulation thread is not running (no result follows then).
   // `onDone` (optional) is called on the emulation thread right before commandFinished is emitted.
   quint64 submit(Command cmd, std::function<void(const CommandResult&)> onDone = {});

@@ -671,6 +671,13 @@ class McpToolsTest : public QObject {
     QCOMPARE(s5.value("frame").toDouble(), f0 + 5);
     QVERIFY(s5.value("paused").toBool());
     QCOMPARE(double(gs->frameNumber()), f0 + 5);
+    {  // a screenshot while paused is served and never advances the game (save-state determinism checks rely on it)
+      const quint64 before = gs->frameNumber();
+      ToolResult shot = call("screenshot");
+      QVERIFY2(!shot.isError, qPrintable(shot.content.value(0).text));
+      QCOMPARE(gs->frameNumber(), before);
+      QVERIFY(gs->isPaused());
+    }
     QVERIFY(call("game_frame_step", {{"frames", 0}}).isError);
     QVERIFY(call("game_frame_step", {{"frames", 601}}).isError);
     const QJsonObject s2 = jsonOf(call("game_frame_step", {{"frames", 2}})).toObject();

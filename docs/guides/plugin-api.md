@@ -245,7 +245,7 @@ Event `video.captured` (source `"uz"`, delivered on the plugin thread like the o
 | `unsupported` | This context has no frame source. Captures work for the game running on this app; in a Session viewed from another app the decoded stream frame is not offered to plugins. |
 | `denied` | The frame source refused the capture. |
 
-A capture waits for a frame at native size, so with a hardware-rendered core the result arrives one to a few frames after the request. While the game is paused no new frame is produced and the capture fails with `no_frame` after about 2 seconds, unless the last frame already has native size.
+A capture waits for a frame at native size, so with a hardware-rendered core the result arrives one to a few frames after the request. While the game is paused no new frame is produced: the app reads the last presented frame of an OpenGL core back without advancing the game, and otherwise the capture fails with `no_frame` at once or after about 2 seconds.
 
 ### Game memory writes (`memory.write`)
 

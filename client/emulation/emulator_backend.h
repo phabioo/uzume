@@ -188,6 +188,12 @@ class EmulatorBackend {
   // its last image and frames are only shown through the display target; the frame is still "delivered" (frameCount,
   // sourceFrameSize). The caller turns it off only while a display target shows every frame.
   virtual void setReadbackEnabled(bool on) { Q_UNUSED(on); }
+  // Emulation thread: the next frame read back (the next runFrame() with video wanted) must be that frame itself, not an
+  // older one (an asynchronous GPU readback otherwise lags one frame behind). One-shot; default: nothing to do.
+  virtual void requestCurrentFrameReadback() {}
+  // Emulation thread, between frames: reads the last presented hardware frame back into videoFrame() without running the
+  // core (a paused game with no readback image yet). false = not possible (software video, Vulkan, no frame presented yet).
+  virtual bool refreshVideoFrame() { return false; }
   // Diagnostics (thread-safe). Time the last runFrame() spent on the display blit, and whether it presented a frame.
   virtual double lastDisplayMs() const { return 0.0; }
   virtual bool lastDisplayed() const { return false; }

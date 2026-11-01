@@ -442,6 +442,41 @@ class HwRenderTest : public QObject {
     qunsetenv("FB_FAKE_HW_COUNTER");
   }
 
+  // Debug frame step (paused): requestCurrentFrameReadback makes the PBO path return the frame itself, not the one before.
+  void currentFrameReadbackSkipsPboLag() {
+    qputenv("FB_FAKE_HW_COUNTER", "1");
+    QTemporaryFile rom;
+    LibretroBackend be;
+    loadFake(be, rom);
+    for (int k = 1; k <= 3; ++k) QVERIFY(be.runFrame());
+    be.setVideoWanted(false);
+    QVERIFY(be.runFrame());  // frame 4 not read back
+    be.setVideoWanted(true);
+    be.requestCurrentFrameReadback();
+    QVERIFY(be.runFrame());  // frame 5
+    QCOMPARE(counterOf(be.videoFrame()), 5);
+    QVERIFY(be.runFrame());  // one-shot: back to the one-frame lag
+    QCOMPARE(counterOf(be.videoFrame()), 5);
+    qunsetenv("FB_FAKE_HW_COUNTER");
+  }
+
+  // Paused without a readback image: the last presented frame is read back without running the core.
+  void refreshVideoFrameDoesNotAdvance() {
+    qputenv("FB_FAKE_HW_COUNTER", "1");
+    QTemporaryFile rom;
+    LibretroBackend be;
+    loadFake(be, rom);
+    QVERIFY(!be.refreshVideoFrame());  // nothing presented yet
+    be.setReadbackEnabled(false);
+    for (int k = 1; k <= 3; ++k) QVERIFY(be.runFrame());
+    QVERIFY(be.videoFrame().isNull());
+    const quint64 frames = be.frameCount();
+    QVERIFY(be.refreshVideoFrame());
+    QCOMPARE(be.frameCount(), frames);
+    QCOMPARE(counterOf(be.videoFrame()), 3);
+    qunsetenv("FB_FAKE_HW_COUNTER");
+  }
+
   void syncFallbackIsCurrentFrame() {
     qputenv("FB_FAKE_HW_COUNTER", "1");
     qputenv("UZUME_SYNC_READBACK", "1");
