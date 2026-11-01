@@ -175,13 +175,9 @@ Item {
                     readonly property bool yields: kid.type === "badge" || kid.type === "chip"
                     // fillWidth + maximumWidth = natural width: never grows, but shrinks (a Layout item without fillWidth would not)
                     Layout.fillWidth: giveWay || yields
-<<<<<<< HEAD
                     // an image with a label never grows past its natural width either: otherwise it shares the free space with the
                     // texts beside it and pushes them to the middle of the row
                     Layout.maximumWidth: yields || (kid.type === "image" && !!kid.label) || (rowLayout.hasInput && kid.type === "text") ? implicitWidth : Number.POSITIVE_INFINITY
-=======
-                    Layout.maximumWidth: yields || (rowLayout.hasInput && kid.type === "text") ? implicitWidth : Number.POSITIVE_INFINITY
->>>>>>> origin/claude/project-thread-e3vfo1
                     // a chip follows its text and only gives way beyond 160 px scaled (a badge too, so a short badge such as "Nicht unterstützt" next to a long text never elides)
                     Layout.minimumWidth: kid.type === "text" ? Math.min(implicitWidth, Math.round(96 * Theme.textScale))
                                          : kid.type === "chip" ? Math.min(implicitWidth, Math.round(160 * Theme.textScale))
