@@ -4,6 +4,7 @@
 #include <QDesktopServices>
 #include <QFile>
 #include <QJsonObject>
+#include <QLoggingCategory>
 #include <QUrl>
 #include <algorithm>
 #include <cmath>
@@ -14,7 +15,10 @@
 
 namespace uzume::ui {
 
+Q_LOGGING_CATEGORY(lcVoice, "uzume.voice")
+
 namespace {
+constexpr int kScopeGraceMs = 1500;  // a lost or switched scope must persist this long before the room is left (issue 434)
 constexpr int kMeterEveryFrames = 3;       // the meter updates every 60 ms
 constexpr double kPttSpeakDb = -50.0;      // push-to-talk: the speaking mark shows while the level is above this
 constexpr int kNoticeMs = 5000;
@@ -26,6 +30,9 @@ VoiceController::VoiceController(HubSocket* socket, AudioMixer* mixer, PlayerSet
   farFrame_.assign(uzume::kVoiceFrame, 0);
   noticeTimer_.setSingleShot(true);
   noticeTimer_.setInterval(kNoticeMs);
+  graceTimer_.setSingleShot(true);
+  graceTimer_.setInterval(kScopeGraceMs);
+  connect(&graceTimer_, &QTimer::timeout, this, [this]() { refreshImpl(true); });
   connect(&noticeTimer_, &QTimer::timeout, this, [this]() {
     notice_.clear();
     emit noticeChanged();
@@ -67,9 +74,15 @@ bool VoiceController::featureOn() const {
   return socket_ && socket_->helloAck().features.contains(QLatin1String("together_v1"));
 }
 
+QString VoiceController::effectiveKey(const TogetherController::Scope& s) const {
+  if (s.kind.isEmpty() || !featureOn()) return QString();
+  return scopeKey(s);
+}
+
 bool VoiceController::available() const {
-  if (!featureOn() || !scopeFn_) return false;
-  return !scopeFn_().kind.isEmpty();
+  if (!scopeFn_) return false;
+  if (featureOn() && !scopeFn_().kind.isEmpty()) return true;
+  return graceTimer_.isActive();  // the scope just vanished: stay available for the grace period so the controls do not flicker
 }
 
 QString VoiceController::nameOf(const QString& userId) const {
@@ -476,6 +489,7 @@ void VoiceController::talkKey(bool down) {
 }
 
 void VoiceController::micAction() {
+  qCInfo(lcVoice, "mic click: want %d, mic %s, available %d", int(want_), qUtf8Printable(micStateText()), int(available()));
   if (!want_) {
     join();
     return;
@@ -497,9 +511,24 @@ void VoiceController::sendWireState() {
 // ---------------------------------------------------------------- the room
 
 void VoiceController::join() {
-  if (want_ || !scopeFn_ || !featureOn()) return;
-  const TogetherController::Scope scope = scopeFn_();
-  if (scope.kind.isEmpty()) return;
+  if (want_) {
+    qCInfo(lcVoice, "join ignored: already wanted");
+    return;
+  }
+  if (!scopeFn_ || !featureOn()) {
+    qCInfo(lcVoice, "join ignored: %s", !scopeFn_ ? "no scope provider" : "voice feature off");
+    return;
+  }
+  TogetherController::Scope scope = scopeFn_();
+  const bool fallback = scope.kind.isEmpty() && graceTimer_.isActive() && !stable_.kind.isEmpty();
+  if (fallback) scope = stable_;  // a click during a scope flip
+  if (scope.kind.isEmpty()) {
+    qCInfo(lcVoice, "join ignored: no scope");
+    return;
+  }
+  qCInfo(lcVoice, "join: scope %s:%s", qUtf8Printable(scope.kind), qUtf8Printable(scope.id));
+  stable_ = scope;
+  if (!fallback) graceTimer_.stop();  // after a fallback join the timer still resolves a persistent scope loss
   want_ = true;
   roomKind_ = scope.kind;
   roomId_ = scope.id;
@@ -511,7 +540,7 @@ void VoiceController::join() {
   updateTap();
   startCaptureIfNeeded();
   sendJoin();
-  emit stateChanged();
+  emitState();
   emit micChanged();
 }
 
@@ -520,10 +549,11 @@ void VoiceController::sendJoin() {
   if (socket_) joinRequestId_ = socket_->sendVoiceJoin(roomKind_, roomId_, lastWireMode_);
 }
 
-void VoiceController::leave() { leaveRoom(true); }
+void VoiceController::leave() { leaveRoom(true, "manual"); }
 
-void VoiceController::leaveRoom(bool manual) {
+void VoiceController::leaveRoom(bool manual, const char* reason) {
   if (!want_) return;
+  qCInfo(lcVoice, "leave room %s:%s (%s, reason %s)", qUtf8Printable(roomKind_), qUtf8Printable(roomId_), manual ? "manual" : "automatic", reason);
   if (socket_) socket_->sendVoiceLeave(roomKind_, roomId_);
   if (manual) manualLeft_.insert(roomKind_ + QLatin1Char(':') + roomId_);
   want_ = false;
@@ -542,23 +572,54 @@ void VoiceController::leaveRoom(bool manual) {
   updateTap();
   roomKind_.clear();
   roomId_.clear();
-  emit stateChanged();
+  emitState();
   emit membersChanged();
   emit micChanged();
 }
 
-void VoiceController::refresh() {
-  if (!scopeFn_) return;
-  const TogetherController::Scope scope = scopeFn_();
-  if (want_ && (!featureOn() || scope.kind != roomKind_ || scope.id != roomId_)) leaveRoom(false);
-  if (!want_ && !scope.kind.isEmpty() && featureOn() && autoJoin() && autoFn_ && autoFn_(scope) && !manualLeft_.contains(scopeKey(scope)) &&
-      socket_ && socket_->isOpen()) {
-    join();
-  }
+void VoiceController::refresh() { refreshImpl(false); }
+
+QString VoiceController::snapshot() const {
+  return QStringLiteral("%1|%2|%3|%4").arg(available()).arg(effectiveKey(stable_)).arg(want_).arg(joined_);
+}
+
+void VoiceController::emitState() {
+  lastSnapshot_ = snapshot();
   emit stateChanged();
 }
 
+void VoiceController::refreshImpl(bool commit) {
+  if (!scopeFn_) return;
+  const TogetherController::Scope scope = scopeFn_();
+  const QString key = effectiveKey(scope);
+  const QString ref = want_ ? scopeKey(TogetherController::Scope{roomKind_, roomId_, false}) : effectiveKey(stable_);
+  if (key == ref) {
+    graceTimer_.stop();
+    stable_ = scope;
+  } else if (ref.isEmpty()) {  // nothing to hold on to: follow the scope at once
+    graceTimer_.stop();
+    stable_ = scope;
+  } else if (commit) {  // the change persisted for the whole grace period
+    graceTimer_.stop();
+    stable_ = scope;
+    if (want_) leaveRoom(false, key.isEmpty() ? "scope lost" : "scope switched");
+  } else if (!graceTimer_.isActive()) {
+    qCInfo(lcVoice, "scope %s -> %s: waiting %d ms before acting", qUtf8Printable(ref.isEmpty() ? QStringLiteral("none") : ref),
+           qUtf8Printable(key.isEmpty() ? QStringLiteral("none") : key), graceTimer_.interval());
+    graceTimer_.start();
+  }
+  if (!want_ && !graceTimer_.isActive() && !key.isEmpty() && autoJoin() && autoFn_ && autoFn_(scope) && !manualLeft_.contains(scopeKey(scope)) &&
+      socket_ && socket_->isOpen()) {
+    join();
+  }
+  if (snapshot() == lastSnapshot_) return;
+  qCInfo(lcVoice, "state: available %d scope %s want %d joined %d", int(available()),
+         qUtf8Printable(effectiveKey(stable_).isEmpty() ? QStringLiteral("none") : effectiveKey(stable_)), int(want_), int(joined_));
+  emitState();
+}
+
 void VoiceController::onSocketState(HubSocket::State s) {
+  qCInfo(lcVoice, "hub socket state %d (want %d joined %d)", int(s), int(want_), int(joined_));
   if (s != HubSocket::State::Open && want_) {  // the Hub no longer lists me; the next voice_room says when it does again
     joined_ = false;
     firstRoomSeen_ = false;
@@ -571,7 +632,7 @@ void VoiceController::onSocketState(HubSocket::State s) {
     sendJoin();
   }
   if (s == HubSocket::State::Open) refresh();
-  emit stateChanged();
+  emitState();
 }
 
 void VoiceController::onHubError(const QString& requestId, const QString& code, const QString& message) {
@@ -584,7 +645,8 @@ void VoiceController::onHubError(const QString& requestId, const QString& code, 
   } else {
     return;
   }
-  leaveRoom(false);
+  qCInfo(lcVoice, "join refused by the Hub: %s", qUtf8Printable(code));
+  leaveRoom(false, "join refused");
 }
 
 void VoiceController::showNotice(const QString& text) {
@@ -602,8 +664,10 @@ void VoiceController::onVoiceRoom(const VoiceRoomMessage& room) {
   for (const Member& m : std::as_const(members)) {
     if (m.deviceId == self) me = &m;
   }
+  qCInfo(lcVoice, "voice_room %s:%s: %lld members, me %s", qUtf8Printable(room.scope), qUtf8Printable(room.id), static_cast<long long>(members.size()),
+         me ? "present" : "missing");
   if (!me) {  // the room is closed, or I was removed from it
-    leaveRoom(false);
+    leaveRoom(false, "me missing in voice_room");
     return;
   }
   const QString selfUser = selfFn_ ? selfFn_() : QString();
@@ -620,7 +684,7 @@ void VoiceController::onVoiceRoom(const VoiceRoomMessage& room) {
   joined_ = true;
   applyMembers(members);
   if (wasMuted != mutedByHost_) emit micChanged();
-  emit stateChanged();
+  emitState();
 }
 
 void VoiceController::applyMembers(const QList<Member>& members) {
