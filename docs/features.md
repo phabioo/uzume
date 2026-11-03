@@ -117,7 +117,7 @@ There is no web admin: the server serves only the REST API (`/api/v1`, admin und
 - The app talks to the local Discord client over its IPC (`discord-ipc-0` to `-9`: unix socket under `$XDG_RUNTIME_DIR`, `$TMPDIR`, `$TMP`, `$TEMP` or `/tmp`, named pipe on Windows; Qt `QLocalSocket`, no SDK). Public application ID `1564614458993545296`.
 - Shown while a game runs: game title, system name (plus "· Session" while the game is shared, or the run name in a run) and the start time. Never the server address, other people, ROM paths or anything else private.
 - Updates on game start, game end, Session and run change, at most one every 15 s (the latest state wins); the activity is cleared at once when the game ends or the switch is turned off.
-- If Discord is not running nothing happens: the app retries every 30 s while a game runs, never blocks the UI and logs one info line (`uzume.discord`) per state change. MCP `status` shows `discord` (enabled, connected, last details and state).
+- If Discord is not running nothing happens: the app retries every 30 s while a game runs, never blocks the UI and logs one info line (`uzume.discord`) per state change. MCP `status` shows `discord` (enabled, connected, last details and state). After every reconnect (Discord restarted) the app waits for Discord's READY plus a short pause and then sends the current activity again.
 
 ## Plugins and runs
 

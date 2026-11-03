@@ -64,6 +64,7 @@ class DiscordPresenceTest : public QObject {
     auto p = std::make_unique<DiscordPresence>();
     p->setSocketNames({QStringLiteral("uzume-discord-missing"), name_});
     p->setReconnectMs(100);
+    p->setReadySettleMs(50);
     return p;
   }
   void connectAndReady(DiscordPresence& p) {
@@ -173,6 +174,38 @@ class DiscordPresenceTest : public QObject {
     });
     p.setSocketNames({name_});
     QTRY_VERIFY_WITH_TIMEOUT(p.connected(), 3000);
+  }
+
+  void reconnectResendsSameActivityAfterReady() {
+    auto p = makePresence();
+    p->setThrottleMs(0);
+    p->setReadySettleMs(300);
+    p->setEnabled(true);
+    const DiscordActivity act{QStringLiteral("Homebrew Game"), QStringLiteral("Nintendo DS"), 1'700'000'000'000};
+    p->setActivity(act);
+    QTRY_VERIFY(!frames_.isEmpty());
+    serverSend(DiscordPresence::Frame, {{QStringLiteral("cmd"), QStringLiteral("DISPATCH")}, {QStringLiteral("evt"), QStringLiteral("READY")}});
+    QTRY_VERIFY(p->connected());
+    QCOMPARE(activityFrames().size(), 0);  // held back until Discord settled
+    QTRY_COMPARE(activityFrames().size(), 1);
+
+    // Discord quits: the peer closes.
+    frames_.clear();
+    buf_.clear();
+    client_->disconnectFromServer();
+    QTRY_VERIFY(!p->connected());
+
+    // Discord is back; the client reconnects on its own. No new setActivity call from here on.
+    QTRY_VERIFY_WITH_TIMEOUT(!frames_.isEmpty(), 3000);
+    QCOMPARE(frames_.first().op, quint32(DiscordPresence::Handshake));
+    QCOMPARE(activityFrames().size(), 0);  // nothing before READY
+    serverSend(DiscordPresence::Frame, {{QStringLiteral("cmd"), QStringLiteral("DISPATCH")}, {QStringLiteral("evt"), QStringLiteral("READY")}});
+    QTRY_VERIFY(p->connected());
+    QCOMPARE(activityFrames().size(), 0);
+    QTRY_COMPARE_WITH_TIMEOUT(activityFrames().size(), 1, 3000);
+    const QJsonObject a = activityFrames().first().json.value(QStringLiteral("args")).toObject().value(QStringLiteral("activity")).toObject();
+    QCOMPARE(a.value(QStringLiteral("details")).toString(), QStringLiteral("Homebrew Game"));
+    QCOMPARE(a.value(QStringLiteral("state")).toString(), QStringLiteral("Nintendo DS"));
   }
 
   void disabledDoesNothing() {

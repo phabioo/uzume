@@ -36,6 +36,8 @@ class DiscordPresence : public QObject {
   void setSocketNames(const QStringList& names) { socketNames_ = names; }
   void setThrottleMs(int ms) { throttleMs_ = ms; }
   void setReconnectMs(int ms) { reconnectMs_ = ms; }
+  // Pause after READY before the first SET_ACTIVITY: a Discord that just started drops an activity sent right away.
+  void setReadySettleMs(int ms) { readySettleMs_ = ms; }
 
   // The switch. Turning it off clears the activity and closes the connection.
   void setEnabled(bool on);
@@ -72,6 +74,9 @@ class DiscordPresence : public QObject {
   QStringList socketNames_;
   int throttleMs_ = 15000;
   int reconnectMs_ = 30000;
+  int readySettleMs_ = 3000;
+  int errorRetries_ = 0;
+  QElapsedTimer sinceReady_;
   bool enabled_ = false;
   std::optional<DiscordActivity> desired_;
   std::optional<DiscordActivity> sent_;  // what Discord shows now

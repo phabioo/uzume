@@ -176,8 +176,19 @@ void DiscordPresence::handleFrame(quint32 opcode, const QByteArray& payload) {
     case Close: closeSocket(); if (wantsConnection()) reconnectTimer_.start(reconnectMs_); break;
     case Frame: {
       const QJsonObject o = QJsonDocument::fromJson(payload).object();
-      if (!ready_ && o.value(QStringLiteral("evt")).toString() == QLatin1String("READY")) {
+      const QString evt = o.value(QStringLiteral("evt")).toString();
+      if (!ready_ && evt == QLatin1String("READY")) {
+        // Every (re)connect starts with nothing shown: resend the wanted activity, but only after Discord settled.
+        sent_.reset();
+        errorRetries_ = 0;
+        sinceReady_.restart();
         setReady(true);
+        dirty_ = true;
+        flush();
+      } else if (ready_ && evt == QLatin1String("ERROR") && o.value(QStringLiteral("cmd")).toString() == QLatin1String("SET_ACTIVITY") &&
+                 errorRetries_ < 3) {
+        ++errorRetries_;  // Discord refused it: send it again (throttled)
+        sent_.reset();
         dirty_ = true;
         flush();
       }
@@ -198,6 +209,10 @@ void DiscordPresence::flush() {
   if (!desired_) {  // clear
     if (sent_) sendActivity(std::nullopt);
     dirty_ = false;
+    return;
+  }
+  if (sinceReady_.isValid() && sinceReady_.elapsed() < readySettleMs_) {
+    flushTimer_.start(int(readySettleMs_ - sinceReady_.elapsed()) + 1);
     return;
   }
   if (sinceSend_.isValid() && sinceSend_.elapsed() < throttleMs_) {
