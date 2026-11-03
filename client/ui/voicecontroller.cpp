@@ -520,14 +520,15 @@ void VoiceController::join() {
     return;
   }
   TogetherController::Scope scope = scopeFn_();
-  if (scope.kind.isEmpty() && graceTimer_.isActive() && !stable_.kind.isEmpty()) scope = stable_;  // a click during a scope flip
+  const bool fallback = scope.kind.isEmpty() && graceTimer_.isActive() && !stable_.kind.isEmpty();
+  if (fallback) scope = stable_;  // a click during a scope flip
   if (scope.kind.isEmpty()) {
     qCInfo(lcVoice, "join ignored: no scope");
     return;
   }
   qCInfo(lcVoice, "join: scope %s:%s", qUtf8Printable(scope.kind), qUtf8Printable(scope.id));
   stable_ = scope;
-  graceTimer_.stop();
+  if (!fallback) graceTimer_.stop();  // after a fallback join the timer still resolves a persistent scope loss
   want_ = true;
   roomKind_ = scope.kind;
   roomId_ = scope.id;

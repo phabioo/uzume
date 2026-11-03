@@ -322,6 +322,10 @@ class VoiceControllerTest : public QObject {
     f.vc.micAction();
     QVERIFY(f.vc.wantJoined());
     QCOMPARE(f.vc.roomId(), QStringLiteral("s1"));
+    QVERIFY(f.vc.available());
+    // the scope stays gone: the grace timer still resolves it and leaves the room
+    QTRY_VERIFY_WITH_TIMEOUT(!f.vc.wantJoined(), 2000);
+    QVERIFY(!f.vc.available());
   }
 
   void hubErrorsOfAJoinAreExplained() {
