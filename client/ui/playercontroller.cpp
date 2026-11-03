@@ -245,6 +245,7 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
   connect(&model_, &LibraryModel::countChanged, this, &PlayerController::attentionChanged);
   connect(systems_.get(), &HubSystems::stateChanged, this, [this]() {
     if (systems_->state() == HubSystems::State::Ready) {
+      systemsReadyAt_.start();
       fwProblems_.clear();  // fresh registry from the Hub: validation problems are re-evaluated
       coreProblems_.clear();
       coreUpdater_->check(systems_->systems());
@@ -343,6 +344,7 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
                          [this](const GameEntry& g) { return romSourceOf(g); },
                          [this](const GameEntry& g) { return variantLaunchFor(g); }};
     starter_ = std::make_unique<GameStarter>(sd);
+    starter_->setCatalogRefresh([this](std::function<void()> done) { refreshCatalogForStart(std::move(done)); });
     connect(starter_.get(), &GameStarter::selectedGameChanged, this, &PlayerController::selectedGameChanged);
     connect(starter_.get(), &GameStarter::saveConflictChanged, this, &PlayerController::saveConflictChanged);
     connect(starter_.get(), &GameStarter::coreStateRefreshRequested, this, &PlayerController::refreshCoreState);
@@ -1522,7 +1524,15 @@ QVariantMap PlayerController::coreUpdate() const {
   m.insert(QStringLiteral("active"), active);
   m.insert(QStringLiteral("text"), active ? tr("Updating %1 to %2").arg(coreUpdater_->current().name, coreUpdater_->current().version) : QString());
   const bool has = coreUpdateShown_ && coreUpdater_ && !coreUpdater_->lastUpdate().coreId.isEmpty();
-  m.insert(QStringLiteral("lastText"), has ? tr("Updated %1 to %2").arg(coreUpdater_->lastUpdate().name, coreUpdater_->lastUpdate().version) : QString());
+  QString last;
+  if (has) {
+    const auto& u = coreUpdater_->lastUpdate();
+    last = tr("Updated %1 to %2").arg(u.name, u.version);
+    // The running game keeps the core it loaded (#464): say when the new one takes over.
+    const QString inUse = inUseCoreVersion(u.coreId);
+    if (!inUse.isEmpty() && inUse != u.version) last += tr(". The running game keeps %1; the new core is used from the next start.").arg(inUse);
+  }
+  m.insert(QStringLiteral("lastText"), last);
   return m;
 }
 
@@ -1537,6 +1547,30 @@ void PlayerController::reprobeUpdatedCores() {
   }
   coreList_.removeIf([&](const CoreInfo& c) { return ids.contains(c.id); });
   catalog_->probeCores();  // async (CoreProber); coresProbed resends the handshake with the new versions
+}
+
+// Before a game start: read the server's systems/cores list again when it is not fresh (it is polled every 30 min, so a core the
+// server imported since would be missed until a restart, #464), then `done` runs and the start compares versions as usual. A
+// failed or slow reload (5 s) does not block the start.
+void PlayerController::refreshCatalogForStart(std::function<void()> done) {
+  if (!systems_->supported() || (systems_->state() == HubSystems::State::Ready && systemsReadyAt_.isValid() && !systemsReadyAt_.hasExpired(catalogFreshMs_))) {
+    done();
+    return;
+  }
+  auto* ctx = new QObject(this);
+  auto finish = [this, ctx, done = std::move(done)]() {
+    if (ctx->property("fired").toBool()) return;
+    ctx->setProperty("fired", true);
+    ctx->deleteLater();
+    cancelBackgroundUpdateForSelected();  // the check after the reload may have started a background download: the start takes over
+    done();
+  };
+  connect(systems_.get(), &HubSystems::stateChanged, ctx, [this, finish]() {
+    if (systems_->state() == HubSystems::State::Ready || systems_->state() == HubSystems::State::Failed) finish();
+  });
+  QTimer::singleShot(5000, ctx, finish);
+  if (systems_->state() != HubSystems::State::Loading) systems_->reload();
+  if (systems_->state() != HubSystems::State::Loading) finish();  // no request could be made
 }
 
 // The on-demand download at game start takes over for the core of the selected game.

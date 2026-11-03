@@ -3,6 +3,7 @@
 #include "savestore.h"
 
 #include <QCoreApplication>
+#include <QPointer>
 #include <QDate>
 #include <QDir>
 #include <QFileInfo>
@@ -54,6 +55,27 @@ GameStarter::GameStarter(const Deps& d, QObject* parent)
       variantLaunch_(d.variantLaunch) {}
 
 void GameStarter::startSelected(bool share) {
+  const auto game = model_.game(selectedId_);
+  if (refreshing_ && phase_ == PlayPhase::None) refreshing_ = false;  // that start was cancelled; its callback is stale (generation)
+  if (!catalogRefresh_ || !game || phase_ != PlayPhase::None || session_.isActive() || refreshing_) {
+    startSelectedNow(share);
+    return;
+  }
+  refreshing_ = true;
+  const quint64 gen = ++refreshGen_;
+  phase_ = PlayPhase::Core;  // "preparing core" while the catalog is read
+  emit selectedGameChanged();
+  QPointer<GameStarter> self(this);
+  catalogRefresh_([self, share, gen]() {
+    if (!self || self->refreshGen_ != gen) return;
+    self->refreshing_ = false;
+    if (self->phase_ != PlayPhase::Core) return;  // the start was cancelled meanwhile
+    self->phase_ = PlayPhase::None;
+    self->startSelectedNow(share);
+  });
+}
+
+void GameStarter::startSelectedNow(bool share) {
   shareOnStart_ = false;
   const auto game = model_.game(selectedId_);
   if (!game || phase_ != PlayPhase::None || session_.isActive()) {

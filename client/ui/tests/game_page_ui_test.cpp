@@ -57,6 +57,29 @@ class GamePageUiTest : public QObject {
   void init() { uitest::warningCount() = 0; }
   void cleanup() { QCOMPARE(uitest::warningCount().load(), 0); }
 
+  // #464: a start re-reads the server's systems / cores list when it is not fresh, so a core imported since is seen without a restart.
+  void startReadsTheCoreCatalogAgain() {
+    FakeHub hub(QStringLiteral("a"));
+    seed(hub, 1);
+    hub.features.append(QStringLiteral("firmware_v1"));
+    QVERIFY(hub.start());
+    Harness h;
+    QVERIFY(h.start());
+    pair(h, hub);
+    PlayerController* c = h.controller.get();
+    QTRY_COMPARE(c->selectedGameId(), QStringLiteral("g1"));
+    QTRY_VERIFY(hub.count(QStringLiteral("/api/v1/systems"), "GET") >= 1);
+    QTest::qWait(300);
+    const int before = hub.count(QStringLiteral("/api/v1/systems"), "GET");
+    c->setCatalogFreshMsForTests(10000);
+    c->playSelected();  // fresh list: no new request
+    QTest::qWait(300);
+    QCOMPARE(hub.count(QStringLiteral("/api/v1/systems"), "GET"), before);
+    c->setCatalogFreshMsForTests(0);
+    c->playSelected();
+    QTRY_COMPARE(hub.count(QStringLiteral("/api/v1/systems"), "GET"), before + 1);
+  }
+
   // A click on a row opens the page: no list, no toolbar beside it; "‹ Library" and Esc lead back.
   void rowClickOpensThePage() {
     FakeHub hub(QStringLiteral("a"));

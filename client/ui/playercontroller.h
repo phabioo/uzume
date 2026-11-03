@@ -7,6 +7,7 @@
 #include <QEvent>
 #include <QHash>
 #include <QList>
+#include <functional>
 #include <QObject>
 #include <QString>
 #include <QStringList>
@@ -440,6 +441,7 @@ class PlayerController : public QObject {
   Q_INVOKABLE void closeGamePage();
   bool gamePageOpen() const { return gamePageOpen_; }
   QString gamePageTab() const { return gamePageTab_; }
+  void setCatalogFreshMsForTests(int ms) { catalogFreshMs_ = ms; }  // 0: every start re-reads the server's cores (#464)
   Q_INVOKABLE void playSelected();
   // "Play and share Session": starts the game and publishes it with the last chosen visibility.
   Q_INVOKABLE void playAndShareSelected();
@@ -608,6 +610,8 @@ class PlayerController : public QObject {
   std::unique_ptr<CoreCache> coreCache_;
   std::unique_ptr<CoreProvisioner> coreProv_;
   std::unique_ptr<CoreUpdater> coreUpdater_;  // background updates of cores that are already cached
+  int catalogFreshMs_ = 10 * 1000;           // a systems list younger than this is not re-read at a game start
+  QElapsedTimer systemsReadyAt_;             // when the systems list was last loaded (invalid: never)
   QTimer* systemsTimer_ = nullptr;           // re-reads the Hub's systems / cores info (at most every 30 min)
   QTimer* coreUpdateHideTimer_ = nullptr;    // hides the "Updated X to V" result line a while after the update
   bool coreUpdateShown_ = false;
@@ -615,6 +619,7 @@ class PlayerController : public QObject {
   bool probeCoreVersions_ = true;
   void reprobeUpdatedCores();
   void cancelBackgroundUpdateForSelected();
+  void refreshCatalogForStart(std::function<void()> done);  // GameStarter hook: fresh systems/cores list before a start (#464)
   QMap<QString, QString> coreProblems_;  // core_id -> last provisioning problem reason (cleared with a fresh registry)
   HandshakeInfo handshake_;
   emu::ManifestRegistry manifests_;
