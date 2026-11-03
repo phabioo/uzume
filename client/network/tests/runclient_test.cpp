@@ -380,6 +380,26 @@ class RunClientTest : public QObject {
     QCOMPARE(got.at(2).text, QStringLiteral("seen"));
   }
 
+  void coreEventCarriesThePluginId() {
+    connectHub();
+    const QString id = seedRun(0);
+    startClient();
+    waitForRun(id);
+    // memory.write caused by a plugin that is not part of the run: the plugin id goes to the Hub (core events skip the run_plugins check).
+    const QString writer = QStringLiteral("uzume.creature-editor");
+    QCOMPARE(client_->postEvent(id, writer, QStringLiteral("automatic"), QStringLiteral("memory.write"), QStringLiteral("changed"), {}), QString());
+    QTRY_COMPARE_WITH_TIMEOUT(hub_->runEventPosts.size(), 1, 8000);
+    QCOMPARE(hub_->runEventPosts.at(0).value("plugin_id").toString(), writer);
+    // A core event without a plugin stays without one; a malformed id is dropped instead of making the Hub refuse the event.
+    QCOMPARE(client_->postEvent(id, QString(), QStringLiteral("automatic"), QStringLiteral("state.loaded"), QStringLiteral("x"), {}), QString());
+    QCOMPARE(client_->postEvent(id, QStringLiteral("Bad Id"), QStringLiteral("automatic"), QStringLiteral("memory.write"), QStringLiteral("y"), {}), QString());
+    QTRY_COMPARE_WITH_TIMEOUT(hub_->runEventPosts.size(), 3, 8000);
+    QVERIFY(!hub_->runEventPosts.at(1).contains("plugin_id"));
+    QVERIFY(!hub_->runEventPosts.at(2).contains("plugin_id"));
+    // A non-core event of a plugin outside the run is still refused.
+    QVERIFY(!client_->postEvent(id, writer, QStringLiteral("automatic"), QStringLiteral("test.x"), {}, {}).isEmpty());
+  }
+
   void eventPostRetriesIdempotently() {
     connectHub();
     const QString id = seedRun(0);

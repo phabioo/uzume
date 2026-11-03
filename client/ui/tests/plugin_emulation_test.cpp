@@ -164,6 +164,9 @@ class PluginEmulationServiceTest : public QObject {
     QTRY_COMPARE_WITH_TIMEOUT(svc_->cheatsOn(), 0, 3000);
     QVERIFY(appCount("cheats.blocked") >= 2);
     QVERIFY(run->count("cheat.disabled") >= 2);
+    for (const auto& e : std::as_const(run->logged))  // every cheat event names the plugin that caused it
+      if (e.first == QLatin1String("cheat.enabled") || e.first == QLatin1String("cheat.disabled"))
+        QCOMPARE(e.second.value("plugin_id").toString(), QStringLiteral("p.one"));
     // ... and back on.
     run->rules = {{"cheats", "logged"}};
     QTRY_VERIFY_WITH_TIMEOUT(appCount("cheats.allowed") >= 1, 3000);

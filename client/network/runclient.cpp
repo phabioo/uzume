@@ -750,7 +750,11 @@ QString RunClient::postEvent(const QString& runId, const QString& pluginId, cons
   PendingEvent pe;
   pe.body = {{QStringLiteral("client_id"), clientId}, {QStringLiteral("source"), source}, {QStringLiteral("type"), type},
              {QStringLiteral("text"), text},          {QStringLiteral("payload"), payload}};
-  if (!pluginId.isEmpty() && d->info.hasPlugin(pluginId)) pe.body.insert(QStringLiteral("plugin_id"), pluginId);
+  // Core events name the plugin that caused them even when it is not part of the run (the Hub skips the run_plugins check for them);
+  // the id must still look like a plugin id, else the Hub would refuse the whole event.
+  static const QRegularExpression pluginIdRe(QStringLiteral("^[a-z0-9-]+(\\.[a-z0-9-]+)+$"));
+  if (!pluginId.isEmpty() && (d->info.hasPlugin(pluginId) || (core && pluginId.size() <= 128 && pluginIdRe.match(pluginId).hasMatch())))
+    pe.body.insert(QStringLiteral("plugin_id"), pluginId);
   d->queue.append(pe);
   if (clientIdOut != nullptr) *clientIdOut = clientId;
   flushEvents(runId);

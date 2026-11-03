@@ -686,9 +686,11 @@ void PluginEmulationService::commitCheats() {
 
 void PluginEmulationService::dropCheatsBecauseOf(const QString& reason, const QString& noticeTitle, const QString& noticeText) {
   QHash<QString, plugins::CheatItem> was;
+  QString by;  // the plugin whose cheats these were
   {
     QMutexLocker l(&mu_);
     was = enabledPrev_;
+    by = wantedBy_;
     wanted_.clear();
     enabledPrev_.clear();
     applyPending_ = false;
@@ -696,7 +698,7 @@ void PluginEmulationService::dropCheatsBecauseOf(const QString& reason, const QS
   if (session_ != nullptr && session_->isActive()) session_->submitEmuCommand(emu::EmulationRunner::Command::setCheats({}));
   for (const plugins::CheatItem& it : std::as_const(was))  // the run log shows that they are off again
     logRun(QStringLiteral("cheat.disabled"), tr("turned off %1").arg(it.name.isEmpty() ? it.id : it.name),
-           QJsonObject{{QStringLiteral("name"), it.name}, {QStringLiteral("format"), it.format}});
+           QJsonObject{{QStringLiteral("name"), it.name}, {QStringLiteral("format"), it.format}, {QStringLiteral("plugin_id"), by}});
   emit cheatsOnChanged();
   postApp(QStringLiteral("cheats.blocked"), QVariantMap{{QStringLiteral("reason"), reason}});
   raise({QString(), tr("Uzume"), reason == QLatin1String("run_rule") ? QStringLiteral("info") : QStringLiteral("warning"), noticeTitle, noticeText});
