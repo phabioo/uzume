@@ -104,6 +104,7 @@ class VoiceController : public QObject {
   void setClock(std::function<qint64()> f) { clock_ = std::move(f); }
   void setSystemSettingsOpener(std::function<void()> f) { openSystemFn_ = std::move(f); }
   void setCaptureEnabled(bool on) { captureEnabled_ = on; }  // tests: never open a real microphone
+  void setGraceMsForTests(int ms) { graceTimer_.setInterval(ms); }
 
   bool available() const;
   bool joined() const { return joined_; }
@@ -170,6 +171,8 @@ class VoiceController : public QObject {
   QVariantMap memberInfo() const;
 
   // The scope may have changed (game, Session, run, Hub link): leaves a room that is not the scope's any more, joins by itself when allowed.
+  // A lost or switched scope is only acted on when it persists for the grace period (issue 434: the scope flickers while a run or Session
+  // settles); meanwhile `available` stays as it was and nothing is left or joined. stateChanged is emitted only when something visible changed.
   void refresh();
 
   // Test hooks.
@@ -218,7 +221,11 @@ class VoiceController : public QObject {
   void updateDucking();
   void dropInputs();
   void showNotice(const QString& text);
-  void leaveRoom(bool manual);
+  void leaveRoom(bool manual, const char* reason = "scope");
+  void refreshImpl(bool commit);
+  QString snapshot() const;
+  void emitState();  // stateChanged, remembering what it announced
+  QString effectiveKey(const TogetherController::Scope& s) const;
   void applyMembers(const QList<Member>& members);
   void tapFarEnd(const float* stereo, int frames, int rate);
 
@@ -252,6 +259,9 @@ class VoiceController : public QObject {
   QString joinRequestId_;  // the envelope id of my last voice_join: only an error answering it ends the join
   QString notice_;
   QTimer noticeTimer_;
+  QTimer graceTimer_;                     // a lost or switched scope must persist this long before the room is left
+  TogetherController::Scope stable_;      // the scope the voice state follows (the last one that held)
+  QString lastSnapshot_;                  // available / scope / want / joined of the last stateChanged, to emit only on a change
   QString lastWireMode_;
   bool mutedByHost_ = false;
   bool monitoring_ = false;

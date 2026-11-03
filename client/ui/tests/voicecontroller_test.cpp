@@ -255,14 +255,73 @@ class VoiceControllerTest : public QObject {
 
   void scopeChangeLeavesTheRoom() {
     Fixture f;
+    f.vc.setGraceMsForTests(40);
     f.inRoom();
     QVERIFY(f.vc.joined());
     f.scope = Scope{QStringLiteral("session"), QStringLiteral("s2"), true};
     f.vc.refresh();
-    QVERIFY(!f.vc.wantJoined());
+    QVERIFY(f.vc.wantJoined());  // not at once: the change has to persist
+    QTRY_VERIFY_WITH_TIMEOUT(!f.vc.wantJoined(), 2000);
     f.scope = Scope{};
     f.vc.refresh();
+    QVERIFY(f.vc.available());  // latched during the grace period
+    QTRY_VERIFY_WITH_TIMEOUT(!f.vc.available(), 2000);
+  }
+
+  void unchangedScopeEmitsNoStateChange() {
+    Fixture f;
+    f.vc.refresh();
+    QSignalSpy spy(&f.vc, &VoiceController::stateChanged);
+    f.vc.refresh();
+    f.vc.refresh();
+    QCOMPARE(spy.count(), 0);
+    f.inRoom();
+    spy.clear();
+    f.vc.refresh();
+    f.vc.refresh();
+    QCOMPARE(spy.count(), 0);
+  }
+
+  void transientEmptyScopeDoesNotLeave() {
+    Fixture f;
+    f.vc.setGraceMsForTests(300);
+    f.inRoom();
+    QSignalSpy spy(&f.vc, &VoiceController::stateChanged);
+    const Scope back = f.scope;
+    f.scope = Scope{};
+    f.vc.refresh();
+    QVERIFY(f.vc.wantJoined() && f.vc.joined());
+    QVERIFY(f.vc.available());
+    f.scope = back;
+    f.vc.refresh();
+    QTest::qWait(450);  // the timer was stopped: nothing happens later either
+    QVERIFY(f.vc.wantJoined() && f.vc.joined() && f.vc.available());
+    QCOMPARE(spy.count(), 0);
+  }
+
+  void persistentScopeLossLeavesAfterTheTimer() {
+    Fixture f;
+    f.vc.setGraceMsForTests(80);
+    f.inRoom();
+    f.scope = Scope{};
+    f.vc.refresh();
+    QVERIFY(f.vc.wantJoined());
+    QSignalSpy spy(&f.vc, &VoiceController::stateChanged);
+    QTRY_VERIFY_WITH_TIMEOUT(!f.vc.wantJoined(), 2000);
     QVERIFY(!f.vc.available());
+    QVERIFY(spy.count() >= 1);
+  }
+
+  void clickDuringScopeFlipStillJoins() {
+    Fixture f;
+    f.vc.setGraceMsForTests(300);
+    f.vc.refresh();  // the scope is known
+    f.scope = Scope{};
+    f.vc.refresh();
+    QVERIFY(f.vc.available());
+    f.vc.micAction();
+    QVERIFY(f.vc.wantJoined());
+    QCOMPARE(f.vc.roomId(), QStringLiteral("s1"));
   }
 
   void hubErrorsOfAJoinAreExplained() {

@@ -162,6 +162,44 @@ class VoiceUiTest : public QObject {
     QTRY_COMPARE(text(h.item("micButton")), QStringLiteral("Join voice"));
   }
 
+  // Issue 434: the scope flickers (session -> none -> session) while a run or Session settles; the mic control must stay put and a click in
+  // between must still join.
+  void micButtonSurvivesAScopeFlicker() {
+    FakeHub hub(QStringLiteral("a"));
+    Harness h;
+    QVERIFY(h.start());
+    pair(h, hub);
+    startPreviewGame(h);
+    hostSession(h, hub);
+    VoiceController* v = h.controller->voice();
+    static bool present;
+    present = true;
+    v->setScopeProvider([]() {
+      return present ? TogetherController::Scope{QStringLiteral("session"), QStringLiteral("own1"), true} : TogetherController::Scope{};
+    });
+    v->setGraceMsForTests(60000);  // the flip below never settles on its own
+    v->refresh();
+    QTRY_VERIFY(shown(h.item("micButton")));
+    for (int i = 0; i < 4; ++i) {
+      present = false;
+      v->refresh();
+      QQuickTest::qWaitForPolish(h.window);
+      QVERIFY(shown(h.item("micButton")));
+      if (i <= 1) QCOMPARE(text(h.item("micButton")), QStringLiteral("Join voice"));
+      if (i == 1) {  // a click while the scope is away still joins the scope that was there
+        QVERIFY(h.click("micButton"));
+        QTRY_COMPARE(countWs(hub, "voice_join"), 1);
+        QCOMPARE(lastWs(hub, "voice_join").value("id").toString(), QStringLiteral("own1"));
+      }
+      present = true;
+      v->refresh();
+      QQuickTest::qWaitForPolish(h.window);
+      QVERIFY(shown(h.item("micButton")));
+    }
+    QVERIFY(v->wantJoined());
+    QCOMPARE(countWs(hub, "voice_leave"), 0);
+  }
+
   // The People tab: marks next to the names (speaking bars, mic off, muted by host), the Volume slider of somebody else and the host's Mute.
   void peopleRowsShowMarksVolumeAndMute() {
     FakeHub hub(QStringLiteral("a"));
