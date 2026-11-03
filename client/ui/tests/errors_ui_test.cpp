@@ -507,6 +507,20 @@ class ErrorsUiTest : public QObject {
     QCOMPARE(opened, QStringList{"https://github.com/phabioo/uzume/issues/1"});
     QVERIFY(e->newIssueUrl("https://example.com/a/b", "t", "uz-0123456789ab", "1", "x").isEmpty());
   }
+
+  void pluginReportBuildsThePublicTextFromTheRedactedError() {
+    Harness h;
+    QVERIFY(h.start());
+    ErrorsController* e = h.controller->errors();
+    const QVariantMap r = e->pluginReport("net.test.boom", "Boom Plugin", "1.2.0", "main.lua:3: attempt to index nil (peer 192.168.1.20)",
+                                          "https://github.com/phabioo/boom");
+    QVERIFY(r.value("title").toString().startsWith("Boom Plugin: "));
+    QVERIFY(r.value("summary").toString().contains("net.test.boom 1.2.0"));
+    QVERIFY(r.value("summary").toString().contains("attempt to index nil"));
+    QVERIFY(r.value("url").toString().startsWith("https://github.com/phabioo/boom/issues/new?"));
+    // An invalid base gives no address (the Report button then stays disabled / absent).
+    QVERIFY(e->pluginReport("net.test.boom", "Boom Plugin", "1.2.0", "x", "https://example.com/a/b").value("url").toString().isEmpty());
+  }
 };
 
 QTEST_MAIN(ErrorsUiTest)

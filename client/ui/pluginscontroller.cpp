@@ -1186,6 +1186,17 @@ QString PluginsController::issuesUrlFor(const QString& pluginId) const {
   return info ? info->manifest.issuesUrl : QString();
 }
 
+QVariantMap PluginsController::reportContext(const QString& pluginId) const {
+  const auto info = infoFor(pluginId);
+  QVariantMap m{{QStringLiteral("issuesBase"), QString()}, {QStringLiteral("name"), QString()}, {QStringLiteral("version"), QString()},
+                {QStringLiteral("error"), lastError_.value(pluginId)}};
+  if (!info) return m;
+  m.insert(QStringLiteral("issuesBase"), info->manifest.issuesUrl);
+  m.insert(QStringLiteral("name"), info->manifest.name);
+  m.insert(QStringLiteral("version"), info->manifest.version.toString());
+  return m;
+}
+
 void PluginsController::onStatus(const QString& id) {
   const auto snap = host_->consoleSnapshot(id);
   const int st = static_cast<int>(snap.status);
@@ -1195,7 +1206,10 @@ void PluginsController::onStatus(const QString& id) {
     qCInfo(lcPlugins) << "plugin" << id << "started";
   } else if (snap.status == PluginStatus::Paused) {
     qCWarning(lcPlugins) << "plugin" << id << "paused:" << snap.error.section(QLatin1Char('\n'), 0, 0);  // the notice comes from the DevConsole
-    if (!snap.error.isEmpty()) emit pluginFailed(id, snap.error.section(QLatin1Char('\n'), 0, 0));
+    if (!snap.error.isEmpty()) {
+      lastError_.insert(id, snap.error.section(QLatin1Char('\n'), 0, 0));
+      emit pluginFailed(id, snap.error.section(QLatin1Char('\n'), 0, 0));
+    }
   }
 }
 
@@ -1800,6 +1814,9 @@ void PluginsController::addHostNotice(const QString& pluginId) {
   const auto info = infoFor(pluginId);
   if (!info) return;
   QVariantList actions{QVariantMap{{QStringLiteral("label"), tr("Restart plugin")}, {QStringLiteral("action"), QStringLiteral("restart")}, {QStringLiteral("value"), pluginId}}};
+  // "Report" only for a plugin with a valid issues_url (a GitHub repository); it opens the report preview (ADR 0035).
+  if (!info->manifest.issuesUrl.isEmpty())
+    actions.append(QVariantMap{{QStringLiteral("label"), tr("Report")}, {QStringLiteral("action"), QStringLiteral("report")}, {QStringLiteral("value"), pluginId}});
   if (developerMode())
     actions.append(QVariantMap{{QStringLiteral("label"), tr("Open console")}, {QStringLiteral("action"), QStringLiteral("details")}, {QStringLiteral("value"), pluginId}});
   toasts_.append(QVariantMap{{QStringLiteral("toastId"), --hostToastId_},

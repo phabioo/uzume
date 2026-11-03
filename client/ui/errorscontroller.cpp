@@ -91,6 +91,21 @@ QString ErrorsController::newIssueUrl(const QString& issuesBase, const QString& 
   return GithubIssueLookup::newIssueUrl(issuesBase, publicTitle, fingerprint, newestAppVersion, server, publicSummary);
 }
 
+QVariantMap ErrorsController::pluginReport(const QString& pluginId, const QString& pluginName, const QString& pluginVersion,
+                                           const QString& error, const QString& issuesBase) const {
+  const QString component = QStringLiteral("plugin:") + pluginId;
+  const errors::ErrorEvent e = errors::makeEvent(QString::fromLatin1(errors::kKindPluginError),
+                                                 errors::validComponent(component) ? component : QStringLiteral("app"),
+                                                 QStringLiteral("Plugin stopped after an error"), error, d_.source, QDateTime::currentDateTimeUtc());
+  const QString title = QStringLiteral("%1: %2").arg(pluginName.isEmpty() ? pluginId : pluginName, e.title);
+  QString summary = QStringLiteral("Plugin: %1 %2\nApp: %3\n").arg(pluginId, pluginVersion, d_.source.appVersion);
+  summary += e.message.isEmpty() ? QStringLiteral("No error text was recorded.") : QStringLiteral("Error: %1").arg(e.message);
+  QVariantMap m{{QStringLiteral("title"), title}, {QStringLiteral("summary"), summary}, {QStringLiteral("url"), QString()}};
+  if (!e.fingerprint.isEmpty())
+    m.insert(QStringLiteral("url"), newIssueUrl(issuesBase, title, e.fingerprint, d_.source.appVersion, summary));
+  return m;
+}
+
 bool ErrorsController::openInBrowser(const QString& url) {
   if (!GithubIssueLookup::openAllowed(url)) return false;
   const QUrl u(url);

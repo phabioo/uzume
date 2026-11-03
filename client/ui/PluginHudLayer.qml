@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Layouts
 import Uzume.App
 
 // Plugin surfaces on the play area (docs/design/legacy/plugins.md 4e HUD, 4g-2 notices): HUD widgets in the bottom-left,
@@ -199,9 +200,58 @@ Item {
         }
     }
 
+    // "Report" on a plugin pause notice: the public text is shown first, the browser opens GitHub with it (same flow as Server > Reports
+    // > Errors; nothing is sent from here and no logs are added).
+    property var reportData: ({ title: "", summary: "", url: "" })
+    function openReport(pluginId) {
+        const c = plugins.reportContext(pluginId)
+        if (c.issuesBase === "") return
+        reportData = player.errors.pluginReport(pluginId, c.name, c.version, c.error, c.issuesBase)
+        reportDialog.error = ""
+        reportDialog.open()
+    }
+    UzDialog {
+        id: reportDialog
+        objectName: "pluginReportDialog"
+        size: "lg"
+        label: qsTr("Plugins")
+        title: qsTr("Report on GitHub")
+        text: qsTr("This is the text that goes into the public issue. Your browser opens GitHub with it; you check it there and submit it with your own account. No logs are added.")
+        actions: [
+            UzButton { objectName: "pluginReportCancel"; text: qsTr("Cancel"); onClicked: reportDialog.close() },
+            UzButton {
+                objectName: "pluginReportOpen"; kind: "primary"; text: qsTr("Open GitHub")
+                enabled: root.reportData.url !== ""
+                onClicked: {
+                    if (root.player.errors.openInBrowser(root.reportData.url)) reportDialog.close()
+                    else reportDialog.error = qsTr("The address could not be opened.")
+                }
+            }
+        ]
+        UzMono { text: qsTr("Title") }
+        Text {
+            objectName: "pluginReportTitle"
+            Layout.fillWidth: true
+            wrapMode: Text.Wrap
+            textFormat: Text.PlainText
+            text: root.reportData.title
+            font.family: Theme.sans; font.pixelSize: Theme.roles.body.size; color: Theme.ink
+        }
+        UzMono { text: qsTr("Description") }
+        Text {
+            objectName: "pluginReportSummary"
+            Layout.fillWidth: true
+            wrapMode: Text.Wrap
+            textFormat: Text.PlainText
+            text: root.reportData.summary
+            font.family: Theme.mono; font.pixelSize: Theme.roles.small.size; color: Theme.ink2
+        }
+    }
+
     function toastAction(toast, act) {
         if (toast.host) {
             if (act.action === "restart") plugins.reloadPlugin(act.value)
+            else if (act.action === "report") root.openReport(act.value)
             else if (act.action === "details") { plugins.selectConsolePlugin(act.value); root.detailsRequested() }
         } else {
             plugins.sendAction(toast.pluginId, "toast", act.action, act.value)

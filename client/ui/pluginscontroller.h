@@ -339,6 +339,9 @@ class PluginsController : public QObject {
   void setPreviewUi(const QVariantMap& ui);
   // The manifest's issues_url of an installed or dev-linked plugin (empty: none). Carried by plugin error events (ADR 0035 D4).
   QString issuesUrlFor(const QString& pluginId) const;
+  // Input of the in-game "Report" action: {issuesBase, name, version, error}; issuesBase is empty when the plugin has no valid
+  // issues_url (then there is no Report action).
+  Q_INVOKABLE QVariantMap reportContext(const QString& pluginId) const;
 
  signals:
   // A plugin was paused by an error, the watchdog or a quota (first line of the Lua error / budget message); ADR 0035 error events.
@@ -486,6 +489,7 @@ class PluginsController : public QObject {
   QString language_ = QStringLiteral("en");
   bool hudAllHidden_ = false;
   QSet<QString> mutedImportant_;
+  QHash<QString, QString> lastError_;         // plugin id -> first line of its last pause error (Report action)
   int hostToastId_ = 0;                       // host notices count down from -1
   bool previewUi_ = false;
   QVariantMap previewUiData_;
