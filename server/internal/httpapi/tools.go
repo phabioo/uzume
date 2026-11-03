@@ -3,6 +3,10 @@ package httpapi
 import (
 	"context"
 	"errors"
+	"io"
+	"net/http"
+	"os"
+	"strconv"
 
 	"github.com/phabioo/uzume/server/internal/api"
 	"github.com/phabioo/uzume/server/internal/hub"
@@ -57,8 +61,64 @@ func (s *Server) GetToolPackage(ctx context.Context, req api.GetToolPackageReque
 		f.Close()
 		return api.GetToolPackage304Response{Headers: api.GetToolPackage304ResponseHeaders{ETag: ptr(etag)}}, nil
 	}
-	return api.GetToolPackage200ApplicationzipResponse{Body: f, ContentLength: pl.Size,
-		Headers: api.GetToolPackage200ResponseHeaders{ContentLength: ptr(pl.Size), ETag: ptr(etag)}}, nil
+	return &toolPackageStream{f: f, etag: etag, size: pl.Size, srv: s, ctx: ctx, path: req.ToolId + "/" + req.Version + "/" + string(req.Platform)}, nil
+}
+
+// toolPackageStream streams a cached tool zip. The generated 200 response returns every io.Copy error, and the error
+// handler then answers 500 "Internal error" (and records an error event) although the status line is long sent: a
+// client that closes the connection mid-download, or a zip that changed on disk since the catalog row was read, must
+// not count as a server error (issue 449). Only a failing disk read is one.
+type toolPackageStream struct {
+	f    *os.File
+	etag string
+	size int64 // from the catalog; the real file size wins when the two differ
+	srv  *Server
+	ctx  context.Context
+	path string
+}
+
+// errToolRead marks a failed read of the cached file (a real server error, as opposed to a failed write to the client).
+type toolReadError struct{ error }
+
+func (e toolReadError) Unwrap() error { return e.error }
+
+// readErrReader marks errors of the underlying file so that io.Copy errors can be told apart.
+type readErrReader struct{ r io.Reader }
+
+func (r readErrReader) Read(p []byte) (int, error) {
+	n, err := r.r.Read(p)
+	if err != nil && err != io.EOF {
+		err = toolReadError{err}
+	}
+	return n, err
+}
+
+func (t *toolPackageStream) VisitGetToolPackageResponse(w http.ResponseWriter) error {
+	defer t.f.Close()
+	size := t.size
+	if st, err := t.f.Stat(); err == nil {
+		size = st.Size()
+	}
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Length", strconv.FormatInt(size, 10))
+	w.Header().Set("ETag", t.etag)
+	w.WriteHeader(http.StatusOK)
+	_, err := io.Copy(w, readErrReader{io.LimitReader(t.f, size)})
+	if err == nil {
+		return nil
+	}
+	var re toolReadError
+	if errors.As(err, &re) {
+		// The status line is gone: log the cause and record it, but write no second response. The body stays shorter
+		// than Content-Length, so the client sees the truncation and retries.
+		t.srv.log.Error("tool package read failed", "path", t.path, "err", re.error)
+		route := "GET /api/v1/tools/{tool_id}/packages/{version}/{platform}"
+		t.srv.svc.RecordServerError(context.WithoutCancel(t.ctx), hub.ErrKindServerError, "Internal error in "+route, route+": read of the cached tool package failed: "+re.error.Error())
+		return nil
+	}
+	// Write side: the client went away or stopped reading. Not a server error.
+	t.srv.log.Debug("tool package download aborted by the client", "err", err)
+	return nil
 }
 
 func adminToolBody(t hub.Tool) api.AdminTool {
