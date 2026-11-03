@@ -155,7 +155,7 @@ class EmulatorBackend {
   virtual bool unserialize(const QByteArray& state) { Q_UNUSED(state); return false; }
 
   // Cheats (retro_cheat_reset / retro_cheat_set; emulation thread). A core without the symbols has no cheats. `code`
-  // is passed to the core unchanged; the format is the core's own (see the cheat formats of the core profile).
+  // is passed to the core as given (the runner normalises it first); the format is the core's own (see the cheat formats of the core profile).
   virtual bool supportsCheats() const { return false; }
   virtual void cheatReset() {}
   virtual void cheatSet(unsigned index, bool enabled, const QString& code) { Q_UNUSED(index); Q_UNUSED(enabled); Q_UNUSED(code); }

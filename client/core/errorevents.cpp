@@ -40,6 +40,7 @@ QJsonObject ErrorEvent::toJson() const {
   o.insert(QStringLiteral("app_version"), appVersion);
   o.insert(QStringLiteral("os"), os);
   o.insert(QStringLiteral("occurred_at"), occurredAt.toUTC().toString(Qt::ISODate));
+  if (!issuesUrl.isEmpty()) o.insert(QStringLiteral("issues_url"), issuesUrl);
   return o;
 }
 
@@ -52,6 +53,7 @@ std::optional<ErrorEvent> ErrorEvent::fromJson(const QJsonObject& o) {
   e.message = o.value(QStringLiteral("message")).toString();
   e.appVersion = o.value(QStringLiteral("app_version")).toString();
   e.os = o.value(QStringLiteral("os")).toString();
+  e.issuesUrl = o.value(QStringLiteral("issues_url")).toString();
   e.occurredAt = QDateTime::fromString(o.value(QStringLiteral("occurred_at")).toString(), Qt::ISODate);
   if (!validKind(e.kind) || !validComponent(e.component) || !validFingerprint(e.fingerprint) || e.title.isEmpty() || !e.occurredAt.isValid()) {
     return std::nullopt;

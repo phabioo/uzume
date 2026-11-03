@@ -14,7 +14,8 @@ func isStreamRoute(r *http.Request) bool {
 		return false
 	}
 	p := r.URL.Path
-	return (strings.HasPrefix(p, "/api/v1/cores/") && strings.Contains(p, "/files/")) ||
+	return (strings.HasPrefix(p, "/api/v1/tools/") && strings.Contains(p, "/packages/")) ||
+		(strings.HasPrefix(p, "/api/v1/cores/") && strings.Contains(p, "/files/")) ||
 		(strings.HasPrefix(p, "/api/v1/games/") && strings.HasSuffix(p, "/content"))
 }
 

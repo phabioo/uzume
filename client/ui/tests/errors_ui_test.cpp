@@ -199,6 +199,11 @@ class ErrorsUiTest : public QObject {
     e->recordPluginError("uzume.soullink", "main.lua:12: attempt to index a nil value");
     QTRY_COMPARE_WITH_TIMEOUT(hub.errorBatches.size(), 2, 8000);
     QCOMPARE(hub.errorBatches.last().first().toObject().value("component").toString(), QString("plugin:uzume.soullink"));
+    QVERIFY(!hub.errorBatches.last().first().toObject().contains("issues_url"));  // none known: the field stays out
+    // #446: a development plugin is unknown to the server, so the event carries the manifest's issues_url.
+    e->recordPluginError("dev.example.linked", "main.lua:3: boom", "https://github.com/example-org/linked");
+    QTRY_COMPARE_WITH_TIMEOUT(hub.errorBatches.size(), 3, 8000);
+    QCOMPARE(hub.errorBatches.last().first().toObject().value("issues_url").toString(), QString("https://github.com/example-org/linked"));
   }
 
   // ------------------------------------------------------------ view
@@ -396,6 +401,7 @@ class ErrorsUiTest : public QObject {
     QTRY_VERIFY(shown(h.item("errorReportGithub")));
     QVERIFY(h.click("errorReportGithub"));
     QTRY_VERIFY(shown(h.item("errorsPreviewDialog")));
+    QCOMPARE(text(h.item("errorsPreviewLookup")), QString("No existing issue with this fingerprint was found on GitHub."));
     QCOMPARE(text(h.item("errorsPreviewTitle")), QString("Core failed (public)"));
     QCOMPARE(text(h.item("errorsPreviewSummary")), QString("Seen 7 times on 2 devices, versions 0.24.0, 0.23.2."));
     QVERIFY(opened.isEmpty());  // nothing opens before the person confirms the preview
@@ -426,6 +432,8 @@ class ErrorsUiTest : public QObject {
     QTRY_VERIFY(shown(h.item("errorReportGithub")));
     QVERIFY(h.click("errorReportGithub"));
     QTRY_VERIFY(shown(h.item("errorsPreviewDialog")));
+    QCOMPARE(text(h.item("errorsPreviewLookup")), QString("Could not search for existing issues. You can still report it."));
+    QVERIFY(shown(h.item("errorsPreviewOpen")));
   }
 
   // After a PATCH the detail is read again, so the GitHub text is still the server's public text, never the plain title.

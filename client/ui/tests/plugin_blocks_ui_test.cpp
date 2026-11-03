@@ -294,6 +294,20 @@ class PluginBlocksUiTest : public QObject {
     shot(dark ? QStringLiteral("plugin-blocks-dark") : QStringLiteral("plugin-blocks-light"));
   }
 
+  // #436: images resolve against the plugin that produced the tree (`_owner`, stamped by PluginsController::slotTree), not against
+  // the view's current pluginId (which switches before the old tree is replaced); nested blocks included. An empty id asks for nothing.
+  void imagesFollowTheTreeOwner() {
+    const char* tree = R"({"type":"column","children":[{"type":"column","children":[{"type":"image","id":"deep","src":"cache:icons/25.png","size":"m"}]}]%1})";
+    auto source = [&]() { return Harness::findVisual(mustFind("plugin_deep"), QStringLiteral("pluginImageSprite"))->property("source").toString(); };
+    show(json(qPrintable(QString::fromLatin1(tree).arg(QStringLiteral(",\"_owner\":\"uzume.soullink\"")))), true);  // view says "testplug"
+    QCOMPARE(source(), QStringLiteral("image://uzplugin/uzume.soullink/cache/icons/25.png"));
+    show(json(qPrintable(QString::fromLatin1(tree).arg(QString()))), true);  // no stamp (entry trees): the view's own id
+    QCOMPARE(source(), QStringLiteral("image://uzplugin/testplug/cache/icons/25.png"));
+    QVERIFY(sheet_->setProperty("pluginId", QString()));
+    settle();
+    QCOMPARE(source(), QString());  // empty plugin id: no request
+  }
+
   // 0.20 final live check: a chip is as wide as its text ("Edit list", "Turn all off" were cut to "E…" and "All …"), also in a full row.
   void chipsFollowTheirText() {
     show(json(R"({"type":"column","gap":8,"children":[

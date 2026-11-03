@@ -1181,6 +1181,11 @@ void PluginsController::postInitialEvents() {
   for (const QString& id : std::as_const(hudHidden_)) host_->postHostEvent(QStringLiteral("hud.visible"), false, id);
 }
 
+QString PluginsController::issuesUrlFor(const QString& pluginId) const {
+  const auto info = infoFor(pluginId);
+  return info ? info->manifest.issuesUrl : QString();
+}
+
 void PluginsController::onStatus(const QString& id) {
   const auto snap = host_->consoleSnapshot(id);
   const int st = static_cast<int>(snap.status);
@@ -1282,8 +1287,10 @@ void PluginsController::updateImageSources() {
 }
 
 QVariantMap PluginsController::slotTree(const QString& pluginId, const QString& slot) const {
-  if (previewUi_) return previewUiData_.value(QStringLiteral("trees")).toMap().value(pluginId + QLatin1Char('|') + slot).toMap();
-  return host_->uiTree(pluginId, slot);
+  QVariantMap tree = previewUi_ ? previewUiData_.value(QStringLiteral("trees")).toMap().value(pluginId + QLatin1Char('|') + slot).toMap()
+                                : host_->uiTree(pluginId, slot);
+  if (!tree.isEmpty()) tree.insert(QStringLiteral("_owner"), pluginId);  // PluginBlock resolves images against the tree's owner
+  return tree;
 }
 
 QString PluginsController::pluginIconUrl(const QString& id) const {

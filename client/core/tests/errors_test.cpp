@@ -116,6 +116,12 @@ class ErrorsTest : public QObject {
     QCOMPARE(big.appVersion.size(), 40);
     QCOMPARE(big.os.size(), 80);
     QVERIFY(makeEvent("nope", "app", "t", "m", {}, at).fingerprint.isEmpty());  // invalid kind: nothing to queue
+    // issues_url (plugin events, #446) is optional, written only when set and survives the queue file format
+    ErrorEvent withUrl = makeEvent("plugin_error", "plugin:dev.example", "t", "m", {}, at);
+    QVERIFY(!withUrl.toJson().contains("issues_url"));
+    withUrl.issuesUrl = "https://github.com/example-org/linked";
+    QCOMPARE(withUrl.toJson().value("issues_url").toString(), QString("https://github.com/example-org/linked"));
+    QCOMPARE(ErrorEvent::fromJson(withUrl.toJson())->issuesUrl, withUrl.issuesUrl);
     QVERIFY(makeEvent("app_crash", "app", "", "", {}, at).title == "app_crash");
   }
 

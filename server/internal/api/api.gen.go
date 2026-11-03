@@ -3736,12 +3736,15 @@ type ErrorEvent struct {
 	AppVersion string `json:"app_version"`
 
 	// Component `app`, `server`, `core:<core_id>` or `plugin:<plugin_id>`
-	Component   string         `json:"component"`
-	Fingerprint string         `json:"fingerprint"`
-	Kind        ErrorEventKind `json:"kind"`
-	Message     string         `json:"message"`
-	OccurredAt  time.Time      `json:"occurred_at"`
-	Os          string         `json:"os"`
+	Component   string `json:"component"`
+	Fingerprint string `json:"fingerprint"`
+
+	// IssuesUrl Only on `plugin:<plugin_id>` events: the plugin manifest's `issues_url`. Used as the report target when the server does not host the plugin (a development plugin).
+	IssuesUrl  *string        `json:"issues_url,omitempty"`
+	Kind       ErrorEventKind `json:"kind"`
+	Message    string         `json:"message"`
+	OccurredAt time.Time      `json:"occurred_at"`
+	Os         string         `json:"os"`
 
 	// Title One line
 	Title string `json:"title"`

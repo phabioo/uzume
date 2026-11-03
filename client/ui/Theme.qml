@@ -276,7 +276,7 @@ QtObject {
         return r
     }
     function pluginImageUrl(pluginId: string, src: string): string {
-        if (!src) return ""
+        if (!src || !pluginId) return ""  // no plugin (a view that is closing): nothing to ask the provider for
         const m = /^(cache|asset):(.+)$/.exec(src)
         return m ? "image://uzplugin/" + pluginId + "/" + m[1] + "/" + m[2] : ""
     }

@@ -269,16 +269,18 @@ void PluginEmulationService::markUsed() {
   if (markCheatsUsed_) markCheatsUsed_();
 }
 
-void PluginEmulationService::takeSnapshot(Kind kind, const QString& label, std::function<void(bool)> then) {
+// then(ok, latched): ok = the change may go on; latched = the question is settled (a copy exists or there is nothing to protect).
+// A transient "no snapshot possible right now" lets the change go on but is asked again with the next change.
+void PluginEmulationService::takeSnapshot(Kind kind, const QString& label, std::function<void(bool, bool)> then) {
   Q_UNUSED(kind)
   if (!snapshotFn_) {
-    QMetaObject::invokeMethod(this, [then] { then(true); }, Qt::QueuedConnection);
+    QMetaObject::invokeMethod(this, [then] { then(true, true); }, Qt::QueuedConnection);
     return;
   }
   snapshotFn_(label, [this, then](SnapshotOutcome o, const QString& msg) {
     if (o == SnapshotOutcome::Failed)
       raise({QString(), tr("Uzume"), QStringLiteral("warning"), tr("could not save a safety copy"), msg.isEmpty() ? tr("The change was not made.") : msg});
-    then(o != SnapshotOutcome::Failed);
+    then(o != SnapshotOutcome::Failed, o != SnapshotOutcome::Failed && o != SnapshotOutcome::Unavailable);
   });
 }
 
@@ -395,7 +397,8 @@ void PluginEmulationService::answerConsent(bool allow) {
 }
 
 void PluginEmulationService::finishConsent(Kind kind, bool allow) {
-  setConsent(kind, allow ? Consent::Allowed : Consent::Denied);
+  // "Cancel" answers only this request: nothing is remembered, the next apply that needs the consent asks again.
+  if (allow) setConsent(kind, Consent::Allowed);
   if (kind == Kind::MemoryWrite) {
     if (allow) pumpWrites();
     else {
@@ -491,14 +494,18 @@ void PluginEmulationService::pumpWrites() {
     }
   }
   if (needSnapshot) {
-    takeSnapshot(Kind::MemoryWrite, tr("Before memory changes"), [this](bool ok) {
+    takeSnapshot(Kind::MemoryWrite, tr("Before memory changes"), [this](bool ok, bool latched) {
       {
         QMutexLocker l(&mu_);
         snapBusy_[idx(Kind::MemoryWrite)] = false;
-        if (ok) snapDone_[idx(Kind::MemoryWrite)] = true;
+        if (ok) snapDone_[idx(Kind::MemoryWrite)] = true;  // let this batch through
         else pendingWrites_.clear();
       }
       if (ok) pumpWrites();
+      if (ok && !latched) {  // no copy was possible right now: the next batch asks again
+        QMutexLocker l(&mu_);
+        snapDone_[idx(Kind::MemoryWrite)] = false;
+      }
     });
     return;
   }
@@ -601,7 +608,7 @@ CheatApplyResult PluginEmulationService::applyInternal(const QString& pluginId, 
       bool acted = true;
       {
         QMutexLocker l(&mu_);
-        acted = userActed_;
+        acted = userActed_ || pluginId == QLatin1String("mcp");  // the debug tool is driven by a person, never queue it
         if (!acted) queuedConsentPlugin_ = pluginId;
       }
       if (acted) QMetaObject::invokeMethod(this, [this, pluginId] { requestConsent(Kind::Cheats, pluginId); }, Qt::QueuedConnection);
@@ -653,14 +660,21 @@ void PluginEmulationService::pumpCheats() {
     }
   }
   if (needSnapshot) {
-    takeSnapshot(Kind::Cheats, tr("Before cheats"), [this](bool ok) {
+    takeSnapshot(Kind::Cheats, tr("Before cheats"), [this](bool ok, bool latched) {
       {
         QMutexLocker l(&mu_);
         snapBusy_[idx(Kind::Cheats)] = false;
-        if (ok) snapDone_[idx(Kind::Cheats)] = true;
+        if (ok) snapDone_[idx(Kind::Cheats)] = true;  // let this change through
       }
-      if (ok) pumpCheats();
-      else dropCheatsBecauseOf(QStringLiteral("snapshot_failed"), tr("Cheats were not turned on"), tr("Uzume could not save a safety copy first."));
+      if (!ok) {
+        dropCheatsBecauseOf(QStringLiteral("snapshot_failed"), tr("Cheats were not turned on"), tr("Uzume could not save a safety copy first."));
+        return;
+      }
+      pumpCheats();
+      if (!latched) {  // no copy was possible right now: the next change asks again
+        QMutexLocker l(&mu_);
+        snapDone_[idx(Kind::Cheats)] = false;
+      }
     });
     return;
   }

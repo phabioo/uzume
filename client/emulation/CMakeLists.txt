@@ -64,6 +64,8 @@ if(BUILD_TESTING)
 
   # Without core: manifest parsing, CoreLocator.
   uzume_add_test(emulation_manifest tests/manifest_test.cpp LIBS uzume_emulation)
+  uzume_add_test(emulation_cheat_code tests/cheat_code_test.cpp LIBS uzume_emulation)
+  target_include_directories(test_emulation_cheat_code PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
   target_compile_definitions(test_emulation_manifest PRIVATE FB_MANIFEST_SRC_DIR="${CMAKE_CURRENT_SOURCE_DIR}/manifests")
 
   uzume_add_test(emulation_core_log_filter tests/core_log_filter_test.cpp LIBS uzume_emulation)

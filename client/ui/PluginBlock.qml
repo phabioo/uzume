@@ -13,6 +13,10 @@ Item {
     property bool nested: false
     property bool dark: true
     property string pluginId: ""
+    // Images resolve against the plugin that produced the tree: PluginsController::slotTree stamps `_owner` on the root, and
+    // nested blocks get it through PluginChild. A view whose pluginId changes before its tree is replaced (tab switch,
+    // closing sheet) therefore never asks another plugin's cache for the old tree's images.
+    readonly property string ownerId: (node && node._owner) ? node._owner : pluginId
     signal action(string action, var value)
 
     // Design system: one primary button per view. In document order only the first primary button (an `empty` block's action
@@ -128,7 +132,7 @@ Item {
                     readonly property var kid: root.kids[index] || ({})
                     node: kid
                     dark: root.dark
-                    pluginId: root.pluginId
+                    pluginId: root.ownerId
                     onAction: (a, v) => root.action(a, v)
                     Layout.fillWidth: (root.shown.align || "stretch") === "stretch" && (root.stretches(kid.type) || (kid.type === "image" && !!kid.label))
                     Layout.fillHeight: kid.type === "scroll" && !kid.max_height
@@ -169,7 +173,7 @@ Item {
                     readonly property bool giveWay: root.shrinks(kid.type) || (kid.type === "image" && !!kid.label)
                     node: kid
                     dark: root.dark
-                    pluginId: root.pluginId
+                    pluginId: root.ownerId
                     onAction: (a, v) => root.action(a, v)
                     // badges and chips give way last, by eliding; a text never gets narrower than min(its width, 96 px scaled)
                     readonly property bool yields: kid.type === "badge" || kid.type === "chip"
@@ -205,7 +209,7 @@ Item {
                     readonly property var kid: root.kids[index] || ({})
                     node: kid
                     dark: root.dark
-                    pluginId: root.pluginId
+                    pluginId: root.ownerId
                     onAction: (a, v) => root.action(a, v)
                     Layout.fillWidth: true
                     Layout.preferredWidth: 1
@@ -311,7 +315,7 @@ Item {
                 Layout.minimumWidth: 0
                 node: root.kids[tabs.sel - 1] || ({})
                 dark: root.dark
-                pluginId: root.pluginId
+                pluginId: root.ownerId
                 onAction: (a, v) => root.action(a, v)
             }
         }
@@ -351,7 +355,7 @@ Item {
                         readonly property var kid: root.kids[index] || ({})
                         node: kid
                         dark: root.dark
-                        pluginId: root.pluginId
+                        pluginId: root.ownerId
                         onAction: (a, v) => root.action(a, v)
                         Layout.fillWidth: true
                     }
@@ -426,7 +430,7 @@ Item {
                         readonly property var kid: root.kids[index] || ({})
                         node: kid
                         dark: root.dark
-                        pluginId: root.pluginId
+                        pluginId: root.ownerId
                         onAction: (a, v) => root.action(a, v)
                         Layout.fillWidth: true
                     }
@@ -477,7 +481,7 @@ Item {
                     readonly property var kid: root.kids[index] || ({})
                     node: kid
                     dark: root.dark
-                    pluginId: root.pluginId
+                    pluginId: root.ownerId
                     onAction: (a, v) => root.action(a, v)
                     Layout.fillWidth: true
                 }
@@ -554,7 +558,7 @@ Item {
                         readonly property var kid: root.kids[index] || ({})
                         node: kid
                         dark: root.dark
-                        pluginId: root.pluginId
+                        pluginId: root.ownerId
                         onAction: (a, v) => root.action(a, v)
                         Layout.fillWidth: true
                     }
@@ -684,7 +688,7 @@ Item {
             PluginImage {
                 node: root.shown
                 dark: root.dark
-                pluginId: root.pluginId
+                pluginId: root.ownerId
             }
             Text {
                 textFormat: Text.PlainText  // plugin- and peer-supplied strings are never HTML
@@ -775,13 +779,13 @@ Item {
     }
 
     // ---- blocks with their own file
-    Component { id: listC; PluginList { node: root.shown; dark: root.dark; pluginId: root.pluginId; onAction: (a, v) => root.action(a, v) } }
-    Component { id: tableC; PluginTable { node: root.shown; dark: root.dark; pluginId: root.pluginId; onAction: (a, v) => root.action(a, v) } }
-    Component { id: buttonC; PluginButton { node: root.shown; dark: root.dark; pluginId: root.pluginId; onAction: (a, v) => root.action(a, v) } }
-    Component { id: toggleC; PluginToggle { node: root.shown; dark: root.dark; pluginId: root.pluginId; onAction: (a, v) => root.action(a, v) } }
-    Component { id: selectC; PluginSelect { node: root.shown; dark: root.dark; pluginId: root.pluginId; onAction: (a, v) => root.action(a, v) } }
-    Component { id: segmentedC; PluginSegmented { node: root.shown; dark: root.dark; pluginId: root.pluginId; onAction: (a, v) => root.action(a, v) } }
-    Component { id: textareaC; PluginTextArea { node: root.shown; dark: root.dark; pluginId: root.pluginId; onAction: (a, v) => root.action(a, v) } }
-    Component { id: textfieldC; PluginTextField { node: root.shown; dark: root.dark; pluginId: root.pluginId; onAction: (a, v) => root.action(a, v) } }
-    Component { id: mapC; PluginMapView { node: root.shown; dark: root.dark; pluginId: root.pluginId; onAction: (a, v) => root.action(a, v) } }
+    Component { id: listC; PluginList { node: root.shown; dark: root.dark; pluginId: root.ownerId; onAction: (a, v) => root.action(a, v) } }
+    Component { id: tableC; PluginTable { node: root.shown; dark: root.dark; pluginId: root.ownerId; onAction: (a, v) => root.action(a, v) } }
+    Component { id: buttonC; PluginButton { node: root.shown; dark: root.dark; pluginId: root.ownerId; onAction: (a, v) => root.action(a, v) } }
+    Component { id: toggleC; PluginToggle { node: root.shown; dark: root.dark; pluginId: root.ownerId; onAction: (a, v) => root.action(a, v) } }
+    Component { id: selectC; PluginSelect { node: root.shown; dark: root.dark; pluginId: root.ownerId; onAction: (a, v) => root.action(a, v) } }
+    Component { id: segmentedC; PluginSegmented { node: root.shown; dark: root.dark; pluginId: root.ownerId; onAction: (a, v) => root.action(a, v) } }
+    Component { id: textareaC; PluginTextArea { node: root.shown; dark: root.dark; pluginId: root.ownerId; onAction: (a, v) => root.action(a, v) } }
+    Component { id: textfieldC; PluginTextField { node: root.shown; dark: root.dark; pluginId: root.ownerId; onAction: (a, v) => root.action(a, v) } }
+    Component { id: mapC; PluginMapView { node: root.shown; dark: root.dark; pluginId: root.ownerId; onAction: (a, v) => root.action(a, v) } }
 }

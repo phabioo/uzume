@@ -60,7 +60,7 @@ class EmulationRunner : public QObject {
   };
 
   // One entry of the active cheat list. `format` is informational for the runner (the caller checks it against the core
-  // profile's cheat formats); `code` goes to retro_cheat_set unchanged.
+  // profile's cheat formats); `code` is normalised (cheat_code.h) before retro_cheat_set.
   struct CheatEntry {
     QString id;
     QString format;

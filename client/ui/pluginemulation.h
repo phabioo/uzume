@@ -5,7 +5,7 @@
 //   run rule (rules.cheats / rules.memory_write)  ->  consent per game (11d)  ->  safety copy "Before cheats" / "Before memory
 //   changes"  ->  the change goes through the emulation command queue (one queue for all plugins)  ->  save marker
 //   (X-Uzume-Cheats-Used) and run log events (cheat.enabled, cheat.disabled, memory.write).
-// Consent is asked once per game and kind and kept in <data>/plugins/consent.json; "Cancel" is not remembered across sessions.
+// Consent is asked once per game and kind and kept in <data>/plugins/consent.json; "Cancel" answers only that request (nothing is remembered; the next blocked apply asks again).
 #include <QHash>
 #include <QMutex>
 #include <QObject>
@@ -42,7 +42,7 @@ class PluginEmulationService : public QObject, public plugins::EmulationBridge {
  public:
   enum class Kind { Cheats = 0, MemoryWrite = 1 };
   enum class Consent { Ask, Allowed, Denied };
-  enum class SnapshotOutcome { Ok, NoSave, Failed };
+  enum class SnapshotOutcome { Ok, NoSave, Unavailable, Failed };  // Unavailable: not possible right now (asked again next time)
   using SnapshotDone = std::function<void(SnapshotOutcome, const QString& message)>;
   // Takes the server-side safety copy with this label (SaveSync::snapshotActive); NoSave = there is nothing on a server to protect.
   using SnapshotFn = std::function<void(const QString& label, SnapshotDone done)>;
@@ -146,7 +146,7 @@ private:
   void loadConsent();
   void pumpWrites();
   void pumpCheats();
-  void takeSnapshot(Kind kind, const QString& label, std::function<void(bool ok)> then);
+  void takeSnapshot(Kind kind, const QString& label, std::function<void(bool ok, bool latched)> then);
   void commitCheats();
   void dropCheatsBecauseOf(const QString& reason, const QString& noticeTitle, const QString& noticeText);
   void markUsed();

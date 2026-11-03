@@ -18,7 +18,7 @@ func (s *Server) CreateErrorEvents(ctx context.Context, req api.CreateErrorEvent
 	evs := make([]hub.ErrorEventInput, 0, len(req.Body.Events))
 	for _, e := range req.Body.Events {
 		evs = append(evs, hub.ErrorEventInput{Kind: string(e.Kind), Component: e.Component, Fingerprint: e.Fingerprint, Title: e.Title,
-			Message: e.Message, AppVersion: e.AppVersion, OS: e.Os, OccurredAt: e.OccurredAt})
+			Message: e.Message, AppVersion: e.AppVersion, OS: e.Os, OccurredAt: e.OccurredAt, IssuesURL: deref(e.IssuesUrl)})
 	}
 	accepted, dropped, err := s.svc.RecordErrorEvents(ctx, principal(ctx), evs)
 	if err != nil {

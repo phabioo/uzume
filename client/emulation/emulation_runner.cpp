@@ -1,6 +1,7 @@
 #include <QDebug>
 #include "emulation_runner.h"
 
+#include "cheat_code.h"
 #include "frame_pacer.h"
 #include "libretro_backend.h"
 
@@ -359,17 +360,11 @@ class EmulationRunner::Worker : public QThread {
       finish(q, std::move(r));
     }
   }
-  // Emulation thread: resets the core's cheats and sends the list again. Only enabled entries are sent, with consecutive
-  // indices: mGBA and DeSmuME ignore the `enabled` flag of retro_cheat_set and would apply a disabled code. Returns the
-  // number of entries sent.
+  // Emulation thread: resets the core's cheats and sends the list again (cheat_code.h: only enabled, normalised entries,
+  // consecutive indices; no core call at all when there is nothing to send or clear). Returns the number of entries sent.
   int sendCheats(EmulatorBackend& be, const QList<CheatEntry>& list) {
-    be.cheatReset();
-    unsigned index = 0;
-    for (const CheatEntry& c : list) {
-      if (!c.enabled || c.code.trimmed().isEmpty()) continue;
-      be.cheatSet(index++, true, c.code);
-    }
-    return static_cast<int>(index);
+    return sendCheatList(list, &m_coreHasCheats, [&] { be.cheatReset(); },
+                         [&](unsigned i, bool en, const QString& code) { be.cheatSet(i, en, code); });
   }
   void reapplyCheats(EmulatorBackend& be) {
     if (!be.supportsCheats() || !be.isGameLoaded()) return;
@@ -546,6 +541,7 @@ class EmulationRunner::Worker : public QThread {
     }
   }
   RewindBuffer m_rewindBuf;
+  bool m_coreHasCheats = false;  // the core may hold cheats from an earlier SetCheats (cheat_code.h skips a pointless reset)
   QByteArray m_stateTmp;
   int m_rewindSecsApplied = -1;
   qint64 m_rewindStateBytes = 0;
