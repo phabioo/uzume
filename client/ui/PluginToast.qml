@@ -52,7 +52,7 @@ Item {
                         objectName: "toastSource"
                         Layout.minimumWidth: 0
                         elide: Text.ElideRight
-                        text: root.host ? qsTr("%1 · %2").arg(root.toast.pluginName).arg(root.toast.title)
+                        text: root.host ? root.toast.pluginName
                                         : root.toast.tone === "info" ? root.toast.pluginName
                                         : qsTr("%1 · %2").arg(root.toast.pluginName).arg(root.warn ? qsTr("warning") : qsTr("important"))
                         font.family: Theme.mono
@@ -78,7 +78,7 @@ Item {
                     visible: text !== ""
                     wrapMode: Text.WordWrap
                     textFormat: Text.PlainText
-                    text: (!root.host && root.toast.title ? root.toast.title + "\n" : "") + (root.toast.text || "")
+                    text: (root.toast.title ? root.toast.title + (root.toast.text ? "\n" : "") : "") + (root.toast.text || "")
                     font.family: Theme.sans
                     font.pixelSize: Theme.roles.small.size
                     color: Theme.ink

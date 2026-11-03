@@ -11,6 +11,7 @@
 //     do: the GitHub issue lookup, the prefilled issue address and opening it in the system browser (https, github.com only).
 
 #include <QObject>
+#include <QVariantMap>
 #include <QString>
 #include <QUrl>
 #include <QtQml/qqmlregistration.h>
@@ -73,6 +74,10 @@ class ErrorsController : public QObject {
   // Prefilled "new issue" address from the server's public title and summary; empty for an invalid base.
   Q_INVOKABLE QString newIssueUrl(const QString& issuesBase, const QString& publicTitle, const QString& fingerprint,
                                   const QString& newestAppVersion, const QString& publicSummary) const;
+  // In-game plugin error "Report": the public text and the prefilled address built locally from the (redacted) error line, so the person
+  // sees exactly what goes into the issue. {title, summary, url}; url is empty for an invalid base.
+  Q_INVOKABLE QVariantMap pluginReport(const QString& pluginId, const QString& pluginName, const QString& pluginVersion,
+                                       const QString& error, const QString& issuesBase) const;
   Q_INVOKABLE bool validIssueUrl(const QString& url) const { return GithubIssueLookup::validIssueUrl(url); }
   Q_INVOKABLE bool openInBrowser(const QString& url);  // https and github.com only; no embedded browser
 

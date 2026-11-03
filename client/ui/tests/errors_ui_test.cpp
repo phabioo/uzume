@@ -507,6 +507,29 @@ class ErrorsUiTest : public QObject {
     QCOMPARE(opened, QStringList{"https://github.com/phabioo/uzume/issues/1"});
     QVERIFY(e->newIssueUrl("https://example.com/a/b", "t", "uz-0123456789ab", "1", "x").isEmpty());
   }
+
+  void pluginReportBuildsThePublicTextFromTheRedactedError() {
+    Harness h;
+    QVERIFY(h.start());
+    ErrorsController* e = h.controller->errors();
+    const QVariantMap r = e->pluginReport("net.test.boom", "Boom Plugin", "1.2.0", "main.lua:3: attempt to index nil (peer 192.168.1.20)",
+                                          "https://github.com/phabioo/boom");
+    QVERIFY(r.value("title").toString().startsWith("Boom Plugin: "));
+    QVERIFY(r.value("summary").toString().contains("net.test.boom 1.2.0"));
+    QVERIFY(r.value("summary").toString().contains("attempt to index nil"));
+    QVERIFY(r.value("url").toString().startsWith("https://github.com/phabioo/boom/issues/new?"));
+    // Public redaction: IP, host name, non-GitHub URL and home path never reach the preview or the address.
+    const QVariantMap p = e->pluginReport("net.test.boom", "Boom Plugin", "1.2.0",
+        "peer 192.168.1.20 via hub.example.org, GET https://hub.example.org/x failed at /home/carol/.config/a.lua:3 see https://github.com/phabioo/boom",
+        "https://github.com/phabioo/boom");
+    const QString all = p.value("summary").toString() + QUrl::fromPercentEncoding(p.value("url").toString().toUtf8());
+    for (const char* bad : {"192.168.1.20", "hub.example.org", "carol"}) QVERIFY2(!all.contains(QLatin1String(bad)), bad);
+    QVERIFY(p.value("summary").toString().contains("<ip>") && p.value("summary").toString().contains("<host>") &&
+            p.value("summary").toString().contains("<url>") && p.value("summary").toString().contains("<home>/.config/a.lua:3"));
+    QVERIFY(p.value("summary").toString().contains("https://github.com/phabioo/boom"));
+    // An invalid base gives no address (the Report button then stays disabled / absent).
+    QVERIFY(e->pluginReport("net.test.boom", "Boom Plugin", "1.2.0", "x", "https://example.com/a/b").value("url").toString().isEmpty());
+  }
 };
 
 QTEST_MAIN(ErrorsUiTest)

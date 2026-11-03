@@ -255,6 +255,12 @@ class McpToolsTest : public QObject {
     QCOMPARE(pc->emulation()->uzumeValue(QStringLiteral("uzume.rewind_seconds"), QStringLiteral("nds")), QStringLiteral("13"));
     QCOMPARE(jsonOf(call("settings_set", {{"key", "uzume.run_ahead"}, {"value", "1"}, {"system", "gba"}})).toObject().value("value").toString(), QStringLiteral("1"));
     QCOMPARE(pc->emulation()->uzumeValue(QStringLiteral("uzume.run_ahead"), QStringLiteral("nds")), QStringLiteral("0"));
+    // #430: a core whose profile has no run-ahead (melonDS DS, DeSmuME, Azahar) refuses it instead of accepting it silently; mGBA takes it.
+    pc->emulation()->setSystems({QVariantMap{{"id", "nds"}, {"coreId", "melondsds"}}, QVariantMap{{"id", "gba"}, {"coreId", "mgba"}}});
+    QVERIFY(call("settings_set", {{"key", "uzume.run_ahead"}, {"value", "1"}, {"system", "nds"}}).content.value(0).text.startsWith(QStringLiteral("run_ahead_not_supported")));
+    QCOMPARE(pc->emulation()->uzumeValue(QStringLiteral("uzume.run_ahead"), QStringLiteral("nds")), QStringLiteral("0"));
+    QCOMPARE(jsonOf(call("settings_set", {{"key", "uzume.run_ahead"}, {"value", "2"}, {"system", "gba"}})).toObject().value("value").toString(), QStringLiteral("2"));
+    QVERIFY(call("settings_set", {{"key", "uzume.run_ahead"}, {"value", "0"}, {"system", "nds"}}).isError == false);  // off is always fine
     QCOMPARE(jsonOf(call("settings_set", {{"key", "uzume.rewind_seconds"}, {"value", "0"}})).toObject().value("value").toString(), QStringLiteral("0"));
 
     QVERIFY(!call("saves_history").isError);

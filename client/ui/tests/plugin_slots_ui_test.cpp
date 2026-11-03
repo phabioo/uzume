@@ -394,7 +394,7 @@ class PluginSlotsUiTest : public QObject {
     QVERIFY(t.value("text").toString().contains(QStringLiteral("Your game keeps running")));
     const QVariantList acts = t.value("actions").toList();
     QCOMPARE(acts.at(0).toMap().value("action").toString(), QStringLiteral("restart"));
-    QCOMPARE(acts.size(), 2);  // developer mode is on: "Open console" too
+    QCOMPARE(acts.size(), 2);  // developer mode is on: "Open console" too; no issues_url in the manifest, so no "Report"
     QCOMPARE(acts.at(1).toMap().value("label").toString(), QStringLiteral("Open console"));
     pc()->dismissToast(t.value("toastId").toInt());
     pc()->setPluginEnabled(QStringLiteral("net.test.boom"), false);

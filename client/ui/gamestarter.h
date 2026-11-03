@@ -74,6 +74,11 @@ class GameStarter : public QObject {
 
   explicit GameStarter(const Deps& d, QObject* parent = nullptr);
 
+  // Before the core check of a start the server's catalog is read again (the list is polled only every 30 minutes), so a core the
+  // server imported meanwhile is downloaded and used for this very start (#464). `refresh` runs `done` once the list is current (or
+  // could not be loaded); without a hook the start goes on at once.
+  using CatalogRefresh = std::function<void(std::function<void()> done)>;
+  void setCatalogRefresh(CatalogRefresh fn) { catalogRefresh_ = std::move(fn); }
   void startSelected(bool share);
   void onCoreFinished(const CoreResult& result);
   void onFirmwareFinished(const FirmwareResult& result);
@@ -126,6 +131,10 @@ class GameStarter : public QObject {
   HandshakeInfo& handshake_;
   QVariantMap& conflict_;
   bool probeCoreVersions_;
+  CatalogRefresh catalogRefresh_;
+  quint64 refreshGen_ = 0;
+  bool refreshing_ = false;  // waiting for the catalog (phase Core meanwhile)
+  void startSelectedNow(bool share, const QString& gameId);  // starts exactly gameId (the selection may have changed during a refresh)
   std::function<RomSourceChoice(const GameEntry&)> romSource_;
   std::function<VariantLaunch(const GameEntry&)> variantLaunch_;
   VariantLaunch activeVariant_;  // set in beginRomPhase, read in onSaveReady

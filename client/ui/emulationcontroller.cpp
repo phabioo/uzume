@@ -587,6 +587,23 @@ QString EmulationController::setUzumeOption(const QString& key, const QString& v
     valid = ok && secs >= 0 && secs <= 600;
   }
   if (!valid) return QStringLiteral("invalid_value");
+  // Run-ahead / rewind exist only for cores whose profile says so (ADR 0020 D6): switching one on for a system or game whose core
+  // lacks it used to be accepted and silently did nothing (#430), so it is refused with a clear code. "0" (off) is always fine.
+  if (isStatesKey(key) && value != QLatin1String("0")) {
+    QString sys = systemId;
+    if (sys.isEmpty() && !gameId.isEmpty()) {
+      for (const QVariant& g : std::as_const(games_)) {
+        if (g.toMap().value(QStringLiteral("id")).toString() == gameId) { sys = g.toMap().value(QStringLiteral("systemId")).toString(); break; }
+      }
+    }
+    if (!sys.isEmpty()) {
+      const std::optional<emu::SystemManifest> man = manifestFor(sys, coreIdFor(sys, gameId));
+      // Only a known profile can refuse (a core without profile is experimental: nothing is claimed about it).
+      if (man && manifests_ != nullptr && manifests_->profile(man->coreId) != nullptr && !statesOptionOffered(manifests_, key, &*man))
+        return key == QLatin1String(kRunAheadKey) ? QStringLiteral("run_ahead_not_supported: this core does not support run-ahead")
+                                                  : QStringLiteral("rewind_not_supported: this core does not support rewind");
+    }
+  }
   const Level level = !gameId.isEmpty() ? Level::Game : (!systemId.isEmpty() ? Level::System : Level::Global);
   const QString scopeName = level == Level::Game ? gameId : (level == Level::System ? systemId : QString());
   if (value == opt->defaultValue) settings_.removeValue(level, scopeName, key);

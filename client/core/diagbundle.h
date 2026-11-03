@@ -33,6 +33,11 @@ inline constexpr const char* kCutMarker = "[older content cut: size cap of the b
 // Host names and IP addresses stay. Same patterns as the Hub (server/internal/diag/redact.go).
 QByteArray redact(const QByteArray& text);
 
+// Stricter text for a public GitHub issue (ADR 0035 D3): redact() plus host names (github.com stays), IP addresses, ports behind
+// hosts, URLs other than https://github.com/..., invite and pairing codes and home paths (placeholders <host>, <ip>, <url>, <code>,
+// <home>). Mirrors server/internal/redact/public.go without the per-server name and game lists.
+QString redactPublic(const QString& text);
+
 // uzume-diagnostics-<UTC timestamp>.zip
 QString fileName(const QDateTime& when);
 
