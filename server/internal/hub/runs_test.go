@@ -61,6 +61,9 @@ func TestRunEventLimit(t *testing.T) {
 	svc, _, admin, g := runFixture(t)
 	run := newRun(t, svc, admin, g)
 	in := hub.AppendRunEventInput{UserID: admin.ID, DeviceID: uuid.NewString(), RunID: run.ID, PluginID: "net.example.board", Source: "manual", Type: "x"}
+	if _, err := svc.SetRunStatus(ctx, admin.ID, run.ID, "active"); err != nil {
+		t.Fatal(err)
+	}
 	if err := hub.SetRunLastSeqForTest(svc, run.ID, hub.MaxRunEvents-1); err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +77,7 @@ func TestRunEventLimit(t *testing.T) {
 		t.Fatalf("over the limit: %v", err)
 	}
 	// Server events still get recorded at the limit (a run can always be ended).
-	if _, err := svc.SetRunStatus(ctx, admin.ID, run.ID, "active"); err != nil {
+	if _, err := svc.SetRunStatus(ctx, admin.ID, run.ID, "paused"); err != nil {
 		t.Fatal(err)
 	}
 	if got, _ := svc.GetRun(ctx, admin.ID, run.ID); got.LastSeq != hub.MaxRunEvents+1 {

@@ -2,10 +2,13 @@ package hub_test
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/phabioo/uzume/server/internal/hub"
 	"github.com/phabioo/uzume/server/internal/hub/hubtest"
@@ -537,5 +540,85 @@ func TestPlayStatsAdminUsersAndRemovedGame(t *testing.T) {
 	carol, _ := e.svc.CreateUser(ctx, "carol", "Carol")
 	if st, err := e.svc.UserPlayStats(ctx, carol.ID); err != nil || st.Seconds != 0 || st.LastPlayedAt != nil {
 		t.Fatalf("%+v %v", st, err)
+	}
+}
+
+func TestRunStartsAutomaticallyWhenPlayBegins(t *testing.T) {
+	e := newPlayEnv(t, nil)
+	e.svc.SetPluginCatalog(onePlugin{"net.example.board", "1.0.0"})
+	bob, err := e.svc.CreateUser(ctx, "bob", "Bob")
+	if err != nil {
+		t.Fatal(err)
+	}
+	run, err := e.svc.CreateRun(ctx, hub.CreateRunInput{UserID: e.admin.ID, Name: "Run", GameID: e.g1.ID, InviteUserIDs: []string{bob.ID},
+		Plugins: []hub.RunPluginRef{{PluginID: "net.example.board", Version: "1.0.0"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	status := func() hub.Run {
+		got, err := e.svc.GetRun(ctx, e.admin.ID, run.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
+	// Browsing the game, playing outside the run, or an invited person playing does not start it.
+	e.present(e.client(e.admin.ID), "in_game", e.g1.ID, "")
+	e.present(e.client(bob.ID), "in_game", e.g1.ID, run.ID)
+	if got := status(); got.Status != "starting" {
+		t.Fatalf("status %s", got.Status)
+	}
+	// A joined participant playing the run's game starts it, recorded as automatic.
+	e.present(e.client(e.admin.ID), "in_game", e.g1.ID, run.ID)
+	got := status()
+	if got.Status != "active" || got.StatusBy != e.admin.ID {
+		t.Fatalf("status %s by %s", got.Status, got.StatusBy)
+	}
+	evs, _, err := e.svc.ListRunEvents(ctx, e.admin.ID, run.ID, 0, 50)
+	if err != nil {
+		t.Fatal(err)
+	}
+	last := evs[len(evs)-1]
+	if last.Type != "run.status" || last.Source != "hub" ||
+		!strings.Contains(string(last.Payload), `"auto":true`) || !strings.Contains(string(last.Payload), `"reason":"play_started"`) ||
+		!strings.Contains(string(last.Payload), `"previous":"starting"`) {
+		t.Fatalf("%+v %s", last, last.Payload)
+	}
+	// A pause is not undone by playing again.
+	if _, err := e.svc.SetRunStatus(ctx, e.admin.ID, run.ID, "paused"); err != nil {
+		t.Fatal(err)
+	}
+	e.present(e.client(e.admin.ID), "online", "", "")
+	e.present(e.client(e.admin.ID), "in_game", e.g1.ID, run.ID)
+	if got := status(); got.Status != "paused" {
+		t.Fatalf("status %s", got.Status)
+	}
+}
+
+func TestRunStartsAutomaticallyOnFirstEvent(t *testing.T) {
+	// Safety net for runs whose app never reported play (and for old runs that stayed "starting").
+	svc, _, admin, g := runFixture(t)
+	run := newRun(t, svc, admin, g)
+	add := func() {
+		t.Helper()
+		if _, _, err := svc.AppendRunEvent(ctx, hub.AppendRunEventInput{UserID: admin.ID, DeviceID: uuid.NewString(), RunID: run.ID,
+			ClientID: uuid.NewString(), PluginID: "net.example.board", Source: "automatic", Type: "tick", Payload: json.RawMessage(`{}`)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	add()
+	got, err := svc.GetRun(ctx, admin.ID, run.ID)
+	if err != nil || got.Status != "active" || got.StatusBy != admin.ID {
+		t.Fatalf("%+v %v", got, err)
+	}
+	evs, _, _ := svc.ListRunEvents(ctx, admin.ID, run.ID, 0, 50)
+	last := evs[len(evs)-1]
+	if last.Type != "run.status" || !strings.Contains(string(last.Payload), `"reason":"first_event"`) {
+		t.Fatalf("%+v %s", last, last.Payload)
+	}
+	n := len(evs)
+	add() // no second start event
+	if evs, _, _ := svc.ListRunEvents(ctx, admin.ID, run.ID, 0, 50); len(evs) != n+1 {
+		t.Fatalf("%d events, want %d", len(evs), n+1)
 	}
 }

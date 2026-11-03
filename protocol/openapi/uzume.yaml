@@ -2800,7 +2800,7 @@ paths:
       tags: [runs]
       summary: Change the run status
       description: |
-        `active`: from `starting` by the creator, from `paused` by any joined participant. `paused`: from `active`,
+        `active`: from `starting` by the creator (the server also does this by itself when a joined participant starts playing the run or the first event arrives), from `paused` by any joined participant. `paused`: from `active`,
         any joined participant. `finished` or `abandoned`: the creator, from any run that is not over. Other
         transitions are 409 `conflict`; the right transition by the wrong user is 403. The server appends a `run.status` event.
       security:

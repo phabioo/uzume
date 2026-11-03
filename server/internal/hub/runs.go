@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"regexp"
 	"strings"
 	"sync"
@@ -1334,6 +1335,65 @@ func (s *Service) setRunStatus(ctx context.Context, actorID, runID, to string, a
 	return viewFor(run, actorID), nil
 }
 
+// Reasons recorded on the run.status event of an automatic start.
+const (
+	AutoStartPlay  = "play_started" // a participant began playing the run's game (presence in_game with run_id)
+	AutoStartEvent = "first_event"  // safety net: a plugin or the app appended an event to a starting run
+)
+
+// autoStartRun moves a run that is still "starting" to "active" when a joined participant starts playing in it (#439).
+// It writes the same run.status event as the manual start, marked with "auto": true and the reason, and pushes the same
+// updates. A run in any other state, or a user who has not joined, is left alone; errors are logged, never returned,
+// because the caller (presence, event append) must not fail on it. It takes the runs lock, so callers must not hold it.
+func (s *Service) autoStartRun(ctx context.Context, runID, userID, reason string) {
+	var err error
+	defer s.publishOK(&err, TopicRuns)
+	s.runs.mu.Lock()
+	defer s.runs.mu.Unlock()
+	var st string
+	if e := s.db.QueryRowContext(ctx, `SELECT status FROM runs WHERE id = ?`, runID).Scan(&st); e != nil || st != RunStarting {
+		err = errors.New("no auto start")
+		return
+	}
+	actorName := userDisplayName(ctx, s.db, userID)
+	tx, e := s.db.BeginTx(ctx, nil)
+	if e != nil {
+		err = e
+		return
+	}
+	defer tx.Rollback()
+	if e := joinedParticipant(ctx, tx, runID, userID); e != nil {
+		err = e
+		return
+	}
+	now := s.now().UTC()
+	res, e := tx.ExecContext(ctx, `UPDATE runs SET status = 'active', status_by = ?, updated_at = ? WHERE id = ? AND status = 'starting'`, userID, now.Unix(), runID)
+	if e != nil {
+		err = e
+		slog.Warn("run auto start failed", "run", runID, "err", e)
+		return
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		err = errors.New("no auto start")
+		return
+	}
+	ev, e := insertEvent(ctx, tx, runID, hubEvent("run.status", map[string]any{
+		"status": RunActive, "previous": RunStarting, "by_user_id": userID, "by_user_name": actorName,
+		"auto": true, "reason": reason}), now)
+	if e != nil {
+		err = e
+		return
+	}
+	if e := tx.Commit(); e != nil {
+		err = e
+		return
+	}
+	if run, e := loadRun(ctx, s.db, runID, true); e == nil {
+		s.pushRunUpdated(run)
+	}
+	s.pushRunEvents(ctx, runID, []RunEvent{ev})
+}
+
 // ---- state, events, boards ----
 
 // PutRunState replaces the caller's own state of one plugin of the run if baseRev is that plugin state's current
@@ -1418,15 +1478,23 @@ type AppendRunEventInput struct {
 
 // AppendRunEvent appends an event. The same client_id again returns the original seq with created=false.
 func (s *Service) AppendRunEvent(ctx context.Context, in AppendRunEventInput) (seq int64, created bool, err error) {
+	seq, created, wasStarting, err := s.appendRunEvent(ctx, in)
+	if err == nil && created && wasStarting {
+		s.autoStartRun(ctx, in.RunID, in.UserID, AutoStartEvent) // safety net: play evidently began (#439)
+	}
+	return seq, created, err
+}
+
+func (s *Service) appendRunEvent(ctx context.Context, in AppendRunEventInput) (seq int64, created bool, wasStarting bool, err error) {
 	s.runs.mu.Lock()
 	defer s.runs.mu.Unlock()
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return 0, false, internal(err)
+		return 0, false, false, internal(err)
 	}
 	defer tx.Rollback()
 	if err := joinedParticipant(ctx, tx, in.RunID, in.UserID); err != nil {
-		return 0, false, err
+		return 0, false, false, err
 	}
 	var prevSeq int64
 	var prevUser sql.NullString
@@ -1434,56 +1502,59 @@ func (s *Service) AppendRunEvent(ctx context.Context, in AppendRunEventInput) (s
 	switch {
 	case err == nil:
 		if prevUser.String != in.UserID {
-			return 0, false, conflict("client_id is already used in this run")
+			return 0, false, false, conflict("client_id is already used in this run")
 		}
-		return prevSeq, false, nil
+		return prevSeq, false, false, nil
 	case !errors.Is(err, sql.ErrNoRows):
-		return 0, false, internal(err)
+		return 0, false, false, internal(err)
 	}
 	if !s.runAllow("event", in.RunID, in.UserID, runEventRate, runEventBurst) {
-		return 0, false, errRunRate
+		return 0, false, false, errRunRate
 	}
 	if _, err := uuid.Parse(in.ClientID); err != nil {
-		return 0, false, badRequest("client_id must be a UUID")
+		return 0, false, false, badRequest("client_id must be a UUID")
 	}
 	if in.Source != EventAutomatic && in.Source != EventManual {
-		return 0, false, badRequest("source must be automatic or manual")
+		return 0, false, false, badRequest("source must be automatic or manual")
 	}
 	if !runEventTypeRe.MatchString(in.Type) {
-		return 0, false, badRequest("type must match ^[a-z0-9_.-]{1,64}$")
+		return 0, false, false, badRequest("type must match ^[a-z0-9_.-]{1,64}$")
 	}
 	core := coreRunEventTypes[in.Type]
 	if in.PluginID == "" && !core {
-		return 0, false, badRequest("plugin_id is required")
+		return 0, false, false, badRequest("plugin_id is required")
 	}
 	if in.PluginID != "" && (!runPluginIDRe.MatchString(in.PluginID) || len(in.PluginID) > 128) {
-		return 0, false, badRequest("Invalid plugin reference")
+		return 0, false, false, badRequest("Invalid plugin reference")
 	}
 	if utf8.RuneCountInString(in.Text) > MaxRunEventText {
-		return 0, false, badRequest("text is longer than %d characters", MaxRunEventText)
+		return 0, false, false, badRequest("text is longer than %d characters", MaxRunEventText)
 	}
 	payload, err := objectJSON(in.Payload, MaxRunPayloadBytes, "payload")
 	if err != nil {
-		return 0, false, err
+		return 0, false, false, err
 	}
 	if !core { // the app's own events (cheats, memory writes, state loads) may come without a plugin or from a plugin that is not part of the run
 		var n int
 		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM run_plugins WHERE run_id = ? AND plugin_id = ?`, in.RunID, in.PluginID).Scan(&n); err != nil {
-			return 0, false, internal(err)
+			return 0, false, false, internal(err)
 		}
 		if n == 0 {
-			return 0, false, badRequest("plugin_id is not a plugin of this run")
+			return 0, false, false, badRequest("plugin_id is not a plugin of this run")
 		}
 	}
 	if err := requireActive(ctx, tx, in.RunID); err != nil {
-		return 0, false, err
+		return 0, false, false, err
+	}
+	if err := tx.QueryRowContext(ctx, `SELECT status = 'starting' FROM runs WHERE id = ?`, in.RunID).Scan(&wasStarting); err != nil {
+		return 0, false, false, internal(err)
 	}
 	var last int64
 	if err := tx.QueryRowContext(ctx, `SELECT last_seq FROM runs WHERE id = ?`, in.RunID).Scan(&last); err != nil {
-		return 0, false, internal(err)
+		return 0, false, false, internal(err)
 	}
 	if last >= MaxRunEvents {
-		return 0, false, conflict("The run has reached its limit of events")
+		return 0, false, false, conflict("The run has reached its limit of events")
 	}
 	user, dev := in.UserID, in.DeviceID
 	var plug *string
@@ -1493,14 +1564,14 @@ func (s *Service) AppendRunEvent(ctx context.Context, in AppendRunEventInput) (s
 	ev, err := insertEvent(ctx, tx, in.RunID, RunEvent{UserID: &user, UserName: userDisplayName(ctx, tx, in.UserID), DeviceID: &dev, PluginID: plug,
 		Source: in.Source, Type: in.Type, Text: in.Text, Payload: payload, ClientID: in.ClientID}, s.now().UTC())
 	if err != nil {
-		return 0, false, err
+		return 0, false, false, err
 	}
 	if err := tx.Commit(); err != nil {
-		return 0, false, internal(err)
+		return 0, false, false, internal(err)
 	}
 	s.pushRunEvents(ctx, in.RunID, []RunEvent{ev})
 	s.Publish(TopicRuns)
-	return ev.Seq, true, nil
+	return ev.Seq, true, wasStarting, nil
 }
 
 // PutRunBoard stores the board tree of a plugin of the run (the app renders it) and returns the new rev.

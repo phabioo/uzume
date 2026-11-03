@@ -208,6 +208,7 @@ func TestRunCoreEventsFromTheApp(t *testing.T) {
 	rec := r.api(anna, "POST", "/api/v1/runs", body)
 	wantStatus(t, rec, 201, "")
 	id := decode[runResp](t, rec).RunID
+	wantStatus(t, r.status(anna, id, "active"), 200, "") // seq 3
 
 	for _, typ := range []string{"cheat.enabled", "cheat.disabled", "memory.write", "state.loaded"} {
 		ev := map[string]any{"client_id": uuid.NewString(), "source": "automatic", "type": typ, "text": typ, "payload": map[string]any{"n": 1}}
@@ -217,7 +218,7 @@ func TestRunCoreEventsFromTheApp(t *testing.T) {
 	ev := map[string]any{"client_id": uuid.NewString(), "plugin_id": "net.example.cheats", "source": "automatic", "type": "memory.write", "payload": map[string]any{"bytes": 4}}
 	wantStatus(t, r.post(anna, id, "events", ev), 201, "")
 
-	evs := r.events(anna, id, 2) // after run.created and run.joined
+	evs := r.events(anna, id, 3) // after run.created, run.joined and run.status
 	if len(evs) != 5 {
 		t.Fatalf("%+v", evs)
 	}
