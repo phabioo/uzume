@@ -170,8 +170,10 @@ RecapModel buildRecap(const RecapInput& in) {
     const QString g = in.mappings.value(e.pluginId).value(e.type);
     return g.isEmpty() ? std::nullopt : parseRecapGlyph(g);
   };
+  std::set<QDate> playDates;  // the calendar days (viewer's zone) with any play activity, shown or not
   for (const RunEvent& e : in.events) {
     if (e.source == QLatin1String("hub") && !isCoreRecapEvent(e.type)) continue;  // run.created, run.joined, ...
+    if (const QDateTime t = parseTime(e.createdAt); t.isValid()) playDates.insert(t.toTimeZone(zone).date());
     const auto glyph = glyphOf(e);
     if (!glyph) continue;
     QString userId = e.userId;
@@ -199,6 +201,7 @@ RecapModel buildRecap(const RecapInput& in) {
   }
   for (const ScreenshotInfo& s : in.screenshots) {
     const QDateTime when = parseTime(s.createdAt);
+    if (when.isValid()) playDates.insert(when.toTimeZone(zone).date());
     if (s.userId.isEmpty() || !when.isValid()) continue;
     Placed p;
     p.ev.glyph = RecapGlyph::Screenshot;
@@ -212,15 +215,24 @@ RecapModel buildRecap(const RecapInput& in) {
     placed.append(p);
   }
 
-  // Axis: day 1 .. the day of the last event or of the end of the run's activity.
-  QDateTime end = in.run.acceptsWrites() ? in.now : parseTime(in.run.updatedAt);
-  if (!end.isValid()) end = in.now;
-  int days = std::max(1, int(startDate.daysTo(end.toTimeZone(zone).date())) + 1);
+  // Axis: day 1 .. the day of the last event; a run that is no longer active also reaches its last update. An active run does not
+  // stretch to today: days without play are not part of its story.
+  int days = 1;
+  if (!in.run.acceptsWrites()) {
+    const QDateTime end = parseTime(in.run.updatedAt);
+    if (end.isValid()) days = std::max(1, int(startDate.daysTo(end.toTimeZone(zone).date())) + 1);
+  }
   for (Placed& p : placed) {
-    p.ev.day = std::max(1, int(startDate.daysTo(p.when.toTimeZone(zone).date())) + 1);
+    const QDate d = p.when.toTimeZone(zone).date();
+    p.ev.day = std::max(1, int(startDate.daysTo(d)) + 1);
     days = std::max(days, p.ev.day);
   }
   m.days = days;
+  // Elapsed time (ELAPSED tile without play time): day 1 to today (active run) or to the last update (otherwise), at least the axis.
+  const QDateTime elapsedEnd = in.run.acceptsWrites() ? in.now : parseTime(in.run.updatedAt);
+  m.elapsedDays = days;
+  if (elapsedEnd.isValid()) m.elapsedDays = std::max(days, int(startDate.daysTo(elapsedEnd.toTimeZone(zone).date())) + 1);
+  m.playDays = std::max<int>(1, int(playDates.size()));
   const double span = double(axisStart.msecsTo(axisStart.addDays(days)));
   for (Placed& p : placed) {
     p.ev.pos = std::clamp(double(axisStart.msecsTo(p.when)) / span, 0.0, 1.0);
@@ -258,9 +270,9 @@ QList<RecapTile> RecapModel::tiles() const {
   t.append({QStringLiteral("lost"), tr("LOST"), QString::number(lost), splitText(*this, &RecapLane::lost)});
   t.append({QStringLiteral("badges"), tr("BADGES"), QString::number(badges), splitText(*this, &RecapLane::badges)});
   if (hasPlayTime)
-    t.append({QStringLiteral("playtime"), tr("PLAY TIME"), recapDurationText(playSeconds), tr("over %1").arg(daysText(days))});
+    t.append({QStringLiteral("playtime"), tr("PLAY TIME"), recapDurationText(playSeconds), tr("over %1").arg(daysText(playDays))});
   else  // the server sends no play time (older server or none played): the elapsed days instead, without a second line
-    t.append({QStringLiteral("playtime"), tr("ELAPSED"), daysText(days), QString()});
+    t.append({QStringLiteral("playtime"), tr("ELAPSED"), daysText(elapsedDays), QString()});
   return t;
 }
 
@@ -288,7 +300,7 @@ QVariantMap RecapModel::toVariant() const {
   for (const AxisLabel& a : axisLabels(days))
     axis.append(QVariantMap{{QStringLiteral("day"), a.day}, {QStringLiteral("label"), tr("DAY %1").arg(a.day)}, {QStringLiteral("pos"), a.pos}});
   return {{QStringLiteral("runId"), runId}, {QStringLiteral("runName"), runName}, {QStringLiteral("status"), status},
-          {QStringLiteral("startDate"), startDate}, {QStringLiteral("days"), days}, {QStringLiteral("empty"), isEmpty()},
+          {QStringLiteral("startDate"), startDate}, {QStringLiteral("days"), days}, {QStringLiteral("elapsedDays"), elapsedDays}, {QStringLiteral("playDays"), playDays}, {QStringLiteral("empty"), isEmpty()},
           {QStringLiteral("shownEvents"), shownEvents}, {QStringLiteral("tiles"), tl}, {QStringLiteral("lanes"), ll}, {QStringLiteral("axis"), axis}};
 }
 
@@ -360,7 +372,7 @@ QJsonObject RecapModel::toJson() const {
                           {QStringLiteral("per_day"), dl}});
   }
   return {{QStringLiteral("run_id"), runId}, {QStringLiteral("name"), runName}, {QStringLiteral("status"), status},
-          {QStringLiteral("start_date"), startDate}, {QStringLiteral("days"), days}, {QStringLiteral("empty"), isEmpty()},
+          {QStringLiteral("start_date"), startDate}, {QStringLiteral("days"), days}, {QStringLiteral("elapsed_days"), elapsedDays}, {QStringLiteral("play_days"), playDays}, {QStringLiteral("empty"), isEmpty()},
           {QStringLiteral("play_seconds"), double(playSeconds)}, {QStringLiteral("has_play_time"), hasPlayTime},
           {QStringLiteral("catches"), catches}, {QStringLiteral("lost"), lost}, {QStringLiteral("badges"), badges},
           {QStringLiteral("shown_events"), shownEvents}, {QStringLiteral("tiles"), tl}, {QStringLiteral("lanes"), ll}};
