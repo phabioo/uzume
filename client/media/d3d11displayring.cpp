@@ -138,6 +138,9 @@ struct D3d11DisplayProducer::Impl {
     unsigned glName[DisplaySlots::kCount] = {};
   } side;
   int writing = -1;
+  // #357: once the shared texture was refused by wglDXRegisterObjectNV, later generations use staged mode directly.
+  bool preferStaged = false;
+  ComPtr<ID3D11DeviceContext> ctx;  // immediate context for the staged copy (emulation thread only)
 
   // Vulkan mode (first call was acquireExternal): own D3D11 device on Qt Quick's adapter, no GL, no bridge.
   enum class Mode { Undecided, Gl, Vulkan } mode = Mode::Undecided;
