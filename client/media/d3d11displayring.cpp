@@ -74,6 +74,12 @@ using Microsoft::WRL::ComPtr;
 namespace {
 
 QString hex(HRESULT hr) { return QStringLiteral("0x%1").arg(static_cast<quint32>(hr), 8, 16, QLatin1Char('0')); }
+// The texture description as one log line (a failed interop registration is diagnosed from it, #357).
+QString descText(const D3D11_TEXTURE2D_DESC& d) {
+  return QStringLiteral("%1x%2 format %3 mips %4 array %5 samples %6 usage %7 bind 0x%8 cpu 0x%9 misc 0x%10")
+      .arg(d.Width).arg(d.Height).arg(static_cast<int>(d.Format)).arg(d.MipLevels).arg(d.ArraySize).arg(d.SampleDesc.Count)
+      .arg(static_cast<int>(d.Usage)).arg(d.BindFlags, 0, 16).arg(d.CPUAccessFlags, 0, 16).arg(d.MiscFlags, 0, 16);
+}
 
 // IDXGIKeyedMutex::AcquireSync with a zero timeout: S_OK = acquired, WAIT_TIMEOUT (a SUCCESS code!) = busy, anything
 // else is an error (including WAIT_ABANDONED). Never use SUCCEEDED() on the result.
@@ -124,6 +130,10 @@ struct D3d11DisplayProducer::Impl {
     std::shared_ptr<RingGen> gen;
     ComPtr<ID3D11Texture2D> tex[DisplaySlots::kCount];
     ComPtr<IDXGIKeyedMutex> mtx[DisplaySlots::kCount];
+    // Staged mode (#357): GL's interop object is a plain, unshared texture and present() copies it into the shared keyed-mutex
+    // texture. NVIDIA's wglDXRegisterObjectNV refuses (ERROR_OPEN_FAILED) a texture created shared with a keyed mutex.
+    ComPtr<ID3D11Texture2D> stage[DisplaySlots::kCount];
+    bool staged = false;
     void* reg[DisplaySlots::kCount] = {};
     unsigned glName[DisplaySlots::kCount] = {};
   } side;
@@ -263,11 +273,35 @@ struct D3d11DisplayProducer::Impl {
       }
       if (gl) {
         gl->genTextures(1, &n.glName[i]);
-        n.reg[i] = sh->bridge->registerTexture(n.tex[i].Get(), n.glName[i], true);
+        if (!preferStaged) n.reg[i] = sh->bridge->registerTexture(n.tex[i].Get(), n.glName[i], true);
         if (!n.reg[i]) {
-          *why = QStringLiteral("wglDXRegisterObjectNV failed (error %1)").arg(sh->bridge->lastWin32Error());
-          ok = false;
-          break;
+          if (!preferStaged) {
+            D3D11_TEXTURE2D_DESC got = {};
+            n.tex[i]->GetDesc(&got);
+            qCWarning(lcRing).noquote() << QStringLiteral("wglDXRegisterObjectNV on the shared texture failed (error %1, texture %2); retrying with an unshared copy source")
+                                               .arg(sh->bridge->lastWin32Error()).arg(descText(got));
+          }
+          // Fallback: register an unshared texture (no MISC flags) and copy it into the shared one in present().
+          D3D11_TEXTURE2D_DESC sd = desc;
+          sd.MiscFlags = 0;
+          hr = dev->CreateTexture2D(&sd, nullptr, &n.stage[i]);
+          if (FAILED(hr)) {
+            *why = QStringLiteral("CreateTexture2D (unshared %1) failed (%2)").arg(descText(sd), hex(hr));
+            ok = false;
+            break;
+          }
+          if (!ctx) dev->GetImmediateContext(&ctx);
+          n.reg[i] = sh->bridge->registerTexture(n.stage[i].Get(), n.glName[i], true);
+          if (!n.reg[i] || !ctx) {
+            *why = QStringLiteral("wglDXRegisterObjectNV failed (error %1; shared and unshared texture, %2)").arg(sh->bridge->lastWin32Error()).arg(descText(sd));
+            ok = false;
+            break;
+          }
+          if (!preferStaged) {
+            preferStaged = true;
+            qCInfo(lcRing).noquote() << QStringLiteral("zero-copy display: unshared interop texture with a copy into the shared one");
+          }
+          n.staged = true;
         }
       }
     }
@@ -482,6 +516,9 @@ void D3d11DisplayProducer::present(int w, int h) {
       d.fail(QStringLiteral("wglDXUnlockObjectsNV failed (error %1)").arg(d.sh->bridge->lastWin32Error()));
       return;
     }
+  }
+  if (d.side.staged && d.ctx && d.side.stage[slot]) {
+    d.ctx->CopyResource(d.side.tex[slot].Get(), d.side.stage[slot].Get());  // under key 0, published by ReleaseSync(1)
   }
   const HRESULT hr = d.side.mtx[slot]->ReleaseSync(1);
   if (FAILED(hr)) {
