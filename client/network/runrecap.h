@@ -78,7 +78,8 @@ struct RecapModel {
   QString status;
   QString startDate;    // yyyy-MM-dd of day 1 in the viewer's zone
   int days = 1;      // span of the axis: day 1 to the last day shown
-  int playDays = 1;  // distinct calendar days with at least one event or screenshot (PLAY TIME tile)
+  int elapsedDays = 1;  // day 1 to today (active run) or to the last update; at least `days` (ELAPSED tile)
+  int playDays = 1;  // distinct calendar days with any play activity, shown or not (PLAY TIME tile)
   int catches = 0;
   int lost = 0;
   int badges = 0;

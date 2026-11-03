@@ -299,6 +299,42 @@ class RunRecapTest : public QObject {
     QCOMPARE(buildRecap(in).playDays, 3);
   }
 
+  void elapsedDaysAndUnmappedPlayDays() {
+    // Active run created 10 days ago, last event on day 3: ELAPSED runs to today, the axis stays at 3 days.
+    RecapInput in = baseInput();
+    in.run.status = "active";
+    in.run.playSeconds = 0;
+    in.now = QDateTime::fromString("2026-10-10T12:00:00Z", Qt::ISODate);
+    in.events = {ev(1, "2026-10-01T10:05:00Z", kU1, kSoul, "soullink.catch"), ev(2, "2026-10-03T10:05:00Z", kU1, kSoul, "soullink.badge")};
+    RecapModel m = buildRecap(in);
+    QCOMPARE(m.days, 3);
+    QCOMPARE(m.elapsedDays, 10);
+    QCOMPARE(m.tiles().at(3).label, QString("ELAPSED"));
+    QCOMPARE(m.tiles().at(3).value, QString("10 days"));
+    QCOMPARE(m.toVariant().value("elapsedDays").toInt(), 10);
+    QCOMPARE(m.toJson().value("elapsed_days").toInt(), 10);
+    // Ended run: day 1 to the last update (2026-10-03), never below the axis.
+    in.run.status = "finished";
+    m = buildRecap(in);
+    QCOMPARE(m.elapsedDays, 3);
+    QCOMPARE(m.tiles().at(3).value, QString("3 days"));
+    in.run.updatedAt = "2026-10-02T12:00:00Z";
+    m = buildRecap(in);
+    QCOMPARE(m.days, 3);
+    QCOMPARE(m.elapsedDays, 3);
+
+    // Events without a mapping (other plugin, unmapped type) are not shown but their days are play days; hub bookkeeping is not.
+    in.run.status = "active";
+    in.events = {ev(1, "2026-10-01T10:05:00Z", kU1, kSoul, "soullink.catch"),
+                 ev(2, "2026-10-01T11:00:00Z", QString(), QString(), "run.created"),
+                 ev(3, "2026-10-04T10:00:00Z", kU1, "other.plugin", "other.thing"),
+                 ev(4, "2026-10-06T10:00:00Z", kU2, kSoul, "soullink.unknown")};
+    m = buildRecap(in);
+    QCOMPARE(m.shownEvents, 1);
+    QCOMPARE(m.playDays, 3);
+    QCOMPARE(m.days, 1);
+  }
+
   void variantAndJsonShape() {
     RecapInput in = baseInput();
     in.events = {ev(1, "2026-10-01T10:05:00Z", kU1, kSoul, "soullink.catch"), ev(2, "2026-10-03T10:05:00Z", kU1, kSoul, "soullink.badge")};
