@@ -61,6 +61,7 @@ var (
 		ErrKindSyncFailure: true, ErrKindUpdateFailure: true, ErrKindServerError: true}
 	errorComponentRe   = regexp.MustCompile(`^(app|server|core:[a-z0-9][a-z0-9_-]{0,63}|plugin:[A-Za-z0-9._-]{1,80})$`)
 	errorFingerprintRe = regexp.MustCompile(`^uz-[0-9a-f]{12}$`)
+	errorRepoURLRe     = regexp.MustCompile(`^https://github\.com/[A-Za-z0-9-]+/[A-Za-z0-9._-]+$`)
 	errorIssueURLRe    = regexp.MustCompile(`^https://github\.com/[A-Za-z0-9-]+/[A-Za-z0-9._-]+/issues/\d+$`)
 )
 
@@ -70,6 +71,7 @@ func ValidFingerprint(s string) bool { return errorFingerprintRe.MatchString(s) 
 // ErrorEventInput is one event as an app sends it.
 type ErrorEventInput struct {
 	Kind, Component, Fingerprint, Title, Message, AppVersion, OS string
+	IssuesURL                                                    string // optional, plugin components only (the manifest issues_url the app saw)
 	OccurredAt                                                   time.Time
 }
 
@@ -83,6 +85,7 @@ type ErrorGroup struct {
 	IssueURL                            *string
 	Seen                                bool
 	IssuesBase                          *string
+	repoURL                             string // issues_url the app sent with a plugin event; the target when the server does not host the plugin
 }
 
 // ErrorEventRow is one stored event as the admin sees it.
@@ -155,6 +158,8 @@ func validateErrorEvent(e ErrorEventInput) error {
 		return badRequest("The app version is longer than 40 characters")
 	case utf8.RuneCountInString(e.OS) > errorOSMax || !utf8.ValidString(e.OS):
 		return badRequest("The system is longer than 80 characters")
+	case e.IssuesURL != "" && (!strings.HasPrefix(e.Component, "plugin:") || len(e.IssuesURL) > 200 || !errorRepoURLRe.MatchString(e.IssuesURL)):
+		return badRequest("Invalid issues_url")
 	case e.OccurredAt.IsZero():
 		return badRequest("occurred_at is missing")
 	}
@@ -219,11 +224,12 @@ func (s *Service) storeErrorEvents(ctx context.Context, evs []ErrorEventInput, d
 		}
 		title := redact.RedactString(e.Title)
 		msg := redact.RedactString(e.Message)
-		if _, err := tx.ExecContext(ctx, `INSERT INTO error_groups(fingerprint, kind, component, title, count, first_seen, last_seen, rev, seen_rev)
-			VALUES (?,?,?,?,1,?,?,1,0)
+		if _, err := tx.ExecContext(ctx, `INSERT INTO error_groups(fingerprint, kind, component, title, count, first_seen, last_seen, rev, seen_rev, repo_url)
+			VALUES (?,?,?,?,1,?,?,1,0,?)
 			ON CONFLICT(fingerprint) DO UPDATE SET count = count + 1, rev = rev + 1,
+				repo_url = CASE WHEN excluded.repo_url <> '' THEN excluded.repo_url ELSE repo_url END,
 				first_seen = MIN(first_seen, excluded.first_seen), last_seen = MAX(last_seen, excluded.last_seen)`,
-			e.Fingerprint, e.Kind, e.Component, title, occ.Unix(), occ.Unix()); err != nil {
+			e.Fingerprint, e.Kind, e.Component, title, occ.Unix(), occ.Unix(), e.IssuesURL); err != nil {
 			return internal(err)
 		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO error_events(fingerprint, device_id, device_name, user_name, app_version, os, message, occurred_at, received_at)
@@ -245,14 +251,14 @@ func (s *Service) storeErrorEvents(ctx context.Context, evs []ErrorEventInput, d
 	return nil
 }
 
-const errorGroupCols = `g.fingerprint, g.kind, g.component, g.title, g.count, g.first_seen, g.last_seen, g.issue_url, g.rev, g.seen_rev,
+const errorGroupCols = `g.fingerprint, g.kind, g.component, g.title, g.count, g.first_seen, g.last_seen, g.issue_url, g.rev, g.seen_rev, g.repo_url,
 	(SELECT COUNT(*) FROM error_group_devices d WHERE d.fingerprint = g.fingerprint)`
 
 func scanErrorGroup(r scanner) (ErrorGroup, error) {
 	var g ErrorGroup
 	var first, last, rev, seenRev int64
 	var issue sql.NullString
-	if err := r.Scan(&g.Fingerprint, &g.Kind, &g.Component, &g.Title, &g.Count, &first, &last, &issue, &rev, &seenRev, &g.Devices); err != nil {
+	if err := r.Scan(&g.Fingerprint, &g.Kind, &g.Component, &g.Title, &g.Count, &first, &last, &issue, &rev, &seenRev, &g.repoURL, &g.Devices); err != nil {
 		return g, err
 	}
 	g.FirstSeen, g.LastSeen = time.Unix(first, 0).UTC(), time.Unix(last, 0).UTC()
@@ -292,6 +298,10 @@ func (s *Service) fillErrorGroup(ctx context.Context, g *ErrorGroup, bases map[s
 			return err
 		}
 		bases[g.Component] = b
+	}
+	if b == nil && g.repoURL != "" && strings.HasPrefix(g.Component, "plugin:") {
+		r := g.repoURL // a development plugin is not on the server: the app told the repository
+		b = &r
 	}
 	g.IssuesBase = b
 	return nil

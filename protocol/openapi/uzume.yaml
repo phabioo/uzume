@@ -6701,6 +6701,11 @@ components:
         app_version: { type: string, maxLength: 40 }
         os: { type: string, maxLength: 80 }
         occurred_at: { type: string, format: date-time }
+        issues_url:
+          type: string
+          maxLength: 200
+          pattern: '^https://github\.com/[A-Za-z0-9-]+/[A-Za-z0-9._-]+$'
+          description: 'Only on `plugin:<plugin_id>` events: the plugin manifest''s `issues_url`. Used as the report target when the server does not host the plugin (a development plugin).'
     ErrorEventBatch:
       type: object
       required: [events]

@@ -24,6 +24,7 @@ inline constexpr int kMergeSeconds = 600;
 
 struct ErrorEvent {
   QString kind, component, fingerprint, title, message, appVersion, os;
+  QString issuesUrl;  // optional, plugin errors only: the plugin manifest's issues_url (a dev-linked plugin is unknown to the server)
   QDateTime occurredAt;
 
   // The ErrorEvent object of POST /reports/errors (occurred_at as RFC 3339 UTC).

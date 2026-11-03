@@ -55,9 +55,9 @@ class ErrorsController : public QObject {
 
   // ---- recording (C++ callers) ----
   // True when the event was queued (false: an equal one is already waiting, or the input is invalid).
-  bool record(const QString& kind, const QString& component, const QString& title, const QString& message);
+  bool record(const QString& kind, const QString& component, const QString& title, const QString& message, const QString& issuesUrl = {});
   void recordCoreFailure(const QString& coreId, const QString& title, const QString& message);   // core_failure, core:<id> (app when the id is unusable)
-  void recordPluginError(const QString& pluginId, const QString& message);                       // plugin_error, plugin:<id>
+  void recordPluginError(const QString& pluginId, const QString& message, const QString& issuesUrl = {});                       // plugin_error, plugin:<id>
   void recordSyncFailure(const QString& message);                                                // sync_failure, app
   void recordUpdateFailure(const QString& message);                                              // update_failure, app
   // At start: `uncleanExit` = the marker of the previous run was found; `previousLog` is its log (player.1.log after the rotation).

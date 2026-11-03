@@ -29,6 +29,7 @@ Item {
     property string detailError: ""
     property bool actionBusy: false
     property bool lookupBusy: false
+    property string lookupNote: ""     // "none" (searched, no issue) or "failed" (could not search) for the open preview
     property string lookupFp: ""       // the fingerprint a running GitHub lookup is for
     // The public text comes only from the server's public_title / public_summary; there is no fallback to the plain title.
     readonly property bool publicReady: root.detail !== null && root.detail.public_title !== undefined && root.detail.public_summary !== undefined
@@ -149,6 +150,7 @@ Item {
         if (root.detail === null || root.actionBusy || root.lookupBusy || root.issuesBase === "") return
         if (!root.publicReady) { root.loadDetail(root.detail.fingerprint); return }
         root.lookupBusy = true
+        root.lookupNote = ""
         root.lookupFp = root.detail.fingerprint
         root.errors.lookupIssue(root.detail.fingerprint, root.issuesBase)
     }
@@ -162,6 +164,7 @@ Item {
             if (ok && found) {
                 root.storeIssue(fingerprint, url, qsTr("This problem already has issue #%1. It is linked to the group.").arg(number))
             } else {
+                root.lookupNote = ok ? "none" : "failed"
                 previewDialog.open()
             }
         }
@@ -433,6 +436,17 @@ Item {
             UzButton { objectName: "errorsPreviewCancel"; text: qsTr("Cancel"); onClicked: previewDialog.close() },
             UzButton { objectName: "errorsPreviewOpen"; kind: "primary"; text: qsTr("Open GitHub"); onClicked: root.openPreviewed() }
         ]
+        Text {
+            objectName: "errorsPreviewLookup"
+            Layout.fillWidth: true
+            visible: root.lookupNote !== ""
+            wrapMode: Text.Wrap
+            textFormat: Text.PlainText
+            text: root.lookupNote === "none" ? qsTr("No existing issue with this fingerprint was found on GitHub.")
+                                             : qsTr("Could not search for existing issues. You can still report it.")
+            font.family: Theme.sans; font.pixelSize: Theme.roles.small.size
+            color: root.lookupNote === "none" ? Theme.ink2 : Theme.muted
+        }
         UzMono { text: qsTr("Title") }
         Text {
             objectName: "errorsPreviewTitle"

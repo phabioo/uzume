@@ -366,6 +366,44 @@ func TestErrorGroupIssuesBase(t *testing.T) {
 	}
 }
 
+// A development plugin is not on the server: the repository the app sent with the event (manifest issues_url, #446) is the
+// report target; an installed manifest wins, and a value on a non-plugin event is refused (the spec pattern refuses a bad address).
+func TestErrorGroupIssuesBaseFromEvent(t *testing.T) {
+	s := newSessEnv(t, nil)
+	admin := s.login("00000000-0000-4000-8000-000000000001")
+	tok := s.device(s.anna.ID, "Annas Laptop").tok
+	ev := errEvent("plugin_error", "plugin:dev.example.linked", "boom", "0.24.0")
+	ev["issues_url"] = "https://github.com/example-org/linked"
+	s.sendEvents(tok, ev)
+	plain := errEvent("plugin_error", "plugin:dev.example.plain", "boom", "0.24.0")
+	s.sendEvents(tok, plain)
+	gs, _ := s.listGroups(admin)
+	for _, g := range gs {
+		switch g.Component {
+		case "plugin:dev.example.linked":
+			if g.IssuesBase == nil || *g.IssuesBase != "https://github.com/example-org/linked" {
+				t.Errorf("linked: issues_base %v", g.IssuesBase)
+			}
+		case "plugin:dev.example.plain":
+			if g.IssuesBase != nil {
+				t.Errorf("plain: issues_base %v, want null", *g.IssuesBase)
+			}
+		}
+	}
+	for name, e := range map[string]evT{
+		"not plugin": func() evT {
+			e := errEvent("app_crash", "app", "x", "1")
+			e["issues_url"] = "https://github.com/a/b"
+			return e
+		}(),
+	} {
+		rec := s.do("POST", "/api/v1/reports/errors", evT{"events": []evT{e}}, opt{token: tok})
+		if rec.Code != 400 {
+			t.Errorf("%s: status %d, want 400", name, rec.Code)
+		}
+	}
+}
+
 func TestServerOwnErrorEvents(t *testing.T) {
 	s := newSessEnv(t, nil)
 	admin := s.login("00000000-0000-4000-8000-000000000001")

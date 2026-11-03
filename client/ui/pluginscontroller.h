@@ -337,6 +337,8 @@ class PluginsController : public QObject {
   // sidebarEntries (lists, as the properties), trees ({"<pluginId>|<slot>": tree}), tileStrips ({tileId: [{pluginId,
   // tree}]}). An empty map leaves the preview. Actions are still reported by actionSent().
   void setPreviewUi(const QVariantMap& ui);
+  // The manifest's issues_url of an installed or dev-linked plugin (empty: none). Carried by plugin error events (ADR 0035 D4).
+  QString issuesUrlFor(const QString& pluginId) const;
 
  signals:
   // A plugin was paused by an error, the watchdog or a quota (first line of the Lua error / budget message); ADR 0035 error events.

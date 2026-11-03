@@ -667,7 +667,8 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
     ed.source.os = QSysInfo::prettyProductName();
     ed.serverVersion = [this]() { return conn_->hubInfo().hubVersion; };
     errors_ = std::make_unique<ErrorsController>(ed);
-    connect(plugins_.get(), &PluginsController::pluginFailed, errors_.get(), &ErrorsController::recordPluginError);
+    connect(plugins_.get(), &PluginsController::pluginFailed, errors_.get(),
+            [this](const QString& id, const QString& error) { errors_->recordPluginError(id, error, plugins_->issuesUrlFor(id)); });
     connect(saves_.get(), &SaveSync::uploadFailed, errors_.get(),
             [this](const QString&, const QString& code) { errors_->recordSyncFailure(code.isEmpty() ? QStringLiteral("upload failed") : QStringLiteral("upload failed: ") + code); });
     connect(updates_->manager(), &update::UpdateManager::failed, errors_.get(), &ErrorsController::recordUpdateFailure);

@@ -1181,6 +1181,11 @@ void PluginsController::postInitialEvents() {
   for (const QString& id : std::as_const(hudHidden_)) host_->postHostEvent(QStringLiteral("hud.visible"), false, id);
 }
 
+QString PluginsController::issuesUrlFor(const QString& pluginId) const {
+  const auto info = infoFor(pluginId);
+  return info ? info->manifest.issuesUrl : QString();
+}
+
 void PluginsController::onStatus(const QString& id) {
   const auto snap = host_->consoleSnapshot(id);
   const int st = static_cast<int>(snap.status);

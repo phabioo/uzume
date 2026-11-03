@@ -37,9 +37,11 @@ void ErrorsController::setSendAutomatically(bool on) {
 
 void ErrorsController::answerPrompt(bool allow) { setSendAutomatically(allow); }
 
-bool ErrorsController::record(const QString& kind, const QString& component, const QString& title, const QString& message) {
+bool ErrorsController::record(const QString& kind, const QString& component, const QString& title, const QString& message,
+                             const QString& issuesUrl) {
   const QDateTime now = clock_ ? clock_() : QDateTime::currentDateTimeUtc();
-  const errors::ErrorEvent e = errors::makeEvent(kind, component, title, message, d_.source, now);
+  errors::ErrorEvent e = errors::makeEvent(kind, component, title, message, d_.source, now);
+  e.issuesUrl = issuesUrl;
   if (!queue_.add(e)) return false;
   emit pendingChanged();
   if (!answered() && !prompt_) {
@@ -55,10 +57,10 @@ void ErrorsController::recordCoreFailure(const QString& coreId, const QString& t
   record(QString::fromLatin1(errors::kKindCoreFailure), errors::validComponent(component) ? component : QStringLiteral("app"), title, message);
 }
 
-void ErrorsController::recordPluginError(const QString& pluginId, const QString& message) {
+void ErrorsController::recordPluginError(const QString& pluginId, const QString& message, const QString& issuesUrl) {
   const QString component = QStringLiteral("plugin:") + pluginId;
   record(QString::fromLatin1(errors::kKindPluginError), errors::validComponent(component) ? component : QStringLiteral("app"),
-         QStringLiteral("Plugin stopped after an error"), message);
+         QStringLiteral("Plugin stopped after an error"), message, issuesUrl);
 }
 
 void ErrorsController::recordSyncFailure(const QString& message) {
