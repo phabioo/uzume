@@ -175,6 +175,9 @@ func (s *Service) playPresence(c *Client, state, gameID, runID string) {
 		return
 	}
 	s.play.open[c.deviceID] = rec
+	if runID != "" {
+		s.autoStartRun(ctx, runID, c.userID, AutoStartPlay) // a run that is still starting becomes active (#439)
+	}
 }
 
 // runMember reports whether the user joined the run with this game.

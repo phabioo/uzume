@@ -565,14 +565,15 @@ func TestRunEventsIdempotencyAndValidation(t *testing.T) {
 	d1, a1, b1 := r.device(r.admin.ID, "Desktop"), r.device(r.anna.ID, "Anna PC"), r.device(r.bob.ID, "Bob PC")
 	run := r.create(d1, "Events", r.anna.ID, r.bob.ID)
 	id := run.RunID
-	r.mustJoin(a1, id) // seq 3
-	r.mustJoin(b1, id) // seq 4
+	r.mustJoin(a1, id)                                 // seq 3
+	r.mustJoin(b1, id)                                 // seq 4
+	wantStatus(t, r.status(d1, id, "active"), 200, "") // seq 5; events on a starting run would start it themselves
 
 	cid := uuid.NewString()
 	rec := r.post(d1, id, "events", r.eventBody(cid, "route.entered"))
 	wantStatus(t, rec, 201, "")
 	seq := decode[struct{ Seq int64 }](t, rec).Seq
-	if seq != 5 {
+	if seq != 6 {
 		t.Fatalf("seq %d", seq)
 	}
 	rec = r.post(d1, id, "events", r.eventBody(cid, "route.entered"))
@@ -581,19 +582,19 @@ func TestRunEventsIdempotencyAndValidation(t *testing.T) {
 		t.Fatalf("retry returned seq %d, want %d", again, seq)
 	}
 	wantStatus(t, r.post(a1, id, "events", r.eventBody(cid, "route.entered")), 409, "conflict") // client_id of another user
-	evs := r.events(a1, id, 4)
+	evs := r.events(a1, id, 5)
 	if len(evs) != 1 {
 		t.Fatalf("%+v", evs)
 	}
 	e := evs[0]
-	if e.Seq != 5 || e.ClientID != cid || e.Source != "manual" || e.Type != "route.entered" || e.Text != "text route.entered" ||
+	if e.Seq != 6 || e.ClientID != cid || e.Source != "manual" || e.Type != "route.entered" || e.Text != "text route.entered" ||
 		e.UserID == nil || *e.UserID != r.admin.ID || e.UserName != "admin" || e.DeviceID == nil || *e.DeviceID != d1.id ||
 		e.PluginID == nil || *e.PluginID != pluginA || string(e.Payload) != `{"n":1}` {
 		t.Fatalf("%+v", e)
 	}
 	// Defaults: text and payload are optional.
 	wantStatus(t, r.post(a1, id, "events", map[string]any{"client_id": uuid.NewString(), "plugin_id": pluginA, "source": "automatic", "type": "death"}), 201, "")
-	last := r.events(a1, id, 5)
+	last := r.events(a1, id, 6)
 	if len(last) != 1 || last[0].Text != "" || string(last[0].Payload) != "{}" || last[0].Source != "automatic" {
 		t.Fatalf("%+v", last)
 	}
@@ -652,6 +653,7 @@ func TestRunEventSeqGaplessUnderConcurrency(t *testing.T) {
 	run := r.create(devs[0], "Race", r.anna.ID, r.bob.ID)
 	r.mustJoin(devs[1], run.RunID)
 	r.mustJoin(devs[2], run.RunID)
+	wantStatus(t, r.status(devs[0], run.RunID, "active"), 200, "")
 
 	const perDevice = 25
 	var wg sync.WaitGroup
@@ -686,7 +688,7 @@ func TestRunEventSeqGaplessUnderConcurrency(t *testing.T) {
 		t.Fatalf("%v", failures)
 	}
 	evs := r.events(devs[0], run.RunID, 0)
-	if want := 4 + len(devs)*perDevice; len(evs) != want { // run.created and 3 x run.joined are the 4 server events
+	if want := 5 + len(devs)*perDevice; len(evs) != want { // run.created, 3 x run.joined and run.status are the 5 server events
 		t.Fatalf("%d events, want %d", len(evs), want)
 	}
 	for i, e := range evs {
@@ -872,12 +874,21 @@ func TestRunWSFanOut(t *testing.T) {
 	wb.quiet("run_state")
 	wc.quiet()
 
+	// Start: the manual start goes out like any status change (events on a starting run would start it by themselves).
+	wantStatus(t, r.status(d1, id, "active"), 200, "")
+	for _, w := range []*wsClient{wd1, wd1b, wa, wb} {
+		w.awaitWhere("run_updated", isRunUpdated(id, "active"))
+	}
+	for _, w := range []*wsClient{wd1, wd1b, wa} {
+		w.awaitWhere("run_event", isRunEvent(id, "run.status"))
+	}
+
 	// Event: every joined participant's connections, the author's own device included.
 	cid := uuid.NewString()
 	wantStatus(t, r.post(a1, id, "events", r.eventBody(cid, "caught")), 201, "")
 	for _, w := range []*wsClient{wd1, wd1b, wa} {
 		_, e := runEventOf(w.awaitWhere("run_event", isRunEvent(id, "caught")))
-		if e.ClientID != cid || e.Seq != 4 || e.UserID == nil || *e.UserID != r.anna.ID {
+		if e.ClientID != cid || e.Seq != 5 || e.UserID == nil || *e.UserID != r.anna.ID {
 			t.Fatalf("%+v", e)
 		}
 	}
@@ -892,8 +903,6 @@ func TestRunWSFanOut(t *testing.T) {
 	wd1.quiet("run_state", "run_event")
 
 	// Status: run_updated to all participants, the run.status event to the joined.
-	wantStatus(t, r.status(a1, id, "paused"), 409, "conflict") // starting -> paused is no transition
-	wantStatus(t, r.status(d1, id, "active"), 200, "")
 	wantStatus(t, r.status(a1, id, "paused"), 200, "")
 	for _, w := range []*wsClient{wd1, wd1b, wa, wb} {
 		w.awaitWhere("run_updated", isRunUpdated(id, "paused"))
@@ -924,9 +933,10 @@ func TestRunWSCatchUpAfterHello(t *testing.T) {
 	d1, a1, b1 := r.device(r.admin.ID, "Desktop"), r.device(r.anna.ID, "Anna PC"), r.device(r.bob.ID, "Bob PC")
 	run := r.create(d1, "Catch", r.anna.ID, r.bob.ID)
 	id := run.RunID
-	r.mustJoin(a1, id) // seq 3
+	r.mustJoin(a1, id)                                 // seq 3
+	wantStatus(t, r.status(d1, id, "active"), 200, "") // seq 4
 	wantStatus(t, r.putState(d1, id, 0, map[string]any{"v": 1}), 200, "")
-	for i := 0; i < 5; i++ { // seq 4..8 while Anna is offline
+	for i := 0; i < 5; i++ { // seq 5..9 while Anna is offline
 		wantStatus(t, r.event(d1, id, fmt.Sprintf("offline.%d", i)), 201, "")
 	}
 	archived := r.create(d1, "Old", r.anna.ID)
@@ -958,17 +968,17 @@ func TestRunWSCatchUpAfterHello(t *testing.T) {
 	// Listed with last_seq 3: run_updated (full, with the state) first, then run_events 4..8 in order; nothing for
 	// the archived run.
 	a2 := r.device(r.anna.ID, "Anna Laptop")
-	c := hello(a2, []any{entry(id, 3), entry(archived.RunID, 0), entry(uuid.NewString(), 5)})
+	c := hello(a2, []any{entry(id, 4), entry(archived.RunID, 0), entry(uuid.NewString(), 5)})
 	up := runUpdated(c.awaitWhere("run_updated", func(m wsMsg) bool {
 		if runUpdated(m).RunID == archived.RunID {
 			t.Error("an archived run was sent in the catch-up")
 		}
 		return isRunUpdated(id, "")(m)
 	}))
-	if up.LastSeq != 8 || string(up.part(r.admin.ID).States[pluginA].State) != `{"v":1}` {
+	if up.LastSeq != 9 || string(up.part(r.admin.ID).States[pluginA].State) != `{"v":1}` {
 		t.Fatalf("%+v", up)
 	}
-	for want := int64(4); want <= 8; want++ {
+	for want := int64(5); want <= 9; want++ {
 		rid, e := runEventOf(c.await("run_event"))
 		if rid != id || e.Seq != want {
 			t.Fatalf("got seq %d (run %s), want %d", e.Seq, rid, want)
@@ -980,7 +990,7 @@ func TestRunWSCatchUpAfterHello(t *testing.T) {
 	c2 := hello(r.device(r.anna.ID, "Anna Tablet"), nil)
 	c2.awaitWhere("run_updated", isRunUpdated(id, ""))
 	c2.quiet("run_event")
-	c3 := hello(r.device(r.anna.ID, "Anna Phone"), []any{entry(id, 8)})
+	c3 := hello(r.device(r.anna.ID, "Anna Phone"), []any{entry(id, 9)})
 	c3.awaitWhere("run_updated", isRunUpdated(id, ""))
 	c3.quiet("run_event")
 	// A malformed runs list is ignored, never fatal.
@@ -1009,16 +1019,16 @@ func TestRunWSCatchUpAfterHello(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	total := r.get(d1, id).LastSeq // 608
-	if total != 608 {
+	total := r.get(d1, id).LastSeq // 609
+	if total != 609 {
 		t.Fatalf("last_seq %d", total)
 	}
-	far := hello(r.device(r.anna.ID, "Far"), []any{entry(id, 100)}) // 508 missing
+	far := hello(r.device(r.anna.ID, "Far"), []any{entry(id, 101)}) // 508 missing
 	far.awaitWhere("run_updated", isRunUpdated(id, ""))
 	far.quiet("run_event")
-	edge := hello(r.device(r.anna.ID, "Edge"), []any{entry(id, 108)}) // exactly 500 missing
+	edge := hello(r.device(r.anna.ID, "Edge"), []any{entry(id, 109)}) // exactly 500 missing
 	edge.awaitWhere("run_updated", isRunUpdated(id, ""))
-	for want := int64(109); want <= total; want++ {
+	for want := int64(110); want <= total; want++ {
 		_, e := runEventOf(edge.await("run_event"))
 		if e.Seq != want {
 			t.Fatalf("got seq %d, want %d", e.Seq, want)
