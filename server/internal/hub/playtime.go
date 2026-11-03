@@ -141,10 +141,19 @@ func (s *Service) playDeviceReplaced(old *Client) { s.playClose(old) }
 // only when the user joined that run with exactly this game.
 func (s *Service) playPresence(c *Client, state, gameID, runID string) {
 	ctx := context.Background()
+	if started := s.playPresenceLocked(ctx, c, state, gameID, runID); started != "" {
+		// A run that is still starting becomes active (#439). This takes runs.mu, so it runs after play.mu is released:
+		// startRunCatchUp holds runs.mu while attach waits for play.mu (playDeviceReplaced).
+		s.autoStartRun(ctx, started, c.userID, AutoStartPlay)
+	}
+}
+
+// playPresenceLocked does the work of playPresence under play.mu and returns the run id of a newly opened run play.
+func (s *Service) playPresenceLocked(ctx context.Context, c *Client, state, gameID, runID string) string {
 	s.play.mu.Lock()
 	defer s.play.mu.Unlock()
 	if s.play.closed {
-		return
+		return ""
 	}
 	want := state == "in_game" && gameID != ""
 	if want && runID != "" && !s.runMember(ctx, c.userID, runID, gameID) {
@@ -155,13 +164,13 @@ func (s *Service) playPresence(c *Client, state, gameID, runID string) {
 	}
 	cur := s.play.open[c.deviceID]
 	if cur != nil && want && cur.client == c && cur.gameID == gameID && cur.runID == runID {
-		return // nothing changed
+		return "" // nothing changed
 	}
 	if cur != nil {
 		s.closePlayLocked(ctx, cur)
 	}
 	if !want {
-		return
+		return ""
 	}
 	now := s.now().Unix()
 	rec := &playRec{id: uuid.NewString(), userID: c.userID, gameID: gameID, runID: runID, startedAt: now, client: c}
@@ -172,12 +181,10 @@ func (s *Service) playPresence(c *Client, state, gameID, runID string) {
 	if _, err := s.db.ExecContext(ctx, `INSERT INTO plays(id, user_id, device_id, game_id, run_id, started_at, last_seen_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		rec.id, c.userID, c.deviceID, gameID, run, now, now); err != nil {
 		slog.Warn("play time: open failed", "err", err)
-		return
+		return ""
 	}
 	s.play.open[c.deviceID] = rec
-	if runID != "" {
-		s.autoStartRun(ctx, runID, c.userID, AutoStartPlay) // a run that is still starting becomes active (#439)
-	}
+	return runID
 }
 
 // runMember reports whether the user joined the run with this game.
