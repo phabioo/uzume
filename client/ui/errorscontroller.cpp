@@ -4,6 +4,7 @@
 #include <QDir>
 #include <QFileInfo>
 
+#include "diagbundle.h"
 #include "errorfingerprint.h"
 
 namespace uzume::ui {
@@ -97,9 +98,11 @@ QVariantMap ErrorsController::pluginReport(const QString& pluginId, const QStrin
   const errors::ErrorEvent e = errors::makeEvent(QString::fromLatin1(errors::kKindPluginError),
                                                  errors::validComponent(component) ? component : QStringLiteral("app"),
                                                  QStringLiteral("Plugin stopped after an error"), error, d_.source, QDateTime::currentDateTimeUtc());
+  // The text goes into a public issue: the stricter public redaction (hosts, IPs, URLs, home paths), not only the secrets of the event.
+  const QString publicMessage = diag::redactPublic(e.message).trimmed();
   const QString title = QStringLiteral("%1: %2").arg(pluginName.isEmpty() ? pluginId : pluginName, e.title);
   QString summary = QStringLiteral("Plugin: %1 %2\nApp: %3\n").arg(pluginId, pluginVersion, d_.source.appVersion);
-  summary += e.message.isEmpty() ? QStringLiteral("No error text was recorded.") : QStringLiteral("Error: %1").arg(e.message);
+  summary += publicMessage.isEmpty() ? QStringLiteral("No error text was recorded.") : QStringLiteral("Error: %1").arg(publicMessage);
   QVariantMap m{{QStringLiteral("title"), title}, {QStringLiteral("summary"), summary}, {QStringLiteral("url"), QString()}};
   if (!e.fingerprint.isEmpty())
     m.insert(QStringLiteral("url"), newIssueUrl(issuesBase, title, e.fingerprint, d_.source.appVersion, summary));

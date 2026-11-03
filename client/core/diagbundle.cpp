@@ -9,11 +9,13 @@
 #include <QJsonDocument>
 #include <QRegularExpression>
 #include <QSaveFile>
+#include <QSet>
 #include <QStorageInfo>
 #include <QSysInfo>
 #include <QThread>
 #include <algorithm>
 #include <array>
+#include <functional>
 
 #include "corecache.h"
 #include "hubprotocol.h"
@@ -435,6 +437,75 @@ QByteArray redact(const QByteArray& text) {
     pos = end;
   }
   return out;
+}
+
+namespace {
+using Fn = std::function<QString(const QRegularExpressionMatch&)>;
+void replaceWith(QString& s, const QRegularExpression& re, const Fn& fn) {
+  QString out;
+  qsizetype last = 0;
+  auto it = re.globalMatch(s);
+  while (it.hasNext()) {
+    const QRegularExpressionMatch m = it.next();
+    out += QStringView(s).mid(last, m.capturedStart() - last);
+    out += fn(m);
+    last = m.capturedEnd();
+  }
+  out += QStringView(s).mid(last);
+  s = out;
+}
+QRegularExpression rx(const QString& p) { return QRegularExpression(p, QRegularExpression::CaseInsensitiveOption); }
+}  // namespace
+
+QString redactPublic(const QString& text) {
+  static const QRegularExpression urlRe = rx(QStringLiteral(R"re([a-z][a-z0-9+.-]*://[^\s<>"'`)\]]+)re"));
+  static const QRegularExpression githubUrl = rx(QStringLiteral(R"re(\Ahttps://github\.com(?:[/?#].*)?\z)re"));
+  static const QRegularExpression winHome = rx(QStringLiteral(R"re(\b[a-z]:[\\/]users[\\/][^\\/\s"'<>]+)re"));
+  static const QRegularExpression unixHome = rx(QStringLiteral(R"re((?:^|[^A-Za-z0-9_.-])(/home/[^/\s"'<>:]+|/Users/[^/\s"'<>:]+))re"));
+  static const QRegularExpression codeA = rx(QStringLiteral(R"re(\buz-[a-z0-9]{4}-[a-z0-9]{4}\b)re"));
+  static const QRegularExpression codeB = rx(QStringLiteral(R"re(\b((?:invite|pairing|setup|device)[ _-]?code\W{0,3})[a-z0-9-]{4,})re"));
+  static const QRegularExpression ipv4 = rx(QStringLiteral(R"re(\b\d{1,3}(?:\.\d{1,3}){3}(?::\d{1,5})?\b)re"));
+  static const QRegularExpression ipv6 = rx(QStringLiteral(R"re((^|[^0-9a-z_:])\[?((?:[0-9a-f]{0,4}:){2,7}[0-9a-f]{0,4})\]?(?::\d{1,5})?)re"));
+  static const QRegularExpression hexDigit = rx(QStringLiteral("[0-9a-f]"));
+  static const QRegularExpression hostName = rx(QStringLiteral(R"re(\b(?:[a-z0-9-]+\.)+([a-z]{2,})\b(?::\d{1,5})?)re"));
+  static const QSet<QString> fileExts = {QStringLiteral("log"), QStringLiteral("txt"), QStringLiteral("json"), QStringLiteral("lua"),
+                                         QStringLiteral("dll"), QStringLiteral("so"), QStringLiteral("dylib"), QStringLiteral("exe"),
+                                         QStringLiteral("zip"), QStringLiteral("uzplugin"), QStringLiteral("cpp"), QStringLiteral("h"),
+                                         QStringLiteral("go"), QStringLiteral("qml"), QStringLiteral("sav"), QStringLiteral("srm"),
+                                         QStringLiteral("png"), QStringLiteral("jpg"), QStringLiteral("cfg"), QStringLiteral("ini"),
+                                         QStringLiteral("xml"), QStringLiteral("md"), QStringLiteral("js")};
+  QString s = QString::fromUtf8(redact(text.toUtf8()));
+  // Only https://github.com/... stays; it is parked behind a token so that no later rule touches it.
+  QStringList kept;
+  replaceWith(s, urlRe, [&](const QRegularExpressionMatch& m) {
+    if (githubUrl.match(m.captured(0)).hasMatch()) {
+      kept << m.captured(0);
+      return QStringLiteral("\x01%1\x01").arg(kept.size() - 1);
+    }
+    return QStringLiteral("<url>");
+  });
+  replaceWith(s, winHome, [](const QRegularExpressionMatch&) { return QStringLiteral("<home>"); });
+  replaceWith(s, unixHome, [](const QRegularExpressionMatch& m) {
+    const QString all = m.captured(0);
+    return all.left(all.indexOf(QLatin1Char('/'))) + QStringLiteral("<home>");
+  });
+  replaceWith(s, codeA, [](const QRegularExpressionMatch&) { return QStringLiteral("<code>"); });
+  replaceWith(s, codeB, [](const QRegularExpressionMatch& m) {
+    const QString rest = m.captured(0).mid(m.captured(1).size());
+    return rest.compare(QLatin1String("redacted"), Qt::CaseInsensitive) == 0 ? m.captured(0) : m.captured(1) + QStringLiteral("<code>");
+  });
+  replaceWith(s, ipv4, [](const QRegularExpressionMatch&) { return QStringLiteral("<ip>"); });
+  replaceWith(s, ipv6, [&](const QRegularExpressionMatch& m) {
+    return hexDigit.match(m.captured(2)).hasMatch() ? m.captured(1) + QStringLiteral("<ip>") : m.captured(0);
+  });
+  replaceWith(s, hostName, [&](const QRegularExpressionMatch& m) {
+    const QString host = m.captured(0).section(QLatin1Char(':'), 0, 0);
+    if (host.compare(QLatin1String("github.com"), Qt::CaseInsensitive) == 0 || fileExts.contains(host.mid(host.lastIndexOf(QLatin1Char('.')) + 1).toLower()))
+      return m.captured(0);
+    return QStringLiteral("<host>");
+  });
+  for (qsizetype i = 0; i < kept.size(); ++i) s.replace(QStringLiteral("\x01%1\x01").arg(i), kept.at(i));
+  return s;
 }
 
 QString fileName(const QDateTime& when) {
