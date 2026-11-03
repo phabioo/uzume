@@ -134,7 +134,7 @@ class GameStarter : public QObject {
   CatalogRefresh catalogRefresh_;
   quint64 refreshGen_ = 0;
   bool refreshing_ = false;  // waiting for the catalog (phase Core meanwhile)
-  void startSelectedNow(bool share);
+  void startSelectedNow(bool share, const QString& gameId);  // starts exactly gameId (the selection may have changed during a refresh)
   std::function<RomSourceChoice(const GameEntry&)> romSource_;
   std::function<VariantLaunch(const GameEntry&)> variantLaunch_;
   VariantLaunch activeVariant_;  // set in beginRomPhase, read in onSaveReady

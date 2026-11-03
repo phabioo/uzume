@@ -58,26 +58,27 @@ void GameStarter::startSelected(bool share) {
   const auto game = model_.game(selectedId_);
   if (refreshing_ && phase_ == PlayPhase::None) refreshing_ = false;  // that start was cancelled; its callback is stale (generation)
   if (!catalogRefresh_ || !game || phase_ != PlayPhase::None || session_.isActive() || refreshing_) {
-    startSelectedNow(share);
+    startSelectedNow(share, selectedId_);
     return;
   }
   refreshing_ = true;
+  const QString gameId = selectedId_;  // the game asked for; a selection change while the catalog loads must not change what starts
   const quint64 gen = ++refreshGen_;
   phase_ = PlayPhase::Core;  // "preparing core" while the catalog is read
   emit selectedGameChanged();
   QPointer<GameStarter> self(this);
-  catalogRefresh_([self, share, gen]() {
+  catalogRefresh_([self, share, gen, gameId]() {
     if (!self || self->refreshGen_ != gen) return;
     self->refreshing_ = false;
     if (self->phase_ != PlayPhase::Core) return;  // the start was cancelled meanwhile
     self->phase_ = PlayPhase::None;
-    self->startSelectedNow(share);
+    self->startSelectedNow(share, gameId);
   });
 }
 
-void GameStarter::startSelectedNow(bool share) {
+void GameStarter::startSelectedNow(bool share, const QString& gameId) {
   shareOnStart_ = false;
-  const auto game = model_.game(selectedId_);
+  const auto game = model_.game(gameId);
   if (!game || phase_ != PlayPhase::None || session_.isActive()) {
     return;
   }

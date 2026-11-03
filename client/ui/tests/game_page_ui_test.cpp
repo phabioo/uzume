@@ -80,6 +80,38 @@ class GamePageUiTest : public QObject {
     QTRY_COMPARE(hub.count(QStringLiteral("/api/v1/systems"), "GET"), before + 1);
   }
 
+  // #464 review: a selection change while the catalog is read must not change which game starts. g2 has no system manifest, so
+  // starting it would set the error "no system manifest"; g1 (nds, no core here) ends quietly.
+  void selectionChangeDuringCatalogRefreshKeepsTheRequestedGame() {
+    FakeHub hub(QStringLiteral("a"));
+    seed(hub, 2);
+    hub.features.append(QStringLiteral("firmware_v1"));
+    QJsonArray games = hub.games.value(QStringLiteral("games")).toArray();
+    QJsonObject g2 = games.at(1).toObject();
+    g2.insert(QStringLiteral("system"), QStringLiteral("nosuchsystem"));
+    QJsonObject rom = g2.value(QStringLiteral("rom")).toObject();
+    rom.insert(QStringLiteral("filename"), QStringLiteral("g2.zzz"));  // the manifest is found by extension first
+    g2.insert(QStringLiteral("rom"), rom);
+    games.replace(1, g2);
+    hub.games = QJsonObject{{QStringLiteral("games"), games}};
+    QVERIFY(hub.start());
+    Harness h;
+    QVERIFY(h.start());
+    pair(h, hub);
+    PlayerController* c = h.controller.get();
+    QTRY_COMPARE(c->selectedGameId(), QStringLiteral("g1"));
+    QTRY_VERIFY(hub.count(QStringLiteral("/api/v1/systems"), "GET") >= 1);
+    QTest::qWait(300);  // the first list is loaded
+    c->setCatalogFreshMsForTests(0);
+    const int before = hub.count(QStringLiteral("/api/v1/systems"), "GET");
+    c->playSelected();           // g1: the catalog is read first
+    c->selectGame(QStringLiteral("g2"));  // the person clicks another game meanwhile
+    QCOMPARE(c->selectedGameId(), QStringLiteral("g2"));
+    QTRY_COMPARE(hub.count(QStringLiteral("/api/v1/systems"), "GET"), before + 1);
+    QTest::qWait(500);
+    QVERIFY2(c->selectedGame().value(QStringLiteral("error")).toString().isEmpty(), "the newly selected game was started");
+  }
+
   // A click on a row opens the page: no list, no toolbar beside it; "‹ Library" and Esc lead back.
   void rowClickOpensThePage() {
     FakeHub hub(QStringLiteral("a"));
