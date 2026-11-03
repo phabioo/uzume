@@ -6,6 +6,7 @@
 #include <QImageReader>
 #include <QLoggingCategory>
 #include <QRegularExpression>
+#include <atomic>
 
 Q_LOGGING_CATEGORY(lcPluginImage, "uzume.plugins.image")
 
@@ -119,7 +120,12 @@ QImage PluginImageProvider::requestImage(const QString& id, QSize* size, const Q
   PluginImageSource src;
   QString err;
   QImage img;
-  if (slash > 0 && m_sources->get(id.left(slash), src)) {
+  if (slash == 0) {
+    // Empty plugin id: the view lost its plugin. The QML side no longer asks; log the first one only.
+    static std::atomic<bool> loggedEmpty{false};
+    if (loggedEmpty.exchange(true)) return {};
+    err = QStringLiteral("empty plugin id");
+  } else if (slash > 0 && m_sources->get(id.left(slash), src)) {
     const QString path = resolve(src, id, &err);
     if (!path.isEmpty()) img = loadPng(path, &err, requestedSize, &m_budget, id.left(slash));
   } else {

@@ -1282,8 +1282,10 @@ void PluginsController::updateImageSources() {
 }
 
 QVariantMap PluginsController::slotTree(const QString& pluginId, const QString& slot) const {
-  if (previewUi_) return previewUiData_.value(QStringLiteral("trees")).toMap().value(pluginId + QLatin1Char('|') + slot).toMap();
-  return host_->uiTree(pluginId, slot);
+  QVariantMap tree = previewUi_ ? previewUiData_.value(QStringLiteral("trees")).toMap().value(pluginId + QLatin1Char('|') + slot).toMap()
+                                : host_->uiTree(pluginId, slot);
+  if (!tree.isEmpty()) tree.insert(QStringLiteral("_owner"), pluginId);  // PluginBlock resolves images against the tree's owner
+  return tree;
 }
 
 QString PluginsController::pluginIconUrl(const QString& id) const {
