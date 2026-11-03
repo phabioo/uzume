@@ -227,11 +227,11 @@ class RunRecapTest : public QObject {
     m = buildRecap(in);
     QCOMPARE(laneOf(m, kU1)->events.at(0).day, 2);
 
-    // A running run reaches today even without events; a paused one stops at its last update.
+    // An active run does not stretch to today; a paused one stops at its last update.
     in.zone = QTimeZone::utc();
     in.events.clear();
     in.run.status = "active";
-    QCOMPARE(buildRecap(in).days, 10);
+    QCOMPARE(buildRecap(in).days, 1);
     in.run.status = "paused";
     QCOMPARE(buildRecap(in).days, 2);  // updated 2026-10-02
     // No events at all: empty.
@@ -246,7 +246,7 @@ class RunRecapTest : public QObject {
     QCOMPARE(t.id, QString("playtime"));
     QCOMPARE(t.label, QString("PLAY TIME"));
     QCOMPARE(t.value, QString("62 h"));
-    QCOMPARE(t.sub, QString("over 3 days"));
+    QCOMPARE(t.sub, QString("over 1 day"));  // no event or screenshot: one play day, whatever the span
     in.run.playSeconds = 2700;
     QCOMPARE(buildRecap(in).tiles().at(3).value, QString("45 min"));
     // No play time known: the elapsed days instead, no second line.
@@ -269,6 +269,34 @@ class RunRecapTest : public QObject {
     QCOMPARE(m.lanes.size(), 3);  // Max, Lena (left), Guest (not a participant any more)
     QCOMPARE(laneOf(m, "u9")->name, QString("Guest"));
     QCOMPARE(m.catches, 2);
+  }
+
+  void playDaysCountDaysWithActivity() {
+    RecapInput in = baseInput();
+    in.run.status = "active";
+    in.run.playSeconds = 3600;
+    // All events on one day, "now" two days later: one play day, and the axis does not run to today.
+    in.now = QDateTime::fromString("2026-10-03T12:00:00Z", Qt::ISODate);
+    in.events = {ev(1, "2026-10-01T10:05:00Z", kU1, kSoul, "soullink.catch"), ev(2, "2026-10-01T18:00:00Z", kU2, kSoul, "soullink.catch")};
+    RecapModel m = buildRecap(in);
+    QCOMPARE(m.playDays, 1);
+    QCOMPARE(m.days, 1);
+    QCOMPARE(m.tiles().at(3).sub, QString("over 1 day"));
+    // Events on day 1 and day 3: two play days over a three day axis.
+    in.events = {ev(1, "2026-10-01T10:05:00Z", kU1, kSoul, "soullink.catch"), ev(2, "2026-10-03T10:05:00Z", kU1, kSoul, "soullink.badge")};
+    m = buildRecap(in);
+    QCOMPARE(m.playDays, 2);
+    QCOMPARE(m.days, 3);
+    QCOMPARE(m.tiles().at(3).sub, QString("over 2 days"));
+    QCOMPARE(m.toJson().value("play_days").toInt(), 2);
+    // A screenshot counts as activity on its day.
+    ScreenshotInfo s;
+    s.id = "s1";
+    s.userId = kU1;
+    s.userName = "Max";
+    s.createdAt = "2026-10-02T09:00:00Z";
+    in.screenshots = {s};
+    QCOMPARE(buildRecap(in).playDays, 3);
   }
 
   void variantAndJsonShape() {
