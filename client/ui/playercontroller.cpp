@@ -160,8 +160,9 @@ PlayerController::PlayerController(const Options& options, QObject* parent)
     saves_->snapshotActive(label, [done](const SaveSync::SnapshotResult& r) {
       using O = SaveSnapshotResult::Outcome;
       const auto outcome = r.kind == O::Ok ? PluginEmulationService::SnapshotOutcome::Ok
-                           : (r.kind == O::Blocked || r.kind == O::NotFound || r.kind == O::Offline) ? PluginEmulationService::SnapshotOutcome::NoSave
-                                                                                                    : PluginEmulationService::SnapshotOutcome::Failed;
+                           : r.kind == O::NotFound ? PluginEmulationService::SnapshotOutcome::NoSave
+                           : (r.kind == O::Blocked || r.kind == O::Offline) ? PluginEmulationService::SnapshotOutcome::Unavailable
+                                                                            : PluginEmulationService::SnapshotOutcome::Failed;
       done(outcome, r.message);
     });
   });

@@ -246,7 +246,7 @@ class PluginEmulationServiceTest : public QObject {
     sink = nullptr;
   }
 
-  void cheatsConsentDeniedIsNotRemembered() {
+  void cheatsConsentCancelIsPerRequest() {
     auto run = std::make_shared<FakeRun>();
     run->rules = {{"cheats", "logged"}};
     startGame(run);
@@ -256,10 +256,77 @@ class PluginEmulationServiceTest : public QObject {
     svc_->answerConsent(false);
     QVERIFY(svc_->consentRequest().isEmpty());
     QVERIFY(appCount("cheats.blocked") >= 1);
-    QCOMPARE(svc_->applyCheats("p.one", {poke()}).error, QStringLiteral("consent_denied"));
     QCOMPARE(svc_->cheatsOn(), 0);
     QVERIFY(snapshots_.isEmpty());
-    QCOMPARE(svc_->storedConsent(svc_->gameKey(), Kind::Cheats), Consent::Ask);  // Cancel is session-only
+    QCOMPARE(svc_->consent(Kind::Cheats), Consent::Ask);
+    QCOMPARE(svc_->storedConsent(svc_->gameKey(), Kind::Cheats), Consent::Ask);
+    // A second apply asks again; a third while the dialog is open does not stack another one.
+    QCOMPARE(svc_->applyCheats("p.one", {poke()}).error, QStringLiteral("consent_required"));
+    QTRY_VERIFY(!svc_->consentRequest().isEmpty());
+    QSignalSpy changed(svc_.get(), &PluginEmulationService::consentRequestChanged);
+    QCOMPARE(svc_->applyCheats("p.two", {poke()}).error, QStringLiteral("consent_required"));
+    QTest::qWait(50);
+    QCOMPARE(changed.count(), 0);  // the open question stays as it is
+    svc_->answerConsent(true);
+    QTRY_COMPARE(svc_->cheatsOn(), 1);
+  }
+
+  void mcpApplyAsksWithoutAPriorUserAction() {
+    auto run = std::make_shared<FakeRun>();
+    run->rules = {{"cheats", "logged"}};
+    startGame(run);
+    QCOMPARE(svc_->applyCheatsAs("mcp", {poke()}, false).error, QStringLiteral("consent_required"));
+    QTRY_VERIFY(!svc_->consentRequest().isEmpty());  // not queued behind a click
+  }
+
+  void consentGivenOutsideTheDialogStillTakesTheSnapshot() {
+    auto run = std::make_shared<FakeRun>();
+    run->rules = {{"cheats", "logged"}};
+    startGame(run);
+    svc_->noteUserAction();
+    QCOMPARE(svc_->applyCheats("p.one", {poke()}).error, QStringLiteral("consent_required"));
+    QTRY_VERIFY(!svc_->consentRequest().isEmpty());
+    svc_->answerConsent(false);
+    svc_->setConsent(Kind::Cheats, Consent::Allowed);  // settings / per-game toggle / debug tool
+    QVERIFY(snapshots_.isEmpty());
+    QVERIFY(svc_->applyCheats("p.one", {poke()}).error.isEmpty());
+    QTRY_COMPARE(svc_->cheatsOn(), 1);
+    QTRY_COMPARE(snapshots_, QStringList{QStringLiteral("Before cheats")});
+  }
+
+  void anOkSnapshotLeavesTheCheatsOn() {
+    auto run = std::make_shared<FakeRun>();
+    run->rules = {{"cheats", "logged"}};
+    startGame(run);
+    svc_->setConsent(Kind::Cheats, Consent::Allowed);
+    QVERIFY(svc_->applyCheats("p.one", {poke()}).error.isEmpty());
+    QTRY_COMPARE(snapshots_, QStringList{QStringLiteral("Before cheats")});
+    QTest::qWait(200);
+    QCOMPARE(svc_->cheatsOn(), 1);
+    QCOMPARE(appCount("cheats.blocked"), 0);  // no snapshot_failed drop
+    QVERIFY(notices_.isEmpty());
+    QCOMPARE(run->count("cheat.disabled"), 0);
+  }
+
+  void aTransientSnapshotMissIsAskedAgain() {
+    auto run = std::make_shared<FakeRun>();
+    run->rules = {{"cheats", "logged"}};
+    startGame(run);
+    bool unavailable = true;
+    svc_->setSnapshotFn([this, &unavailable](const QString& label, PluginEmulationService::SnapshotDone done) {
+      snapshots_ << label;
+      done(unavailable ? PluginEmulationService::SnapshotOutcome::Unavailable : PluginEmulationService::SnapshotOutcome::Ok, QString());
+    });
+    svc_->setConsent(Kind::Cheats, Consent::Allowed);
+    QVERIFY(svc_->applyCheats("p.one", {poke()}).error.isEmpty());
+    QTRY_COMPARE(snapshots_.size(), 1);
+    QTRY_COMPARE(svc_->cheatsOn(), 1);  // the cheats still go through
+    unavailable = false;
+    QVERIFY(svc_->applyCheats("p.one", {poke(), raw("c2", "08000201 CD")}).error.isEmpty());
+    QTRY_COMPARE(snapshots_.size(), 2);
+    QVERIFY(svc_->applyCheats("p.one", {poke()}).error.isEmpty());
+    QTest::qWait(100);
+    QCOMPARE(snapshots_.size(), 2);  // settled now
   }
 
   void formatsAndCodesAreChecked() {
