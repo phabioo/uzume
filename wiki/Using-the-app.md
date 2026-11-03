@@ -294,6 +294,7 @@ uzume-cli <command> ...            # run without arguments for the usage text
 | `UZUME_CREDENTIAL_STORE=memory` | Linux: skip the Secret Service and keep credentials in memory (tests, debugging) |
 | `UZUME_FORCE_RELAY=1` | Force the TURN relay for Sessions (testing; the CLI also has `--force-relay`) |
 | `UZUME_DISABLE_HW_RENDER=1` | Force the software rendering path of cores |
+| `UZUME_CORE_DEBUG_LOG=1` | Also log the debug-level messages of cores (dropped by default; identical repeated core messages are logged once per minute with a count) |
 | `UZUME_DISABLE_GPU_ENCODE=1` | Kill switch for GPU-direct encoding of shared Sessions ([ADR 0019](https://github.com/phabioo/uzume/blob/main/docs/adr/0019-gpu-direct-nvenc.md)); the Session encoder gets read-back frames |
 | `UZUME_DISABLE_ZERO_COPY=1` | Kill switch for the zero-copy game view on Windows ([ADR 0027](https://github.com/phabioo/uzume/blob/main/docs/adr/0027-gpu-paths.md)); the game view uses read-back frames. It does not disable GPU-direct QSV and AMF |
 | `UZUME_H264_ENCODER=<name>` | Force one H.264 encoder (for example `h264_nvenc` or `libx264`); keeps the readback path, also for `h264_nvenc`, so it serves as the baseline when comparing against GPU-direct |

@@ -18,6 +18,7 @@
 #include <cstdio>
 #include <cstring>
 
+#include "core_log_filter.h"
 #include "host_language.h"
 #include "hw_render.h"
 #include "vk_render.h"
@@ -30,48 +31,25 @@ constexpr int kSaveOpenAttempts = 5;      // an existing save file is opened up 
 constexpr unsigned kSaveOpenRetryMs = 300;  // ... 300 ms apart (about 1.2 s) before saving is blocked
 Q_LOGGING_CATEGORY(lcCore, "uzume.emulation.core")
 
-// The core repeats the same lines for every frame (OSD texts via SET_MESSAGE, debug lines): only the first
-// occurrence of each distinct message is reported, then every 1000th (with the count). false = suppress.
-// A core whose text keeps changing (counters, timestamps) produces endless "new" lines: at most kMaxNewPerSecond distinct new
-// lines are reported per second, the rest is counted and announced with the next reported line. The table of known
-// messages forgets the oldest entry when full instead of starting over, so repeats stay suppressed (PE-14).
-bool dedupeLog(QString& msg) {
-  constexpr int kMaxKnown = 256;
-  constexpr int kMaxNewPerSecond = 20;
-  static std::mutex m;
-  static QHash<QString, int> seen;
-  static QList<QString> order;  // insertion order, oldest first
-  static qint64 windowStartMs = 0;
-  static int windowNew = 0;
-  static int suppressed = 0;
-  std::lock_guard<std::mutex> lock(m);
-  if (auto it = seen.find(msg); it != seen.end()) {
-    const int n = it.value()++;
-    if (n == 0 || n % 1000 != 0) return false;
-    msg += QStringLiteral(" (repeated %1 times)").arg(n);
-    return true;
-  }
-  const qint64 now = QDateTime::currentMSecsSinceEpoch();
-  if (now - windowStartMs >= 1000) {
-    windowStartMs = now;
-    windowNew = 0;
-  }
-  if (windowNew >= kMaxNewPerSecond) {
-    ++suppressed;
-    return false;
-  }
-  ++windowNew;
-  if (seen.size() >= kMaxKnown && !order.isEmpty()) seen.remove(order.takeFirst());
-  seen.insert(msg, 1);
-  order.append(msg);
-  if (suppressed > 0) {
-    msg += QStringLiteral(" (%1 other core messages suppressed)").arg(suppressed);
-    suppressed = 0;
-  }
-  return true;
+// Core log filter (issue 435): debug lines only with UZUME_CORE_DEBUG_LOG=1, identical repeats collapsed.
+CoreLogFilter& coreLogFilter() {
+  static CoreLogFilter f(uzume::env::get("UZUME_CORE_DEBUG_LOG") == QLatin1String("1"));
+  return f;
 }
 
+// Same throttle for the OSD texts of RETRO_ENVIRONMENT_SET_MESSAGE(_EXT): false = suppress.
+bool dedupeLog(QString& msg) { return coreLogFilter().accept(CoreLogLevel::Info, msg, QDateTime::currentMSecsSinceEpoch()); }
+
 void RETRO_CALLCONV coreLog(enum retro_log_level level, const char* fmt, ...) {
+  CoreLogLevel lvl = CoreLogLevel::Debug;
+  switch (level) {
+    case RETRO_LOG_ERROR: lvl = CoreLogLevel::Error; break;
+    case RETRO_LOG_WARN: lvl = CoreLogLevel::Warn; break;
+    case RETRO_LOG_INFO: lvl = CoreLogLevel::Info; break;
+    default: break;
+  }
+  CoreLogFilter& filter = coreLogFilter();
+  if (!filter.wantsLevel(lvl)) return;  // before the (costly) formatting
   char buf[2048];
   va_list ap;
   va_start(ap, fmt);
@@ -79,11 +57,11 @@ void RETRO_CALLCONV coreLog(enum retro_log_level level, const char* fmt, ...) {
   va_end(ap);
   QString msg = QString::fromUtf8(buf).trimmed();
   if (msg.isEmpty()) return;
-  if (!dedupeLog(msg)) return;
-  switch (level) {
-    case RETRO_LOG_ERROR: qCWarning(lcCore).noquote() << "[error]" << msg; break;
-    case RETRO_LOG_WARN: qCWarning(lcCore).noquote() << msg; break;
-    case RETRO_LOG_INFO: qCInfo(lcCore).noquote() << msg; break;
+  if (!filter.accept(lvl, msg, QDateTime::currentMSecsSinceEpoch())) return;
+  switch (lvl) {
+    case CoreLogLevel::Error: qCWarning(lcCore).noquote() << "[error]" << msg; break;
+    case CoreLogLevel::Warn: qCWarning(lcCore).noquote() << msg; break;
+    case CoreLogLevel::Info: qCInfo(lcCore).noquote() << msg; break;
     default: qCDebug(lcCore).noquote() << msg; break;
   }
 }
