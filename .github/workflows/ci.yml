@@ -358,7 +358,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Set up Java (FVX launcher jar, issue #414)
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
@@ -493,7 +493,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Set up Java (FVX launcher jar, issue #414)
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
@@ -724,7 +724,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Set up Java (FVX launcher jar, issue #414)
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
